@@ -1,0 +1,41 @@
+.login-container {
+  min-height: 100vh;
+}
+
+.login-image {
+  background-image: url('https://investinelsalvador.gob.sv/catalogo/wp-content/uploads/2023/05/Para-logos-de-proveedores-17.jpg');
+  background-size: cover;
+  background-position: center;
+}
+
+.login-form-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f7f7f7;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+}
+
+
+
+
+.login-image-col {
+  background-image: url('../assets/new_cover_consortium.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  height: 100vh;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .login-image-col {
+    display: none;
+  }
+}
