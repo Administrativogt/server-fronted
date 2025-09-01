@@ -6,11 +6,13 @@ import {
   Input, InputNumber, Checkbox
 } from 'antd';
 import {
-  EditOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, ReloadOutlined
+  EditOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, ReloadOutlined, DownloadOutlined
 } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
+import * as XLSX from 'xlsx';
 import api from '../../api/axios';
-
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 const { Title } = Typography;
 const { TextArea } = Input;
 
@@ -37,6 +39,28 @@ type Reservation = {
 
 type Partner = { id: number; full_name: string };
 type Room = { id: number; name: string; price_per_hour: string | null };
+
+// ---- Para el reporte ----
+type ReportRow = {
+  id: number;
+  fecha: string;                 // 'YYYY-MM-DD'
+  sala: string;
+  usuario: string;
+  area: string | null;
+  equipo: string | null;
+  hora_inicio: string;           // 'HH:mm:ss'
+  hora_fin: string;              // 'HH:mm:ss'
+  duracion_horas: number;        // horas decimales
+  price_per_hour: number;        // USD
+  total_reserva: number;         // USD
+  is_shared_cost: boolean;
+  cantidad_personas: number;     // incluye solicitante
+  pago_por_persona: number;      // USD
+  shared_with?: number[] | null;
+  compartido_con?: string[];
+  state?: 0 | 1 | 2;      // NUEVO
+  estado?: string;  
+};
 
 const stateLabel = (s: 0|1|2) => (s === 0 ? 'Pendiente' : s === 1 ? 'Aceptada' : 'Rechazada');
 const stateColor  = (s: 0|1|2) => (s === 0 ? 'gold'     : s === 1 ? 'green'   : 'red');
@@ -81,34 +105,49 @@ export default function ReservationsList() {
   const [deleteRow, setDeleteRow] = useState<Reservation | null>(null);
   const [deleteReason, setDeleteReason] = useState('');
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      // quién soy y permisos
-      const [shareRes, approveRes] = await Promise.all([
-        api.get<{ canShare: boolean; user: { id: number; full_name: string } }>('/room-reservations/share/can'),
-        api.get<{ canApprove: boolean; isSuperuser: boolean }>('/room-reservations/approve/can'),
-      ]);
-      setMe(shareRes.data?.user || null);
-      setCanApprove(!!approveRes.data?.canApprove);
-      setIsSuperuser(!!approveRes.data?.isSuperuser);
+  // ---- Filtro de mes para reporte + spinner de descarga ----
+  const [reportMonth, setReportMonth] = useState<string>(() => {
+    const d = new Date();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    return `${d.getFullYear()}-${mm}`; // YYYY-MM
+  });
+  const [downloading, setDownloading] = useState(false);
 
-      // socios autorizados
-      const partnersRes = await api.get<Partner[]>('/room-reservations/team/users');
-      setPartners(partnersRes.data || []);
+const loadData = async () => {
+  setLoading(true);
+  try {
+    // 1) Permisos y usuario actual (en paralelo lo que se pueda)
+    const [shareRes, approveRes, partnersRes] = await Promise.all([
+      api.get<{ canShare: boolean; user: { id: number; full_name: string } }>('/room-reservations/share/can'),
+      api.get<{ canApprove: boolean; isSuperuser: boolean }>('/room-reservations/approve/can'),
+      api.get<Partner[]>('/room-reservations/team/users'),
+    ]);
 
-      // reservas (el backend limita por usuario si no es superuser)
-      const params: any = {};
-      if (stateFilter !== 'all') params.state = stateFilter;
-      const res = await api.get<Reservation[]>('/room-reservations', { params });
-      setRows(res.data);
-    } catch (err) {
-      console.error(err);
-      message.error('No se pudo cargar la lista.');
-    } finally {
-      setLoading(false);
-    }
-  };
+    // 2) Setear estado local con lo que regresa el backend
+    setMe(shareRes.data?.user || null);
+    setCanApprove(!!approveRes.data?.canApprove);
+    const isSuper = !!approveRes.data?.isSuperuser;
+    setIsSuperuser(isSuper);
+    setPartners(partnersRes.data || []);
+
+    // 3) Construir params para la lista
+    const params: any = {};
+    if (stateFilter !== 'all') params.state = stateFilter;
+
+    // 👇 CLAVE: si es superuser, pedir TODO al backend
+    if (isSuper) params.scope = 'all'; // el controller ya maneja scope=all
+
+    // 4) Traer reservas
+    const res = await api.get<Reservation[]>('/room-reservations', { params });
+    setRows(res.data);
+  } catch (err) {
+    console.error(err);
+    message.error('No se pudo cargar la lista.');
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   useEffect(() => { loadData(); }, [stateFilter]);
 
@@ -117,7 +156,6 @@ export default function ReservationsList() {
   const disabledTime = () => ({ disabledHours });
   const keepDateInTime = (date: Dayjs | undefined, t: Dayjs) =>
     (date || dayjs()).hour(t.hour()).minute(t.minute()).second(0).millisecond(0);
-
   // --- Acciones ---
   const doApprove = async (row: Reservation) => {
     try {
@@ -206,7 +244,6 @@ export default function ReservationsList() {
   const submitEdit = async () => {
     try {
       const v = await editForm.validateFields();
-      // validación rápida en cliente
       if (!v.end_hour.isAfter(v.init_hour)) {
         return message.error('La hora fin debe ser posterior a la hora inicio');
       }
@@ -254,7 +291,7 @@ export default function ReservationsList() {
       } else if (status === 403) {
         message.error('No autorizado para editar esta reservación.');
       } else if (err?.errorFields) {
-        // error de validación antd, ya mostró en el form
+        // antd ya marcó los campos
       } else {
         message.error('Error al actualizar.');
       }
@@ -275,7 +312,7 @@ export default function ReservationsList() {
     return rows.filter(r => r.request_user_id === me.id || r.user?.id === me.id);
   }, [rows, isSuperuser, onlyMine, me]);
 
-  // columnas con anchos y acciones fijas a la derecha
+  // columnas de la tabla principal
   const columns = [
     {
       title: 'Sala',
@@ -369,6 +406,185 @@ export default function ReservationsList() {
     },
   ];
 
+  // --------- DESCARGA DE EXCEL (Resumen Equipo → Área → Persona) ----------
+const downloadMonthlyReport = async () => {
+  setDownloading(true);
+  try {
+    const [year, mm] = reportMonth.split('-');
+    const { data } = await api.get<ReportRow[]>(
+      `/room-reservations/report/month/${year}/${mm}`,
+      { params: { state: 'all' } }
+    );
+
+    const dataset: ReportRow[] = (data ?? []).map(r => ({
+      ...r,
+      compartido_con: (r.compartido_con && r.compartido_con.length)
+        ? r.compartido_con
+        : Array.isArray(r.shared_with)
+          ? r.shared_with.map(id => partnersMap.get(id) || `ID ${id}`)
+          : [],
+    }));
+
+    type Key = string;
+    const byEquipo = new Map<Key, ReportRow[]>();
+    for (const r of dataset) {
+      const k = r.equipo || '';
+      byEquipo.set(k, (byEquipo.get(k) || []).concat(r));
+    }
+
+    const resumenRows: any[] = [];
+    const num = (n: number) => Number((n || 0).toFixed(2));
+    const pushEmpty = () => resumenRows.push({ Nivel: '', Nombre: '', 'Horas (dec)': '', 'Total (USD)': '', 'Compartido (detalle)': '' });
+
+    for (const [equipo, listEquipo] of Array.from(byEquipo.entries()).sort()) {
+      let horasEquipo = 0, totalEquipo = 0;
+      resumenRows.push({
+        Nivel: 'EQUIPO',
+        Nombre: equipo || '(Sin equipo)',
+        'Horas (dec)': '',
+        'Total (USD)': '',
+        'Compartido (detalle)': '',
+      });
+
+      const byArea = new Map<Key, ReportRow[]>();
+      for (const r of listEquipo) {
+        const k = r.area || '';
+        byArea.set(k, (byArea.get(k) || []).concat(r));
+      }
+
+      for (const [area, listArea] of Array.from(byArea.entries()).sort()) {
+        let horasArea = 0, totalArea = 0;
+        resumenRows.push({
+          Nivel: 'ÁREA',
+          Nombre: area || '(Sin área)',
+          'Horas (dec)': '',
+          'Total (USD)': '',
+          'Compartido (detalle)': '',
+        });
+
+        const byPersona = new Map<Key, ReportRow[]>();
+        for (const r of listArea) {
+          const k = r.usuario;
+          byPersona.set(k, (byPersona.get(k) || []).concat(r));
+        }
+
+        for (const [persona, listPersona] of Array.from(byPersona.entries()).sort()) {
+          const horasPersona = listPersona.reduce((s, r) => s + (r.duracion_horas || 0), 0);
+          const totalPersona = listPersona.reduce((s, r) => s + (r.total_reserva || 0), 0);
+          horasArea += horasPersona;
+          totalArea += totalPersona;
+
+          const detalleCompartido: string[] = [];
+          for (const reserva of listPersona) {
+            if (reserva.is_shared_cost && reserva.compartido_con?.length) {
+              const montoPorPersona = num(reserva.pago_por_persona || 0);
+              const porcentaje = num(100 / reserva.cantidad_personas);
+              const nombres = reserva.compartido_con.join(', ');
+              detalleCompartido.push(`Con: ${nombres} → ${porcentaje}% → $${montoPorPersona.toFixed(2)}`);
+            }
+          }
+
+          resumenRows.push({
+            Nivel: 'PERSONA',
+            Nombre: persona,
+            'Horas (dec)': num(horasPersona),
+            'Total (USD)': num(totalPersona),
+            'Compartido (detalle)': detalleCompartido.join(' | '),
+          });
+        }
+
+        resumenRows.push({
+          Nivel: 'SUBTOTAL ÁREA',
+          Nombre: area || '(Sin área)',
+          'Horas (dec)': num(horasArea),
+          'Total (USD)': num(totalArea),
+          'Compartido (detalle)': '',
+        });
+
+        horasEquipo += horasArea;
+        totalEquipo += totalArea;
+      }
+
+      resumenRows.push({
+        Nivel: 'SUBTOTAL EQUIPO',
+        Nombre: equipo || '(Sin equipo)',
+        'Horas (dec)': num(horasEquipo),
+        'Total (USD)': num(totalEquipo),
+        'Compartido (detalle)': '',
+      });
+
+      pushEmpty();
+    }
+
+    const totalHoras = dataset.reduce((s, r) => s + (r.duracion_horas || 0), 0);
+    const totalUSD = dataset.reduce((s, r) => s + (r.total_reserva || 0), 0);
+    resumenRows.push({
+      Nivel: 'TOTAL GENERAL',
+      Nombre: '',
+      'Horas (dec)': num(totalHoras),
+      'Total (USD)': num(totalUSD),
+      'Compartido (detalle)': '',
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const ws = workbook.addWorksheet('Resumen');
+
+    ws.columns = [
+      { header: 'Nivel', key: 'Nivel', width: 20 },
+      { header: 'Nombre', key: 'Nombre', width: 30 },
+      { header: 'Horas (dec)', key: 'Horas (dec)', width: 15 },
+      { header: 'Total (USD)', key: 'Total (USD)', width: 15 },
+      { header: 'Compartido (detalle)', key: 'Compartido (detalle)', width: 50 },
+    ];
+
+    ws.getRow(1).eachCell(cell => {
+      cell.font = { bold: true };
+      cell.alignment = { horizontal: 'center' };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFDDEEFF' },
+      };
+      cell.border = { bottom: { style: 'thin' } };
+    });
+
+    resumenRows.forEach((row) => {
+      const r = ws.addRow(row);
+
+      if (row.Nivel === 'EQUIPO') {
+        r.font = { bold: true };
+        r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F7FF' } };
+      } else if (row.Nivel === 'SUBTOTAL ÁREA') {
+        r.font = { bold: true };
+        r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } };
+      } else if (row.Nivel === 'SUBTOTAL EQUIPO') {
+        r.font = { bold: true };
+        r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDEBD0' } };
+      } else if (row.Nivel === 'TOTAL GENERAL') {
+        r.font = { bold: true };
+        r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4EDDA' } };
+      }
+    });
+
+    ws.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: { row: 1, column: ws.columnCount },
+    };
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    saveAs(blob, `reporte-salas-${reportMonth}.xlsx`);
+  } catch (e) {
+    console.error(e);
+    message.error('No fue posible generar el reporte.');
+  } finally {
+    setDownloading(false);
+  }
+};
+
+
   return (
     <div>
       <Title level={3}>Reservaciones</Title>
@@ -388,6 +604,30 @@ export default function ReservationsList() {
         />
         <Button icon={<ReloadOutlined />} onClick={loadData}>Refrescar</Button>
 
+        {/* ---- Filtros y descarga de reporte ---- */}
+        <Space style={{ marginLeft: 16 }}>
+          <span>Reporte (mes):</span>
+          <DatePicker
+            picker="month"
+            value={dayjs(reportMonth + '-01')}
+            onChange={(d) => {
+              if (!d) return;
+              setReportMonth(d.format('YYYY-MM'));
+            }}
+            allowClear={false}
+          />
+          <Tooltip title="Descargar Excel (Equipo → Área → Persona)">
+            <Button
+              type="primary"
+              icon={<DownloadOutlined />}
+              loading={downloading}
+              onClick={downloadMonthlyReport}
+            >
+              Descargar Excel
+            </Button>
+          </Tooltip>
+        </Space>
+
         {isSuperuser && (
           <Space style={{ marginLeft: 16 }}>
             <span>Solo mis reservas</span>
@@ -404,7 +644,6 @@ export default function ReservationsList() {
         pagination={{ pageSize: 10 }}
         tableLayout="fixed"
         sticky
-        // ancho horizontal grande para que la col fija siempre se vea
         scroll={{ x: 1520 }}
       />
 

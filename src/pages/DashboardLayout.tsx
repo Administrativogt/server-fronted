@@ -1,5 +1,4 @@
-// src/pages/DashboardLayout.tsx
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Layout,
   Menu,
@@ -23,6 +22,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import useAuthStore from '../auth/useAuthStore';
+import api from '../api/axios'; // 👈 IMPORTANTE: para consultar /report/can
 
 // Importa tus dos logos locales
 import logoLight from '../assets/logo-cosortium.png';
@@ -34,6 +34,9 @@ const DashboardLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [siderTheme, setSiderTheme] = useState<'light' | 'dark'>('dark');
 
+  // 🔐 Estado para controlar la visibilidad del reporte exclusivo
+  const [canSeeReport, setCanSeeReport] = useState<boolean | null>(null);
+
   // Tokens de tema para Header/Content
   const {
     token: { colorBgContainer, borderRadiusLG },
@@ -43,6 +46,20 @@ const DashboardLayout: React.FC = () => {
   const location = useLocation();
   const logout = useAuthStore((s) => s.logout);
   const username = useAuthStore((s) => s.username);
+
+  // ➜ Consultar si el usuario puede ver el reporte exclusivo
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const { data } = await api.get<{ canSeeReport: boolean }>('/room-reservations/report/can');
+        if (mounted) setCanSeeReport(!!data?.canSeeReport);
+      } catch {
+        if (mounted) setCanSeeReport(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -195,6 +212,23 @@ const DashboardLayout: React.FC = () => {
             >
               Listar reservas
             </Menu.Item>
+
+            {/* 👇 Solo mostrar a usuarios con permiso */}
+            {canSeeReport === true && (
+              <Menu.Item
+                key="/dashboard/reservaciones/reporte-exclusivo"
+                icon={<FileTextOutlined />}
+                onClick={() => navigate('/dashboard/reservaciones/reporte-exclusivo')}
+              >
+                Reporte exclusivo
+              </Menu.Item>
+            )}
+            {/* Si prefieres mostrar un item deshabilitado durante la carga:
+            {canSeeReport === null && (
+              <Menu.Item disabled icon={<FileTextOutlined />}>
+                Reporte exclusivo
+              </Menu.Item>
+            )} */}
           </Menu.SubMenu>
         </Menu>
       </Sider>

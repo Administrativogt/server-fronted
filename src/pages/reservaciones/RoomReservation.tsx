@@ -1,9 +1,12 @@
 import { Calendar, Badge, Modal, List, Skeleton, message } from 'antd';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
+import 'dayjs/locale/es';
 import utc from 'dayjs/plugin/utc';
 import { useEffect, useState } from 'react';
 import api from '../../api/axios';
+
+dayjs.locale('es');
 dayjs.extend(utc);
 
 interface ApiReservation {
@@ -23,14 +26,11 @@ function RoomReservation() {
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(dayjs());
 
-  // Calcula el rango de 2 meses atrás y el mes actual (puede cruzar de año)
   const minMonth = currentMonth.subtract(2, 'month').startOf('month');
   const maxMonth = currentMonth.endOf('month');
 
-  // Texto descriptivo para el usuario
-  const rangeText = `Mostrando reservaciones de ${minMonth.format('MMMM YYYY')} a ${maxMonth.format('MMMM YYYY')}`;
+  const rangeText = `Mostrando reservaciones de  ${maxMonth.format('MMMM YYYY')}`;
 
-  // Carga las reservaciones del mes actual seleccionado
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -50,36 +50,37 @@ function RoomReservation() {
     load();
   }, [currentMonth]);
 
-  // Permite navegar libremente, pero el rango de badges/modal se filtra abajo
   const handlePanelChange = (value: Dayjs) => {
     setCurrentMonth(value);
   };
 
-  // Solo muestra reservaciones en los días que están en el rango válido
   const getListData = (value: Dayjs) => {
     if (value.isBefore(minMonth, 'day') || value.isAfter(maxMonth, 'day')) {
       return [];
     }
     const dateStr = value.format('YYYY-MM-DD');
     return reservations.filter(
-      (r) => dayjs.utc(r.reservation_date).format('YYYY-MM-DD') === dateStr
+      (r) =>
+        dayjs.utc(r.reservation_date).local().format('YYYY-MM-DD') === dateStr
     );
   };
 
-  // Renderiza el badge solo en días dentro del rango válido
   const cellRender = (value: Dayjs) => {
     const listData = getListData(value);
     if (!listData.length) return null;
+
     return (
       <ul style={{ padding: 0, listStyle: 'none' }}>
         <li>
-          <Badge status="success" text="Existen reservaciones" />
+          <Badge
+            status="success"
+            text={`Existen reservaciones (${listData.length})`}
+          />
         </li>
       </ul>
     );
   };
 
-  // Solo permite abrir el modal para días en el rango
   const handleSelect = (value: Dayjs) => {
     if (value.isBefore(minMonth, 'day') || value.isAfter(maxMonth, 'day')) {
       message.info('Solo puedes ver reservaciones del rango mostrado');
@@ -97,10 +98,19 @@ function RoomReservation() {
     setSelectedDate(null);
   };
 
-  // Lista las reservaciones del día seleccionado
   const selectedDayReservations = reservations
-    .filter((r) => dayjs.utc(r.reservation_date).format('YYYY-MM-DD') === selectedDate)
+    .filter(
+      (r) =>
+        dayjs.utc(r.reservation_date).local().format('YYYY-MM-DD') ===
+        selectedDate
+    )
     .sort((a, b) => a.init_hour.localeCompare(b.init_hour));
+
+  // ---------- Título del modal en español “bonito” ----------
+  const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+  const selectedDateLabel = selectedDate
+    ? capitalize(dayjs(selectedDate).format('dddd, D [de] MMMM [de] YYYY'))
+    : '';
 
   return (
     <div>
@@ -108,6 +118,7 @@ function RoomReservation() {
       <div style={{ marginBottom: 12 }}>
         <b>{rangeText}</b>
       </div>
+
       {loading ? (
         <Skeleton active />
       ) : (
@@ -121,7 +132,7 @@ function RoomReservation() {
       )}
 
       <Modal
-        title={`Itinerario del ${selectedDate}`}
+        title={`Itinerario del ${selectedDateLabel}`}
         open={isModalOpen}
         onCancel={handleCancel}
         footer={null}

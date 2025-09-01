@@ -2,9 +2,9 @@ import { useNavigate } from 'react-router-dom';
 import { Row, Col, Form, Input, Button, Typography, message, Checkbox, Divider } from 'antd';
 import api from '../api/axios';
 import useAuthStore from '../auth/useAuthStore';
-import loginImage from '../assets/new_cover_consortium.jpg'; // ✅ Ruta a tu imagen
+import loginImage from '../assets/new_cover_consortium.jpg';
 
-import './Login.css'; // 👈 Estilos externos si prefieres separar
+import './Login.css';
 
 const { Title, Text, Link } = Typography;
 
@@ -15,11 +15,16 @@ function Login() {
 
   const onFinish = async (values: { username: string; password: string }) => {
     try {
-      const response = await api.post('/auth/login', values);
+      const transformedValues = {
+        ...values,
+        username: values.username.toUpperCase(), // ✅ Convertir a mayúsculas antes de enviar
+      };
+
+      const response = await api.post('/auth/login', transformedValues);
       const token = response.data.access_token;
 
       setToken(token);
-      setUsername(values.username);
+      setUsername(transformedValues.username);
 
       navigate('/dashboard');
     } catch (error) {
@@ -52,8 +57,9 @@ function Login() {
               label="Usuario"
               name="username"
               rules={[{ required: true, message: 'Ingrese su usuario' }]}
+              normalize={(value) => value?.toUpperCase()} // ✅ Convierte mientras escribe
             >
-              <Input size="large" placeholder="Ej. jgomez" />
+              <Input size="large" placeholder="Ej. JGOMEZ" />
             </Form.Item>
 
             <Form.Item
