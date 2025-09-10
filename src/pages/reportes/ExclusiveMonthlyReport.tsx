@@ -544,7 +544,7 @@ export default function ExclusiveMonthlyReport(): JSX.Element {
             bodyStyle={{ background: UI.kpiBg }}
           >
             <Row gutter={[12, 12]}>
-              <Col xs={12}><Statistic title="Total USD (asignado)" value={totalUSD} precision={2} prefix="$" valueStyle={{ color: UI.primary }} /></Col>
+              <Col xs={12}><Statistic title="Total USD (utilizado)" value={totalUSD} precision={2} prefix="$" valueStyle={{ color: UI.primary }} /></Col>
               <Col xs={12}><Statistic title="Total horas (asignado)" value={totalHoras} precision={2} valueStyle={{ color: UI.primary }} /></Col>
               <Col xs={12}><Statistic title="Reservas únicas" value={reservasUnicas} valueStyle={{ color: UI.primarySoft }} /></Col>
               <Col xs={12}><Statistic title="Equipos" value={equiposUnicos} valueStyle={{ color: UI.primarySoft }} /></Col>

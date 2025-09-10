@@ -14,26 +14,30 @@ import PrivateRoute from './routes/PrivateRoute';
 import DashboardLayout from './pages/DashboardLayout';
 import DashboardPage from './pages/DashboardPage';
 
-// Estilos de AG Grid (si los usas en otras vistas)
+// Estilos de AG Grid
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 
-// Páginas del módulo de cheques
+// Módulo de cheques
 import AutorizacionCheque from './pages/cheques/AutorizacionCheque';
 import LiquidacionCheque from './pages/cheques/LiquidacionCheque';
 import ChequesLiquidados from './pages/cheques/ChequesLiquidados';
 import GastosInmobiliarios from './pages/cheques/GastosInmobiliarios';
 import ChequesPendientes from './pages/cheques/ChequesPendientes';
 
-// Páginas del módulo de reservaciones
+// Módulo de reservaciones
 import RoomReservation from './pages/reservaciones/RoomReservation';
 import RoomReservationForm from './pages/reservaciones/RoomReservationForm';
 import RoomReservationList from './pages/reservaciones/RoomReservationList';
 
-// 📊 Reporte exclusivo (nuevo)
+// Reporte exclusivo
 import ExclusiveMonthlyReport from './pages/reportes/ExclusiveMonthlyReport';
+import Notificaciones from './pages/notifications/Notificaciones';
+import Documentos from './pages/notifications/Documentos';
 
-// 👇 Establece español como idioma global en dayjs
+// 🆕 Notificaciones
+
+// Establecer idioma global
 dayjs.locale('es');
 
 function App() {
@@ -61,19 +65,18 @@ function App() {
               <Route path="/dashboard/reservaciones" element={<RoomReservation />} />
               <Route path="/dashboard/reservaciones/crear" element={<RoomReservationForm />} />
               <Route path="/dashboard/reservaciones/listar" element={<RoomReservationList />} />
+              <Route path="/dashboard/reservaciones/reporte-exclusivo" element={<ExclusiveMonthlyReport />} />
 
-              {/* ⭐ Reporte mensual exclusivo (NUEVO) */}
-              <Route
-                path="/dashboard/reservaciones/reporte-exclusivo"
-                element={<ExclusiveMonthlyReport />}
-              />
+              {/* Notificaciones */}
+              <Route path="/dashboard/notificaciones" element={<Notificaciones />} />
+              <Route path="/dashboard/notificaciones/documentos" element={<Documentos />} />
             </Route>
           </Route>
 
           {/* Redirect raíz al dashboard */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-          {/* Fallback 404 → dashboard (evita pantallas en blanco) */}
+          {/* Fallback 404 */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </BrowserRouter>

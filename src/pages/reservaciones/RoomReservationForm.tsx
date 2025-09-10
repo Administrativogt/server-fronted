@@ -16,6 +16,42 @@ import { CalendarOutlined } from '@ant-design/icons';
 const { TextArea } = Input;
 const { Title } = Typography;
 
+/* ============
+   🔁 Mirror de constantes del backend
+   ============ */
+const normalize = (s: string) =>
+  s
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+
+const AUTHORIZED_NAMES = [
+  'ALFREDO RODRIGUEZ',
+  'ALVARO CASTELLANOS',
+  'ASTRID DOMÍNGUEZ',
+  'CRISTINA SANDOVAL',
+  'ELIAS ARRIAZA',
+  'FEDERICO ZELADA',
+  'FERNANDO GUERRA',
+  'LIC. DAVID ERALES JOP',
+  'LIONEL AGUILAR',
+  'MARIO ESTUARDO ARCHILA',
+  'MELISSA MORÁN',
+  'NINOSHKA URRUTIA',
+  'OLGA MELENDEZ',
+  'SALVADOR DEL VALLE',
+  'SANDRA DE ZEDAN',
+  'SOFÍA ESCRIBA',
+  'NUEVO SOCIO',
+].map(normalize);
+
+const AUTHORIZED_NAMES_SET = new Set(AUTHORIZED_NAMES);
+const isAuthorizedName = (fullName: string | undefined | null) =>
+  !!fullName && AUTHORIZED_NAMES_SET.has(normalize(fullName));
+
+/* ============ Tipos ============ */
 type MeetingType = 'team_meeting' | 'client_call' | 'urgent' | 'other';
 interface Room { id: number; name: string; price_per_hour: string | null }
 type Partner = { id: number; full_name: string; email: string };
@@ -58,7 +94,7 @@ export default function RoomReservationForm() {
   const [loadingCreate, setLoadingCreate] = useState(false);
   const [checking, setChecking] = useState(false);
   const [dayReservations, setDayReservations] = useState<FastMonthItem[]>([]);
-  const [canShareCost, setCanShareCost] = useState(false);
+  const [canShareCost, setCanShareCost] = useState<boolean>(false);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [me, setMe] = useState<{ id: number; full_name: string } | null>(null);
   const [created, setCreated] = useState<null | { date: string; init: string; end: string; roomId: number }>(null);
@@ -67,9 +103,7 @@ export default function RoomReservationForm() {
   const [notif, contextHolder] = notification.useNotification();
   const debounceRef = useRef<number | null>(null);
 
-  // 🔒: id incremental para que solo la ÚLTIMA verificación pueda mostrar toasts/estado
   const checkSeqRef = useRef(0);
-  // 🔔: un key para que el toast se reemplace en lugar de apilarse
   const NOTIF_KEY = 'availability-check';
 
   const navigate = useNavigate();
@@ -77,7 +111,6 @@ export default function RoomReservationForm() {
 
   const now = dayjs();
 
-  // watchers
   const wDate  = Form.useWatch('reservation_date', form);
   const wRoom  = Form.useWatch('room', form);
   const wInit  = Form.useWatch('init_hour', form);
@@ -86,7 +119,13 @@ export default function RoomReservationForm() {
 
   // carga inicial
   useEffect(() => {
-    if (!token) { setRooms([]); setPartners([]); setCanShareCost(false); return; }
+    if (!token) {
+      setRooms([]);
+      setPartners([]);
+      setCanShareCost(false);
+      setMe(null);
+      return;
+    }
 
     api.get<Room[]>('/rooms')
       .then(res => setRooms(res.data.filter(r => r.price_per_hour != null)))
@@ -97,14 +136,33 @@ export default function RoomReservationForm() {
 
     api.get('/users')
       .then(res => {
-      const mapped = res.data.map((u: any) => ({
-        id: u.id,
-        full_name: `${u.first_name} ${u.last_name}`,
-        email: u.email,
-      }));
-      setPartners(mapped);
+        const mapped = res.data.map((u: any) => ({
+          id: u.id,
+          full_name: `${u.first_name} ${u.last_name}`,
+          email: u.email,
+        }));
+        setPartners(mapped);
       })
       .catch(() => setPartners([]));
+
+    // usuario actual
+api.get('/auth/profile')
+  .then(res => {
+    const data = res?.data || {};
+    const fullName = data.full_name
+      ?? `${data.first_name ?? ''} ${data.last_name ?? ''}`.trim();
+
+    const meCandidate = { id: data.id, full_name: fullName };
+    setMe(meCandidate);
+
+    setCanShareCost(isAuthorizedName(fullName));
+  })
+  .catch(() => {
+    setMe(null);
+    setCanShareCost(false);
+  });
+
+
   }, [token, notif]);
 
   // reglas UI
@@ -123,7 +181,6 @@ export default function RoomReservationForm() {
 
   const getRoomName = (id?: number) => rooms?.find(r => r.id === id)?.name || `Sala ${id ?? ''}`;
 
-  // día/solapes
   const fetchDay = useCallback(async (date: Dayjs) => {
     try {
       setChecking(true);
@@ -158,88 +215,72 @@ export default function RoomReservationForm() {
     debounceRef.current = window.setTimeout(fn, ms);
   }, []);
 
-  // ✅ chequeo robusto: solo la última verificación puede actuar y el toast se reemplaza
-const checkForConflicts = useCallback(
-  async (opts?: { silent?: boolean }): Promise<boolean> => {
-    const rd = form.getFieldValue('reservation_date') as Dayjs | undefined;
-    const roomId = form.getFieldValue('room') as number | undefined;
-    const ih = form.getFieldValue('init_hour') as Dayjs | undefined;
-    const eh = form.getFieldValue('end_hour') as Dayjs | undefined;
+  const checkForConflicts = useCallback(
+    async (opts?: { silent?: boolean }): Promise<boolean> => {
+      const rd = form.getFieldValue('reservation_date') as Dayjs | undefined;
+      const roomId = form.getFieldValue('room') as number | undefined;
+      const ih = form.getFieldValue('init_hour') as Dayjs | undefined;
+      const eh = form.getFieldValue('end_hour') as Dayjs | undefined;
 
-    const formatted = {
-      room_id: roomId,
-      date: rd?.format('YYYY-MM-DD'),
-      start: ih?.format('HH:mm'),
-      end: eh?.format('HH:mm'),
-    };
+      const formatted = {
+        room_id: roomId,
+        date: rd?.format('YYYY-MM-DD'),
+        start: ih?.format('HH:mm'),
+        end: eh?.format('HH:mm'),
+      };
 
-    console.log('🛠️ Verificando disponibilidad con:', formatted);
+      if (!rd || !roomId || !ih || !eh) return false;
+      if (!eh.isAfter(ih)) return false;
+      if (eh.diff(ih, 'minute') < MIN_DURATION_MIN) return false;
 
-    // ❌ Si falta algún dato esencial, salimos
-    if (!rd || !roomId || !ih || !eh) {
-      console.warn('⚠️ Faltan datos para verificar disponibilidad');
-      return false;
-    }
+      const mySeq = ++checkSeqRef.current;
 
-    if (!eh.isAfter(ih)) return false;
-    if (eh.diff(ih, 'minute') < MIN_DURATION_MIN) return false;
-
-    const mySeq = ++checkSeqRef.current;
-
-    try {
-      const { data } = await api.get('/room-reservations/check-availability', {
-        params: {
-          room_id: roomId,
-          date: formatted.date,
-          start: formatted.start,
-          end: formatted.end,
-        },
-      });
-
-      if (mySeq !== checkSeqRef.current) return false;
-
-      if (!data.available) {
-        const conflictMessage = {
-          message: 'Horario no disponible',
-          description: `No hay horario disponible en la sala "${getRoomName(roomId)}" el ${formatted.date} de ${fmtHM(data.conflict.init_hour)} a ${fmtHM(data.conflict.end_hour)}.`,
-        };
-        console.warn('❌ Conflicto detectado:', data.conflict);
-        setCurrentConflict(conflictMessage);
-        if (!opts?.silent) {
-          notif.warning({ key: NOTIF_KEY, ...conflictMessage, duration: 4 });
-        }
-        return true;
-      }
-
-      console.log('✅ Horario disponible');
-      setCurrentConflict(null);
-      if (!opts?.silent) {
-        notif.success({
-          key: NOTIF_KEY,
-          message: 'Horario disponible',
-          description: `La sala "${getRoomName(roomId)}" está libre de ${formatted.start} a ${formatted.end}.`,
-          duration: 3,
+      try {
+        const { data } = await api.get('/room-reservations/check-availability', {
+          params: {
+            room_id: roomId,
+            date: formatted.date,
+            start: formatted.start,
+            end: formatted.end,
+          },
         });
+
+        if (mySeq !== checkSeqRef.current) return false;
+
+        if (!data.available) {
+          const conflictMessage = {
+            message: 'Horario no disponible',
+            description: `No hay horario disponible en la sala "${getRoomName(roomId)}" el ${formatted.date} de ${fmtHM(data.conflict.init_hour)} a ${fmtHM(data.conflict.end_hour)}.`,
+          };
+          setCurrentConflict(conflictMessage);
+          if (!opts?.silent) {
+            notif.warning({ key: NOTIF_KEY, ...conflictMessage, duration: 4 });
+          }
+          return true;
+        }
+
+        setCurrentConflict(null);
+        if (!opts?.silent) {
+          notif.success({
+            key: NOTIF_KEY,
+            message: 'Horario disponible',
+            description: `La sala "${getRoomName(roomId)}" está libre de ${formatted.start} a ${formatted.end}.`,
+            duration: 3,
+          });
+        }
+        return false;
+      } catch {
+        return false;
       }
-      return false;
+    },
+    [form, notif, rooms]
+  );
 
-    } catch (err) {
-      console.error('❌ Error al verificar disponibilidad:', err);
-      return false;
-    }
-  },
-  [form, notif, rooms]
-);
+  useEffect(() => {
+    if (!wDate || !wRoom || !wInit || !wEnd) return;
+    debounce(() => { void checkForConflicts({ silent: true }); }, 300);
+  }, [wDate, wRoom, wInit, wEnd, debounce, checkForConflicts]);
 
-
-  // chequeo silencioso al cambiar valores clave
-useEffect(() => {
-  if (!wDate || !wRoom || !wInit || !wEnd) return;
-  debounce(() => { void checkForConflicts({ silent: true }); }, 300);
-}, [wDate, wRoom, wInit, wEnd, debounce, checkForConflicts]);
-
-
-  // mini agenda del día por sala
   const dayByRoom = useMemo(() => {
     if (!wRoom) return [];
     return dayReservations
@@ -247,10 +288,16 @@ useEffect(() => {
       .sort((a, b) => a.init_hour.localeCompare(b.init_hour));
   }, [dayReservations, wRoom]);
 
+  const authorizedPartners = useMemo(() => {
+    return partners.filter(p => isAuthorizedName(p.full_name) && (!me || p.id !== me.id));
+  }, [partners, me]);
+
   const obtenerEmailsDeParticipantes = (): string[] => {
     const selectedIds: number[] = form.getFieldValue('shared_with') || [];
-    const emails = partners.filter(p => selectedIds.includes(p.id)).map(p => p.email).filter(Boolean);
-    return emails;
+    return partners
+      .filter(p => selectedIds.includes(p.id))
+      .map(p => p.email)
+      .filter(Boolean);
   };
 
   const onFinish = async (values: FormValues) => {
@@ -278,7 +325,6 @@ useEffect(() => {
       shared_with: values.is_shared_cost ? (values.shared_with || []) : undefined,
       room_id: values.room,
       user_id: values.user_id,
-
     };
 
     try {
@@ -338,6 +384,12 @@ useEffect(() => {
     },
   ], [form]);
 
+  useEffect(() => {
+    if (!wShare) {
+      form.setFieldsValue({ shared_with: [] });
+    }
+  }, [wShare, form]);
+
   if (created) {
     const roomName = getRoomName(created.roomId);
     return (
@@ -375,10 +427,9 @@ useEffect(() => {
                     location: roomName,
                     startDateTime: form.getFieldValue('init_hour'),
                     endDateTime: form.getFieldValue('end_hour'),
-                    attendeesEmails: partners
-                      .filter(p => (form.getFieldValue('shared_with') || []).includes(p.id))
-                      .map(p => p.email)
-                      .filter(Boolean),
+                    attendeesEmails: (form.getFieldValue('shared_with') || [])
+                      .map((id: number) => partners.find(p => p.id === id)?.email)
+                      .filter(Boolean) as string[],
                   })
                 }
               >
@@ -411,6 +462,7 @@ useEffect(() => {
             is_shared_cost: false,
             use_computer: false,
             user_projector: false,
+            shared_with: [],
           }}
         >
           <Row gutter={16}>
@@ -525,33 +577,34 @@ useEffect(() => {
           <Row gutter={16}>
             <Col xs={24} md={8}>
               <Form.Item
-              name="participants"
-              label="Cantidad de Participantes"
-              rules={[{ required: true, message: 'Ingrese un número' }]}
+                name="participants"
+                label="Cantidad de Participantes"
+                rules={[{ required: true, message: 'Ingrese un número' }]}
               >
-              <InputNumber min={1} max={200} style={{ width: '100%' }} />
+                <InputNumber min={1} max={200} style={{ width: '100%' }} />
               </Form.Item>
             </Col>
 
             <Col xs={24} md={16}>
               <Form.Item
-              name="user_id"
-              label="Reservar para"
-              rules={[{ required: true, message: 'Seleccione un usuario' }]}
+                name="user_id"
+                label="Reservar para"
+                rules={[{ required: true, message: 'Seleccione un usuario' }]}
               >
-              <Select<number>
-                showSearch
-                optionFilterProp="children"
-                placeholder="Selecciona a quién se le hará la reserva"
-              >
-                {partners.map(p => (
-                <Select.Option key={p.id} value={p.id}>
-                  {p.full_name}
-                </Select.Option>
-                ))}
-              </Select>
+                <Select<number>
+                  showSearch
+                  optionFilterProp="children"
+                  placeholder="Selecciona a quién se le hará la reserva"
+                >
+                  {partners.map(p => (
+                    <Select.Option key={p.id} value={p.id}>
+                      {p.full_name}
+                    </Select.Option>
+                  ))}
+                </Select>
               </Form.Item>
             </Col>
+
             <Col xs={24} md={16}>
               <Space size="large">
                 <Form.Item name="use_computer" valuePropName="checked">
@@ -595,13 +648,11 @@ useEffect(() => {
                           maxTagCount="responsive"
                           allowClear
                         >
-                          {partners
-                            .filter(p => (me ? p.id !== me.id : true))
-                            .map(p => (
-                              <Select.Option key={p.id} value={p.id}>
-                                {p.full_name}
-                              </Select.Option>
-                            ))}
+                          {authorizedPartners.map(p => (
+                            <Select.Option key={p.id} value={p.id}>
+                              {p.full_name}
+                            </Select.Option>
+                          ))}
                         </Select>
                       </Form.Item>
                     ) : null
@@ -631,7 +682,6 @@ useEffect(() => {
               </Button>
               <Button
                 onClick={async () => {
-                  // opcional: limpiar cualquier toast previo
                   notif.destroy(NOTIF_KEY);
                   await checkForConflicts({ silent: false });
                 }}
@@ -641,7 +691,6 @@ useEffect(() => {
             </Space>
           </Form.Item>
 
-          {/* Mini Agenda del día para la sala seleccionada */}
           <Divider />
           <Title level={5} style={{ marginBottom: 8 }}>
             <CalendarOutlined /> Agenda del día — {wDate ? wDate.format('DD/MM/YYYY') : 'sin fecha'} {wRoom ? `· ${getRoomName(wRoom)}` : ''}
