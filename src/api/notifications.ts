@@ -15,6 +15,7 @@ export interface NotificationDto {
   deliverTo?: { id: number; first_name?: string; last_name?: string; email?: string } | null;
   recepDelivery?: { id: number; first_name?: string; last_name?: string } | null;
   state?: number;
+  creationPlace?: number;
 }
 
 export interface HallDto {
@@ -25,6 +26,7 @@ export interface HallDto {
 export interface ProvenienceDto {
   id: number;
   name: string;
+  halls?: HallDto[];
 }
 
 //
@@ -105,8 +107,36 @@ export async function fetchProveniences(): Promise<ProvenienceDto[]> {
   return data;
 }
 
-
 export async function fetchPlaces(): Promise<{ id: number; name: string }[]> {
   const { data } = await api.get("/notifications/places");
+  return data;
+}
+
+//
+// 📌 Salas por entidad
+//
+export async function fetchHallsByProvenience(provenienceId: number): Promise<HallDto[]> {
+  const { data } = await api.get("/notifications/halls", {
+    params: { provenience: provenienceId },
+  });
+  return data;
+}
+
+//
+// 📌 Crear entidad y sala
+//
+export interface CreateProveniencePayload {
+  name: string;
+  halls?: number[];
+  hallName?: string;
+}
+
+export async function createProvenience(payload: CreateProveniencePayload): Promise<ProvenienceDto> {
+  const { data } = await api.post("/notifications/proveniences", payload);
+  return data;
+}
+
+export async function createHallForProvenience(payload: { provenienceId: number; name: string }): Promise<HallDto> {
+  const { data } = await api.post("/notifications/halls", payload);
   return data;
 }

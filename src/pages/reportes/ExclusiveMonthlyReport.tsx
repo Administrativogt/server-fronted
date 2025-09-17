@@ -214,254 +214,182 @@ export default function ExclusiveMonthlyReport(): JSX.Element {
   };
 
   // ===== Excel premium: paisaje, encabezado impreso, bordes fuertes, logo fijo, etc.
-  const exportExcel = async () => {
-    if (!rows.length) return message.info('No hay datos para exportar');
-    setDownloading(true);
-    try {
-      type K = string;
-      const byEquipo = new Map<K, RowWithPct[]>();
-      rows.forEach(r => {
-        byEquipo.set(r.equipo!, (byEquipo.get(r.equipo!) || []).concat(r));
-      });
+const exportExcel = async () => {
+  if (!rows.length) return message.info("No hay datos para exportar");
+  setDownloading(true);
 
-      const book = new ExcelJS.Workbook();
-      const ws = book.addWorksheet('Reporte');
+  try {
+    const book = new ExcelJS.Workbook();
+    const ws = book.addWorksheet("Reporte");
 
-      // 10 columnas (sin Estado)
-      ws.columns = [
-        { key: 'nivel', width: 20 },
-        { key: 'nombre', width: 44 },
-        { key: 'sala', width: 20 },
-        { key: 'fecha', width: 12 },
-        { key: 'inicio', width: 10 },
-        { key: 'fin', width: 10 },
-        { key: 'horas', width: 12 },
-        { key: 'pago', width: 16 },
-        { key: 'participacion', width: 18 },
-        { key: 'compartio', width: 50 },
-      ];
+    ws.columns = [
+      { key: "equipo", width: 25 },
+      { key: "area", width: 25 },
+      { key: "usuario", width: 40 },
+      { key: "horas", width: 12 },
+      { key: "pago", width: 16 },
+    ];
 
-      ws.pageSetup = {
-        orientation: 'landscape',
-        fitToPage: true,
-        fitToWidth: 1,
-        fitToHeight: 0,
-        margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0.1, footer: 0.1 },
-      };
+    const COLORS = {
+      bannerBg: "FF002060",   // Azul corporativo
+      bannerFont: "FFFFFFFF", // Blanco
+      equipoBg: "FFED7D31",   // Naranja fuerte
+      areaBg: "FFFCE4D6",     // Naranja suave
+      totalBg: "FFD4EDDA",    // Verde claro
+      border: "FF000000",     // Negro
+    };
 
-      // Banner 2 filas (A1:J2) con logo fijo
-      ws.getRow(1).height = 32;
-      ws.getRow(2).height = 28;
-      ws.mergeCells(1, 1, 2, 10);
-      const monthTitle = reportMonth.format('MMMM YYYY').toUpperCase();
-      const titleCell = ws.getCell('A1');
-      titleCell.value = `REPORTE DE USO DE SALAS — ${monthTitle}`;
-      titleCell.font = { bold: true, size: 16, color: { argb: EXCEL.titleFont } };
-      titleCell.alignment = { vertical: 'middle', horizontal: 'left' };
-      for (let r = 1; r <= 2; r++) for (let c = 1; c <= 10; c++)
-        ws.getCell(r, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: EXCEL.titleBg } };
-      try {
-        const base64 = await fetchAsBase64(reportLogo);
-        const imgId = book.addImage({ base64, extension: 'png' });
-        ws.addImage(imgId, { tl: { col: 8.1, row: 0.22 }, ext: { width: 280, height: 58 }, editAs: 'absolute' });
-      } catch {}
+    const fmtNum = (n: number) => Number((n ?? 0).toFixed(2));
+    const money = (n: number) => `$${fmtNum(n).toFixed(2)}`;
 
-      // Encabezado (fila 3)
-      const header = ws.addRow({
-        nivel: 'Nivel',
-        nombre: 'Equipo / Área / Nombre',
-        sala: 'Sala',
-        fecha: 'Fecha',
-        inicio: 'Inicio',
-        fin: 'Fin',
-        horas: 'Horas',
-        pago: 'Pago (USD)',
-        participacion: 'Participación (%)',
-        compartio: 'Compartió con',
-      });
-      header.eachCell((cell) => {
-        cell.font = { bold: true };
-        cell.alignment = { horizontal: 'center' };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: EXCEL.headerBg } };
-        cell.border = {
-          top: { style: 'thin', color: { argb: EXCEL.border } },
-          left: { style: 'thin', color: { argb: EXCEL.border } },
-          right: { style: 'thin', color: { argb: EXCEL.border } },
-          bottom: { style: 'thin', color: { argb: EXCEL.border } },
+    // ==== Banner con logo (más ancho: A1:H2) ====
+    ws.mergeCells("A1:H2");
+    const monthTitle = reportMonth.format("MMMM YYYY").toUpperCase();
+    const titleCell = ws.getCell("A1");
+    titleCell.value = `REPORTE DE USO DE SALAS — ${monthTitle}`;
+    titleCell.font = { bold: true, size: 16, color: { argb: COLORS.bannerFont } };
+    titleCell.alignment = { vertical: "middle", horizontal: "left" };
+
+    for (let r = 1; r <= 2; r++) {
+      for (let c = 1; c <= 8; c++) { // 👈 hasta la col H
+        ws.getCell(r, c).fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: COLORS.bannerBg },
         };
+      }
+    }
+
+    try {
+      const base64 = await fetchAsBase64(reportLogo);
+      const imgId = book.addImage({ base64, extension: "png" });
+      ws.addImage(imgId, {
+        tl: { col: 6.5, row: 0.3 },      // 👈 mover a la derecha
+        ext: { width: 200, height: 55 }, // 👈 tamaño ajustado
+        editAs: "absolute",
       });
-      ws.views = [{ state: 'frozen', ySplit: 3 }];
-      // @ts-ignore
-      ws.pageSetup.printTitlesRow = '3:3';
+    } catch {
+      console.warn("⚠️ Logo no insertado");
+    }
 
-      // Helpers estilos
-      const borderThin = { style: 'thin' as const, color: { argb: EXCEL.border } };
-      const borderStrong = { style: 'medium' as const, color: { argb: EXCEL.lineStrong } };
-
-      const applyBorders = (row: ExcelJS.Row) => {
-        row.eachCell(cell => {
-          cell.border = { top: borderThin, left: borderThin, right: borderThin, bottom: borderThin };
-        });
+    // ==== Encabezados de tabla ====
+    const header = ws.addRow(["EQUIPO", "ÁREA", "USUARIO", "Horas", "Pago (USD)"]);
+    header.font = { bold: true, color: { argb: "FF000000" } };
+    header.alignment = { horizontal: "center", vertical: "middle" };
+    header.eachCell((cell) => {
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFFFFFFF" },
       };
-      const setNumFormats = (row: ExcelJS.Row) => {
-        row.getCell('horas').numFmt = '0.00';
-        row.getCell('pago').numFmt = '"$"#,##0.00';
-        row.getCell('participacion').numFmt = '0.00%';
-        row.getCell('horas').alignment = { horizontal: 'right' };
-        row.getCell('pago').alignment = { horizontal: 'right' };
-        row.getCell('participacion').alignment = { horizontal: 'right' };
+      cell.border = {
+        top: { style: "thin", color: { argb: COLORS.border } },
+        left: { style: "thin", color: { argb: COLORS.border } },
+        right: { style: "thin", color: { argb: COLORS.border } },
+        bottom: { style: "thin", color: { argb: COLORS.border } },
       };
-      const separator = (h = 6) => { const r = ws.addRow({}); r.height = h; };
+    });
 
-      let totalHorasAll = 0;
-      let totalUSDAll = 0;
+    let totalHorasAll = 0;
+    let totalUSDAll = 0;
 
-      // Equipo → Área → Nombre
-      for (const [equipo, listEquipo] of Array.from(new Map([...byEquipo].sort()))) {
-        // Encabezado EQUIPO con borde fuerte arriba
-        const rEq = ws.addRow({ nivel: 'EQUIPO', nombre: equipo });
-        rEq.font = { bold: true, size: 12 };
-        rEq.eachCell(c => {
-          c.border = { top: borderStrong, left: borderThin, right: borderThin, bottom: borderThin };
-        });
+    // ==== Agrupar por equipo ====
+    const byEquipo = new Map<string, RowWithPct[]>();
+    rows.forEach((r) => {
+      byEquipo.set(r.equipo!, (byEquipo.get(r.equipo!) || []).concat(r));
+    });
 
-        let horasEquipo = 0;
-        let usdEquipo = 0;
+    for (const [equipo, listEquipo] of Array.from(new Map([...byEquipo].sort()))) {
+      const byArea = new Map<string, RowWithPct[]>();
+      listEquipo.forEach((r) => {
+        byArea.set(r.area!, (byArea.get(r.area!) || []).concat(r));
+      });
 
-        const byArea = new Map<string, RowWithPct[]>();
-        listEquipo.forEach(r => byArea.set(r.area!, (byArea.get(r.area!) || []).concat(r)));
+      let horasEquipo = 0;
+      let usdEquipo = 0;
 
-        for (const [area, listArea] of Array.from(new Map([...byArea].sort()))) {
-          const rAr = ws.addRow({ nivel: 'ÁREA', nombre: area });
-          rAr.font = { italic: true };
-          applyBorders(rAr);
+      byArea.forEach((listArea) => {
+        horasEquipo += listArea.reduce((s, r) => s + (r.horas_persona || 0), 0);
+        usdEquipo += listArea.reduce((s, r) => s + (r.pago_persona_usd || 0), 0);
+      });
 
-          let horasArea = 0;
-          let usdArea = 0;
-
-          const byPersona = new Map<string, RowWithPct[]>();
-          listArea.forEach(r => byPersona.set(r.persona, (byPersona.get(r.persona) || []).concat(r)));
-
-          for (const [persona, listPersona] of Array.from(new Map([...byPersona].sort()))) {
-            const rNombre = ws.addRow({ nivel: '', nombre: persona });
-            rNombre.font = { bold: true };
-            applyBorders(rNombre);
-
-            let zebra = false;
-            listPersona
-              .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.hora_inicio.localeCompare(b.hora_inicio))
-              .forEach(r => {
-                const compartioStr = (r.compartio_con ?? []).map(x => x.nombre).join(', ');
-                const participacionRatio = (r.participacion_pct || 0) / 100;
-
-                const row = ws.addRow({
-                  nivel: '',
-                  nombre: '',
-                  sala: r.sala,
-                  fecha: dayjs(r.fecha).format('YYYY-MM-DD'),
-                  inicio: fmtTime(r.hora_inicio),
-                  fin: fmtTime(r.hora_fin),
-                  horas: r.horas_persona,
-                  pago: r.pago_persona_usd,
-                  participacion: participacionRatio,
-                  compartio: compartioStr,
-                });
-                zebra = !zebra;
-                row.eachCell((cell) => {
-                  cell.fill = {
-                    type: 'pattern',
-                    pattern: 'solid',
-                    fgColor: { argb: zebra ? EXCEL.zebraA : EXCEL.zebraB },
-                  };
-                });
-                setNumFormats(row);
-                applyBorders(row);
-              });
-
-            const horasPersona = listPersona.reduce((s, r) => s + (r.horas_persona || 0), 0);
-            const usdPersona   = listPersona.reduce((s, r) => s + (r.pago_persona_usd || 0), 0);
-
-            const rp = ws.addRow({
-              nivel: 'SUBTOTAL',
-              nombre: persona,
-              horas: fmtNum(horasPersona),
-              pago: fmtNum(usdPersona),
-            });
-            rp.font = { bold: true };
-            setNumFormats(rp);
-            rp.eachCell(c => {
-              c.border = { top: borderStrong, left: borderThin, right: borderThin, bottom: borderThin };
-            });
-
-            horasArea += horasPersona;
-            usdArea   += usdPersona;
-          }
-
-          const ra = ws.addRow({
-            nivel: 'SUBTOTAL ÁREA',
-            nombre: area,
-            horas: fmtNum(horasArea),
-            pago: fmtNum(usdArea),
-          });
-          ra.font = { bold: true };
-          setNumFormats(ra);
-          ra.eachCell(c => {
-            c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: EXCEL.subtotalAreaBg } };
-            c.border = { top: borderStrong, left: borderThin, right: borderThin, bottom: borderStrong };
-          });
-
-          horasEquipo += horasArea;
-          usdEquipo   += usdArea;
-
-          separator(4);
-        }
-
-        const re = ws.addRow({
-          nivel: 'SUBTOTAL EQUIPO',
-          nombre: equipo,
-          horas: fmtNum(horasEquipo),
-          pago: fmtNum(usdEquipo),
-        });
-        re.font = { bold: true };
-        setNumFormats(re);
-        re.eachCell(c => {
-          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: EXCEL.subtotalEquipoBg } };
-          c.border = { top: borderStrong, left: borderThin, right: borderThin, bottom: borderStrong };
-        });
-
-        totalHorasAll += horasEquipo;
-        totalUSDAll   += usdEquipo;
-
-        separator(8);
+      // ==== Fila de equipo ====
+      const rowEquipo = ws.addRow([equipo, "", "", fmtNum(horasEquipo), money(usdEquipo)]);
+      rowEquipo.font = { bold: true, color: { argb: COLORS.bannerFont } };
+      for (let c = 1; c <= 5; c++) {
+        rowEquipo.getCell(c).fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: COLORS.equipoBg },
+        };
       }
 
-      const rt = ws.addRow({
-        nivel: 'TOTAL GENERAL',
-        nombre: '',
-        horas: fmtNum(totalHorasAll),
-        pago: fmtNum(totalUSDAll),
-      });
-      rt.font = { bold: true, size: 12 };
-      setNumFormats(rt);
-      rt.eachCell(c => {
-        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: EXCEL.totalGeneralBg } };
-        c.border = { top: borderStrong, left: borderThin, right: borderThin, bottom: borderStrong };
-      });
+      for (const [area, listArea] of Array.from(new Map([...byArea].sort()))) {
+        const byUsuario = new Map<string, RowWithPct[]>();
+        listArea.forEach((r) => {
+          byUsuario.set(r.persona, (byUsuario.get(r.persona) || []).concat(r));
+        });
 
-      ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: ws.columnCount } };
+        let horasArea = 0;
+        let usdArea = 0;
 
-      const yy = reportMonth.year();
-      const mm = String(reportMonth.month() + 1).padStart(2, '0');
-      const buf = await book.xlsx.writeBuffer();
-      saveAs(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
-        `reporte-salas-${yy}-${mm}.xlsx`);
-    } catch (e) {
-      console.error(e);
-      message.error('No fue posible generar el Excel.');
-    } finally {
-      setDownloading(false);
+        byUsuario.forEach((listUsuario) => {
+          horasArea += listUsuario.reduce((s, r) => s + (r.horas_persona || 0), 0);
+          usdArea += listUsuario.reduce((s, r) => s + (r.pago_persona_usd || 0), 0);
+        });
+
+        // ==== Fila de área ====
+        const rowArea = ws.addRow(["", area, "", fmtNum(horasArea), money(usdArea)]);
+        rowArea.font = { bold: true, italic: true };
+        for (let c = 1; c <= 5; c++) {
+          rowArea.getCell(c).fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: COLORS.areaBg },
+          };
+        }
+
+        // ==== Usuarios ====
+        for (const [usuario, listUsuario] of Array.from(new Map([...byUsuario].sort()))) {
+          const horasUsuario = fmtNum(
+            listUsuario.reduce((s, r) => s + (r.horas_persona || 0), 0)
+          );
+          const usdUsuario = fmtNum(
+            listUsuario.reduce((s, r) => s + (r.pago_persona_usd || 0), 0)
+          );
+          ws.addRow(["", "", usuario, horasUsuario, money(usdUsuario)]);
+        }
+      }
+
+      totalHorasAll += horasEquipo;
+      totalUSDAll += usdEquipo;
     }
-  };
+
+    // ==== Total general ====
+    const totalRow = ws.addRow(["TOTAL GENERAL", "", "", totalHorasAll, money(totalUSDAll)]);
+    totalRow.font = { bold: true, size: 12 };
+    for (let c = 1; c <= 5; c++) {
+      totalRow.getCell(c).fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: COLORS.totalBg },
+      };
+    }
+
+    // ==== Descargar ====
+    const yy = reportMonth.year();
+    const mm = String(reportMonth.month() + 1).padStart(2, "0");
+    const buf = await book.xlsx.writeBuffer();
+    saveAs(new Blob([buf]), `reporte-salas-${yy}-${mm}.xlsx`);
+  } catch (e) {
+    console.error(e);
+    message.error("No fue posible generar el Excel.");
+  } finally {
+    setDownloading(false);
+  }
+};
+
+
 
   // ---- Guard rails
   if (canSee === false) return <Result status="403" title="403" subTitle="No tienes acceso a este reporte" />;
