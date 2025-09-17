@@ -15,8 +15,8 @@
 
     /* Linting */
     "strict": true,
-    "noUnusedLocals": false,           // 🔧 Desactivado para evitar errores en Vercel
-    "noUnusedParameters": false,       // 🔧 Desactivado para evitar errores en Vercel
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true

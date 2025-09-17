@@ -6,4 +6,15 @@ export default defineConfig({
   optimizeDeps: {
     include: ['antd'],
   },
+  server: {
+    host: true,
+    port: 5173,
+    allowedHosts: [
+      '.ngrok.app',
+      '.ngrok-free.app',
+      '.ngrok.io',
+      '.tunnelmole.net',
+      'localhost',
+    ],
+  },
 });
