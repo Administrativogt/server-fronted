@@ -65,18 +65,7 @@ const UI = {
   border: '#CAD0D4',
 };
 
-const EXCEL = {
-  titleBg: 'FF003B5C',
-  titleFont: 'FFFFFFFF',
-  headerBg: 'FFECECEC',
-  zebraA: 'FFF8FBFF',
-  zebraB: 'FFF2F6FA',
-  subtotalAreaBg: 'FFFFF3CD',
-  subtotalEquipoBg: 'FFFDEBD0',
-  totalGeneralBg: 'FFD4EDDA',
-  border: 'FFCAD0D4',
-  lineStrong: 'FF7E8B93',
-};
+
 
 export default function ExclusiveMonthlyReport(): JSX.Element {
   const [canSee, setCanSee] = useState<boolean | null>(null);
