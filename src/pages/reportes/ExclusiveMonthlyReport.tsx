@@ -1,8 +1,8 @@
 // src/pages/reportes/ExclusiveMonthlyReport.tsx
-import React, { useEffect, useMemo, useState, useCallback, type JSX } from 'react';
+import  { useEffect, useMemo, useState, useCallback, type JSX } from 'react';
 import {
   DatePicker, Select, Space, Button, Typography, Tooltip, message, Result, Spin,
-  Row, Col, Card, Statistic, Table, type TableProps, Divider
+  Row, Col, Card, Statistic, Table, type TableProps, 
 } from 'antd';
 import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
