@@ -143,6 +143,17 @@ const DashboardLayout: React.FC = () => {
               Documentos
             </Menu.Item>
           </Menu.SubMenu>
+          <Menu.SubMenu key="recibos" icon={<DollarOutlined />} title="Recibos de Caja">
+          <Menu.Item key="/dashboard/recibos" onClick={() => navigate('/dashboard/recibos')}>
+            Inicio
+          </Menu.Item>
+          <Menu.Item key="/dashboard/recibos/crear" onClick={() => navigate('/dashboard/recibos/crear')}>
+            Crear recibo
+          </Menu.Item>
+          <Menu.Item key="/dashboard/recibos/listar" onClick={() => navigate('/dashboard/recibos/listar')}>
+            Listar recibos
+          </Menu.Item>
+        </Menu.SubMenu>
         </Menu>
       </Sider>
 
