@@ -34,17 +34,16 @@ import ExclusiveMonthlyReport from './pages/reportes/ExclusiveMonthlyReport';
 import Notificaciones from './pages/notifications/Notificaciones';
 import Documentos from './pages/notifications/Documentos';
 
-//crear recibos
-
-
 // Módulo de recibos de caja
 import RecibosCaja from './pages/recibos/RecibosCaja';
 import CrearRecibo from './pages/recibos/CrearRecibo';
 import EditarRecibo from './pages/recibos/EditarRecibo';
 import ListarRecibos from './pages/recibos/ListarRecibos';
-// 🆕 Notificaciones
 
-// Establecer idioma global
+// 🆕 Requerimientos de dinero
+import MoneyReqList from './pages/money_req/List';
+import CreateMoneyRequirement from './pages/money_req/Create';
+
 dayjs.locale('es');
 
 function App() {
@@ -79,11 +78,14 @@ function App() {
               <Route path="/dashboard/notificaciones/documentos" element={<Documentos />} />
 
               {/* Recibos de Caja */}
-    {/* Recibos de Caja */}
               <Route path="/dashboard/recibos/listar" element={<ListarRecibos />} />
               <Route path="/dashboard/recibos/crear" element={<CrearRecibo />} />
               <Route path="/dashboard/recibos/:id" element={<RecibosCaja />} />
-              <Route path="/dashboard/recibos/editar/:id" element={<EditarRecibo mode="page" />} />              
+              <Route path="/dashboard/recibos/editar/:id" element={<EditarRecibo mode="page" />} />
+
+              {/* 🆕 Requerimientos de dinero */}
+              <Route path="/dashboard/money-req" element={<MoneyReqList />} />
+              <Route path="/dashboard/money-req/create" element={<CreateMoneyRequirement />} /> {/* 👈 nueva */}
             </Route>
           </Route>
 

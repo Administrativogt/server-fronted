@@ -1,9 +1,9 @@
-import { Calendar, Badge, Modal, List, Skeleton, message } from 'antd';
+import { Calendar, Badge, Modal, List, Skeleton, message, Select } from 'antd';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
 import 'dayjs/locale/es';
 import utc from 'dayjs/plugin/utc';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import api from '../../api/axios';
 
 dayjs.locale('es');
@@ -25,11 +25,18 @@ function RoomReservation() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(dayjs());
+  const [selectedRooms, setSelectedRooms] = useState<string[]>([]);
 
   const minMonth = currentMonth.subtract(2, 'month').startOf('month');
   const maxMonth = currentMonth.endOf('month');
 
-  const rangeText = `Mostrando reservaciones de  ${maxMonth.format('MMMM YYYY')}`;
+  const rangeText = `Mostrando reservaciones de ${maxMonth.format('MMMM YYYY')}`;
+
+  // 🔹 Obtener salas únicas dinámicamente
+  const roomOptions = useMemo(() => {
+    const uniqueRooms = Array.from(new Set(reservations.map(r => r.room_name)));
+    return uniqueRooms.map(r => ({ label: r, value: r }));
+  }, [reservations]);
 
   useEffect(() => {
     const load = async () => {
@@ -59,10 +66,14 @@ function RoomReservation() {
       return [];
     }
     const dateStr = value.format('YYYY-MM-DD');
-    return reservations.filter(
-      (r) =>
-        dayjs.utc(r.reservation_date).local().format('YYYY-MM-DD') === dateStr
-    );
+
+    return reservations.filter((r) => {
+      const matchDate =
+        dayjs.utc(r.reservation_date).local().format('YYYY-MM-DD') === dateStr;
+      const matchRoom =
+        selectedRooms.length === 0 || selectedRooms.includes(r.room_name);
+      return matchDate && matchRoom;
+    });
   };
 
   const cellRender = (value: Dayjs) => {
@@ -99,15 +110,18 @@ function RoomReservation() {
   };
 
   const selectedDayReservations = reservations
-    .filter(
-      (r) =>
+    .filter((r) => {
+      const matchDate =
         dayjs.utc(r.reservation_date).local().format('YYYY-MM-DD') ===
-        selectedDate
-    )
+        selectedDate;
+      const matchRoom =
+        selectedRooms.length === 0 || selectedRooms.includes(r.room_name);
+      return matchDate && matchRoom;
+    })
     .sort((a, b) => a.init_hour.localeCompare(b.init_hour));
 
-  // ---------- Título del modal en español “bonito” ----------
-  const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+  const capitalize = (s: string) =>
+    s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
   const selectedDateLabel = selectedDate
     ? capitalize(dayjs(selectedDate).format('dddd, D [de] MMMM [de] YYYY'))
     : '';
@@ -115,6 +129,23 @@ function RoomReservation() {
   return (
     <div>
       <h2>Reservación de Salas</h2>
+
+      {/* 🔹 Select de Filtros por Sala (más compacto) */}
+      <div style={{ marginBottom: 12 }}>
+        <b>Filtrar por sala:</b>
+        <Select
+          mode="multiple"
+          allowClear
+          placeholder="Selecciona sala"
+          size="small" // 🔑 compacto en altura
+          maxTagCount="responsive" // 🔑 colapsa etiquetas largas
+          style={{ width: '100%', maxWidth: 500, marginTop: 8 }} // 🔑 ancho limitado
+          options={roomOptions}
+          value={selectedRooms}
+          onChange={(val) => setSelectedRooms(val)}
+        />
+      </div>
+
       <div style={{ marginBottom: 12 }}>
         <b>{rangeText}</b>
       </div>

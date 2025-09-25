@@ -1,5 +1,4 @@
 // src/pages/reservaciones/RoomReservationForm.tsx
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button, Checkbox, Col, DatePicker, Form, Input, InputNumber,
   Row, Select, TimePicker, Typography, Spin, notification, Result, Space, Tag, Divider,
@@ -12,6 +11,7 @@ import api from '../../api/axios';
 import { ReservationsAPI } from '../../services/roomReservations';
 import { generarConvocatoriaICS } from '../../utils/generateTeamsInvite';
 import { CalendarOutlined } from '@ant-design/icons';
+import  { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const { TextArea } = Input;
 const { Title } = Typography;
@@ -98,7 +98,7 @@ export default function RoomReservationForm() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [me, setMe] = useState<{ id: number; full_name: string } | null>(null);
   const [created, setCreated] = useState<null | { date: string; init: string; end: string; roomId: number }>(null);
-  const [currentConflict, setCurrentConflict] = useState<{message: string; description: string} | null>(null);
+  const [currentConflict, setCurrentConflict] = useState<{ message: string; description: string } | null>(null);
 
   const [notif, contextHolder] = notification.useNotification();
   const debounceRef = useRef<number | null>(null);
@@ -111,10 +111,10 @@ export default function RoomReservationForm() {
 
   const now = dayjs();
 
-  const wDate  = Form.useWatch('reservation_date', form);
-  const wRoom  = Form.useWatch('room', form);
-  const wInit  = Form.useWatch('init_hour', form);
-  const wEnd   = Form.useWatch('end_hour', form);
+  const wDate = Form.useWatch('reservation_date', form);
+  const wRoom = Form.useWatch('room', form);
+  const wInit = Form.useWatch('init_hour', form);
+  const wEnd = Form.useWatch('end_hour', form);
   const wShare = Form.useWatch('is_shared_cost', form);
 
   // carga inicial
@@ -134,9 +134,16 @@ export default function RoomReservationForm() {
         notif.error({ message: 'Error', description: 'No se pudieron cargar las salas' });
       });
 
-    api.get('/users')
+    interface RawUser {
+      id: number;
+      first_name: string;
+      last_name: string;
+      email: string;
+    }
+    
+    api.get<RawUser[]>('/users')
       .then(res => {
-        const mapped = res.data.map((u: any) => ({
+        const mapped: Partner[] = res.data.map((u) => ({
           id: u.id,
           full_name: `${u.first_name} ${u.last_name}`,
           email: u.email,
@@ -146,28 +153,27 @@ export default function RoomReservationForm() {
       .catch(() => setPartners([]));
 
     // usuario actual
-api.get('/auth/profile')
-  .then(res => {
-    const data = res?.data || {};
-    const fullName = data.full_name
-      ?? `${data.first_name ?? ''} ${data.last_name ?? ''}`.trim();
+    api.get('/auth/profile')
+      .then(res => {
+        const data = res?.data || {};
+        const fullName = data.full_name
+          ?? `${data.first_name ?? ''} ${data.last_name ?? ''}`.trim();
 
-    const meCandidate = { id: data.id, full_name: fullName };
-    setMe(meCandidate);
+        const meCandidate = { id: data.id, full_name: fullName };
+        setMe(meCandidate);
 
-    setCanShareCost(isAuthorizedName(fullName));
-  })
-  .catch(() => {
-    setMe(null);
-    setCanShareCost(false);
-  });
-
-
+        setCanShareCost(isAuthorizedName(fullName));
+      })
+      .catch(() => {
+        setMe(null);
+        setCanShareCost(false);
+      });
   }, [token, notif]);
 
   // reglas UI
   const disabledDate = (d: Dayjs) => d.isBefore(dayjs().startOf('day'));
-  const disabledHours = useCallback(() => Array.from({ length: 24 }, (_, h) => h).filter(h => h < WORK_START || h > WORK_END), []);
+  const disabledHours = useCallback(() =>
+    Array.from({ length: 24 }, (_, h) => h).filter(h => h < WORK_START || h > WORK_END), []);
   const disabledTime = () => ({ disabledHours });
 
   const keepDate = (date: Dayjs | undefined, t: Dayjs) =>
@@ -175,11 +181,17 @@ api.get('/auth/profile')
 
   const setTimeKeepingDate = (field: 'init_hour' | 'end_hour') => (t: Dayjs | null) => {
     const date = form.getFieldValue('reservation_date') as Dayjs | undefined;
-    if (!t) { form.setFieldsValue({ [field]: undefined } as any); return; }
-    form.setFieldsValue({ [field]: keepDate(date, t) } as any);
+    if (!t) {
+      form.setFieldsValue({ [field]: undefined } as Partial<FormValues>);
+      return;
+    }
+    form.setFieldsValue({ [field]: keepDate(date, t) } as Partial<FormValues>);
   };
 
-  const getRoomName = (id?: number) => rooms?.find(r => r.id === id)?.name || `Sala ${id ?? ''}`;
+  const getRoomName = useCallback(
+    (id?: number) => rooms?.find(r => r.id === id)?.name || `Sala ${id ?? ''}`,
+    [rooms]
+  );
 
   const fetchDay = useCallback(async (date: Dayjs) => {
     try {
@@ -273,7 +285,7 @@ api.get('/auth/profile')
         return false;
       }
     },
-    [form, notif, rooms]
+    [form, notif, getRoomName]
   );
 
   useEffect(() => {
@@ -339,26 +351,29 @@ api.get('/auth/profile')
       });
 
       notif.success({ message: 'Reservación creada', description: 'La reservación fue creada con éxito.' });
-    } catch (err: any) {
-      const status = err?.response?.status;
-      const msg = err?.response?.data?.message;
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'response' in err) {
+        const response = (err as { response?: { status?: number; data?: { message?: string } } }).response;
+        const status = response?.status;
+        const msg = response?.data?.message;
 
-      if (status === 409) {
-        const list = await fetchDay(reservation_date);
-        const first = list.find(r =>
-          r.room_id === values.room &&
-          overlaps(payload.init_hour, payload.end_hour, r.init_hour, r.end_hour)
-        );
-        const desc = first
-          ? `No hay horario disponible en la sala "${getRoomName(values.room)}" de ${fmtHM(first.init_hour)} a ${fmtHM(first.end_hour)}. Cambia la hora o la sala.`
-          : (typeof msg === 'string' ? msg : 'Ya existe una reservación en ese horario y sala.');
-        notif.warning({ key: NOTIF_KEY, message: 'Horario no disponible', description: desc });
-      } else if (status === 400) {
-        notif.error({ message: 'Datos inválidos', description: msg || 'Datos inválidos en la reservación.' });
-      } else if (status === 401 || status === 403) {
-        notif.error({ message: 'No autorizado', description: 'Inicia sesión o verifica tus permisos.' });
-      } else {
-        notif.error({ message: 'Error', description: 'Error al crear la reservación.' });
+        if (status === 409) {
+          const list = await fetchDay(reservation_date);
+          const first = list.find(r =>
+            r.room_id === values.room &&
+            overlaps(payload.init_hour, payload.end_hour, r.init_hour, r.end_hour)
+          );
+          const desc = first
+            ? `No hay horario disponible en la sala "${getRoomName(values.room)}" de ${fmtHM(first.init_hour)} a ${fmtHM(first.end_hour)}. Cambia la hora o la sala.`
+            : (typeof msg === 'string' ? msg : 'Ya existe una reservación en ese horario y sala.');
+          notif.warning({ key: NOTIF_KEY, message: 'Horario no disponible', description: desc });
+        } else if (status === 400) {
+          notif.error({ message: 'Datos inválidos', description: typeof msg === 'string' ? msg : 'Datos inválidos en la reservación.' });
+        } else if (status === 401 || status === 403) {
+          notif.error({ message: 'No autorizado', description: 'Inicia sesión o verifica tus permisos.' });
+        } else {
+          notif.error({ message: 'Error', description: 'Error al crear la reservación.' });
+        }
       }
     } finally {
       setLoadingCreate(false);
@@ -372,7 +387,7 @@ api.get('/auth/profile')
   const rulesEnd = useMemo(() => [
     { required: true, message: 'Hora requerida' },
     {
-      validator: async (_: any, value?: Dayjs) => {
+      validator: async (_: unknown, value?: Dayjs) => {
         const ih = form.getFieldValue('init_hour') as Dayjs | undefined;
         const rd = form.getFieldValue('reservation_date') as Dayjs | undefined;
         if (!value || !ih || !rd) return Promise.resolve();
@@ -414,7 +429,7 @@ api.get('/auth/profile')
                   is_shared_cost: false,
                   use_computer: false,
                   user_projector: false,
-                } as any);
+                } as Partial<FormValues>);
               }}>
                 Crear otra
               </Button>
@@ -488,11 +503,15 @@ api.get('/auth/profile')
                 rules={[{ required: true, message: 'Seleccione una sala' }]}
               >
                 <Select<number>
+                  showSearch
+                  optionFilterProp="children"
                   placeholder="Selecciona una sala"
                   loading={checking}
                 >
                   {rooms.map(r => (
-                    <Select.Option key={r.id} value={r.id}>{r.name}</Select.Option>
+                    <Select.Option key={r.id} value={r.id}>
+                      {r.name}
+                    </Select.Option>
                   ))}
                 </Select>
               </Form.Item>
@@ -522,7 +541,7 @@ api.get('/auth/profile')
               >
                 <TimePicker
                   format="HH:mm"
-                  minuteStep={1}
+                  minuteStep={5} // ⏰ ahora pasos de 5 minutos
                   style={{ width: '100%' }}
                   disabledTime={disabledTime}
                   showNow
@@ -541,7 +560,7 @@ api.get('/auth/profile')
               >
                 <TimePicker
                   format="HH:mm"
-                  minuteStep={1}
+                  minuteStep={5} // ⏰ ahora pasos de 5 minutos
                   style={{ width: '100%' }}
                   disabledTime={disabledTime}
                   showNow
@@ -634,8 +653,8 @@ api.get('/auth/profile')
                         rules={[
                           { required: true, message: 'Seleccione al menos un socio' },
                           {
-                            validator: (_,_val: number[]) =>
-                              !_val || _val.length <= 3
+                            validator: (_: unknown, val?: number[]) =>
+                              !val || val.length <= 3
                                 ? Promise.resolve()
                                 : Promise.reject(new Error('Máximo 3 socios')),
                           },

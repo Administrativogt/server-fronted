@@ -13,6 +13,7 @@ import { saveAs } from 'file-saver';
 import api from '../../api/axios';
 // ⚠️ Verifica el nombre del archivo del logo:
 import reportLogo from '../../assets/logo-cosortium.png';
+import type { AxiosError } from 'axios';
 
 const { Title } = Typography;
 
@@ -93,45 +94,46 @@ export default function ExclusiveMonthlyReport(): JSX.Element {
   }, []);
 
   // ---- Load data
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const year = reportMonth.year();
-      const mm = String(reportMonth.month() + 1).padStart(2, '0');
-      const { data } = await api.get<ExplodedRow[]>(
-        `/room-reservations/report/month/${year}/${mm}`,
-        { params: { state: stateFilter, explode: 1 } }
+const loadData = useCallback(async () => {
+  setLoading(true);
+  try {
+    const year = reportMonth.year();
+    const mm = String(reportMonth.month() + 1).padStart(2, '0');
+    const { data } = await api.get<ExplodedRow[]>(
+      `/room-reservations/report/month/${year}/${mm}`,
+      { params: { state: stateFilter, explode: 1 } }
+    );
+
+    const normalized: ExplodedRow[] = (data ?? []).map(r => ({
+      ...r,
+      horas_persona: fmtNum(Number(r.horas_persona ?? 0)),
+      pago_persona_usd: fmtNum(Number(r.pago_persona_usd ?? 0)),
+      equipo: r.equipo ?? '(Sin equipo)',
+      area: r.area ?? '(Sin área)',
+    }));
+
+    // % por reserva (en base al USD asignado a cada persona)
+    const totalByReservation = new Map<number, number>();
+    for (const r of normalized) {
+      totalByReservation.set(
+        r.reservation_id,
+        fmtNum((totalByReservation.get(r.reservation_id) || 0) + r.pago_persona_usd)
       );
-
-      const normalized: ExplodedRow[] = (data ?? []).map(r => ({
-        ...r,
-        horas_persona: fmtNum(Number(r.horas_persona ?? 0)),
-        pago_persona_usd: fmtNum(Number(r.pago_persona_usd ?? 0)),
-        equipo: r.equipo ?? '(Sin equipo)',
-        area: r.area ?? '(Sin área)',
-      }));
-
-      // % por reserva (en base al USD asignado a cada persona)
-      const totalByReservation = new Map<number, number>();
-      for (const r of normalized) {
-        totalByReservation.set(
-          r.reservation_id,
-          fmtNum((totalByReservation.get(r.reservation_id) || 0) + r.pago_persona_usd)
-        );
-      }
-      const withPct: RowWithPct[] = normalized.map(r => {
-        const total = totalByReservation.get(r.reservation_id) || 0;
-        const participacion_pct = total > 0 ? (r.pago_persona_usd / total) * 100 : 0;
-        return { ...r, participacion_pct: fmtNum(participacion_pct) };
-      });
-
-      setRows(withPct);
-    } catch (e: any) {
-      message.error(e?.response?.data?.message || 'No fue posible cargar el reporte.');
-    } finally {
-      setLoading(false);
     }
-  }, [reportMonth, stateFilter]);
+    const withPct: RowWithPct[] = normalized.map(r => {
+      const total = totalByReservation.get(r.reservation_id) || 0;
+      const participacion_pct = total > 0 ? (r.pago_persona_usd / total) * 100 : 0;
+      return { ...r, participacion_pct: fmtNum(participacion_pct) };
+    });
+
+    setRows(withPct);
+  } catch (e: unknown) {
+    const err = e as AxiosError<{ message?: string }>;
+    message.error(err.response?.data?.message || "No fue posible cargar el reporte.");
+  } finally {
+    setLoading(false);
+  }
+}, [reportMonth, stateFilter]);
 
   useEffect(() => { if (canSee) loadData(); }, [canSee, loadData]);
 
@@ -140,6 +142,11 @@ export default function ExclusiveMonthlyReport(): JSX.Element {
   const totalHoras = useMemo(() => fmtNum(rows.reduce((s, r) => s + (r.horas_persona || 0), 0)), [rows]);
   const reservasUnicas = useMemo(() => new Set(rows.map(r => r.reservation_id)).size, [rows]);
   const equiposUnicos  = useMemo(() => new Set(rows.map(r => r.equipo || '(Sin equipo)')).size, [rows]);
+  const reservasCompartidas = useMemo(() => {
+  return new Set(
+    rows.filter(r => r.compartido).map(r => r.reservation_id)
+  ).size;
+}, [rows]);
 
   const equipoAgg = useMemo(() => {
     const map = new Map<string, { horas: number; usd: number }>();
@@ -465,9 +472,16 @@ const exportExcel = async () => {
           >
             <Row gutter={[12, 12]}>
               <Col xs={12}><Statistic title="Total USD (utilizado)" value={totalUSD} precision={2} prefix="$" valueStyle={{ color: UI.primary }} /></Col>
-              <Col xs={12}><Statistic title="Total horas (asignado)" value={totalHoras} precision={2} valueStyle={{ color: UI.primary }} /></Col>
-              <Col xs={12}><Statistic title="Reservas únicas" value={reservasUnicas} valueStyle={{ color: UI.primarySoft }} /></Col>
-              <Col xs={12}><Statistic title="Equipos" value={equiposUnicos} valueStyle={{ color: UI.primarySoft }} /></Col>
+              <Col xs={12}><Statistic title="Total horas (utilizado)" value={totalHoras} precision={2} valueStyle={{ color: UI.primary }} /></Col>
+              <Col xs={12}><Statistic title="No. de reservas en el mes" value={reservasUnicas} valueStyle={{ color: UI.primarySoft }} /></Col>
+              <Col xs={12}>
+  <Statistic 
+    title="No. Reservas compartidas" 
+    value={reservasCompartidas} 
+    valueStyle={{ color: UI.primarySoft }} 
+  />
+</Col>
+              <Col xs={12}><Statistic title="Equipos que hicieron reservas" value={equiposUnicos} valueStyle={{ color: UI.primarySoft }} /></Col>
             </Row>
           </Card>
         </Col>
