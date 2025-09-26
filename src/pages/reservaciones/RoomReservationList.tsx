@@ -1,18 +1,19 @@
 // src/pages/reservaciones/ReservationsList.tsx
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   Button, Modal, Select, Space, Table, Tag, Typography, message,
   notification, Tooltip, Switch, Form, DatePicker, TimePicker,
   Input, InputNumber, Checkbox
 } from 'antd';
 import {
-  EditOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, ReloadOutlined, DownloadOutlined
+  EditOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, 
+  ReloadOutlined, DownloadOutlined, SearchOutlined
 } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
-import * as XLSX from 'xlsx';
 import api from '../../api/axios';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+
 const { Title } = Typography;
 const { TextArea } = Input;
 
@@ -58,8 +59,16 @@ type ReportRow = {
   pago_por_persona: number;      // USD
   shared_with?: number[] | null;
   compartido_con?: string[];
-  state?: 0 | 1 | 2;      // NUEVO
+  state?: 0 | 1 | 2;
   estado?: string;  
+};
+
+type ReportSummaryRow = {
+  Nivel: string;
+  Nombre: string;
+  'Horas (dec)': number | string;
+  'Total (USD)': number | string;
+  'Compartido (detalle)': string;
 };
 
 const stateLabel = (s: 0|1|2) => (s === 0 ? 'Pendiente' : s === 1 ? 'Aceptada' : 'Rechazada');
@@ -70,6 +79,11 @@ export default function ReservationsList() {
   const [rows, setRows] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(false);
   const [stateFilter, setStateFilter] = useState<StateFilter>('all');
+
+  // Nuevos estados para los filtros
+  const [roomFilter, setRoomFilter] = useState<string>('');
+  const [dateFilter, setDateFilter] = useState<Dayjs | null>(null);
+  const [userFilter, setUserFilter] = useState<string>('');
 
   const [partners, setPartners] = useState<Partner[]>([]);
   const partnersMap = useMemo(() => new Map(partners.map(p => [p.id, p.full_name])), [partners]);
@@ -113,57 +127,106 @@ export default function ReservationsList() {
   });
   const [downloading, setDownloading] = useState(false);
 
-const loadData = async () => {
-  setLoading(true);
-  try {
-    // 1) Permisos y usuario actual (en paralelo lo que se pueda)
-    const [shareRes, approveRes, partnersRes] = await Promise.all([
-      api.get<{ canShare: boolean; user: { id: number; full_name: string } }>('/room-reservations/share/can'),
-      api.get<{ canApprove: boolean; isSuperuser: boolean }>('/room-reservations/approve/can'),
-      api.get<Partner[]>('/room-reservations/team/users'),
-    ]);
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      // 1) Permisos y usuario actual (en paralelo lo que se pueda)
+      const [shareRes, approveRes, partnersRes] = await Promise.all([
+        api.get<{ canShare: boolean; user: { id: number; full_name: string } }>('/room-reservations/share/can'),
+        api.get<{ canApprove: boolean; isSuperuser: boolean }>('/room-reservations/approve/can'),
+        api.get<Partner[]>('/room-reservations/team/users'),
+      ]);
 
-    // 2) Setear estado local con lo que regresa el backend
-    setMe(shareRes.data?.user || null);
-    setCanApprove(!!approveRes.data?.canApprove);
-    const isSuper = !!approveRes.data?.isSuperuser;
-    setIsSuperuser(isSuper);
-    setPartners(partnersRes.data || []);
+      // 2) Setear estado local con lo que regresa el backend
+      setMe(shareRes.data?.user || null);
+      setCanApprove(!!approveRes.data?.canApprove);
+      const isSuper = !!approveRes.data?.isSuperuser;
+      setIsSuperuser(isSuper);
+      setPartners(partnersRes.data || []);
 
-    // 3) Construir params para la lista
-    const params: any = {};
-    if (stateFilter !== 'all') params.state = stateFilter;
+      // 3) Construir params para la lista
+      const params: Record<string, string | number> = {};
+      if (stateFilter !== 'all') params.state = stateFilter;
 
-    // 👇 CLAVE: si es superuser, pedir TODO al backend
-    if (isSuper) params.scope = 'all'; // el controller ya maneja scope=all
+      // 👇 CLAVE: si es superuser, pedir TODO al backend
+      if (isSuper) params.scope = 'all'; // el controller ya maneja scope=all
 
-    // 4) Traer reservas
-    const res = await api.get<Reservation[]>('/room-reservations', { params });
-    setRows(res.data);
-  } catch (err) {
-    console.error(err);
-    message.error('No se pudo cargar la lista.');
-  } finally {
-    setLoading(false);
-  }
-};
+      // 4) Traer reservas
+      const res = await api.get<Reservation[]>('/room-reservations', { params });
+      setRows(res.data);
+    } catch (err) {
+      console.error(err);
+      message.error('No se pudo cargar la lista.');
+    } finally {
+      setLoading(false);
+    }
+  }, [stateFilter]);
 
+  useEffect(() => { loadData(); }, [loadData]);
 
-  useEffect(() => { loadData(); }, [stateFilter]);
+  // Función para limpiar todos los filtros
+  const clearFilters = () => {
+    setRoomFilter('');
+    setDateFilter(null);
+    setUserFilter('');
+  };
+
+  // Filtrar las reservas según los criterios seleccionados
+  const filteredRows = useMemo(() => {
+    let filtered = rows;
+
+    // Filtro por sala
+    if (roomFilter) {
+      filtered = filtered.filter(reservation => 
+        reservation.room?.name?.toLowerCase().includes(roomFilter.toLowerCase())
+      );
+    }
+
+    // Filtro por fecha
+    if (dateFilter) {
+      const filterDate = dateFilter.format('YYYY-MM-DD');
+      filtered = filtered.filter(reservation => 
+        reservation.reservation_date === filterDate
+      );
+    }
+
+    // Filtro por usuario
+    if (userFilter) {
+      filtered = filtered.filter(reservation => {
+        const userName = reservation.user ? 
+          `${reservation.user.first_name} ${reservation.user.last_name}`.toLowerCase() : 
+          '';
+        return userName.includes(userFilter.toLowerCase());
+      });
+    }
+
+    return filtered;
+  }, [rows, roomFilter, dateFilter, userFilter]);
+
+  // "Solo mis reservas" para superuser (aplicado después de los otros filtros)
+  const visibleRows = useMemo(() => {
+    let result = filteredRows;
+    if (isSuperuser && onlyMine && me) {
+      result = result.filter(r => r.request_user_id === me.id || r.user?.id === me.id);
+    }
+    return result;
+  }, [filteredRows, isSuperuser, onlyMine, me]);
 
   // Helpers de tiempo
   const disabledHours = () => Array.from({ length: 24 }, (_, h) => h).filter(h => h < 7 || h > 18);
   const disabledTime = () => ({ disabledHours });
   const keepDateInTime = (date: Dayjs | undefined, t: Dayjs) =>
     (date || dayjs()).hour(t.hour()).minute(t.minute()).second(0).millisecond(0);
+  
   // --- Acciones ---
   const doApprove = async (row: Reservation) => {
     try {
       await api.patch(`/room-reservations/${row.id}/accept`);
       notification.success({ message: 'Reservación aceptada' });
       setRows(prev => prev.map(r => (r.id === row.id ? { ...r, state: 1 } : r)));
-    } catch (err: any) {
-      message.error(err?.response?.data?.message || 'No se pudo aceptar.');
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      message.error(error?.response?.data?.message || 'No se pudo aceptar.');
     }
   };
 
@@ -172,6 +235,7 @@ const loadData = async () => {
     setRejectReason('');
     setRejectVisible(true);
   };
+
   const submitReject = async () => {
     if (!rejectRow) return;
     if (!rejectReason.trim()) return message.warning('Ingrese un motivo.');
@@ -179,8 +243,9 @@ const loadData = async () => {
       await api.patch(`/room-reservations/${rejectRow.id}/reject`, { reject_reason: rejectReason.trim() });
       notification.success({ message: 'Reservación rechazada' });
       setRows(prev => prev.map(r => (r.id === rejectRow.id ? { ...r, state: 2 } : r)));
-    } catch (err: any) {
-      message.error(err?.response?.data?.message || 'No se pudo rechazar.');
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      message.error(error?.response?.data?.message || 'No se pudo rechazar.');
     } finally {
       setRejectVisible(false);
       setRejectRow(null);
@@ -193,6 +258,7 @@ const loadData = async () => {
     setDeleteReason('');
     setDeleteVisible(true);
   };
+
   const submitDelete = async () => {
     if (!deleteRow) return;
     if (!deleteReason.trim()) return message.warning('Ingrese un motivo.');
@@ -200,8 +266,9 @@ const loadData = async () => {
       await api.delete(`/room-reservations/${deleteRow.id}`, { data: { delete_reason: deleteReason.trim() } });
       notification.success({ message: 'Reservación eliminada' });
       setRows(prev => prev.filter(r => r.id !== deleteRow.id));
-    } catch (err: any) {
-      message.error(err?.response?.data?.message || 'No se pudo eliminar.');
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      message.error(error?.response?.data?.message || 'No se pudo eliminar.');
     } finally {
       setDeleteVisible(false);
       setDeleteRow(null);
@@ -278,9 +345,16 @@ const loadData = async () => {
       ));
       setEditVisible(false);
       setEditing(null);
-    } catch (err: any) {
-      const status = err?.response?.status;
-      const msg = err?.response?.data?.message;
+    } catch (err: unknown) {
+      const error = err as { 
+        response?: { 
+          status?: number; 
+          data?: { message?: string } 
+        }; 
+        errorFields?: unknown[] 
+      };
+      const status = error?.response?.status;
+      const msg = error?.response?.data?.message;
       if (status === 409) {
         notification.warning({
           message: 'Horario no disponible',
@@ -290,7 +364,7 @@ const loadData = async () => {
         message.error(msg || 'Datos inválidos.');
       } else if (status === 403) {
         message.error('No autorizado para editar esta reservación.');
-      } else if (err?.errorFields) {
+      } else if (error?.errorFields) {
         // antd ya marcó los campos
       } else {
         message.error('Error al actualizar.');
@@ -306,13 +380,7 @@ const loadData = async () => {
   const canDeleteRow  = (r: Reservation) => (isSuperuser || isOwner(r)) && r.state === 0;
   const canApproveRow = (r: Reservation) => canApprove && r.state === 0;
 
-  // “Solo mis reservas” para superuser
-  const visibleRows = useMemo(() => {
-    if (!isSuperuser || !onlyMine || !me) return rows;
-    return rows.filter(r => r.request_user_id === me.id || r.user?.id === me.id);
-  }, [rows, isSuperuser, onlyMine, me]);
-
-  // columnas de la tabla principal
+  // Definición de columnas simplificada (sin inicio y fin)
   const columns = [
     {
       title: 'Sala',
@@ -320,29 +388,29 @@ const loadData = async () => {
       key: 'room',
       width: 180,
       ellipsis: true,
-      render: (_: any, r: Reservation) => r.room?.name || r.room_id,
+      render: (_: unknown, r: Reservation) => r.room?.name || r.room_id,
     },
     {
       title: 'Reservado por',
       key: 'user',
       width: 220,
       ellipsis: true,
-      render: (_: any, r: Reservation) =>
+      render: (_: unknown, r: Reservation) =>
         r.user ? `${r.user.first_name} ${r.user.last_name}` : '-',
     },
     {
-      title: 'Inicio',
-      key: 'start',
-      width: 160,
-      render: (_: any, r: Reservation) =>
-        `${dayjs(r.reservation_date).format('DD/MM/YYYY')} ${fmtTime(r.init_hour)}`,
+      title: 'Fecha',
+      key: 'date',
+      width: 120,
+      render: (_: unknown, r: Reservation) =>
+        dayjs(r.reservation_date).format('DD/MM/YYYY'),
     },
     {
-      title: 'Fin',
-      key: 'end',
-      width: 160,
-      render: (_: any, r: Reservation) =>
-        `${dayjs(r.reservation_date).format('DD/MM/YYYY')} ${fmtTime(r.end_hour)}`,
+      title: 'Horario',
+      key: 'schedule',
+      width: 140,
+      render: (_: unknown, r: Reservation) =>
+        `${fmtTime(r.init_hour)} - ${fmtTime(r.end_hour)}`,
     },
     {
       title: 'Motivo',
@@ -352,10 +420,17 @@ const loadData = async () => {
       ellipsis: true,
     },
     {
+      title: 'Participantes',
+      dataIndex: 'participants',
+      key: 'participants',
+      width: 100,
+      align: 'center' as const,
+    },
+    {
       title: 'Compartido con',
       key: 'shared',
       width: 240,
-      render: (_: any, r: Reservation) =>
+      render: (_: unknown, r: Reservation) =>
         r.is_shared_cost && r.shared_with?.length ? (
           <Space wrap>
             {r.shared_with.map(id => (
@@ -377,9 +452,8 @@ const loadData = async () => {
     {
       title: 'Acciones',
       key: 'actions',
-      fixed: 'right' as const,
-      width: 260,
-      render: (_: any, r: Reservation) => (
+      width: 200,
+      render: (_: unknown, r: Reservation) => (
         <Space>
           {canEditRow(r) && (
             <Tooltip title="Editar">
@@ -407,183 +481,188 @@ const loadData = async () => {
   ];
 
   // --------- DESCARGA DE EXCEL (Resumen Equipo → Área → Persona) ----------
-const downloadMonthlyReport = async () => {
-  setDownloading(true);
-  try {
-    const [year, mm] = reportMonth.split('-');
-    const { data } = await api.get<ReportRow[]>(
-      `/room-reservations/report/month/${year}/${mm}`,
-      { params: { state: 'all' } }
-    );
+  const downloadMonthlyReport = async () => {
+    setDownloading(true);
+    try {
+      const [year, mm] = reportMonth.split('-');
+      const { data } = await api.get<ReportRow[]>(
+        `/room-reservations/report/month/${year}/${mm}`,
+        { params: { state: 'all' } }
+      );
 
-    const dataset: ReportRow[] = (data ?? []).map(r => ({
-      ...r,
-      compartido_con: (r.compartido_con && r.compartido_con.length)
-        ? r.compartido_con
-        : Array.isArray(r.shared_with)
-          ? r.shared_with.map(id => partnersMap.get(id) || `ID ${id}`)
-          : [],
-    }));
+      const dataset: ReportRow[] = (data ?? []).map(r => ({
+        ...r,
+        compartido_con: (r.compartido_con && r.compartido_con.length)
+          ? r.compartido_con
+          : Array.isArray(r.shared_with)
+            ? r.shared_with.map(id => partnersMap.get(id) || `ID ${id}`)
+            : [],
+      }));
 
-    type Key = string;
-    const byEquipo = new Map<Key, ReportRow[]>();
-    for (const r of dataset) {
-      const k = r.equipo || '';
-      byEquipo.set(k, (byEquipo.get(k) || []).concat(r));
-    }
-
-    const resumenRows: any[] = [];
-    const num = (n: number) => Number((n || 0).toFixed(2));
-    const pushEmpty = () => resumenRows.push({ Nivel: '', Nombre: '', 'Horas (dec)': '', 'Total (USD)': '', 'Compartido (detalle)': '' });
-
-    for (const [equipo, listEquipo] of Array.from(byEquipo.entries()).sort()) {
-      let horasEquipo = 0, totalEquipo = 0;
-      resumenRows.push({
-        Nivel: 'EQUIPO',
-        Nombre: equipo || '(Sin equipo)',
-        'Horas (dec)': '',
-        'Total (USD)': '',
-        'Compartido (detalle)': '',
-      });
-
-      const byArea = new Map<Key, ReportRow[]>();
-      for (const r of listEquipo) {
-        const k = r.area || '';
-        byArea.set(k, (byArea.get(k) || []).concat(r));
+      type Key = string;
+      const byEquipo = new Map<Key, ReportRow[]>();
+      for (const r of dataset) {
+        const k = r.equipo || '';
+        byEquipo.set(k, (byEquipo.get(k) || []).concat(r));
       }
 
-      for (const [area, listArea] of Array.from(byArea.entries()).sort()) {
-        let horasArea = 0, totalArea = 0;
+      const resumenRows: ReportSummaryRow[] = [];
+      const num = (n: number) => Number((n || 0).toFixed(2));
+      const pushEmpty = () => resumenRows.push({ 
+        Nivel: '', 
+        Nombre: '', 
+        'Horas (dec)': '', 
+        'Total (USD)': '', 
+        'Compartido (detalle)': '' 
+      });
+
+      for (const [equipo, listEquipo] of Array.from(byEquipo.entries()).sort()) {
+        let horasEquipo = 0, totalEquipo = 0;
         resumenRows.push({
-          Nivel: 'ÁREA',
-          Nombre: area || '(Sin área)',
+          Nivel: 'EQUIPO',
+          Nombre: equipo || '(Sin equipo)',
           'Horas (dec)': '',
           'Total (USD)': '',
           'Compartido (detalle)': '',
         });
 
-        const byPersona = new Map<Key, ReportRow[]>();
-        for (const r of listArea) {
-          const k = r.usuario;
-          byPersona.set(k, (byPersona.get(k) || []).concat(r));
+        const byArea = new Map<Key, ReportRow[]>();
+        for (const r of listEquipo) {
+          const k = r.area || '';
+          byArea.set(k, (byArea.get(k) || []).concat(r));
         }
 
-        for (const [persona, listPersona] of Array.from(byPersona.entries()).sort()) {
-          const horasPersona = listPersona.reduce((s, r) => s + (r.duracion_horas || 0), 0);
-          const totalPersona = listPersona.reduce((s, r) => s + (r.total_reserva || 0), 0);
-          horasArea += horasPersona;
-          totalArea += totalPersona;
+        for (const [area, listArea] of Array.from(byArea.entries()).sort()) {
+          let horasArea = 0, totalArea = 0;
+          resumenRows.push({
+            Nivel: 'ÁREA',
+            Nombre: area || '(Sin área)',
+            'Horas (dec)': '',
+            'Total (USD)': '',
+            'Compartido (detalle)': '',
+          });
 
-          const detalleCompartido: string[] = [];
-          for (const reserva of listPersona) {
-            if (reserva.is_shared_cost && reserva.compartido_con?.length) {
-              const montoPorPersona = num(reserva.pago_por_persona || 0);
-              const porcentaje = num(100 / reserva.cantidad_personas);
-              const nombres = reserva.compartido_con.join(', ');
-              detalleCompartido.push(`Con: ${nombres} → ${porcentaje}% → $${montoPorPersona.toFixed(2)}`);
+          const byPersona = new Map<Key, ReportRow[]>();
+          for (const r of listArea) {
+            const k = r.usuario;
+            byPersona.set(k, (byPersona.get(k) || []).concat(r));
+          }
+
+          for (const [persona, listPersona] of Array.from(byPersona.entries()).sort()) {
+            const horasPersona = listPersona.reduce((s, r) => s + (r.duracion_horas || 0), 0);
+            const totalPersona = listPersona.reduce((s, r) => s + (r.total_reserva || 0), 0);
+            horasArea += horasPersona;
+            totalArea += totalPersona;
+
+            const detalleCompartido: string[] = [];
+            for (const reserva of listPersona) {
+              if (reserva.is_shared_cost && reserva.compartido_con?.length) {
+                const montoPorPersona = num(reserva.pago_por_persona || 0);
+                const porcentaje = num(100 / reserva.cantidad_personas);
+                const nombres = reserva.compartido_con.join(', ');
+                detalleCompartido.push(`Con: ${nombres} → ${porcentaje}% → $${montoPorPersona.toFixed(2)}`);
+              }
             }
+
+            resumenRows.push({
+              Nivel: 'PERSONA',
+              Nombre: persona,
+              'Horas (dec)': num(horasPersona),
+              'Total (USD)': num(totalPersona),
+              'Compartido (detalle)': detalleCompartido.join(' | '),
+            });
           }
 
           resumenRows.push({
-            Nivel: 'PERSONA',
-            Nombre: persona,
-            'Horas (dec)': num(horasPersona),
-            'Total (USD)': num(totalPersona),
-            'Compartido (detalle)': detalleCompartido.join(' | '),
+            Nivel: 'SUBTOTAL ÁREA',
+            Nombre: area || '(Sin área)',
+            'Horas (dec)': num(horasArea),
+            'Total (USD)': num(totalArea),
+            'Compartido (detalle)': '',
           });
+
+          horasEquipo += horasArea;
+          totalEquipo += totalArea;
         }
 
         resumenRows.push({
-          Nivel: 'SUBTOTAL ÁREA',
-          Nombre: area || '(Sin área)',
-          'Horas (dec)': num(horasArea),
-          'Total (USD)': num(totalArea),
+          Nivel: 'SUBTOTAL EQUIPO',
+          Nombre: equipo || '(Sin equipo)',
+          'Horas (dec)': num(horasEquipo),
+          'Total (USD)': num(totalEquipo),
           'Compartido (detalle)': '',
         });
 
-        horasEquipo += horasArea;
-        totalEquipo += totalArea;
+        pushEmpty();
       }
 
+      const totalHoras = dataset.reduce((s, r) => s + (r.duracion_horas || 0), 0);
+      const totalUSD = dataset.reduce((s, r) => s + (r.total_reserva || 0), 0);
       resumenRows.push({
-        Nivel: 'SUBTOTAL EQUIPO',
-        Nombre: equipo || '(Sin equipo)',
-        'Horas (dec)': num(horasEquipo),
-        'Total (USD)': num(totalEquipo),
+        Nivel: 'TOTAL GENERAL',
+        Nombre: '',
+        'Horas (dec)': num(totalHoras),
+        'Total (USD)': num(totalUSD),
         'Compartido (detalle)': '',
       });
 
-      pushEmpty();
-    }
+      const workbook = new ExcelJS.Workbook();
+      const ws = workbook.addWorksheet('Resumen');
 
-    const totalHoras = dataset.reduce((s, r) => s + (r.duracion_horas || 0), 0);
-    const totalUSD = dataset.reduce((s, r) => s + (r.total_reserva || 0), 0);
-    resumenRows.push({
-      Nivel: 'TOTAL GENERAL',
-      Nombre: '',
-      'Horas (dec)': num(totalHoras),
-      'Total (USD)': num(totalUSD),
-      'Compartido (detalle)': '',
-    });
+      ws.columns = [
+        { header: 'Nivel', key: 'Nivel', width: 20 },
+        { header: 'Nombre', key: 'Nombre', width: 30 },
+        { header: 'Horas (dec)', key: 'Horas (dec)', width: 15 },
+        { header: 'Total (USD)', key: 'Total (USD)', width: 15 },
+        { header: 'Compartido (detalle)', key: 'Compartido (detalle)', width: 50 },
+      ];
 
-    const workbook = new ExcelJS.Workbook();
-    const ws = workbook.addWorksheet('Resumen');
+      ws.getRow(1).eachCell(cell => {
+        cell.font = { bold: true };
+        cell.alignment = { horizontal: 'center' };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFDDEEFF' },
+        };
+        cell.border = { bottom: { style: 'thin' } };
+      });
 
-    ws.columns = [
-      { header: 'Nivel', key: 'Nivel', width: 20 },
-      { header: 'Nombre', key: 'Nombre', width: 30 },
-      { header: 'Horas (dec)', key: 'Horas (dec)', width: 15 },
-      { header: 'Total (USD)', key: 'Total (USD)', width: 15 },
-      { header: 'Compartido (detalle)', key: 'Compartido (detalle)', width: 50 },
-    ];
+      resumenRows.forEach((row) => {
+        const r = ws.addRow(row);
 
-    ws.getRow(1).eachCell(cell => {
-      cell.font = { bold: true };
-      cell.alignment = { horizontal: 'center' };
-      cell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFDDEEFF' },
+        if (row.Nivel === 'EQUIPO') {
+          r.font = { bold: true };
+          r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F7FF' } };
+        } else if (row.Nivel === 'SUBTOTAL ÁREA') {
+          r.font = { bold: true };
+          r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } };
+        } else if (row.Nivel === 'SUBTOTAL EQUIPO') {
+          r.font = { bold: true };
+          r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDEBD0' } };
+        } else if (row.Nivel === 'TOTAL GENERAL') {
+          r.font = { bold: true };
+          r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4EDDA' } };
+        }
+      });
+
+      ws.autoFilter = {
+        from: { row: 1, column: 1 },
+        to: { row: 1, column: ws.columnCount },
       };
-      cell.border = { bottom: { style: 'thin' } };
-    });
 
-    resumenRows.forEach((row) => {
-      const r = ws.addRow(row);
-
-      if (row.Nivel === 'EQUIPO') {
-        r.font = { bold: true };
-        r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F7FF' } };
-      } else if (row.Nivel === 'SUBTOTAL ÁREA') {
-        r.font = { bold: true };
-        r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } };
-      } else if (row.Nivel === 'SUBTOTAL EQUIPO') {
-        r.font = { bold: true };
-        r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDEBD0' } };
-      } else if (row.Nivel === 'TOTAL GENERAL') {
-        r.font = { bold: true };
-        r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4EDDA' } };
-      }
-    });
-
-    ws.autoFilter = {
-      from: { row: 1, column: 1 },
-      to: { row: 1, column: ws.columnCount },
-    };
-
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    });
-    saveAs(blob, `reporte-salas-${reportMonth}.xlsx`);
-  } catch (e) {
-    console.error(e);
-    message.error('No fue posible generar el reporte.');
-  } finally {
-    setDownloading(false);
-  }
-};
-
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      saveAs(blob, `reporte-salas-${reportMonth}.xlsx`);
+    } catch (e) {
+      console.error(e);
+      message.error('No fue posible generar el reporte.');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <div>
@@ -636,15 +715,74 @@ const downloadMonthlyReport = async () => {
         )}
       </Space>
 
+      {/* --- NUEVOS FILTROS ADICIONALES --- */}
+      <Space style={{ marginBottom: 16, flexWrap: 'wrap', background: '#f5f5f5', padding: '12px', borderRadius: '6px', width: '100%' }}>
+        <span style={{ fontWeight: 'bold' }}>Filtros adicionales:</span>
+        
+        {/* Filtro por Sala */}
+        <Space>
+          <span>Sala:</span>
+          <Input
+            placeholder="Buscar por nombre de sala"
+            value={roomFilter}
+            onChange={(e) => setRoomFilter(e.target.value)}
+            style={{ width: 200 }}
+            allowClear
+            prefix={<SearchOutlined />}
+          />
+        </Space>
+
+        {/* Filtro por Fecha */}
+        <Space>
+          <span>Fecha:</span>
+          <DatePicker
+            value={dateFilter}
+            onChange={setDateFilter}
+            format="DD/MM/YYYY"
+            placeholder="Seleccionar fecha"
+            allowClear
+          />
+        </Space>
+
+        {/* Filtro por Usuario */}
+        <Space>
+          <span>Usuario:</span>
+          <Input
+            placeholder="Buscar por nombre de usuario"
+            value={userFilter}
+            onChange={(e) => setUserFilter(e.target.value)}
+            style={{ width: 200 }}
+            allowClear
+            prefix={<SearchOutlined />}
+          />
+        </Space>
+
+        {/* Botón para limpiar filtros */}
+        <Button 
+          onClick={clearFilters}
+          disabled={!roomFilter && !dateFilter && !userFilter}
+        >
+          Limpiar filtros
+        </Button>
+
+        {/* Contador de resultados */}
+        <span style={{ marginLeft: 'auto', color: '#666' }}>
+          {visibleRows.length} de {rows.length} reservaciones
+        </span>
+      </Space>
+
       <Table
         rowKey="id"
         loading={loading}
         dataSource={visibleRows}
-        columns={columns as any}
-        pagination={{ pageSize: 10 }}
+        columns={columns}
+        pagination={{ 
+          pageSize: 10,
+          showTotal: (total, range) => 
+            `${range[0]}-${range[1]} de ${total} reservaciones`,
+        }}
         tableLayout="fixed"
-        sticky
-        scroll={{ x: 1520 }}
+        scroll={{ x: 1200 }}
       />
 
       {/* Modal Editar */}

@@ -1,5 +1,5 @@
 // src/pages/reportes/ExclusiveMonthlyReport.tsx
-import  { useEffect, useMemo, useState, useCallback, type JSX } from 'react';
+import { useEffect, useMemo, useState, useCallback, type JSX } from 'react';
 import {
   DatePicker, Select, Space, Button, Typography, Tooltip, message, Result, Spin,
   Row, Col, Card, Statistic, Table, type TableProps, 
@@ -11,7 +11,6 @@ import dayjs, { Dayjs } from 'dayjs';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import api from '../../api/axios';
-// ⚠️ Verifica el nombre del archivo del logo:
 import reportLogo from '../../assets/logo-cosortium.png';
 import type { AxiosError } from 'axios';
 
@@ -66,11 +65,6 @@ const UI = {
   border: '#CAD0D4',
 };
 
-
-
-
-
-
 export default function ExclusiveMonthlyReport(): JSX.Element {
   const [canSee, setCanSee] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
@@ -94,46 +88,46 @@ export default function ExclusiveMonthlyReport(): JSX.Element {
   }, []);
 
   // ---- Load data
-const loadData = useCallback(async () => {
-  setLoading(true);
-  try {
-    const year = reportMonth.year();
-    const mm = String(reportMonth.month() + 1).padStart(2, '0');
-    const { data } = await api.get<ExplodedRow[]>(
-      `/room-reservations/report/month/${year}/${mm}`,
-      { params: { state: stateFilter, explode: 1 } }
-    );
-
-    const normalized: ExplodedRow[] = (data ?? []).map(r => ({
-      ...r,
-      horas_persona: fmtNum(Number(r.horas_persona ?? 0)),
-      pago_persona_usd: fmtNum(Number(r.pago_persona_usd ?? 0)),
-      equipo: r.equipo ?? '(Sin equipo)',
-      area: r.area ?? '(Sin área)',
-    }));
-
-    // % por reserva (en base al USD asignado a cada persona)
-    const totalByReservation = new Map<number, number>();
-    for (const r of normalized) {
-      totalByReservation.set(
-        r.reservation_id,
-        fmtNum((totalByReservation.get(r.reservation_id) || 0) + r.pago_persona_usd)
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const year = reportMonth.year();
+      const mm = String(reportMonth.month() + 1).padStart(2, '0');
+      const { data } = await api.get<ExplodedRow[]>(
+        `/room-reservations/report/month/${year}/${mm}`,
+        { params: { state: stateFilter, explode: 1 } }
       );
-    }
-    const withPct: RowWithPct[] = normalized.map(r => {
-      const total = totalByReservation.get(r.reservation_id) || 0;
-      const participacion_pct = total > 0 ? (r.pago_persona_usd / total) * 100 : 0;
-      return { ...r, participacion_pct: fmtNum(participacion_pct) };
-    });
 
-    setRows(withPct);
-  } catch (e: unknown) {
-    const err = e as AxiosError<{ message?: string }>;
-    message.error(err.response?.data?.message || "No fue posible cargar el reporte.");
-  } finally {
-    setLoading(false);
-  }
-}, [reportMonth, stateFilter]);
+      const normalized: ExplodedRow[] = (data ?? []).map(r => ({
+        ...r,
+        horas_persona: fmtNum(Number(r.horas_persona ?? 0)),
+        pago_persona_usd: fmtNum(Number(r.pago_persona_usd ?? 0)),
+        equipo: r.equipo ?? '(Sin equipo)',
+        area: r.area ?? '(Sin área)',
+      }));
+
+      // % por reserva (en base al USD asignado a cada persona)
+      const totalByReservation = new Map<number, number>();
+      for (const r of normalized) {
+        totalByReservation.set(
+          r.reservation_id,
+          fmtNum((totalByReservation.get(r.reservation_id) || 0) + r.pago_persona_usd)
+        );
+      }
+      const withPct: RowWithPct[] = normalized.map(r => {
+        const total = totalByReservation.get(r.reservation_id) || 0;
+        const participacion_pct = total > 0 ? (r.pago_persona_usd / total) * 100 : 0;
+        return { ...r, participacion_pct: fmtNum(participacion_pct) };
+      });
+
+      setRows(withPct);
+    } catch (e: unknown) {
+      const err = e as AxiosError<{ message?: string }>;
+      message.error(err.response?.data?.message || "No fue posible cargar el reporte.");
+    } finally {
+      setLoading(false);
+    }
+  }, [reportMonth, stateFilter]);
 
   useEffect(() => { if (canSee) loadData(); }, [canSee, loadData]);
 
@@ -143,10 +137,10 @@ const loadData = useCallback(async () => {
   const reservasUnicas = useMemo(() => new Set(rows.map(r => r.reservation_id)).size, [rows]);
   const equiposUnicos  = useMemo(() => new Set(rows.map(r => r.equipo || '(Sin equipo)')).size, [rows]);
   const reservasCompartidas = useMemo(() => {
-  return new Set(
-    rows.filter(r => r.compartido).map(r => r.reservation_id)
-  ).size;
-}, [rows]);
+    return new Set(
+      rows.filter(r => r.compartido).map(r => r.reservation_id)
+    ).size;
+  }, [rows]);
 
   const equipoAgg = useMemo(() => {
     const map = new Map<string, { horas: number; usd: number }>();
@@ -167,7 +161,7 @@ const loadData = useCallback(async () => {
     return arr;
   }, [rows, totalUSD]);
 
-  // ---- DataGrid columns (sin “Estado”, “Compartió con” solo nombres)
+  // ---- DataGrid columns (sin "Estado", "Compartió con" solo nombres)
   const columns: GridColDef<RowWithPct>[] = useMemo(() => [
     { field: 'fecha', headerName: 'Fecha', width: 100,
       valueFormatter: (value) => (value ? dayjs(String(value)).format('DD/MM') : ''),
@@ -212,183 +206,265 @@ const loadData = useCallback(async () => {
     return blobToBase64(blob);
   };
 
-  // ===== Excel premium: paisaje, encabezado impreso, bordes fuertes, logo fijo, etc.
-const exportExcel = async () => {
-  if (!rows.length) return message.info("No hay datos para exportar");
-  setDownloading(true);
-
-  try {
-    const book = new ExcelJS.Workbook();
-    const ws = book.addWorksheet("Reporte");
-
-    ws.columns = [
-      { key: "equipo", width: 25 },
-      { key: "area", width: 25 },
-      { key: "usuario", width: 40 },
-      { key: "horas", width: 12 },
-      { key: "pago", width: 16 },
-    ];
-
-    const COLORS = {
-      bannerBg: "FF002060",   // Azul corporativo
-      bannerFont: "FFFFFFFF", // Blanco
-      equipoBg: "FFED7D31",   // Naranja fuerte
-      areaBg: "FFFCE4D6",     // Naranja suave
-      totalBg: "FFD4EDDA",    // Verde claro
-      border: "FF000000",     // Negro
-    };
-
-    const fmtNum = (n: number) => Number((n ?? 0).toFixed(2));
-    const money = (n: number) => `$${fmtNum(n).toFixed(2)}`;
-
-    // ==== Banner con logo (más ancho: A1:H2) ====
-    ws.mergeCells("A1:H2");
-    const monthTitle = reportMonth.format("MMMM YYYY").toUpperCase();
-    const titleCell = ws.getCell("A1");
-    titleCell.value = `REPORTE DE USO DE SALAS — ${monthTitle}`;
-    titleCell.font = { bold: true, size: 16, color: { argb: COLORS.bannerFont } };
-    titleCell.alignment = { vertical: "middle", horizontal: "left" };
-
-    for (let r = 1; r <= 2; r++) {
-      for (let c = 1; c <= 8; c++) { // 👈 hasta la col H
-        ws.getCell(r, c).fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: { argb: COLORS.bannerBg },
-        };
-      }
-    }
+  // ===== Excel mejorado: centrado, logo estable, columna "Compartió"
+  const exportExcel = async () => {
+    if (!rows.length) return message.info("No hay datos para exportar");
+    setDownloading(true);
 
     try {
-      const base64 = await fetchAsBase64(reportLogo);
-      const imgId = book.addImage({ base64, extension: "png" });
-      ws.addImage(imgId, {
-        tl: { col: 6.5, row: 0.3 },      // 👈 mover a la derecha
-        ext: { width: 200, height: 55 }, // 👈 tamaño ajustado
-        editAs: "absolute",
-      });
-    } catch {
-      console.warn("⚠️ Logo no insertado");
-    }
+      const book = new ExcelJS.Workbook();
+      const ws = book.addWorksheet("Reporte");
 
-    // ==== Encabezados de tabla ====
-    const header = ws.addRow(["EQUIPO", "ÁREA", "USUARIO", "Horas", "Pago (USD)"]);
-    header.font = { bold: true, color: { argb: "FF000000" } };
-    header.alignment = { horizontal: "center", vertical: "middle" };
-    header.eachCell((cell) => {
-      cell.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: "FFFFFFFF" },
+      // Configurar columnas con anchos específicos
+      ws.columns = [
+        { key: "equipo", width: 25 },
+        { key: "area", width: 25 },
+        { key: "usuario", width: 30 },
+        { key: "horas", width: 12 },
+        { key: "pago", width: 16 },
+        { key: "compartio", width: 12 }, // Nueva columna
+      ];
+
+      const COLORS = {
+        bannerBg: "FF002060",   // Azul corporativo
+        bannerFont: "FFFFFFFF", // Blanco
+        equipoBg: "FFED7D31",   // Naranja fuerte
+        areaBg: "FFFCE4D6",     // Naranja suave
+        usuarioBg: "FFF2F2F2",  // Gris claro para usuarios
+        totalBg: "FFD4EDDA",    // Verde claro
+        border: "FF000000",     // Negro
       };
-      cell.border = {
-        top: { style: "thin", color: { argb: COLORS.border } },
-        left: { style: "thin", color: { argb: COLORS.border } },
-        right: { style: "thin", color: { argb: COLORS.border } },
-        bottom: { style: "thin", color: { argb: COLORS.border } },
-      };
-    });
 
-    let totalHorasAll = 0;
-    let totalUSDAll = 0;
+      const fmtNum = (n: number) => Number((n ?? 0).toFixed(2));
+      const money = (n: number) => `$${fmtNum(n).toFixed(2)}`;
 
-    // ==== Agrupar por equipo ====
-    const byEquipo = new Map<string, RowWithPct[]>();
-    rows.forEach((r) => {
-      byEquipo.set(r.equipo!, (byEquipo.get(r.equipo!) || []).concat(r));
-    });
+      // ==== Banner con logo (A1:H2) ====
+      ws.mergeCells("A1:H2");
+      const monthTitle = reportMonth.format("MMMM YYYY").toUpperCase();
+      const titleCell = ws.getCell("A1");
+      titleCell.value = `REPORTE DE USO DE SALAS — ${monthTitle}`;
+      titleCell.font = { bold: true, size: 16, color: { argb: COLORS.bannerFont } };
+      titleCell.alignment = { vertical: "middle", horizontal: "center" }; // Centrado
 
-    for (const [equipo, listEquipo] of Array.from(new Map([...byEquipo].sort()))) {
-      const byArea = new Map<string, RowWithPct[]>();
-      listEquipo.forEach((r) => {
-        byArea.set(r.area!, (byArea.get(r.area!) || []).concat(r));
-      });
-
-      let horasEquipo = 0;
-      let usdEquipo = 0;
-
-      byArea.forEach((listArea) => {
-        horasEquipo += listArea.reduce((s, r) => s + (r.horas_persona || 0), 0);
-        usdEquipo += listArea.reduce((s, r) => s + (r.pago_persona_usd || 0), 0);
-      });
-
-      // ==== Fila de equipo ====
-      const rowEquipo = ws.addRow([equipo, "", "", fmtNum(horasEquipo), money(usdEquipo)]);
-      rowEquipo.font = { bold: true, color: { argb: COLORS.bannerFont } };
-      for (let c = 1; c <= 5; c++) {
-        rowEquipo.getCell(c).fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: { argb: COLORS.equipoBg },
-        };
-      }
-
-      for (const [area, listArea] of Array.from(new Map([...byArea].sort()))) {
-        const byUsuario = new Map<string, RowWithPct[]>();
-        listArea.forEach((r) => {
-          byUsuario.set(r.persona, (byUsuario.get(r.persona) || []).concat(r));
-        });
-
-        let horasArea = 0;
-        let usdArea = 0;
-
-        byUsuario.forEach((listUsuario) => {
-          horasArea += listUsuario.reduce((s, r) => s + (r.horas_persona || 0), 0);
-          usdArea += listUsuario.reduce((s, r) => s + (r.pago_persona_usd || 0), 0);
-        });
-
-        // ==== Fila de área ====
-        const rowArea = ws.addRow(["", area, "", fmtNum(horasArea), money(usdArea)]);
-        rowArea.font = { bold: true, italic: true };
-        for (let c = 1; c <= 5; c++) {
-          rowArea.getCell(c).fill = {
+      // Aplicar fondo al banner
+      for (let r = 1; r <= 2; r++) {
+        for (let c = 1; c <= 8; c++) {
+          ws.getCell(r, c).fill = {
             type: "pattern",
             pattern: "solid",
-            fgColor: { argb: COLORS.areaBg },
+            fgColor: { argb: COLORS.bannerBg },
           };
-        }
-
-        // ==== Usuarios ====
-        for (const [usuario, listUsuario] of Array.from(new Map([...byUsuario].sort()))) {
-          const horasUsuario = fmtNum(
-            listUsuario.reduce((s, r) => s + (r.horas_persona || 0), 0)
-          );
-          const usdUsuario = fmtNum(
-            listUsuario.reduce((s, r) => s + (r.pago_persona_usd || 0), 0)
-          );
-          ws.addRow(["", "", usuario, horasUsuario, money(usdUsuario)]);
         }
       }
 
-      totalHorasAll += horasEquipo;
-      totalUSDAll += usdEquipo;
-    }
+      // ==== Insertar logo ====
+      try {
+        const base64 = await fetchAsBase64(reportLogo);
+        const imgId = book.addImage({ base64, extension: "png" });
+        // Posición más estable para el logo
+        ws.addImage(imgId, {
+          tl: { col: 6.8, row: 0.2 },    // Columna G, ajustado
+          ext: { width: 180, height: 50 }, // Tamaño optimizado
+          editAs: "absolute",
+        });
+      } catch {
+        console.warn("⚠️ Logo no insertado");
+      }
 
-    // ==== Total general ====
-    const totalRow = ws.addRow(["TOTAL GENERAL", "", "", totalHorasAll, money(totalUSDAll)]);
-    totalRow.font = { bold: true, size: 12 };
-    for (let c = 1; c <= 5; c++) {
-      totalRow.getCell(c).fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: COLORS.totalBg },
+      // ==== Encabezados de tabla (A3:F3) ====
+      const headers = ["EQUIPO", "ÁREA", "USUARIO", "Horas", "Pago (USD)", "Compartió"];
+      const headerRow = ws.addRow(headers);
+      
+      // Aplicar estilos a los encabezados
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FF000000" } };
+        cell.alignment = { 
+          horizontal: "center", 
+          vertical: "middle",
+          wrapText: true 
+        };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFFFFFFF" },
+        };
+        cell.border = {
+          top: { style: "thin", color: { argb: COLORS.border } },
+          left: { style: "thin", color: { argb: COLORS.border } },
+          right: { style: "thin", color: { argb: COLORS.border } },
+          bottom: { style: "medium", color: { argb: COLORS.border } }, // Borde inferior más grueso
+        };
+      });
+
+      // Ajustar altura de la fila de encabezados
+      ws.getRow(3).height = 25;
+
+      let totalHorasAll = 0;
+      let totalUSDAll = 0;
+
+      // ==== Agrupar por equipo ====
+      const byEquipo = new Map<string, RowWithPct[]>();
+      rows.forEach((r) => {
+        byEquipo.set(r.equipo!, (byEquipo.get(r.equipo!) || []).concat(r));
+      });
+
+      // Función para aplicar bordes a una fila
+      const applyBorders = (row: ExcelJS.Row, startCol: number = 1, endCol: number = 6) => {
+        for (let c = startCol; c <= endCol; c++) {
+          const cell = row.getCell(c);
+          cell.border = {
+            top: { style: "thin", color: { argb: COLORS.border } },
+            left: { style: "thin", color: { argb: COLORS.border } },
+            right: { style: "thin", color: { argb: COLORS.border } },
+            bottom: { style: "thin", color: { argb: COLORS.border } },
+          };
+        }
       };
+
+      // Función para centrar contenido
+      const centerCells = (row: ExcelJS.Row, startCol: number = 1, endCol: number = 6) => {
+        for (let c = startCol; c <= endCol; c++) {
+          const cell = row.getCell(c);
+          cell.alignment = { 
+            horizontal: "center", 
+            vertical: "middle",
+            wrapText: true 
+          };
+        }
+      };
+
+      for (const [equipo, listEquipo] of Array.from(new Map([...byEquipo].sort()))) {
+        const byArea = new Map<string, RowWithPct[]>();
+        listEquipo.forEach((r) => {
+          byArea.set(r.area!, (byArea.get(r.area!) || []).concat(r));
+        });
+
+        let horasEquipo = 0;
+        let usdEquipo = 0;
+
+        byArea.forEach((listArea) => {
+          horasEquipo += listArea.reduce((s, r) => s + (r.horas_persona || 0), 0);
+          usdEquipo += listArea.reduce((s, r) => s + (r.pago_persona_usd || 0), 0);
+        });
+
+        // ==== Fila de equipo ====
+        const rowEquipo = ws.addRow([equipo, "", "", fmtNum(horasEquipo), money(usdEquipo), ""]);
+        
+        // Estilos para fila de equipo
+        rowEquipo.font = { bold: true, color: { argb: COLORS.bannerFont } };
+        for (let c = 1; c <= 6; c++) {
+          rowEquipo.getCell(c).fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: COLORS.equipoBg },
+          };
+        }
+        applyBorders(rowEquipo);
+        centerCells(rowEquipo);
+
+        for (const [area, listArea] of Array.from(new Map([...byArea].sort()))) {
+          const byUsuario = new Map<string, RowWithPct[]>();
+          listArea.forEach((r) => {
+            byUsuario.set(r.persona, (byUsuario.get(r.persona) || []).concat(r));
+          });
+
+          let horasArea = 0;
+          let usdArea = 0;
+
+          byUsuario.forEach((listUsuario) => {
+            horasArea += listUsuario.reduce((s, r) => s + (r.horas_persona || 0), 0);
+            usdArea += listUsuario.reduce((s, r) => s + (r.pago_persona_usd || 0), 0);
+          });
+
+          // ==== Fila de área ====
+          const rowArea = ws.addRow(["", area, "", fmtNum(horasArea), money(usdArea), ""]);
+          
+          // Estilos para fila de área
+          rowArea.font = { bold: true, italic: true };
+          for (let c = 1; c <= 6; c++) {
+            rowArea.getCell(c).fill = {
+              type: "pattern",
+              pattern: "solid",
+              fgColor: { argb: COLORS.areaBg },
+            };
+          }
+          applyBorders(rowArea);
+          centerCells(rowArea);
+
+          // ==== Usuarios ====
+          for (const [usuario, listUsuario] of Array.from(new Map([...byUsuario].sort()))) {
+            const horasUsuario = fmtNum(
+              listUsuario.reduce((s, r) => s + (r.horas_persona || 0), 0)
+            );
+            const usdUsuario = fmtNum(
+              listUsuario.reduce((s, r) => s + (r.pago_persona_usd || 0), 0)
+            );
+            
+            // Determinar si compartió sala
+            const compartio = listUsuario.some(r => r.compartido) ? "Sí" : "No";
+            
+            const rowUsuario = ws.addRow(["", "", usuario, horasUsuario, money(usdUsuario), compartio]);
+            
+            // Estilos para fila de usuario
+            for (let c = 1; c <= 6; c++) {
+              rowUsuario.getCell(c).fill = {
+                type: "pattern",
+                pattern: "solid",
+                fgColor: { argb: COLORS.usuarioBg },
+              };
+            }
+            applyBorders(rowUsuario);
+            centerCells(rowUsuario);
+          }
+        }
+
+        totalHorasAll += horasEquipo;
+        totalUSDAll += usdEquipo;
+      }
+
+      // ==== Total general ====
+      const totalRow = ws.addRow(["TOTAL GENERAL", "", "", totalHorasAll, money(totalUSDAll), ""]);
+      
+      // Estilos para fila total
+      totalRow.font = { bold: true, size: 12 };
+      for (let c = 1; c <= 6; c++) {
+        totalRow.getCell(c).fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: COLORS.totalBg },
+        };
+      }
+      applyBorders(totalRow);
+      centerCells(totalRow);
+
+      // ==== Configurar página para impresión ====
+      ws.pageSetup = {
+        orientation: 'landscape' as const,
+        fitToPage: true,
+        fitToWidth: 1,
+        fitToHeight: 0,
+        paperSize: 9, // A4
+        margins: {
+          left: 0.3, right: 0.3,
+          top: 0.4, bottom: 0.4,
+          header: 0.3, footer: 0.3
+        }
+      };
+
+      // ==== Descargar ====
+      const yy = reportMonth.year();
+      const mm = String(reportMonth.month() + 1).padStart(2, "0");
+      const buf = await book.xlsx.writeBuffer();
+      saveAs(new Blob([buf]), `reporte-salas-${yy}-${mm}.xlsx`);
+      
+      message.success("Excel generado correctamente");
+    } catch (e) {
+      console.error(e);
+      message.error("No fue posible generar el Excel.");
+    } finally {
+      setDownloading(false);
     }
-
-    // ==== Descargar ====
-    const yy = reportMonth.year();
-    const mm = String(reportMonth.month() + 1).padStart(2, "0");
-    const buf = await book.xlsx.writeBuffer();
-    saveAs(new Blob([buf]), `reporte-salas-${yy}-${mm}.xlsx`);
-  } catch (e) {
-    console.error(e);
-    message.error("No fue posible generar el Excel.");
-  } finally {
-    setDownloading(false);
-  }
-};
-
-
+  };
 
   // ---- Guard rails
   if (canSee === false) return <Result status="403" title="403" subTitle="No tienes acceso a este reporte" />;
@@ -475,12 +551,12 @@ const exportExcel = async () => {
               <Col xs={12}><Statistic title="Total horas (utilizado)" value={totalHoras} precision={2} valueStyle={{ color: UI.primary }} /></Col>
               <Col xs={12}><Statistic title="No. de reservas en el mes" value={reservasUnicas} valueStyle={{ color: UI.primarySoft }} /></Col>
               <Col xs={12}>
-  <Statistic 
-    title="No. Reservas compartidas" 
-    value={reservasCompartidas} 
-    valueStyle={{ color: UI.primarySoft }} 
-  />
-</Col>
+                <Statistic 
+                  title="No. Reservas compartidas" 
+                  value={reservasCompartidas} 
+                  valueStyle={{ color: UI.primarySoft }} 
+                />
+              </Col>
               <Col xs={12}><Statistic title="Equipos que hicieron reservas" value={equiposUnicos} valueStyle={{ color: UI.primarySoft }} /></Col>
             </Row>
           </Card>
@@ -496,7 +572,7 @@ const exportExcel = async () => {
               size="small"
               columns={resumenColumns}
               dataSource={equipoAgg}
-              pagination={{ pageSize: 6, showSizeChanger: false }}
+              pagination={false} 
               rowClassName={(_, idx) => (idx ?? 0) % 2 === 0 ? 'row-zebra-even' : 'row-zebra-odd'}
               summary={(data) => {
                 const sumHoras = data.reduce((s, r) => s + (r.horas || 0), 0);
