@@ -1,6 +1,7 @@
-// src/stores/useAuthStore.ts
+// src/auth/useAuthStore.ts
 import { create } from 'zustand';
 import { isTokenExpired } from '../utils/auth';
+import { message } from 'antd';
 
 interface AuthState {
   token: string | null;
@@ -14,7 +15,6 @@ interface AuthState {
 const useAuthStore = create<AuthState>((set) => {
   const rawToken = localStorage.getItem('token');
   const rawUsername = localStorage.getItem('username') || '';
-
   const expired = isTokenExpired(rawToken);
 
   if (expired) {
@@ -25,20 +25,30 @@ const useAuthStore = create<AuthState>((set) => {
   return {
     token: expired ? null : rawToken,
     username: expired ? '' : rawUsername,
+
     setToken: (token) => {
       localStorage.setItem('token', token);
       set({ token });
     },
+
     setUsername: (username) => {
       localStorage.setItem('username', username);
       set({ username });
     },
+
     logout: () => {
       localStorage.removeItem('token');
       localStorage.removeItem('username');
+
       set({ token: null, username: '' });
+
+      // 🔔 Mostrar mensaje
+      message.warning('Tu sesión ha expirado. Por favor, vuelve a iniciar sesión.');
+
+      // Redirigir
       window.location.href = '/login';
     },
+
     isAuthenticated: () => {
       const currentToken = localStorage.getItem('token');
       return !!currentToken && !isTokenExpired(currentToken);
