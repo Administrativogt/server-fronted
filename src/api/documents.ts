@@ -5,12 +5,12 @@ export interface DocumentDto {
   receptionDatetime: string;
   documentDeliverBy: string | null;
   amount: number;
-  receivedBy?: any;
+  receivedBy?: unknown;
   documentType: string;
   submitTo: string;
   deliverDatetime?: string;
   deliverTo: string;
-  deliverBy?: any;
+  deliverBy?: unknown;
   observations?: string;
   state: number;
 }
@@ -62,7 +62,9 @@ export const fetchDeliveredDocuments = async (): Promise<DocumentDto[]> => {
 };
 
 // 7. Filtro entregados
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const filterDocuments = async (filters: Record<string, any>) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const query = new URLSearchParams(filters as any).toString();
   const { data } = await api.get(`/documents/filter?${query}`);
   return data;

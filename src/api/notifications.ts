@@ -60,7 +60,7 @@ export async function fetchPendingNotifications(): Promise<NotificationDto[]> {
 //
 // 📌 Listar entregadas con filtros
 //
-export async function fetchDeliveredNotifications(filters?: Record<string, any>) {
+export async function fetchDeliveredNotifications(filters?: Record<string, unknown>) {
   const { data } = await api.get("/notifications/filter", { params: filters });
   return data as NotificationDto[];
 }

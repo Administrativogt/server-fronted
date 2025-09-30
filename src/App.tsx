@@ -4,6 +4,7 @@ import { ConfigProvider } from 'antd';
 import esES from 'antd/locale/es_ES';
 import dayjs from 'dayjs';
 import 'dayjs/locale/es';
+import { useEffect } from 'react';
 
 // Páginas públicas
 import Login from './pages/Login';
@@ -40,13 +41,23 @@ import CrearRecibo from './pages/recibos/CrearRecibo';
 import EditarRecibo from './pages/recibos/EditarRecibo';
 import ListarRecibos from './pages/recibos/ListarRecibos';
 
-// 🆕 Requerimientos de dinero
+// Requerimientos de dinero
 import MoneyReqList from './pages/money_req/List';
 import CreateMoneyRequirement from './pages/money_req/Create';
+import useAuthStore from './auth/useAuthStore';
 
 dayjs.locale('es');
 
 function App() {
+  const logout = useAuthStore((state) => state.logout);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      logout();
+    }
+  }, [isAuthenticated, logout]);
+
   return (
     <ConfigProvider locale={esES}>
       <BrowserRouter>
@@ -83,9 +94,9 @@ function App() {
               <Route path="/dashboard/recibos/:id" element={<RecibosCaja />} />
               <Route path="/dashboard/recibos/editar/:id" element={<EditarRecibo mode="page" />} />
 
-              {/* 🆕 Requerimientos de dinero */}
+              {/* Requerimientos de dinero */}
               <Route path="/dashboard/money-req" element={<MoneyReqList />} />
-              <Route path="/dashboard/money-req/create" element={<CreateMoneyRequirement />} /> {/* 👈 nueva */}
+              <Route path="/dashboard/money-req/create" element={<CreateMoneyRequirement />} />
             </Route>
           </Route>
 
