@@ -117,7 +117,7 @@ export async function fetchPlaces(): Promise<{ id: number; name: string }[]> {
 //
 export async function fetchHallsByProvenience(provenienceId: number): Promise<HallDto[]> {
   const { data } = await api.get("/notifications/halls", {
-    params: { provenience: provenienceId },
+    params: { provenienceId },
   });
   return data;
 }

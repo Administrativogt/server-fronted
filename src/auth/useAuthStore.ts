@@ -1,34 +1,42 @@
-// src/auth/useAuthStore.ts
 import { create } from 'zustand';
-import { isTokenExpired } from '../utils/auth';
 import { message } from 'antd';
+import { isTokenExpired, isValidJwt } from '../utils/auth';
 
 interface AuthState {
   token: string | null;
   username: string;
+  refreshToken: string | null;
   setToken: (token: string) => void;
   setUsername: (username: string) => void;
-  logout: () => void;
+  setRefreshToken: (token: string) => void;
+  logout: (redirect?: boolean) => void;
   isAuthenticated: () => boolean;
 }
 
 const useAuthStore = create<AuthState>((set) => {
   const rawToken = localStorage.getItem('token');
   const rawUsername = localStorage.getItem('username') || '';
-  const expired = isTokenExpired(rawToken);
+  const rawRefresh = localStorage.getItem('refreshToken');
+  const expiredOrInvalid = !isValidJwt(rawToken) || isTokenExpired(rawToken);
 
-  if (expired) {
+  if (expiredOrInvalid) {
     localStorage.removeItem('token');
     localStorage.removeItem('username');
+    localStorage.removeItem('refreshToken');
   }
 
   return {
-    token: expired ? null : rawToken,
-    username: expired ? '' : rawUsername,
+    token: expiredOrInvalid ? null : rawToken,
+    username: expiredOrInvalid ? '' : rawUsername,
+    refreshToken: expiredOrInvalid ? null : rawRefresh,
 
     setToken: (token) => {
-      localStorage.setItem('token', token);
-      set({ token });
+      if (isValidJwt(token) && !isTokenExpired(token)) {
+        localStorage.setItem('token', token);
+        set({ token });
+      } else {
+        message.error('Token inválido o expirado');
+      }
     },
 
     setUsername: (username) => {
@@ -36,22 +44,28 @@ const useAuthStore = create<AuthState>((set) => {
       set({ username });
     },
 
-    logout: () => {
+    setRefreshToken: (token) => {
+      localStorage.setItem('refreshToken', token);
+      set({ refreshToken: token });
+    },
+
+    logout: (redirect = true) => {
       localStorage.removeItem('token');
       localStorage.removeItem('username');
+      localStorage.removeItem('refreshToken');
+      set({ token: null, username: '', refreshToken: null });
+      message.warning('Tu sesión ha expirado. Por favor, vuelve a iniciar sesión.', 3);
 
-      set({ token: null, username: '' });
-
-      // 🔔 Mostrar mensaje
-      message.warning('Tu sesión ha expirado. Por favor, vuelve a iniciar sesión.');
-
-      // Redirigir
-      window.location.href = '/login';
+      if (redirect) {
+        setTimeout(() => {
+          window.location.replace('/login');
+        }, 800);
+      }
     },
 
     isAuthenticated: () => {
-      const currentToken = localStorage.getItem('token');
-      return !!currentToken && !isTokenExpired(currentToken);
+      const token = localStorage.getItem('token');
+      return !!token && isValidJwt(token) && !isTokenExpired(token);
     },
   };
 });

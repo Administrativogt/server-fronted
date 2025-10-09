@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-// src/utils/auth.ts
 export const isTokenExpired = (token: string | null): boolean => {
   if (!token) return true;
 
@@ -9,7 +7,21 @@ export const isTokenExpired = (token: string | null): boolean => {
 
     const now = Date.now() / 1000;
     return payload.exp < now;
-  } catch (err) {
+  } catch {
     return true;
+  }
+};
+
+export const isValidJwt = (token: string | null): boolean => {
+  if (!token) return false;
+
+  const parts = token.split('.');
+  if (parts.length !== 3) return false;
+
+  try {
+    const decoded = JSON.parse(atob(parts[1]));
+    return typeof decoded === 'object' && decoded !== null && 'exp' in decoded;
+  } catch {
+    return false;
   }
 };
