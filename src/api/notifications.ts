@@ -3,13 +3,14 @@ import api from "./axios";
 //
 // 📌 Tipos de datos compartidos
 //
-export interface NotificationDto {
+ export interface NotificationDto {
   id: number;
   receptionDatetime: string;
   cedule: string;
   expedientNum: string;
   directedTo: string;
   provenience?: { id: number; name?: string } | null;
+  otherProvenience?: string; // ✅ ← Agregar esto
   hall?: { id: number; name?: string } | null;
   recepReceives?: { id: number; first_name?: string; last_name?: string } | null;
   deliverTo?: { id: number; first_name?: string; last_name?: string; email?: string } | null;
@@ -138,5 +139,14 @@ export async function createProvenience(payload: CreateProveniencePayload): Prom
 
 export async function createHallForProvenience(payload: { provenienceId: number; name: string }): Promise<HallDto> {
   const { data } = await api.post("/notifications/halls", payload);
+  return data;
+}
+
+
+
+// 📌 Obtener lista de receptores (alternativa)
+export async function fetchReceivers(): Promise<{ id: number; first_name: string; last_name: string }[]> {
+  // Puedes usar el endpoint de usuarios o crear uno específico
+  const { data } = await api.get("/users?role=receiver"); // Ajusta según tu API
   return data;
 }

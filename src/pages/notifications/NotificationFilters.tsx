@@ -1,10 +1,22 @@
+// src/pages/notifications/NotificationFilters.tsx
 import React from "react";
 import { DatePicker, Input, Select, Space } from "antd";
 import dayjs from "dayjs";
 
+// ✅ Tipado extendido para que sea compatible con Record<string, unknown>
+export interface NotificationFilterValues extends Record<string, unknown> {
+  receptionDate?: string;
+  deliveryDate?: string;
+  provenience?: number;
+  hall?: number;
+  cedule?: string;
+  expedientNum?: string;
+  directedTo?: string;
+}
+
 interface Props {
-  filters: Record<string, any>;
-  setFilters: (f: Record<string, any>) => void;
+  filters: NotificationFilterValues;
+  setFilters: (f: NotificationFilterValues) => void;
   proveniences: { id: number; name: string }[];
   halls: { id: number; name: string }[];
 }
@@ -55,6 +67,13 @@ const NotificationFilters: React.FC<Props> = ({
         value={filters.expedientNum || ""}
         onChange={(e) =>
           setFilters({ ...filters, expedientNum: e.target.value })
+        }
+      />
+      <Input
+        placeholder="Dirigido a"
+        value={filters.directedTo || ""}
+        onChange={(e) =>
+          setFilters({ ...filters, directedTo: e.target.value })
         }
       />
     </Space>

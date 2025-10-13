@@ -14,6 +14,8 @@ import {
   FileProtectOutlined,
   FileDoneOutlined,
   PushpinOutlined,
+  FileSearchOutlined,
+  FileAddOutlined,
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import useAuthStore from '../auth/useAuthStore';
@@ -42,9 +44,7 @@ const DashboardLayout: React.FC = () => {
     let mounted = true;
     (async () => {
       try {
-        const { data } = await api.get<{ canSeeReport: boolean }>(
-          '/room-reservations/report/can'
-        );
+        const { data } = await api.get<{ canSeeReport: boolean }>('/room-reservations/report/can');
         if (mounted) setCanSeeReport(!!data?.canSeeReport);
       } catch {
         if (mounted) setCanSeeReport(false);
@@ -60,6 +60,183 @@ const DashboardLayout: React.FC = () => {
     navigate('/login');
   };
 
+  const getMenuItems = () => {
+    const items = [
+      {
+        key: "/dashboard",
+        icon: <HomeOutlined />,
+        label: "Dashboard",
+        onClick: () => navigate('/dashboard')
+      },
+      {
+        key: "/agenda",
+        icon: <ScheduleOutlined />,
+        label: "Agendador",
+        onClick: () => navigate('/agenda')
+      },
+      {
+        key: "cheques",
+        icon: <FolderOpenOutlined />,
+        label: "Gestión de cheques",
+        children: [
+          {
+            key: "/dashboard/cheques/autorizacion",
+            icon: <FileProtectOutlined />,
+            label: "Autorización",
+            onClick: () => navigate('/dashboard/cheques/autorizacion')
+          },
+          {
+            key: "/dashboard/cheques/liquidacion",
+            icon: <DollarOutlined />,
+            label: "Liquidación",
+            onClick: () => navigate('/dashboard/cheques/liquidacion')
+          },
+          {
+            key: "/dashboard/cheques/liquidados",
+            icon: <FileDoneOutlined />,
+            label: "Liquidados",
+            onClick: () => navigate('/dashboard/cheques/liquidados')
+          },
+          {
+            key: "/dashboard/cheques/inmobiliario",
+            icon: <FileTextOutlined />,
+            label: "Gastos inmobiliarios",
+            onClick: () => navigate('/dashboard/cheques/inmobiliario')
+          },
+          {
+            key: "/dashboard/cheques/pendientes",
+            icon: <PushpinOutlined />,
+            label: "Cheques pendientes",
+            onClick: () => navigate('/dashboard/cheques/pendientes')
+          }
+        ]
+      },
+      {
+        key: "/casos",
+        icon: <FileTextOutlined />,
+        label: "Control de casos",
+        onClick: () => navigate('/casos')
+      },
+      {
+        key: "/mensajeria",
+        icon: <MailOutlined />,
+        label: "Mensajería",
+        onClick: () => navigate('/mensajeria')
+      },
+      {
+        key: "reservaciones",
+        icon: <ScheduleOutlined />,
+        label: "Reservaciones",
+        children: [
+          {
+            key: "/dashboard/reservaciones",
+            label: "Calendario",
+            onClick: () => navigate('/dashboard/reservaciones')
+          },
+          {
+            key: "/dashboard/reservaciones/crear",
+            label: "Crear reserva",
+            onClick: () => navigate('/dashboard/reservaciones/crear')
+          },
+          {
+            key: "/dashboard/reservaciones/listar",
+            label: "Listar reservas",
+            onClick: () => navigate('/dashboard/reservaciones/listar')
+          },
+          ...(canSeeReport === true ? [{
+            key: "/dashboard/reservaciones/reporte-exclusivo",
+            icon: <FileTextOutlined />,
+            label: "Reporte exclusivo",
+            onClick: () => navigate('/dashboard/reservaciones/reporte-exclusivo')
+          }] : [])
+        ]
+      },
+      {
+        key: "documentos",
+        icon: <FileTextOutlined />,
+        label: "Documentos",
+        children: [
+          {
+            key: "/dashboard/documentos",
+            icon: <FileSearchOutlined />,
+            label: "Pendientes",
+            onClick: () => navigate('/dashboard/documentos')
+          },
+          {
+            key: "/dashboard/documentos/crear",
+            icon: <FileAddOutlined />,
+            label: "Crear documento",
+            onClick: () => navigate('/dashboard/documentos/crear')
+          },
+          {
+            key: "/dashboard/documentos/entregados",
+            icon: <FileDoneOutlined />,
+            label: "Entregados",
+            onClick: () => navigate('/dashboard/documentos/entregados')
+          }
+        ]
+      },
+      {
+        key: "notificaciones",
+        icon: <MailOutlined />,
+        label: "Notificaciones",
+        children: [
+          {
+            key: "/dashboard/notificaciones",
+            label: "Notificaciones",
+            onClick: () => navigate('/dashboard/notificaciones')
+          },
+          {
+            key: "/dashboard/notificaciones/crear",
+            label: "Crear notificación",
+            onClick: () => navigate('/dashboard/notificaciones/crear')
+          },
+          {
+            key: "/dashboard/notificaciones/entregadas",
+            label: "Entregadas",
+            onClick: () => navigate('/dashboard/notificaciones/entregadas')
+          }
+        ]
+      },
+      {
+        key: "recibos",
+        icon: <DollarOutlined />,
+        label: "Recibos de Caja",
+        children: [
+          {
+            key: "/dashboard/recibos",
+            label: "Inicio",
+            onClick: () => navigate('/dashboard/recibos')
+          },
+          {
+            key: "/dashboard/recibos/crear",
+            label: "Crear recibo",
+            onClick: () => navigate('/dashboard/recibos/crear')
+          },
+          {
+            key: "/dashboard/recibos/listar",
+            label: "Listar recibos",
+            onClick: () => navigate('/dashboard/recibos/listar')
+          }
+        ]
+      },
+      {
+        key: "money-req-submenu",
+        icon: <DollarOutlined />,
+        label: "Requerimientos de dinero",
+        children: [
+          {
+            key: "/dashboard/money-req",
+            label: "Listar requerimientos",
+            onClick: () => navigate('/dashboard/money-req')
+          }
+        ]
+      }
+    ];
+
+    return items;
+  };
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider trigger={null} collapsible collapsed={collapsed} theme={siderTheme}>
@@ -71,173 +248,12 @@ const DashboardLayout: React.FC = () => {
           />
         </div>
 
-        <Menu theme={siderTheme} mode="inline" selectedKeys={[location.pathname]}>
-          <Menu.Item
-            key="/dashboard"
-            icon={<HomeOutlined />}
-            onClick={() => navigate('/dashboard')}
-          >
-            Dashboard
-          </Menu.Item>
-
-          <Menu.Item
-            key="/agenda"
-            icon={<ScheduleOutlined />}
-            onClick={() => navigate('/agenda')}
-          >
-            Agendador
-          </Menu.Item>
-
-          {/* Submenú cheques */}
-          <Menu.SubMenu
-            key="cheques"
-            icon={<FolderOpenOutlined />}
-            title="Gestión de cheques"
-          >
-            <Menu.Item
-              key="/dashboard/cheques/autorizacion"
-              icon={<FileProtectOutlined />}
-              onClick={() => navigate('/dashboard/cheques/autorizacion')}
-            >
-              Autorización
-            </Menu.Item>
-            <Menu.Item
-              key="/dashboard/cheques/liquidacion"
-              icon={<DollarOutlined />}
-              onClick={() => navigate('/dashboard/cheques/liquidacion')}
-            >
-              Liquidación
-            </Menu.Item>
-            <Menu.Item
-              key="/dashboard/cheques/liquidados"
-              icon={<FileDoneOutlined />}
-              onClick={() => navigate('/dashboard/cheques/liquidados')}
-            >
-              Liquidados
-            </Menu.Item>
-            <Menu.Item
-              key="/dashboard/cheques/inmobiliario"
-              icon={<FileTextOutlined />}
-              onClick={() => navigate('/dashboard/cheques/inmobiliario')}
-            >
-              Gastos inmobiliarios
-            </Menu.Item>
-            <Menu.Item
-              key="/dashboard/cheques/pendientes"
-              icon={<PushpinOutlined />}
-              onClick={() => navigate('/dashboard/cheques/pendientes')}
-            >
-              Cheques pendientes
-            </Menu.Item>
-          </Menu.SubMenu>
-
-          <Menu.Item
-            key="/casos"
-            icon={<FileTextOutlined />}
-            onClick={() => navigate('/casos')}
-          >
-            Control de casos
-          </Menu.Item>
-
-          <Menu.Item
-            key="/mensajeria"
-            icon={<MailOutlined />}
-            onClick={() => navigate('/mensajeria')}
-          >
-            Mensajería
-          </Menu.Item>
-
-          {/* Submenú reservaciones */}
-          <Menu.SubMenu
-            key="reservaciones"
-            icon={<ScheduleOutlined />}
-            title="Reservaciones"
-          >
-            <Menu.Item
-              key="/dashboard/reservaciones"
-              onClick={() => navigate('/dashboard/reservaciones')}
-            >
-              Calendario
-            </Menu.Item>
-            <Menu.Item
-              key="/dashboard/reservaciones/crear"
-              onClick={() => navigate('/dashboard/reservaciones/crear')}
-            >
-              Crear reserva
-            </Menu.Item>
-            <Menu.Item
-              key="/dashboard/reservaciones/listar"
-              onClick={() => navigate('/dashboard/reservaciones/listar')}
-            >
-              Listar reservas
-            </Menu.Item>
-            {canSeeReport === true && (
-              <Menu.Item
-                key="/dashboard/reservaciones/reporte-exclusivo"
-                icon={<FileTextOutlined />}
-                onClick={() => navigate('/dashboard/reservaciones/reporte-exclusivo')}
-              >
-                Reporte exclusivo
-              </Menu.Item>
-            )}
-          </Menu.SubMenu>
-
-          {/* Submenú notificaciones */}
-          <Menu.SubMenu
-            key="notificaciones"
-            icon={<MailOutlined />}
-            title="Notificaciones"
-          >
-            <Menu.Item
-              key="/dashboard/notificaciones"
-              onClick={() => navigate('/dashboard/notificaciones')}
-            >
-              Notificaciones
-            </Menu.Item>
-            <Menu.Item
-              key="/dashboard/notificaciones/documentos"
-              onClick={() => navigate('/dashboard/notificaciones/documentos')}
-            >
-              Documentos
-            </Menu.Item>
-          </Menu.SubMenu>
-
-          {/* Submenú recibos */}
-          <Menu.SubMenu key="recibos" icon={<DollarOutlined />} title="Recibos de Caja">
-            <Menu.Item
-              key="/dashboard/recibos"
-              onClick={() => navigate('/dashboard/recibos')}
-            >
-              Inicio
-            </Menu.Item>
-            <Menu.Item
-              key="/dashboard/recibos/crear"
-              onClick={() => navigate('/dashboard/recibos/crear')}
-            >
-              Crear recibo
-            </Menu.Item>
-            <Menu.Item
-              key="/dashboard/recibos/listar"
-              onClick={() => navigate('/dashboard/recibos/listar')}
-            >
-              Listar recibos
-            </Menu.Item>
-          </Menu.SubMenu>
-
-          {/* 🆕 Submenú requerimientos */}
-          <Menu.SubMenu
-            key="/dashboard/money-req"
-            icon={<DollarOutlined />}
-            title="Requerimientos de dinero"
-          >
-            <Menu.Item
-              key="/dashboard/money-req"
-              onClick={() => navigate('/dashboard/money-req')}
-            >
-              Listar requerimientos
-            </Menu.Item>
-          </Menu.SubMenu>
-        </Menu>
+        <Menu 
+          theme={siderTheme} 
+          mode="inline" 
+          selectedKeys={[location.pathname]}
+          items={getMenuItems()}
+        />
       </Sider>
 
       <Layout>

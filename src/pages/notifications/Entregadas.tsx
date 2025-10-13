@@ -1,137 +1,127 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Button, Card, Table, message, Space } from "antd";
-import type { ColumnsType } from "antd/es/table";
+import React, { useEffect, useState, useCallback } from "react";
+import { Table, Input, DatePicker, Button, Typography, Row, Col, message } from "antd";
 import dayjs from "dayjs";
+import { fetchDeliveredNotifications, type NotificationDto } from "../../api/notifications";
 
-import {
-  fetchDeliveredNotifications,
-  type NotificationDto,
-} from "../../api/notifications";
-import NotificationFilters from "./NotificationFilters";
-
-type RowType = {
-  key: number;
-  fechaRecepcion: string;
-  horaRecepcion: string;
-  de: string;
-  cedula: string;
-  expediente: string;
-  dirigidaA: string;
-  recibe: string;
-  fechaEntrega: string;
-  horaEntrega: string;
-  entregadaA: string;
-  quienEntrega: string;
-};
+const { Title } = Typography;
 
 const Entregadas: React.FC = () => {
+  const [notifications, setNotifications] = useState<NotificationDto[]>([]);
   const [loading, setLoading] = useState(false);
-  const [rows, setRows] = useState<RowType[]>([]);
-  const [filters, setFilters] = useState<Record<string, any>>({});
-  const [proveniences, setProveniences] = useState<{ id: number; name: string }[]>([]);
-  const [halls, setHalls] = useState<{ id: number; name: string }[]>([]);
+  const [filters, setFilters] = useState<{
+    receptionDate?: string;
+    deliveryDate?: string;
+    cedule?: string;
+    expedientNum?: string;
+  }>({});
 
-  const columns: ColumnsType<RowType> = useMemo(
-    () => [
-      { title: "Fecha recepción", dataIndex: "fechaRecepcion", key: "fechaRecepcion" },
-      { title: "Hora recepción", dataIndex: "horaRecepcion", key: "horaRecepcion" },
-      { title: "De", dataIndex: "de", key: "de" },
-      { title: "Cédula", dataIndex: "cedula", key: "cedula" },
-      { title: "No. Expediente", dataIndex: "expediente", key: "expediente" },
-      { title: "Dirigida a", dataIndex: "dirigidaA", key: "dirigidaA" },
-      { title: "Recibe", dataIndex: "recibe", key: "recibe" },
-      { title: "Fecha entrega", dataIndex: "fechaEntrega", key: "fechaEntrega" },
-      { title: "Hora entrega", dataIndex: "horaEntrega", key: "horaEntrega" },
-      { title: "Entregada a", dataIndex: "entregadaA", key: "entregadaA" },
-      { title: "Quien entrega", dataIndex: "quienEntrega", key: "quienEntrega" },
-    ],
-    []
-  );
-
-  const load = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [data, provRes, hallsRes] = await Promise.all([
-        fetchDeliveredNotifications(filters),
-        // catálogos para los filtros
-        (await import("../../api/notifications")).fetchProveniences(),
-        (await import("../../api/notifications")).fetchHalls(),
-      ]);
-
-      setProveniences(provRes);
-      setHalls(hallsRes);
-
-      const mapped = data.map((n: NotificationDto): RowType => {
-        const de = [n.provenience?.name, n.hall?.name].filter(Boolean).join(" ");
-        return {
-          key: n.id,
-          fechaRecepcion: n.receptionDatetime
-            ? dayjs(n.receptionDatetime).format("DD/MM/YYYY")
-            : "",
-          horaRecepcion: n.receptionDatetime
-            ? dayjs(n.receptionDatetime).format("HH:mm")
-            : "",
-          de,
-          cedula: n.cedule,
-          expediente: n.expedientNum,
-          dirigidaA: n.directedTo,
-          recibe: n.recepReceives
-            ? `${n.recepReceives.first_name} ${n.recepReceives.last_name}`
-            : "",
-          fechaEntrega: n.receptionDatetime
-            ? dayjs(n.receptionDatetime).format("DD/MM/YYYY")
-            : "",
-          horaEntrega: n.receptionDatetime
-            ? dayjs(n.receptionDatetime).format("HH:mm")
-            : "",
-          entregadaA: n.deliverTo
-            ? `${n.deliverTo.first_name} ${n.deliverTo.last_name}`
-            : "",
-          quienEntrega: n.recepDelivery
-            ? `${n.recepDelivery.first_name} ${n.recepDelivery.last_name}`
-            : "",
-        };
-      });
-
-      setRows(mapped);
-    } catch (e: any) {
-      console.error(e);
-      message.error(e?.response?.data?.message || "Error al cargar entregadas");
+      const data = await fetchDeliveredNotifications(filters);
+      setNotifications(data);
+    } catch {
+      message.error("Error al cargar entregadas");
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    load();
   }, [filters]);
 
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleFilterChange = (field: string, value: string | undefined) => {
+    setFilters((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const columns = [
+    {
+      title: "Fecha recepción",
+      dataIndex: "receptionDatetime",
+      render: (value: string) => new Date(value).toLocaleDateString(),
+    },
+    {
+      title: "De",
+      render: (_: unknown, record: NotificationDto) => {
+        const prov = record.provenience?.name || record.otherProvenience || "";
+        const hall = record.hall?.name || "";
+        return `${prov} ${hall}`.trim();
+      },
+    },
+    {
+      title: "Cédula",
+      dataIndex: "cedule",
+    },
+    {
+      title: "Expediente",
+      dataIndex: "expedientNum",
+    },
+    {
+      title: "Dirigida a",
+      dataIndex: "directedTo",
+    },
+    {
+      title: "Entregada a",
+      render: (_: unknown, record: NotificationDto) =>
+        `${record.deliverTo?.first_name ?? ""} ${record.deliverTo?.last_name ?? ""}`,
+    },
+    {
+      title: "Quien entrega",
+      render: (_: unknown, record: NotificationDto) =>
+        `${record.recepDelivery?.first_name ?? ""} ${record.recepDelivery?.last_name ?? ""}`,
+    },
+  ];
+
   return (
-    <Card
-      title="Lista de notificaciones entregadas"
-      extra={
-        <Space>
-          <Button type="primary" onClick={load}>
-            🔄 Refrescar
-          </Button>
-        </Space>
-      }
-    >
-      <NotificationFilters
-        filters={filters}
-        setFilters={setFilters}
-        proveniences={proveniences}
-        halls={halls}
-      />
+    <div>
+      <Title level={3}>Notificaciones entregadas</Title>
+
+      <Row gutter={16} style={{ marginBottom: 16 }}>
+        <Col span={6}>
+          <DatePicker
+            style={{ width: "100%" }}
+            placeholder="Fecha recepción"
+            onChange={(date) =>
+              handleFilterChange("receptionDate", date ? dayjs(date).format("YYYY-MM-DD") : undefined)
+            }
+          />
+        </Col>
+        <Col span={6}>
+          <DatePicker
+            style={{ width: "100%" }}
+            placeholder="Fecha entrega"
+            onChange={(date) =>
+              handleFilterChange("deliveryDate", date ? dayjs(date).format("YYYY-MM-DD") : undefined)
+            }
+          />
+        </Col>
+        <Col span={6}>
+          <Input
+            placeholder="Cédula"
+            onChange={(e) => handleFilterChange("cedule", e.target.value)}
+          />
+        </Col>
+        <Col span={6}>
+          <Input
+            placeholder="Expediente"
+            onChange={(e) => handleFilterChange("expedientNum", e.target.value)}
+          />
+        </Col>
+      </Row>
+
+      <Button type="primary" onClick={loadData} style={{ marginBottom: 16 }}>
+        Buscar
+      </Button>
 
       <Table
+        rowKey="id"
         columns={columns}
-        dataSource={rows}
+        dataSource={notifications}
         loading={loading}
         pagination={{ pageSize: 10 }}
-        locale={{ emptyText: "No hay notificaciones entregadas" }}
       />
-    </Card>
+    </div>
   );
 };
 

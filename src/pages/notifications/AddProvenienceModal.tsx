@@ -1,77 +1,94 @@
-import React, { useState } from "react";
-import { Modal, Form, Input, Checkbox, message } from "antd";
-import { createProvenience, type ProvenienceDto } from "../../api/notifications";
+import React, { useState, useEffect } from "react";
+import { Modal, Form, Input, Checkbox, Select } from "antd";
+import type { HallDto } from "../../api/notifications";
 
-interface Props {
+const { Option } = Select;
+
+interface AddProvenienceModalProps {
   open: boolean;
-  onClose: () => void;
-  onCreated: (prov: ProvenienceDto) => void; // devolvemos la entidad creada para seleccionarla
+  halls: HallDto[];
+  onCancel: () => void;
+  onCreate: (name: string, hallName?: string, selectedHalls?: number[]) => Promise<void>;
 }
 
-const AddProvenienceModal: React.FC<Props> = ({ open, onClose, onCreated }) => {
+const AddProvenienceModal: React.FC<AddProvenienceModalProps> = ({
+  open,
+  halls,
+  onCancel,
+  onCreate,
+}) => {
   const [form] = Form.useForm();
   const [includeHall, setIncludeHall] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      form.resetFields();
+      setIncludeHall(false);
+    }
+  }, [open, form]);
 
   const handleOk = async () => {
     try {
-      setSubmitting(true);
       const values = await form.validateFields();
-      const payload: { name: string; hallName?: string } = {
-        name: values.name,
-        ...(includeHall && values.hallName ? { hallName: values.hallName } : {}),
-      };
-      const created = await createProvenience(payload);
-      message.success("Entidad creada correctamente");
+      const name = values.name;
+      const hallName = includeHall ? values.hallName : undefined;
+      const selectedHalls = values.selectedHalls ?? [];
+      await onCreate(name, hallName, selectedHalls);
       form.resetFields();
       setIncludeHall(false);
-      onCreated(created);
-      onClose();
     } catch {
-      message.error("No se pudo crear la entidad");
-    } finally {
-      setSubmitting(false);
+      // Error de validación, no hacer nada
     }
   };
 
   return (
     <Modal
-      title="Agregar entidad"
       open={open}
-      onOk={handleOk}
-      confirmLoading={submitting}
+      title="Agregar nueva entidad"
       okText="Crear"
       cancelText="Cancelar"
       onCancel={() => {
         form.resetFields();
         setIncludeHall(false);
-        onClose();
+        onCancel();
       }}
+      onOk={handleOk}
     >
       <Form form={form} layout="vertical">
         <Form.Item
-          name="name"
           label="Nombre de la entidad"
-          rules={[{ required: true, message: "Ingrese el nombre de la entidad" }]}
+          name="name"
+          rules={[{ required: true, message: "Por favor, ingresa el nombre de la entidad" }]}
         >
-          <Input placeholder="Ej. Corte Suprema de Justicia" />
+          <Input placeholder="Nombre de la entidad" />
         </Form.Item>
 
-        <Checkbox
-          checked={includeHall}
-          onChange={({ target }) => setIncludeHall(target.checked)}
-          style={{ marginBottom: 8 }}
+        <Form.Item
+          label="Asignar salas existentes (opcional)"
+          name="selectedHalls"
         >
-          Incluir primera sala/oficina
-        </Checkbox>
+          <Select mode="multiple" placeholder="Selecciona una o varias salas">
+            {halls.map((hall) => (
+              <Option key={hall.id} value={hall.id}>
+                {hall.name}
+              </Option>
+            ))}
+          </Select>
+        </Form.Item>
+
+        <Form.Item>
+          <Checkbox checked={includeHall} onChange={(e) => setIncludeHall(e.target.checked)}>
+            ¿Agregar una nueva sala a esta entidad?
+          </Checkbox>
+        </Form.Item>
 
         {includeHall && (
           <Form.Item
+            label="Nombre de la sala"
             name="hallName"
-            label="Nombre de sala/oficina"
-            rules={[{ required: true, message: "Ingrese el nombre de la sala" }]}
+            rules={[{ required: true, message: "Ingresa el nombre de la sala" }]}
           >
-            <Input placeholder="Ej. Sala Primera de Apelaciones" />
+            <Input placeholder="Ej. Sala 1, Sala Civil, etc." />
           </Form.Item>
         )}
       </Form>
@@ -79,4 +96,4 @@ const AddProvenienceModal: React.FC<Props> = ({ open, onClose, onCreated }) => {
   );
 };
 
-export default AddProvenienceModal; 
+export default AddProvenienceModal;

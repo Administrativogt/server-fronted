@@ -33,7 +33,6 @@ import RoomReservationList from './pages/reservaciones/RoomReservationList';
 // Reporte exclusivo
 import ExclusiveMonthlyReport from './pages/reportes/ExclusiveMonthlyReport';
 import Notificaciones from './pages/notifications/Notificaciones';
-import Documentos from './pages/notifications/Documentos';
 
 // Módulo de recibos de caja
 import RecibosCaja from './pages/recibos/RecibosCaja';
@@ -47,6 +46,11 @@ import CreateMoneyRequirement from './pages/money_req/Create';
 
 import useAuthStore from './auth/useAuthStore';
 import { useToken } from './hooks/useToken';
+import CrearNotificacion from './pages/notifications/CrearNotificacion';
+import Entregadas from './pages/notifications/Entregadas';
+import Documentos from './pages/documents/Documentos';
+import CreateDocumentForm from './pages/documents/CreateDocumentForm';
+import DocumentFilters from './pages/documents/DocumentFilters';
 
 dayjs.locale('es');
 
@@ -91,13 +95,18 @@ function AppInner() {
 
             {/* Notificaciones */}
             <Route path="/dashboard/notificaciones" element={<Notificaciones />} />
-            <Route path="/dashboard/notificaciones/documentos" element={<Documentos />} />
+            <Route path="/dashboard/notificaciones/crear" element={<CrearNotificacion />} />
+            <Route path="/dashboard/notificaciones/entregadas" element={<Entregadas />} />
 
             {/* Recibos de Caja */}
             <Route path="/dashboard/recibos/listar" element={<ListarRecibos />} />
             <Route path="/dashboard/recibos/crear" element={<CrearRecibo />} />
             <Route path="/dashboard/recibos/:id" element={<RecibosCaja />} />
             <Route path="/dashboard/recibos/editar/:id" element={<EditarRecibo mode="page" />} />
+
+            <Route path="/dashboard/documentos" element={<Documentos />} />
+            <Route path="/dashboard/documentos/crear" element={<CreateDocumentForm />} />
+            <Route path="/dashboard/documentos/entregados" element={<DocumentFilters />} />
 
             {/* Requerimientos de dinero */}
             <Route path="/dashboard/money-req" element={<MoneyReqList />} />

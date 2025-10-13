@@ -1,46 +1,77 @@
-import React from "react";
-import { Button, Space, message } from "antd";
-import { applyActionToNotifications } from "../../api/notifications";
+import React, { useEffect, useState } from "react";
+import { Modal, Select, message } from "antd";
+import { fetchReceivers, deliverNotifications } from "../../api/notifications";
+
+const { Option } = Select;
 
 interface Props {
+  open: boolean;
+  onClose: () => void;
   selectedIds: number[];
   onSuccess: () => void;
 }
 
-const NotificationActions: React.FC<Props> = ({ selectedIds, onSuccess }) => {
-  const handleAction = async (action: 1 | 2 | 3) => {
+const NotificationActions: React.FC<Props> = ({ open, onClose, selectedIds, onSuccess }) => {
+  const [users, setUsers] = useState<{ id: number; first_name: string; last_name: string }[]>([]);
+  const [selectedUser, setSelectedUser] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      fetchReceivers()
+        .then(setUsers)
+        .catch(() => {
+          message.error("Error al cargar usuarios");
+        });
+    }
+  }, [open]);
+
+  const handleDeliver = async () => {
+    if (!selectedUser) {
+      message.warning("Selecciona a quién entregar");
+      return;
+    }
+
+    setLoading(true);
     try {
-      await applyActionToNotifications(action, selectedIds);
-      message.success("Acción aplicada correctamente");
+      await deliverNotifications({
+        ids: selectedIds,
+        action: 1,
+        deliverTo: selectedUser,
+      });
+      message.success("Notificaciones entregadas con éxito");
       onSuccess();
     } catch {
-      message.error("Error al aplicar acción");
+      message.error("Error al entregar");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <Space>
-      <Button
-        type="primary"
-        disabled={!selectedIds.length}
-        onClick={() => handleAction(1)}
+    <Modal
+      open={open}
+      onCancel={onClose}
+      onOk={handleDeliver}
+      confirmLoading={loading}
+      okText="Entregar"
+      cancelText="Cancelar"
+      title="Entregar notificaciones seleccionadas"
+    >
+      <p>Selecciona el usuario al que se entregan:</p>
+      <Select
+        style={{ width: "100%" }}
+        placeholder="Selecciona un usuario"
+        onChange={(val) => setSelectedUser(val)}
+        value={selectedUser ?? undefined}
       >
-        ✅ Aceptar
-      </Button>
-      <Button
-        danger
-        disabled={!selectedIds.length}
-        onClick={() => handleAction(2)}
-      >
-        ❌ Rechazar
-      </Button>
-      <Button
-        disabled={!selectedIds.length}
-        onClick={() => handleAction(3)}
-      >
-        🤔 Seleccionar algunos
-      </Button>
-    </Space>
+        {users.map((user) => (
+          <Option key={user.id} value={user.id}>
+            {user.first_name} {user.last_name}
+          </Option>
+        ))}
+      </Select>
+    </Modal>
   );
 };
 
