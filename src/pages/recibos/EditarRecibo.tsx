@@ -1,4 +1,3 @@
-// src/pages/recibos/EditarRecibo.tsx
 import React, { useEffect, useState } from 'react';
 import {
   Modal,
@@ -29,12 +28,15 @@ const EditarRecibo: React.FC<EditarReciboProps> = (props) => {
   const [form] = Form.useForm<Partial<CashReceipt>>();
   const [loading, setLoading] = useState(false);
 
-  // 👉 Si es página, obtenemos id desde la URL
   const params = useParams();
   const navigate = useNavigate();
 
   const reciboId =
-    props.mode === 'modal' ? props.reciboId : Number(params.id);
+    props.mode === 'modal'
+      ? props.reciboId
+      : params.id
+      ? Number(params.id)
+      : null;
 
   const fetchRecibo = async () => {
     if (!reciboId) return;
@@ -42,12 +44,14 @@ const EditarRecibo: React.FC<EditarReciboProps> = (props) => {
     try {
       const { data } = await cashReceiptsApi.getById(reciboId);
       form.setFieldsValue({
+        serie: data.serie,
+        correlative: data.correlative,
         received_from: data.received_from,
         concept: data.concept,
         bill_number: data.bill_number,
         work_note_number: data.work_note_number,
         iva_exemption: data.iva_exemption,
-        amount: data.amount,
+        amount: Number(data.amount),
       });
     } catch {
       message.error('Error al cargar recibo');
@@ -64,8 +68,12 @@ const EditarRecibo: React.FC<EditarReciboProps> = (props) => {
   const handleSubmit = async (values: Partial<CashReceipt>) => {
     if (!reciboId) return;
     try {
-      await cashReceiptsApi.update(reciboId, values);
-      message.success('Recibo actualizado');
+      const payload = {
+        ...values,
+        amount: values.amount?.toString() ?? '0',
+      };
+      await cashReceiptsApi.update(reciboId, payload);
+      message.success('Recibo actualizado correctamente');
 
       if (props.mode === 'modal') {
         props.onUpdated();
@@ -74,7 +82,7 @@ const EditarRecibo: React.FC<EditarReciboProps> = (props) => {
         navigate('/dashboard/recibos/listar');
       }
     } catch {
-      message.error('Error al actualizar recibo');
+      message.error('Error al actualizar el recibo');
     }
   };
 
@@ -86,23 +94,48 @@ const EditarRecibo: React.FC<EditarReciboProps> = (props) => {
       wrapperCol={{ span: 14 }}
       onFinish={handleSubmit}
     >
-      <Form.Item name="received_from" label="Recibimos de">
+      <Form.Item name="serie" label="Serie">
+        <Input disabled />
+      </Form.Item>
+
+      <Form.Item name="correlative" label="Correlativo">
+        <Input disabled />
+      </Form.Item>
+
+      <Form.Item
+        name="received_from"
+        label="Recibimos de"
+        rules={[{ required: true, message: 'Campo obligatorio' }]}
+      >
         <Input />
       </Form.Item>
-      <Form.Item name="concept" label="Concepto">
+
+      <Form.Item
+        name="concept"
+        label="Concepto"
+        rules={[{ required: true, message: 'Campo obligatorio' }]}
+      >
         <Input />
       </Form.Item>
+
       <Form.Item name="bill_number" label="Factura No.">
         <Input />
       </Form.Item>
+
       <Form.Item name="work_note_number" label="Nota de trabajo No.">
         <Input />
       </Form.Item>
+
       <Form.Item name="iva_exemption" label="Exención de IVA">
         <Input />
       </Form.Item>
-      <Form.Item name="amount" label="La cantidad de">
-        <InputNumber style={{ width: '100%' }} />
+
+      <Form.Item
+        name="amount"
+        label="La cantidad de"
+        rules={[{ required: true, message: 'Debe ingresar un monto' }]}
+      >
+        <InputNumber style={{ width: '100%' }} min={0} />
       </Form.Item>
 
       <Form.Item wrapperCol={{ span: 14, offset: 6 }}>
@@ -146,7 +179,6 @@ const EditarRecibo: React.FC<EditarReciboProps> = (props) => {
     );
   }
 
-  // 👉 Si es página
   return <Card title="Editar Recibo">{formContent}</Card>;
 };
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Form,
   Input,
@@ -18,8 +18,9 @@ import dayjs, { Dayjs } from 'dayjs';
 import { useNavigate } from 'react-router-dom';
 import type { CashReceipt, Check } from '../../api/cashReceipts';
 import cashReceiptsApi from '../../api/cashReceipts';
+import useAuthStore from '../../auth/useAuthStore';
 
-// 👇 Tipo del formulario (date será Dayjs, no string)
+// Tipo del formulario
 type CashReceiptForm = Omit<CashReceipt, 'id' | 'checks' | 'creator' | 'date'> & {
   date: Dayjs;
 };
@@ -28,12 +29,29 @@ const CrearRecibo: React.FC = () => {
   const [form] = Form.useForm<CashReceiptForm>();
   const navigate = useNavigate();
 
-  const [currency, setCurrency] = useState<number>(1); // 1=Q, 2=$, 3=€
-  const [showCurrencyModal, setShowCurrencyModal] = useState(true);
+  const username = useAuthStore((s) => s.username); // usuario actual
 
+  const [currency, setCurrency] = useState<number>(1);
+  const [showCurrencyModal, setShowCurrencyModal] = useState(true);
   const [checks, setChecks] = useState<Check[]>([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentForm] = Form.useForm<Omit<Check, 'id'>>();
+
+  // Serie visual (solo para mostrar, no se envía al backend)
+  const [serie, setSerie] = useState<string>('A');
+  const [correlative, setCorrelative] = useState<string>('');
+
+  // Asignar serie visual según usuario (solo display)
+  useEffect(() => {
+    if (username?.startsWith('ESC')) setSerie('E');
+    else if (username?.startsWith('BAR')) setSerie('B');
+    else setSerie('A');
+  }, [username]);
+
+  // Generar correlativo temporal (solo display)
+  useEffect(() => {
+    setCorrelative(String(Math.floor(Math.random() * 10000)).padStart(4, '0'));
+  }, []);
 
   const handleAddPayment = (values: Omit<Check, 'id'>) => {
     setChecks((prev) => [...prev, values]);
@@ -43,22 +61,36 @@ const CrearRecibo: React.FC = () => {
 
   const handleSubmit = async (values: CashReceiptForm) => {
     try {
-      const totalAmount = checks.reduce((acc, c) => acc + c.value, 0);
+      // 🧹 limpiar valores numéricos
+      const cleanedChecks = checks.map((c) => ({
+        number: c.number,
+        bank: c.bank,
+        value: Number(String(c.value).replace(/[^0-9.]/g, '')),
+      }));
 
-      const payload: CashReceipt = {
-        ...values,
-        date: values.date.format('YYYY-MM-DDTHH:mm:ss'),
+      const totalAmount = cleanedChecks.reduce((sum, c) => sum + c.value, 0);
+
+      // 🧾 payload sin serie/correlative
+      const payload = {
+        date: values.date.format('YYYY-MM-DD'),
+        received_from: values.received_from,
+        concept: values.concept,
+        bill_number: values.bill_number,
+        work_note_number: values.work_note_number,
+        iva_exemption: values.iva_exemption,
         currency,
         amount: totalAmount,
-        creatorId: 1, // normalmente debería venir del usuario autenticado
         active: true,
-        checks,
+        checks: cleanedChecks,
       };
 
+      console.log('📦 Payload enviado:', payload);
+
       await cashReceiptsApi.create(payload);
-      message.success('Recibo creado exitosamente');
+      message.success(`✅ Recibo creado correctamente por ${username}`);
       navigate('/dashboard/recibos/listar');
-    } catch {
+    } catch (err) {
+      console.error('❌ Error al crear recibo:', err);
       message.error('Error al crear el recibo');
     }
   };
@@ -67,26 +99,19 @@ const CrearRecibo: React.FC = () => {
 
   return (
     <>
-      {/* Modal selección de moneda */}
+      {/* Modal de tipo de moneda */}
       <Modal
         title="Tipo de moneda del recibo"
         open={showCurrencyModal}
         closable={false}
         footer={[
-          <Button
-            key="ok"
-            type="primary"
-            onClick={() => setShowCurrencyModal(false)}
-          >
+          <Button key="ok" type="primary" onClick={() => setShowCurrencyModal(false)}>
             Listo
           </Button>,
         ]}
       >
         <p>Elegí el tipo de moneda que tendrá el recibo:</p>
-        <Radio.Group
-          value={currency}
-          onChange={(e) => setCurrency(e.target.value)}
-        >
+        <Radio.Group value={currency} onChange={(e) => setCurrency(e.target.value)}>
           <Radio value={1}>Quetzales (Q.)</Radio>
           <Radio value={2}>Dólares ($)</Radio>
           <Radio value={3}>Euros (€)</Radio>
@@ -107,30 +132,18 @@ const CrearRecibo: React.FC = () => {
         >
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item
-                name="date"
-                label="Fecha"
-                rules={[{ required: true }]}
-              >
+              <Form.Item name="date" label="Fecha" rules={[{ required: true }]}>
                 <DatePicker style={{ width: '100%' }} />
               </Form.Item>
             </Col>
             <Col span={6}>
-              <Form.Item
-                name="serie"
-                label="Serie"
-                rules={[{ required: true }]}
-              >
-                <Input placeholder="Ej: 3" />
+              <Form.Item label="Serie">
+                <Input value={serie} disabled />
               </Form.Item>
             </Col>
             <Col span={6}>
-              <Form.Item
-                name="correlative"
-                label="Correlativo"
-                rules={[{ required: true }]}
-              >
-                <Input />
+              <Form.Item label="Correlativo">
+                <Input value={correlative} disabled />
               </Form.Item>
             </Col>
           </Row>
@@ -166,16 +179,12 @@ const CrearRecibo: React.FC = () => {
                 title: 'Valor',
                 dataIndex: 'value',
                 render: (val: number) =>
-                  `${currencySymbol} ${val.toLocaleString()}`,
+                  `${currencySymbol} ${Number(val).toLocaleString()}`,
               },
             ]}
           />
 
-          <Form.Item
-            name="concept"
-            label="Por concepto de"
-            rules={[{ required: true }]}
-          >
+          <Form.Item name="concept" label="Por concepto de" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
           <Form.Item name="bill_number" label="Factura No.">
@@ -209,33 +218,18 @@ const CrearRecibo: React.FC = () => {
         onCancel={() => setShowPaymentModal(false)}
         footer={null}
       >
-        <Form<Omit<Check, 'id'>>
-          form={paymentForm}
-          layout="vertical"
-          onFinish={handleAddPayment}
-        >
-          <Form.Item
-            name="number"
-            label="Cheque No."
-            rules={[{ required: true }]}
-          >
+        <Form<Omit<Check, 'id'>> form={paymentForm} layout="vertical" onFinish={handleAddPayment}>
+          <Form.Item name="number" label="Cheque No." rules={[{ required: true }]}>
             <Input />
           </Form.Item>
           <Form.Item name="bank" label="Banco" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item
-            name="value"
-            label="Valor"
-            rules={[{ required: true }]}
-          >
+          <Form.Item name="value" label="Valor" rules={[{ required: true }]}>
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item>
-            <Button
-              onClick={() => setShowPaymentModal(false)}
-              style={{ marginRight: 8 }}
-            >
+            <Button onClick={() => setShowPaymentModal(false)} style={{ marginRight: 8 }}>
               Cancelar
             </Button>
             <Button type="primary" htmlType="submit">
