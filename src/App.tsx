@@ -51,6 +51,15 @@ import Entregadas from './pages/notifications/Entregadas';
 import Documentos from './pages/documents/Documentos';
 import CreateDocumentForm from './pages/documents/CreateDocumentForm';
 import DocumentFilters from './pages/documents/DocumentFilters';
+import CreateEncargoPage from './pages/mensajeria/CreateEncargoPage';
+import PendingEncargosPage from './pages/mensajeria/PendingEncargosPage';
+import EditEncargoPage from './pages/mensajeria/EditEncargoPage';
+import MensajeriaDashboardPage from './pages/mensajeria/MensajeriaDashboardPage';
+import AssignedEncargosPage from './pages/mensajeria/AssignedEncargosPage';
+import AllEncargosPage from './pages/mensajeria/components/AllEncargosPage';
+import UploadCargabilityReport from './pages/cargability/UploadCargabilityReport';
+import CargabilityUsersList from './pages/cargability/CargabilityUsersList';
+import CargabilityReportView from './pages/cargability/CargabilityReportView';
 
 dayjs.locale('es');
 
@@ -111,6 +120,22 @@ function AppInner() {
             {/* Requerimientos de dinero */}
             <Route path="/dashboard/money-req" element={<MoneyReqList />} />
             <Route path="/dashboard/money-req/create" element={<CreateMoneyRequirement />} />
+
+            {/* Módulo Mensajería */}
+              <Route path="/dashboard/mensajeria/crear" element={<CreateEncargoPage />} />
+              <Route path="/dashboard/mensajeria" element={<PendingEncargosPage />} />
+              <Route path="/dashboard/mensajeria/editar/:id" element={<EditEncargoPage />} />
+              <Route path="/dashboard/mensajeria/dashboard" element={<MensajeriaDashboardPage />} />
+              <Route path="/dashboard/mensajeria/asignados" element={<AssignedEncargosPage />} />
+              <Route path="/dashboard/mensajeria/todos" element={<AllEncargosPage />} />
+
+
+
+              {/* Módulo Cargabilidad */}
+              <Route path="/dashboard/cargability/upload" element={<UploadCargabilityReport />} />
+              <Route path="/dashboard/cargability/users" element={<CargabilityUsersList />} />
+              <Route path="/dashboard/cargability/report/:username" element={<CargabilityReportView />} />
+             
 
             {/* Fallback dentro del layout */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

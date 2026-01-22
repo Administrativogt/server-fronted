@@ -12,7 +12,7 @@ export interface MoneyRequirement {
   description: string;
   state: number;
   teamId?: number;
-  areaId?: number;
+  areaIds?: number[];
   applicantId?: number;
   responsibleForAuthorizingId?: number;
   teamName?: string;

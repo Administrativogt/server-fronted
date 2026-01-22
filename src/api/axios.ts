@@ -8,8 +8,9 @@ const api = axios.create({
 });
 
 api.interceptors.request.use(async (config) => {
-  const token = localStorage.getItem('token');
-  const refreshToken = localStorage.getItem('refreshToken');
+  // ✅ CAMBIAR: usar sessionStorage en lugar de localStorage
+  const token = sessionStorage.getItem('token');
+  const refreshToken = sessionStorage.getItem('refreshToken');
   const { setToken, logout } = useAuthStore.getState();
 
   if (token && isValidJwt(token)) {
@@ -39,9 +40,15 @@ api.interceptors.request.use(async (config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
-      const { logout } = useAuthStore.getState();
-      logout();
+    // Solo hacer logout si es 401 Y hay un token guardado (sesión expirada)
+    // No hacer logout si no hay token (usuario no autenticado intentando acceder a ruta protegida)
+    const token = sessionStorage.getItem('token');
+    if (err.response?.status === 401 && token) {
+      // Verificar si el token expiró
+      if (isTokenExpired(token)) {
+        const { logout } = useAuthStore.getState();
+        logout();
+      }
     }
     return Promise.reject(err);
   }

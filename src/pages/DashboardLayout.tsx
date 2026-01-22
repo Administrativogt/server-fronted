@@ -16,6 +16,7 @@ import {
   PushpinOutlined,
   FileSearchOutlined,
   FileAddOutlined,
+  ClockCircleOutlined,
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import useAuthStore from '../auth/useAuthStore';
@@ -39,6 +40,10 @@ const DashboardLayout: React.FC = () => {
   const location = useLocation();
   const logout = useAuthStore((s) => s.logout);
   const username = useAuthStore((s) => s.username);
+  const tipoUsuario = useAuthStore((s) => s.tipo_usuario);
+
+  // Usuarios que pueden ver "Envíos asignados": mensajeros (tipo 8) o ESC002/BAR008
+  const canSeeAsignados = tipoUsuario === 8 || username === 'ESC002' || username === 'BAR008';
 
   useEffect(() => {
     let mounted = true;
@@ -118,10 +123,36 @@ const DashboardLayout: React.FC = () => {
         onClick: () => navigate('/casos')
       },
       {
-        key: "/mensajeria",
+        key: "mensajeria",
         icon: <MailOutlined />,
         label: "Mensajería",
-        onClick: () => navigate('/mensajeria')
+        children: [
+          {
+            key: "/dashboard/mensajeria",
+            label: "Envíos pendientes",
+            onClick: () => navigate('/dashboard/mensajeria')
+          },
+          {
+            key: "/dashboard/mensajeria/crear",
+            label: "Crear envío",
+            onClick: () => navigate('/dashboard/mensajeria/crear')
+          },
+          {
+            key: "/dashboard/mensajeria/todos",
+            label: "Todos los envíos",
+            onClick: () => navigate('/dashboard/mensajeria/todos')
+          },
+          ...(canSeeAsignados ? [{
+            key: "/dashboard/mensajeria/asignados",
+            label: "Envíos asignados",
+            onClick: () => navigate('/dashboard/mensajeria/asignados')
+          }] : []),
+          {
+            key: "/dashboard/mensajeria/dashboard",
+            label: "Dashboard",
+            onClick: () => navigate('/dashboard/mensajeria/dashboard')
+          }
+        ]
       },
       {
         key: "reservaciones",
@@ -151,6 +182,24 @@ const DashboardLayout: React.FC = () => {
           }] : [])
         ]
       },
+
+      {
+  key: "cargability",
+  icon: <ClockCircleOutlined />,
+  label: "Cargabilidad",
+  children: [
+    {
+      key: "/dashboard/cargability/upload",
+      label: "Subir reporte",
+      onClick: () => navigate('/dashboard/cargability/upload')
+    },
+    {
+      key: "/dashboard/cargability/users",
+      label: "Lista de usuarios",
+      onClick: () => navigate('/dashboard/cargability/users')
+    }
+  ]
+},
       {
         key: "documentos",
         icon: <FileTextOutlined />,

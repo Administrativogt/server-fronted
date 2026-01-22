@@ -29,7 +29,7 @@ interface FormValues {
   description?: string;
   date?: dayjs.Dayjs;
   teamId: number;
-  areaId: number;
+  areaIds: number[];
   responsibleForAuthorizingId: number;
 }
 
@@ -75,7 +75,7 @@ const CreateMoneyRequirement: React.FC = () => {
         description: values.description,
         date: values.date ? dayjs(values.date).format('YYYY-MM-DD') : undefined,
         teamId: values.teamId,
-        areaId: values.areaId,
+        areaIds: values.areaIds,
         applicantId: 1, // ⚠️ Reemplazar con usuario autenticado real
         responsibleForAuthorizingId: values.responsibleForAuthorizingId,
       };
@@ -101,7 +101,7 @@ const CreateMoneyRequirement: React.FC = () => {
         description: values.description,
         date: values.date ? dayjs(values.date).format('YYYY-MM-DD') : undefined,
         teamId: values.teamId,
-        areaId: values.areaId,
+        areaIds: values.areaIds,
         applicantId: 1,
         responsibleForAuthorizingId: values.responsibleForAuthorizingId,
       };

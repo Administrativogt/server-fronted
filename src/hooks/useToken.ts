@@ -7,7 +7,7 @@ export function useToken() {
   const { setToken, logout } = useAuthStore();
 
   const getToken = useCallback(() => {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (!token || !isValidJwt(token) || isTokenExpired(token)) {
       return null;
     }
@@ -15,9 +15,9 @@ export function useToken() {
   }, []);
 
   const clearToken = useCallback(() => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('username');
-    localStorage.removeItem('refreshToken');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('username');
+    sessionStorage.removeItem('refreshToken');
   }, []);
 
   const isAuthenticated = useCallback(() => {
@@ -26,7 +26,7 @@ export function useToken() {
   }, [getToken]);
 
   const refreshAccessToken = useCallback(async () => {
-    const storedRefresh = localStorage.getItem('refreshToken');
+    const storedRefresh = sessionStorage.getItem('refreshToken');
     if (!storedRefresh) return false;
 
     try {
