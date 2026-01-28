@@ -60,6 +60,18 @@ import AllEncargosPage from './pages/mensajeria/components/AllEncargosPage';
 import UploadCargabilityReport from './pages/cargability/UploadCargabilityReport';
 import CargabilityUsersList from './pages/cargability/CargabilityUsersList';
 import CargabilityReportView from './pages/cargability/CargabilityReportView';
+import CourtCasesPage from './pages/court-cases/CourtCasesPage';
+import CreateCourtCase from './pages/court-cases/CreateCourtCase';
+import HumanResourcesPage from './pages/human-resources/HumanResourcesPage';
+
+// ✨ NUEVO - Módulo de Appointments
+import AppointmentsList from './pages/appointments/AppointmentsList';
+import CreateAppointment from './pages/appointments/CreateAppointment';
+
+// Módulo de Control de Procuraciones
+import ProcurationList from './pages/procuration/ProcurationList';
+import CreateProcuration from './pages/procuration/CreateProcuration';
+import ProcurationDetail from './pages/procuration/ProcurationDetail';
 
 dayjs.locale('es');
 
@@ -70,7 +82,6 @@ function AppInner() {
 
   useEffect(() => {
     if (!isAuthenticated()) {
-      // ❗ no recarga el frontend, solo limpia y redirige
       clearToken();
       logout(false);
       navigate('/login', { replace: true });
@@ -122,20 +133,35 @@ function AppInner() {
             <Route path="/dashboard/money-req/create" element={<CreateMoneyRequirement />} />
 
             {/* Módulo Mensajería */}
-              <Route path="/dashboard/mensajeria/crear" element={<CreateEncargoPage />} />
-              <Route path="/dashboard/mensajeria" element={<PendingEncargosPage />} />
-              <Route path="/dashboard/mensajeria/editar/:id" element={<EditEncargoPage />} />
-              <Route path="/dashboard/mensajeria/dashboard" element={<MensajeriaDashboardPage />} />
-              <Route path="/dashboard/mensajeria/asignados" element={<AssignedEncargosPage />} />
-              <Route path="/dashboard/mensajeria/todos" element={<AllEncargosPage />} />
+            <Route path="/dashboard/mensajeria/crear" element={<CreateEncargoPage />} />
+            <Route path="/dashboard/mensajeria" element={<PendingEncargosPage />} />
+            <Route path="/dashboard/mensajeria/editar/:id" element={<EditEncargoPage />} />
+            <Route path="/dashboard/mensajeria/dashboard" element={<MensajeriaDashboardPage />} />
+            <Route path="/dashboard/mensajeria/asignados" element={<AssignedEncargosPage />} />
+            <Route path="/dashboard/mensajeria/todos" element={<AllEncargosPage />} />
 
+            {/* Módulo Cargabilidad */}
+            <Route path="/dashboard/cargability/upload" element={<UploadCargabilityReport />} />
+            <Route path="/dashboard/cargability/users" element={<CargabilityUsersList />} />
+            <Route path="/dashboard/cargability/report/:username" element={<CargabilityReportView />} />
 
+            {/* Control de casos */}
+            <Route path="/dashboard/casos" element={<CourtCasesPage />} />
+            <Route path="/dashboard/casos/crear" element={<CreateCourtCase />} />
+            <Route path="/casos" element={<Navigate to="/dashboard/casos" replace />} />
+            <Route path="/casos/crear" element={<Navigate to="/dashboard/casos/crear" replace />} />
 
-              {/* Módulo Cargabilidad */}
-              <Route path="/dashboard/cargability/upload" element={<UploadCargabilityReport />} />
-              <Route path="/dashboard/cargability/users" element={<CargabilityUsersList />} />
-              <Route path="/dashboard/cargability/report/:username" element={<CargabilityReportView />} />
-             
+            {/* Recursos humanos */}
+            <Route path="/dashboard/recursos-humanos" element={<HumanResourcesPage />} />
+
+            {/* ✨ NUEVO - Módulo Appointments (Actas de Nombramiento) */}
+            <Route path="/dashboard/appointments" element={<AppointmentsList />} />
+            <Route path="/dashboard/appointments/create" element={<CreateAppointment />} />
+
+            {/* Módulo Control de Procuraciones */}
+            <Route path="/dashboard/procuration" element={<ProcurationList />} />
+            <Route path="/dashboard/procuration/create" element={<CreateProcuration />} />
+            <Route path="/dashboard/procuration/:id" element={<ProcurationDetail />} />
 
             {/* Fallback dentro del layout */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

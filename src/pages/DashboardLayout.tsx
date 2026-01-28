@@ -17,6 +17,10 @@ import {
   FileSearchOutlined,
   FileAddOutlined,
   ClockCircleOutlined,
+  SolutionOutlined,
+  AuditOutlined,
+  UnorderedListOutlined,
+  PlusCircleOutlined,
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import useAuthStore from '../auth/useAuthStore';
@@ -42,7 +46,6 @@ const DashboardLayout: React.FC = () => {
   const username = useAuthStore((s) => s.username);
   const tipoUsuario = useAuthStore((s) => s.tipo_usuario);
 
-  // Usuarios que pueden ver "Envíos asignados": mensajeros (tipo 8) o ESC002/BAR008
   const canSeeAsignados = tipoUsuario === 8 || username === 'ESC002' || username === 'BAR008';
 
   useEffect(() => {
@@ -117,10 +120,22 @@ const DashboardLayout: React.FC = () => {
         ]
       },
       {
-        key: "/casos",
+        key: "/dashboard/casos",
         icon: <FileTextOutlined />,
         label: "Control de casos",
-        onClick: () => navigate('/casos')
+        onClick: () => navigate('/dashboard/casos')
+      },
+      {
+        key: "/dashboard/casos/crear",
+        icon: <FileAddOutlined />,
+        label: "Crear caso",
+        onClick: () => navigate('/dashboard/casos/crear')
+      },
+      {
+        key: "/dashboard/recursos-humanos",
+        icon: <SolutionOutlined />,
+        label: "Recursos humanos",
+        onClick: () => navigate('/dashboard/recursos-humanos')
       },
       {
         key: "mensajeria",
@@ -182,24 +197,23 @@ const DashboardLayout: React.FC = () => {
           }] : [])
         ]
       },
-
       {
-  key: "cargability",
-  icon: <ClockCircleOutlined />,
-  label: "Cargabilidad",
-  children: [
-    {
-      key: "/dashboard/cargability/upload",
-      label: "Subir reporte",
-      onClick: () => navigate('/dashboard/cargability/upload')
-    },
-    {
-      key: "/dashboard/cargability/users",
-      label: "Lista de usuarios",
-      onClick: () => navigate('/dashboard/cargability/users')
-    }
-  ]
-},
+        key: "cargability",
+        icon: <ClockCircleOutlined />,
+        label: "Cargabilidad",
+        children: [
+          {
+            key: "/dashboard/cargability/upload",
+            label: "Subir reporte",
+            onClick: () => navigate('/dashboard/cargability/upload')
+          },
+          {
+            key: "/dashboard/cargability/users",
+            label: "Lista de usuarios",
+            onClick: () => navigate('/dashboard/cargability/users')
+          }
+        ]
+      },
       {
         key: "documentos",
         icon: <FileTextOutlined />,
@@ -278,6 +292,46 @@ const DashboardLayout: React.FC = () => {
             key: "/dashboard/money-req",
             label: "Listar requerimientos",
             onClick: () => navigate('/dashboard/money-req')
+          }
+        ]
+      },
+      // ✨ NUEVO - Módulo de Actas de Nombramiento
+      {
+        key: "appointments",
+        icon: <SolutionOutlined />,
+        label: "Actas de Nombramiento",
+        children: [
+          {
+            key: "/dashboard/appointments",
+            icon: <FileSearchOutlined />,
+            label: "Listar actas",
+            onClick: () => navigate('/dashboard/appointments')
+          },
+          {
+            key: "/dashboard/appointments/create",
+            icon: <FileAddOutlined />,
+            label: "Crear acta",
+            onClick: () => navigate('/dashboard/appointments/create')
+          }
+        ]
+      },
+      // Módulo de Control de Procuraciones
+      {
+        key: "procuration",
+        icon: <AuditOutlined />,
+        label: "Control Procuraciones",
+        children: [
+          {
+            key: "/dashboard/procuration",
+            icon: <UnorderedListOutlined />,
+            label: "Listar procuraciones",
+            onClick: () => navigate('/dashboard/procuration')
+          },
+          {
+            key: "/dashboard/procuration/create",
+            icon: <PlusCircleOutlined />,
+            label: "Crear procuracion",
+            onClick: () => navigate('/dashboard/procuration/create')
           }
         ]
       }
