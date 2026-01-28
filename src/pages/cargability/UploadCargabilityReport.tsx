@@ -28,8 +28,8 @@ const UploadCargabilityReport: React.FC = () => {
     setUploading(true);
 
     try {
-      await cargabilityApi.uploadExcel(selectedFile);
-      message.success('Archivo procesado exitosamente');
+      const { data } = await cargabilityApi.uploadExcel(selectedFile);
+      message.success(data?.message || 'Archivo procesado exitosamente');
       setSelectedFile(null);
     } catch (error: any) {
       console.error('Error al procesar archivo:', error);

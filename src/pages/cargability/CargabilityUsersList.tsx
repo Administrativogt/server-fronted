@@ -90,16 +90,25 @@ const CargabilityUsersList: React.FC = () => {
       message.warning('Selecciona al menos un usuario');
       return;
     }
+    const pendingSelected = selectedUsers.filter((username) => {
+      const user = users.find((item) => item.username === username);
+      return user && !user.emailSended;
+    });
+
+    if (pendingSelected.length === 0) {
+      message.info('Todos los seleccionados ya fueron enviados');
+      return;
+    }
 
     confirm({
       title: `¿Enviar emails a usuarios seleccionados?`,
-      content: `Se enviarán ${selectedUsers.length} emails`,
+      content: `Se enviarán ${pendingSelected.length} emails`,
       okText: 'Enviar',
       cancelText: 'Cancelar',
       onOk: async () => {
         setSendingEmail(true);
         try {
-          const { data } = await cargabilityApi.sendEmailsBulk(selectedUsers);
+          const { data } = await cargabilityApi.sendEmailsBulk(pendingSelected);
           const successCount = data.results.filter(r => r.success).length;
           message.success(`${successCount} emails enviados exitosamente`);
           setSelectedUsers([]);
@@ -124,9 +133,9 @@ const CargabilityUsersList: React.FC = () => {
           checked={selectedUsers.includes(record.username)}
           onChange={(e) => {
             if (e.target.checked) {
-              setSelectedUsers([...selectedUsers, record.username]);
+              setSelectedUsers((prev) => [...prev, record.username]);
             } else {
-              setSelectedUsers(selectedUsers.filter(u => u !== record.username));
+              setSelectedUsers((prev) => prev.filter((u) => u !== record.username));
             }
           }}
         />

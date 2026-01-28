@@ -49,6 +49,12 @@ const CargabilityReportView: React.FC = () => {
     return <div>No se encontró el reporte</div>;
   }
 
+  const months = report.months ?? [];
+  const weeks = report.weeks ?? [];
+  const billableWeeks = report.billableHoursPerWeek ?? [];
+  const nonBillable = report.nonBillableHours ?? { consortium_hours: [], non_billable_hours: [] };
+  const totalWeeks = report.totalHoursPerWeek ?? {};
+
   const columns = [
     {
       title: 'Tipo de hora',
@@ -57,13 +63,13 @@ const CargabilityReportView: React.FC = () => {
       fixed: 'left' as const,
       width: 150,
     },
-    ...report.months.map(month => ({
+    ...months.map((month) => ({
       title: `Mes ${month}`,
       dataIndex: month,
       key: month,
       width: 100,
     })),
-    ...report.weeks.map(week => ({
+    ...weeks.map((week) => ({
       title: `Semana ${week}`,
       dataIndex: `week_${week}`,
       key: `week_${week}`,
@@ -82,39 +88,39 @@ const CargabilityReportView: React.FC = () => {
     {
       key: 'billable',
       type: 'Horas Facturables',
-      ...report.months.reduce((acc, month, idx) => ({
+      ...months.reduce((acc, month, idx) => ({
         ...acc,
-        [month]: convertToHour(report.billableHoursPerMonth[idx]?.total || 0),
+        [month]: convertToHour(report.billableHoursPerMonth?.[idx]?.total || 0),
       }), {}),
-      ...report.weeks.reduce((acc, week, idx) => ({
+      ...weeks.reduce((acc, week, idx) => ({
         ...acc,
-        [`week_${week}`]: convertToHour(report.billableHoursPerWeek[idx]?.total || 0),
+        [`week_${week}`]: convertToHour(billableWeeks[idx]?.total || 0),
       }), {}),
       total: convertToHour(report.totalsByLine.billableHours),
     },
     {
       key: 'non_billable',
       type: 'Cobrables que no se cobran',
-      ...report.months.reduce((acc, month, idx) => ({
+      ...months.reduce((acc, month, idx) => ({
         ...acc,
-        [month]: convertToHour(report.nonBillableHours.non_billable_hours[idx]?.total || 0),
+        [month]: convertToHour(nonBillable.non_billable_hours?.[idx]?.total || 0),
       }), {}),
-      ...report.weeks.reduce((acc, week, idx) => ({
+      ...weeks.reduce((acc, week) => ({
         ...acc,
-        [`week_${week}`]: convertToHour(report.nonBillableHoursPerWeek.non_billable_hours[idx]?.total || 0),
+        [`week_${week}`]: convertToHour(0),
       }), {}),
       total: convertToHour(report.totalsByLine.nonBillableHours),
     },
     {
       key: 'consortium',
       type: 'Horas Consortium',
-      ...report.months.reduce((acc, month, idx) => ({
+      ...months.reduce((acc, month, idx) => ({
         ...acc,
-        [month]: convertToHour(report.nonBillableHours.consortium_hours[idx]?.total || 0),
+        [month]: convertToHour(nonBillable.consortium_hours?.[idx]?.total || 0),
       }), {}),
-      ...report.weeks.reduce((acc, week, idx) => ({
+      ...weeks.reduce((acc, week) => ({
         ...acc,
-        [`week_${week}`]: convertToHour(report.nonBillableHoursPerWeek.consortium_hours[idx]?.total || 0),
+        [`week_${week}`]: convertToHour(0),
       }), {}),
       total: convertToHour(report.totalsByLine.consortiumHours),
     },
@@ -125,9 +131,9 @@ const CargabilityReportView: React.FC = () => {
         ...acc,
         [monthData.month]: convertToHour(monthData.total),
       }), {}),
-      ...Object.entries(report.totalHoursPerWeek).reduce((acc, [week, minutes]) => ({
+      ...Object.entries(totalWeeks).reduce((acc, [week, minutes]) => ({
         ...acc,
-        [`week_${week}`]: convertToHour(minutes),
+        [`week_${week}`]: convertToHour(minutes as number),
       }), {}),
       total: convertToHour(report.semesterTotal),
     },

@@ -26,7 +26,7 @@ export const cargabilityApi = {
 
   // ✅ AGREGAR /api/ al inicio
   sendEmailToAll: () => 
-    api.get<SendEmailResponse>(`/api/cargability/send-report/all/send-all`),
+    api.get<SendEmailResponse>(`/api/cargability/send-report/any/send-all`),
 
   // ✅ AGREGAR /api/ al inicio
   sendEmailsBulk: (usernames: string[]) => 
