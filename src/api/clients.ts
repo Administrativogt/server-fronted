@@ -6,6 +6,14 @@ export interface Client {
 }
 
 export async function fetchClients(): Promise<Client[]> {
-  const { data } = await api.get<{ data: Client[] }>('/procuration-control/master-data/clients');
-  return data.data;
+  try {
+    const { data } = await api.get<{ data: Client[] }>('/procuration-control/master-data/clients');
+    return data.data;
+  } catch (error: any) {
+    if (error?.response?.status === 404) {
+      const { data } = await api.get<{ data: Client[] }>('/api/procuration-control/master-data/clients');
+      return data.data;
+    }
+    throw error;
+  }
 }

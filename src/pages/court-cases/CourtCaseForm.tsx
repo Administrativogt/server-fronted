@@ -25,10 +25,10 @@ const currencyOptions = [
 const CourtCaseForm: React.FC<Props> = ({
   type,
   form,
-  clients,
-  lawyers,
-  states,
-  dependencies,
+  clients = [],
+  lawyers = [],
+  states = [],
+  dependencies = [],
   viewOnly = false,
 }) => {
   const disabled = viewOnly;
