@@ -1,153 +1,193 @@
-// src/pages/documents/CreateDocumentForm.tsx
-import React, { useEffect, useState } from 'react';
-import { Form, Input, Select, Checkbox, Button, message, Row, Col } from 'antd';
-import api from '../../api/axios';
-
-const { Option } = Select;
-
-const documentTypes = ['Sobre', 'Folder', 'Cheque', 'Revista'];
-const creationPlaces = [
-  { id: 1, name: 'DIAGO 6' },
-  { id: 2, name: 'Las Margaritas' },
-];
+import React, { useEffect, useState } from "react";
+import { Form, Input, Select, Checkbox, Button, message, Row, Col, InputNumber } from "antd";
+import { fetchUsers, createDocument } from "../../api/documents";
+import { fetchPlaces, type PlaceDto } from "../../api/notifications";
+import { fetchDocumentFilterValues } from "../../api/documents";
+import type { User } from "../../types/user.types";
 
 const CreateDocumentForm: React.FC = () => {
   const [form] = Form.useForm();
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [places, setPlaces] = useState<PlaceDto[]>([]);
+  const [documentTypeSuggestions, setDocumentTypeSuggestions] = useState<string[]>([]);
   const [otroEntregadoPor, setOtroEntregadoPor] = useState(false);
-  const [otroDeliverTo, setOtroDeliverTo] = useState(false);
-  const [showObservations, setShowObservations] = useState(false);
+  const [otroTipoDoc, setOtroTipoDoc] = useState(false);
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const res = await api.get('/users?role=admin_or_secretary');
-        setUsers(res.data);
-      } catch {
-        message.error('Error cargando usuarios');
-      }
-    };
+    fetchUsers()
+      .then(setUsers)
+      .catch(() => message.error("Error cargando usuarios"));
 
-    fetchUsers();
+    fetchPlaces()
+      .then(setPlaces)
+      .catch(() => message.error("Error cargando lugares"));
+
+    fetchDocumentFilterValues()
+      .then((meta) => setDocumentTypeSuggestions(meta.documentTypes || []))
+      .catch(() => {});
   }, []);
 
-  const onFinish = async (values: any) => {
-    const payload = {
-      ...values,
-      observations: showObservations ? values.observations : undefined,
-      documentDeliverBy: otroEntregadoPor ? values.documentDeliverByOther : values.documentDeliverBy,
-      deliverTo: otroDeliverTo ? values.deliverToOther : values.deliverTo,
-    };
+  const onFinish = async (values: Record<string, unknown>) => {
+    const documentDeliverBy = otroEntregadoPor
+      ? String(values.documentDeliverByOther)
+      : String(values.documentDeliverBy);
+
+    const documentType = otroTipoDoc
+      ? String(values.documentTypeOther)
+      : String(values.documentType);
 
     try {
-      await api.post('/documents', payload);
-      message.success('Documento creado exitosamente');
+      await createDocument({
+        documentDeliverBy,
+        documentType,
+        submitTo: values.submitTo as string,
+        deliverTo: values.submitTo as string,
+        amount: Number(values.amount),
+        receivedBy: values.receivedBy as number,
+        creationPlace: values.creationPlace as number,
+      });
+      message.success("Documento creado exitosamente");
       form.resetFields();
       setOtroEntregadoPor(false);
-      setOtroDeliverTo(false);
-      setShowObservations(false);
-    } catch (err: any) {
-      message.error('Error al crear documento');
+      setOtroTipoDoc(false);
+    } catch (err: unknown) {
+      message.error("Error al crear documento");
       console.error(err);
     }
   };
 
   return (
     <Form layout="vertical" form={form} onFinish={onFinish}>
+      {/* Fila 1: Entregado por | Tipo de documento */}
       <Row gutter={16}>
         <Col span={12}>
-          <Form.Item label="Documentos entregados por" name="documentDeliverBy" rules={[{ required: !otroEntregadoPor }]}>
-            <Select placeholder="Selecciona persona" disabled={otroEntregadoPor} showSearch>
-              {users.map((u) => (
-                <Option key={u.id} value={u.id}>{`${u.first_name} ${u.last_name}`}</Option>
-              ))}
-            </Select>
+          <Form.Item
+            label="Documentos entregados por"
+            name="documentDeliverBy"
+            rules={[{ required: !otroEntregadoPor, message: "Selecciona quien entrega" }]}
+          >
+            <Select
+              placeholder="Escribe para buscar..."
+              disabled={otroEntregadoPor}
+              showSearch
+              optionFilterProp="label"
+              options={users.map((u) => ({
+                value: u.id,
+                label: `${u.first_name} ${u.last_name}`,
+              }))}
+            />
           </Form.Item>
           {otroEntregadoPor && (
-            <Form.Item name="documentDeliverByOther" rules={[{ required: true }]} label="Otro (nombre)">
+            <Form.Item
+              name="documentDeliverByOther"
+              rules={[{ required: true, message: "Ingresa nombre" }]}
+              label="Otro (nombre)"
+            >
               <Input placeholder="Nombre de persona" />
             </Form.Item>
           )}
-          <Checkbox checked={otroEntregadoPor} onChange={(e) => setOtroEntregadoPor(e.target.checked)}>Otro</Checkbox>
+          <Checkbox
+            checked={otroEntregadoPor}
+            onChange={(e) => setOtroEntregadoPor(e.target.checked)}
+          >
+            Otro
+          </Checkbox>
         </Col>
 
         <Col span={12}>
-          <Form.Item label="Tipo de documento" name="documentType" rules={[{ required: true }]}>
-            <Select placeholder="Selecciona tipo">
-              {documentTypes.map((type) => (
-                <Option key={type} value={type}>{type}</Option>
-              ))}
-            </Select>
+          <Form.Item
+            label="Tipo de documento"
+            name="documentType"
+            rules={[{ required: !otroTipoDoc, message: "Selecciona tipo de documento" }]}
+          >
+            <Select
+              placeholder="Escribe para buscar..."
+              disabled={otroTipoDoc}
+              showSearch
+              optionFilterProp="label"
+              options={documentTypeSuggestions.map((t) => ({
+                value: t,
+                label: t,
+              }))}
+            />
           </Form.Item>
+          {otroTipoDoc && (
+            <Form.Item
+              name="documentTypeOther"
+              rules={[{ required: true, message: "Ingresa tipo de documento" }]}
+              label="Otro (tipo)"
+            >
+              <Input placeholder="Escribe el tipo de documento" />
+            </Form.Item>
+          )}
+          <Checkbox
+            checked={otroTipoDoc}
+            onChange={(e) => setOtroTipoDoc(e.target.checked)}
+          >
+            Otro
+          </Checkbox>
         </Col>
       </Row>
 
+      {/* Fila 2: Para entregar a | No. de documentos */}
       <Row gutter={16}>
         <Col span={12}>
-          <Form.Item label="Cantidad de documentos" name="amount" rules={[{ required: true }]}>
-            <Input type="number" min={1} placeholder="Ej. 1" />
-          </Form.Item>
-        </Col>
-
-        <Col span={12}>
-          <Form.Item label="Para entregar a" name="submitTo" rules={[{ required: true }]}>
+          <Form.Item
+            label="Para entregar a"
+            name="submitTo"
+            rules={[{ required: true, message: "Ingresa destino" }]}
+          >
             <Input placeholder="Ej. Gerencia, DHL, etc." />
           </Form.Item>
         </Col>
-      </Row>
-
-      <Row gutter={16}>
-        <Col span={12}>
-          <Form.Item label="Recibido por" name="receivedBy" rules={[{ required: true }]}>
-            <Select placeholder="Selecciona persona">
-              {users.map((u) => (
-                <Option key={u.id} value={u.id}>{`${u.first_name} ${u.last_name}`}</Option>
-              ))}
-            </Select>
-          </Form.Item>
-        </Col>
 
         <Col span={12}>
-          <Form.Item label="Recibido en" name="creationPlace" rules={[{ required: true }]}>
-            <Select placeholder="Selecciona lugar">
-              {creationPlaces.map((p) => (
-                <Option key={p.id} value={p.id}>{p.name}</Option>
-              ))}
-            </Select>
-          </Form.Item>
-        </Col>
-      </Row>
-
-      <Row gutter={16}>
-        <Col span={12}>
-          <Form.Item label="Entregar a" name="deliverTo" rules={[{ required: !otroDeliverTo }]}>
-            <Select placeholder="Selecciona persona" disabled={otroDeliverTo} showSearch>
-              {users.map((u) => (
-                <Option key={u.id} value={u.id}>{`${u.first_name} ${u.last_name}`}</Option>
-              ))}
-            </Select>
-          </Form.Item>
-          {otroDeliverTo && (
-            <Form.Item name="deliverToOther" rules={[{ required: true }]} label="Otro (nombre)">
-              <Input placeholder="Nombre destino" />
-            </Form.Item>
-          )}
-          <Checkbox checked={otroDeliverTo} onChange={(e) => setOtroDeliverTo(e.target.checked)}>Otro</Checkbox>
-        </Col>
-
-        <Col span={12}>
-          <Checkbox
-            checked={showObservations}
-            onChange={(e) => setShowObservations(e.target.checked)}
-            style={{ marginTop: '30px' }}
+          <Form.Item
+            label="No. de documentos"
+            name="amount"
+            rules={[{ required: true, message: "Ingresa cantidad" }]}
           >
-            Observaciones
-          </Checkbox>
-          {showObservations && (
-            <Form.Item name="observations" label="Observaciones">
-              <Input.TextArea rows={4} placeholder="Observaciones adicionales" />
-            </Form.Item>
-          )}
+            <InputNumber min={1} placeholder="Ej. 1" style={{ width: "100%" }} />
+          </Form.Item>
+        </Col>
+      </Row>
+
+      {/* Fila 3: Recibido por | Recibido en */}
+      <Row gutter={16}>
+        <Col span={12}>
+          <Form.Item
+            label="Recibido por"
+            name="receivedBy"
+            rules={[{ required: true, message: "Selecciona quien recibe" }]}
+          >
+            <Select
+              placeholder="Escribe para buscar..."
+              showSearch
+              optionFilterProp="label"
+              options={users.map((u) => ({
+                value: u.id,
+                label: `${u.first_name} ${u.last_name}`,
+              }))}
+            />
+          </Form.Item>
+        </Col>
+
+        <Col span={12}>
+          <Form.Item
+            label="Recibido en"
+            name="creationPlace"
+            rules={[{ required: true, message: "Selecciona lugar" }]}
+          >
+            <Select
+              placeholder="Selecciona lugar"
+              showSearch
+              optionFilterProp="label"
+              options={places.map((p) => ({
+                value: p.id,
+                label: p.name,
+              }))}
+            />
+          </Form.Item>
         </Col>
       </Row>
 

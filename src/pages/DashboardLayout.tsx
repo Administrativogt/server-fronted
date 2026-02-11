@@ -23,9 +23,12 @@ import {
   PlusCircleOutlined,
   UserOutlined,
   SettingOutlined,
+  SunOutlined,
+  MoonOutlined,
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import useAuthStore from '../auth/useAuthStore';
+import useThemeStore from '../hooks/useThemeStore';
 import api from '../api/axios';
 import { useUserAdminPermissions } from '../hooks/usePermissions';
 
@@ -36,11 +39,14 @@ const { Header, Sider, Content, Footer } = Layout;
 
 const DashboardLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
-  const [siderTheme, setSiderTheme] = useState<'light' | 'dark'>('dark');
   const [canSeeReport, setCanSeeReport] = useState<boolean | null>(null);
 
+  const themeMode = useThemeStore((s) => s.mode);
+  const toggleTheme = useThemeStore((s) => s.toggleTheme);
+  const isDark = themeMode === 'dark';
+
   const {
-    token: { colorBgContainer, borderRadiusLG },
+    token: { colorBgContainer, borderRadiusLG, colorBgLayout },
   } = antdTheme.useToken();
 
   const navigate = useNavigate();
@@ -398,27 +404,27 @@ const DashboardLayout: React.FC = () => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider trigger={null} collapsible collapsed={collapsed} theme={siderTheme}>
+      <Sider trigger={null} collapsible collapsed={collapsed} theme={isDark ? 'dark' : 'light'}>
         <div style={{ height: 64, margin: '16px', textAlign: 'center' }}>
           <img
-            src={siderTheme === 'dark' ? logoDark : logoLight}
+            src={isDark ? logoDark : logoLight}
             alt="Consortium Legal Logo"
             style={{ maxWidth: '100%', height: 40, objectFit: 'contain' }}
           />
         </div>
 
-        <Menu 
-          theme={siderTheme} 
-          mode="inline" 
+        <Menu
+          theme={isDark ? 'dark' : 'light'}
+          mode="inline"
           selectedKeys={[location.pathname]}
           items={getMenuItems()}
         />
       </Sider>
 
-      <Layout>
+      <Layout style={{ background: colorBgLayout }}>
         <Header
           style={{
-            padding: 0,
+            padding: '0 16px',
             background: colorBgContainer,
             display: 'flex',
             alignItems: 'center',
@@ -431,15 +437,15 @@ const DashboardLayout: React.FC = () => {
             onClick={() => setCollapsed((c) => !c)}
             style={{ fontSize: 16, width: 64, height: 64 }}
           />
-          <Switch
-            checked={siderTheme === 'dark'}
-            onChange={(checked) => setSiderTheme(checked ? 'dark' : 'light')}
-            checkedChildren="Dark"
-            unCheckedChildren="Light"
-          />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <Switch
+              checked={isDark}
+              onChange={toggleTheme}
+              checkedChildren={<MoonOutlined />}
+              unCheckedChildren={<SunOutlined />}
+            />
             <span style={{ fontWeight: 'bold' }}>
-              Bienvenido, {username || 'Usuario'}
+              {username || 'Usuario'}
             </span>
             <Button
               type="primary"
@@ -464,7 +470,7 @@ const DashboardLayout: React.FC = () => {
           <Outlet />
         </Content>
 
-        <Footer style={{ textAlign: 'center' }}>
+        <Footer style={{ textAlign: 'center', background: 'transparent' }}>
           © {new Date().getFullYear()} Consortium Legal
         </Footer>
       </Layout>

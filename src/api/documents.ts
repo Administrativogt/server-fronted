@@ -1,28 +1,62 @@
-import api from './axios';
+import api from "./axios";
+import type { User } from "../types/user.types";
+import type { PlaceDto, UserRef } from "./notifications";
+
+//
+// Tipos de datos
+//
+
+/** Estados de documentos */
+export const DOCUMENT_STATES = {
+  PENDING: 1,
+  DELIVERED: 2,
+  DELETED: 3,
+  FINALIZED: 4,
+  REJECTED: 5,
+} as const;
 
 export interface DocumentDto {
   id: number;
+  state: number;
   receptionDatetime: string;
   documentDeliverBy: string | null;
   amount: number;
-  receivedBy?: unknown;
   documentType: string;
   submitTo: string;
-  deliverDatetime?: string;
   deliverTo: string;
-  deliverBy?: unknown;
-  observations?: string;
-  state: number;
+  deliverDatetime?: string | null;
+  observations?: string | null;
+  reminder?: boolean;
+  deleteReason?: string | null;
+  returned?: boolean;
+  selectedAction?: boolean;
+  creationPlace?: PlaceDto | null;
+  receivedBy?: UserRef | null;
+  deliverBy?: UserRef | null;
 }
 
-// 1. Pendientes
-export const fetchPendingDocuments = async (): Promise<DocumentDto[]> => {
-  const { data } = await api.get('/documents/pending');
-  return data;
-};
+/** Valores disponibles para filtros */
+export interface DocumentFilterValues {
+  documentTypes: string[];
+  documentDelivers: string[];
+  receivedBy: number[];
+  deliverBy: number[];
+  deliverTo: string[];
+  submitTo: string[];
+}
 
-// 2. Entregar o reentregar (¡este es el de correo!)
-export const deliverDocuments = async ({
+//
+// 1. Pendientes
+//
+export async function fetchPendingDocuments(): Promise<DocumentDto[]> {
+  const { data } = await api.get("/documents/pending");
+  return data;
+}
+
+//
+// 2. Entregar o reentregar
+//
+export async function deliverDocuments({
   ids,
   action,
   deliverTo,
@@ -32,55 +66,115 @@ export const deliverDocuments = async ({
   action: 1 | 2;
   deliverTo: string | number;
   observations?: string;
-}) => {
-  return api.patch(`/documents/deliver/${action}`, {
+}) {
+  const { data } = await api.patch(`/documents/deliver/${action}`, {
     documentsSelected: ids,
     deliver_to: String(deliverTo),
     observations,
   });
-};
+  return data;
+}
 
+//
 // 3. Crear
-export const createDocument = async (doc: Partial<DocumentDto>) => {
-  return api.post('/documents', doc);
-};
+//
+export interface CreateDocumentPayload {
+  documentDeliverBy: string;
+  amount: number;
+  creationPlace: number;
+  receivedBy: number;
+  documentType: string;
+  submitTo: string;
+  deliverTo: string;
+  deliverBy?: number;
+  observations?: string;
+  deliverDatetime?: string;
+}
 
+export async function createDocument(payload: CreateDocumentPayload) {
+  const { data } = await api.post("/documents", payload);
+  return data as DocumentDto;
+}
+
+//
 // 4. Actualizar
-export const updateDocument = async (id: number, doc: Partial<DocumentDto>) => {
-  return api.patch(`/documents/${id}`, doc);
-};
+//
+export async function updateDocument(id: number, payload: Partial<DocumentDto>) {
+  const { data } = await api.patch(`/documents/${id}`, payload);
+  return data as DocumentDto;
+}
 
-// 5. Eliminar
-export const deleteDocument = async (id: number): Promise<void> => {
-  await api.delete(`/documents/${id}`);
-};
+//
+// 5. Eliminar (soft delete via PATCH con state=3)
+//
+export async function deleteDocument(id: number, deleteReason: string) {
+  const { data } = await api.patch(`/documents/${id}`, {
+    state: DOCUMENT_STATES.DELETED,
+    deleteReason,
+  });
+  return data;
+}
 
+//
 // 6. Entregados
-export const fetchDeliveredDocuments = async (): Promise<DocumentDto[]> => {
-  const { data } = await api.get('/documents/delivered');
+//
+export async function fetchDeliveredDocuments(): Promise<DocumentDto[]> {
+  const { data } = await api.get("/documents/delivered");
   return data;
-};
+}
 
-// 7. Filtro entregados
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const filterDocuments = async (filters: Record<string, any>) => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const query = new URLSearchParams(filters as any).toString();
-  const { data } = await api.get(`/documents/filter?${query}`);
+//
+// 7. Obtener un documento
+//
+export async function fetchDocumentById(id: number): Promise<DocumentDto> {
+  const { data } = await api.get(`/documents/${id}`);
   return data;
-};
+}
 
-// 8. Acciones (Aceptar/Rechazar/Seleccionar) – base64
-export const applyActionToDocuments = async (action: 1 | 2 | 3, documentIds: number[]) => {
-  if (!documentIds.length) throw new Error('No se seleccionaron documentos');
+//
+// 8. Filtro entregados
+//
+export async function filterDocuments(filters: Record<string, string>): Promise<DocumentDto[]> {
+  const { data } = await api.get("/documents/filter", { params: filters });
+  return data;
+}
+
+//
+// 9. Valores para filtros (meta)
+//
+export async function fetchDocumentFilterValues(): Promise<DocumentFilterValues> {
+  const { data } = await api.get("/documents/meta/filter-values");
+  return data;
+}
+
+//
+// 10. Acciones (Aceptar/Rechazar/Seleccionar) – base64
+//
+export async function applyActionToDocuments(action: 1 | 2 | 3, documentIds: number[]) {
+  if (!documentIds.length) throw new Error("No se seleccionaron documentos");
   const encoded = btoa(JSON.stringify(documentIds));
-  return api.patch(`/documents/actions?action=${action}&documents=${encoded}`);
-};
+  const { data } = await api.patch("/documents/actions", {}, {
+    params: { action, documents: encoded },
+  });
+  return data;
+}
 
-// 9. Selección múltiple (aceptados/rechazados)
-export const applySelectedDocuments = async (acceptedIds: number[], rejectedIds: number[]) => {
+//
+// 11. Selección múltiple (aceptados/rechazados)
+//
+export async function applySelectedDocuments(acceptedIds: number[], rejectedIds: number[]) {
   const acc = btoa(JSON.stringify(acceptedIds));
   const rej = btoa(JSON.stringify(rejectedIds));
-  const { data } = await api.patch(`/documents/actions/selected?documentsAccepted=${acc}&documentsRejected=${rej}`);
+  const { data } = await api.patch("/documents/actions/selected", {}, {
+    params: { documentsAccepted: acc, documentsRejected: rej },
+  });
   return data;
-};
+}
+
+//
+// Obtener lista de usuarios activos (para dropdowns)
+//
+export async function fetchUsers(): Promise<User[]> {
+  const { data } = await api.get("/users");
+  return data;
+}

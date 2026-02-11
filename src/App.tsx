@@ -1,10 +1,11 @@
 // src/App.tsx
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { ConfigProvider } from 'antd';
+import { ConfigProvider, theme as antdTheme } from 'antd';
 import esES from 'antd/locale/es_ES';
 import dayjs from 'dayjs';
 import 'dayjs/locale/es';
 import { useEffect } from 'react';
+import useThemeStore from './hooks/useThemeStore';
 
 // Páginas públicas
 import Login from './pages/Login';
@@ -100,8 +101,19 @@ function AppInner() {
     }
   }, [isAuthenticated, clearToken, logout, navigate]);
 
+  const themeMode = useThemeStore((s) => s.mode);
+
   return (
-    <ConfigProvider locale={esES}>
+    <ConfigProvider
+      locale={esES}
+      theme={{
+        algorithm: themeMode === 'dark' ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+        token: {
+          colorPrimary: '#1677ff',
+          borderRadius: 6,
+        },
+      }}
+    >
       <Routes>
         {/* Ruta pública */}
         <Route path="/login" element={<Login />} />

@@ -39,6 +39,7 @@ const Notificaciones: React.FC = () => {
     {
       title: "Hora recibido",
       dataIndex: "receptionDatetime",
+      key: "hora",
       render: (value: string) =>
         new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     },
@@ -69,11 +70,14 @@ const Notificaciones: React.FC = () => {
       <Title level={3}>Notificaciones pendientes de entrega</Title>
 
       <Space style={{ marginBottom: 16 }}>
-        <Button type="primary" onClick={() => navigate("/notifications/crear")}>
+        <Button type="primary" onClick={() => navigate("/dashboard/notificaciones/crear")}>
           Crear notificación
         </Button>
-        <Button type="default" onClick={() => navigate("/notifications/entregadas")}>
+        <Button type="default" onClick={() => navigate("/dashboard/notificaciones/entregadas")}>
           Entregadas
+        </Button>
+        <Button onClick={loadNotifications}>
+          Recargar
         </Button>
         <Button
           type="primary"
@@ -81,7 +85,7 @@ const Notificaciones: React.FC = () => {
           disabled={!selectedRowKeys.length}
           onClick={() => setModalVisible(true)}
         >
-          Entregar
+          Entregar ({selectedRowKeys.length})
         </Button>
       </Space>
 

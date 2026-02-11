@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Modal, Select, message } from "antd";
-import { fetchReceivers, deliverNotifications } from "../../api/notifications";
+import { fetchUsers, deliverNotifications } from "../../api/notifications";
+import type { User } from "../../types/user.types";
 
 const { Option } = Select;
 
@@ -12,13 +13,13 @@ interface Props {
 }
 
 const NotificationActions: React.FC<Props> = ({ open, onClose, selectedIds, onSuccess }) => {
-  const [users, setUsers] = useState<{ id: number; first_name: string; last_name: string }[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [selectedUser, setSelectedUser] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (open) {
-      fetchReceivers()
+      fetchUsers()
         .then(setUsers)
         .catch(() => {
           message.error("Error al cargar usuarios");
@@ -40,6 +41,7 @@ const NotificationActions: React.FC<Props> = ({ open, onClose, selectedIds, onSu
         deliverTo: selectedUser,
       });
       message.success("Notificaciones entregadas con éxito");
+      setSelectedUser(null);
       onSuccess();
     } catch {
       message.error("Error al entregar");
@@ -48,10 +50,18 @@ const NotificationActions: React.FC<Props> = ({ open, onClose, selectedIds, onSu
     }
   };
 
+  const filterOption = (input: string, option?: { children?: React.ReactNode }) => {
+    const label = option?.children;
+    return typeof label === "string" && label.toLowerCase().includes(input.toLowerCase());
+  };
+
   return (
     <Modal
       open={open}
-      onCancel={onClose}
+      onCancel={() => {
+        setSelectedUser(null);
+        onClose();
+      }}
       onOk={handleDeliver}
       confirmLoading={loading}
       okText="Entregar"
@@ -64,6 +74,8 @@ const NotificationActions: React.FC<Props> = ({ open, onClose, selectedIds, onSu
         placeholder="Selecciona un usuario"
         onChange={(val) => setSelectedUser(val)}
         value={selectedUser ?? undefined}
+        showSearch
+        filterOption={filterOption}
       >
         {users.map((user) => (
           <Option key={user.id} value={user.id}>

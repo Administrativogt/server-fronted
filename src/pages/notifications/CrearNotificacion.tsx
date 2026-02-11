@@ -4,16 +4,17 @@ import {
   createNotification,
   fetchProveniences,
   fetchPlaces,
-  fetchReceivers,
+  fetchUsers,
   createProvenience,
   fetchHallsByProvenience,
 } from "../../api/notifications";
 import { type ProvenienceDto, type HallDto } from "../../api/notifications";
+import type { User } from "../../types/user.types";
+import useAuthStore from "../../auth/useAuthStore";
 
 const { Option } = Select;
 
 interface NotificationFormValues {
-  creator: number;
   creationPlace: number;
   provenience: number;
   hall?: number;
@@ -28,7 +29,7 @@ const CrearNotificacion: React.FC = () => {
   const [form] = Form.useForm<NotificationFormValues>();
   const [proveniences, setProveniences] = useState<ProvenienceDto[]>([]);
   const [places, setPlaces] = useState<{ id: number; name: string }[]>([]);
-  const [receivers, setReceivers] = useState<{ id: number; first_name: string; last_name: string }[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [halls, setHalls] = useState<HallDto[]>([]);
   const [showOther, setShowOther] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -36,14 +37,17 @@ const CrearNotificacion: React.FC = () => {
   const [newProvName, setNewProvName] = useState("");
   const [newHallName, setNewHallName] = useState("");
 
+  const userId = useAuthStore((s) => s.userId);
+
   useEffect(() => {
     fetchProveniences().then(setProveniences).catch(() => message.error("Error al cargar entidades"));
     fetchPlaces().then(setPlaces).catch(() => message.error("Error al cargar lugares"));
-    fetchReceivers().then(setReceivers).catch(() => message.error("Error al cargar receptores"));
+    fetchUsers().then(setUsers).catch(() => message.error("Error al cargar usuarios"));
   }, []);
 
   const onProvenienceChange = (val: number) => {
     setShowOther(false);
+    form.setFieldsValue({ hall: undefined });
     fetchHallsByProvenience(val)
       .then(setHalls)
       .catch(() => {
@@ -82,11 +86,16 @@ const CrearNotificacion: React.FC = () => {
   };
 
   const onFinish = async (values: NotificationFormValues) => {
+    if (!userId) {
+      message.error("No se pudo obtener el usuario logueado");
+      return;
+    }
+
     const payload = {
-      creator: values.recepReceives,
+      creator: userId,
       creationPlace: values.creationPlace,
-      provenience: values.provenience,
-      hall: values.hall,
+      provenience: showOther ? undefined : values.provenience,
+      hall: showOther ? undefined : values.hall,
       otherProvenience: showOther ? values.otherProvenience : undefined,
       cedule: values.cedule,
       expedientNum: values.expedientNum,
@@ -98,13 +107,15 @@ const CrearNotificacion: React.FC = () => {
       await createNotification(payload);
       message.success("Notificación creada exitosamente");
       form.resetFields();
+      setHalls([]);
+      setShowOther(false);
     } catch (err: unknown) {
-      console.error("❌ Error al crear notificación:", err);
+      console.error("Error al crear notificación:", err);
       message.error("Error al crear notificación");
     }
   };
 
-  const filterOption = (input: string, option?: { children?: React.ReactNode; value?: any }) => {
+  const filterOption = (input: string, option?: { children?: React.ReactNode }) => {
     const label = option?.children;
     return typeof label === "string" && label.toLowerCase().includes(input.toLowerCase());
   };
@@ -118,13 +129,14 @@ const CrearNotificacion: React.FC = () => {
             <Form.Item
               label="Entidad / Proveniencia"
               name="provenience"
-              rules={[{ required: true, message: "Selecciona entidad o crea una nueva" }]}
+              rules={[{ required: !showOther, message: "Selecciona entidad o crea una nueva" }]}
             >
               <Select
                 placeholder="Selecciona entidad"
                 onChange={onProvenienceChange}
                 showSearch
                 filterOption={filterOption}
+                disabled={showOther}
               >
                 {proveniences.map((p) => (
                   <Option key={p.id} value={p.id}>
@@ -138,13 +150,25 @@ const CrearNotificacion: React.FC = () => {
               onClick={() => {
                 setModalVisible(true);
                 setShowOther(true);
-                form.setFieldsValue({ hall: undefined });
+                form.setFieldsValue({ provenience: undefined, hall: undefined });
                 setHalls([]);
               }}
               style={{ paddingLeft: 0 }}
             >
               + Agregar nueva entidad
             </Button>
+            {showOther && (
+              <Button
+                type="link"
+                onClick={() => {
+                  setShowOther(false);
+                  form.setFieldsValue({ otherProvenience: undefined });
+                }}
+                style={{ paddingLeft: 8 }}
+              >
+                Cancelar
+              </Button>
+            )}
           </Col>
 
           <Col span={12}>
@@ -174,7 +198,7 @@ const CrearNotificacion: React.FC = () => {
             >
               <Select
                 placeholder="Selecciona sala"
-                disabled={halls.length === 0 && !showOther}
+                disabled={halls.length === 0 || showOther}
                 showSearch
                 filterOption={filterOption}
               >
@@ -212,7 +236,7 @@ const CrearNotificacion: React.FC = () => {
               rules={[{ required: true, message: "Selecciona receptor" }]}
             >
               <Select placeholder="Selecciona receptor" showSearch filterOption={filterOption}>
-                {receivers.map((u) => (
+                {users.map((u) => (
                   <Option key={u.id} value={u.id}>
                     {u.first_name} {u.last_name}
                   </Option>
@@ -265,7 +289,13 @@ const CrearNotificacion: React.FC = () => {
       <Modal
         title="Crear nueva entidad"
         open={modalVisible}
-        onCancel={() => setModalVisible(false)}
+        onCancel={() => {
+          setModalVisible(false);
+          setShowOther(false);
+          setNewProvName("");
+          setNewHallName("");
+          setIncludeHallInNewProv(false);
+        }}
         onOk={handleCreateProvenience}
         okText="Crear"
         cancelText="Cancelar"
