@@ -72,6 +72,18 @@ import CreateAppointment from './pages/appointments/CreateAppointment';
 import ProcurationList from './pages/procuration/ProcurationList';
 import CreateProcuration from './pages/procuration/CreateProcuration';
 import ProcurationDetail from './pages/procuration/ProcurationDetail';
+import ClientsMasterDataPage from './pages/procuration/ClientsMasterDataPage';
+import ClientCreationPage from './pages/client-creation/ClientCreationPage';
+import ClientListPage from './pages/client-creation/ClientListPage';
+import ClientDetailPage from './pages/client-creation/ClientDetailPage';
+import EditClientPage from './pages/client-creation/EditClientPage';
+import CaseCreationPage from './pages/client-creation/CaseCreationPage';
+import CaseListPage from './pages/client-creation/CaseListPage';
+import CaseDetailPage from './pages/client-creation/CaseDetailPage';
+import EditCasePage from './pages/client-creation/EditCasePage';
+
+// ✨ NUEVO - Módulo de Administración de Usuarios
+import UsersAdminPage from './pages/admin/UsersAdminPage';
 
 dayjs.locale('es');
 
@@ -162,6 +174,20 @@ function AppInner() {
             <Route path="/dashboard/procuration" element={<ProcurationList />} />
             <Route path="/dashboard/procuration/create" element={<CreateProcuration />} />
             <Route path="/dashboard/procuration/:id" element={<ProcurationDetail />} />
+            <Route path="/dashboard/procuration/clients" element={<ClientsMasterDataPage />} />
+
+            {/* ✨ NUEVO - Módulo de Administración de Usuarios */}
+            <Route path="/dashboard/admin/users" element={<UsersAdminPage />} />
+            
+            {/* Módulo Clientes y Casos */}
+            <Route path="/dashboard/clientes" element={<ClientListPage />} />
+            <Route path="/dashboard/clientes/crear" element={<ClientCreationPage />} />
+            <Route path="/dashboard/clientes/:id" element={<ClientDetailPage />} />
+            <Route path="/dashboard/clientes/editar/:id" element={<EditClientPage />} />
+            <Route path="/dashboard/casos/crear-solicitud" element={<CaseCreationPage />} />
+            <Route path="/dashboard/casos/solicitudes" element={<CaseListPage />} />
+            <Route path="/dashboard/casos/solicitud/:id" element={<CaseDetailPage />} />
+            <Route path="/dashboard/casos/solicitud/editar/:id" element={<EditCasePage />} />
 
             {/* Fallback dentro del layout */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

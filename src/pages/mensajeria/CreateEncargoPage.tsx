@@ -3,8 +3,10 @@ import React, { useEffect, useState } from 'react';
 import { Form, Input, Select, Checkbox, Button, message, Space, Card, Alert } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { createEncargo, getUsuarios, getMunicipios, getMensajeros } from '../../api/encargos';
+import { createEncargo, getSolicitantes, getMunicipios, getMensajeros } from '../../api/encargos';
 import type { Usuario, Municipio, EncargoFormValues } from '../../types/encargo';
+import { useMensajeriaPermissions } from '../../hooks/usePermissions';
+import useAuthStore from '../../auth/useAuthStore'; // ✅ Importar
 
 const { Option } = Select;
 
@@ -35,28 +37,48 @@ const ZONAS = Array.from({ length: 25 }, (_, i) => i + 1); // Zonas 1 a 25
 const CreateEncargoPage: React.FC = () => {
   const [form] = Form.useForm();
   const navigate = useNavigate();
+  const { canAssignMensajero } = useMensajeriaPermissions(); // ✅ NUEVO: Hook de permisos
+  const tipoUsuario = useAuthStore((state) => state.tipo_usuario); // ✅ Obtener tipo de usuario
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [municipios, setMunicipios] = useState<Municipio[]>([]);
-  const [mensajeros, setMensajeros] = useState<Usuario[]>([]); // ✅ Corregido: solo un paréntesis
+  const [mensajeros, setMensajeros] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(false);
   const [showHora, setShowHora] = useState(false);
   const [showObservaciones, setShowObservaciones] = useState(false);
   const [showOtros, setShowOtros] = useState(false);
 
+  // ✅ Bloquear acceso a mensajeros
+  useEffect(() => {
+    if (tipoUsuario === 8) {
+      message.error('Los mensajeros no tienen permiso para crear envíos');
+      navigate('/dashboard/mensajeria');
+    }
+  }, [tipoUsuario, navigate]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // ✅ NUEVO: Usar endpoints especializados
         const [usuariosRes, municipiosRes, mensajerosRes] = await Promise.all([
-          getUsuarios(),
+          getSolicitantes(), // Endpoint nuevo: solo activos, ordenados alfabéticamente
           getMunicipios(),
-          getMensajeros(),
+          getMensajeros(), // Endpoint nuevo: solo mensajeros activos
         ]);
-        setUsuarios(usuariosRes.data);
-        setMunicipios(municipiosRes.data);
-        setMensajeros(
-          mensajerosRes.data.filter(u => u.tipo_usuario === 8)
+        
+        // ✅ Ordenar alfabéticamente por nombre
+        const sortedUsuarios = usuariosRes.data.sort((a, b) => 
+          `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`, 'es')
         );
+        const sortedMunicipios = municipiosRes.data.sort((a, b) => 
+          a.nombre.localeCompare(b.nombre, 'es')
+        );
+        const sortedMensajeros = mensajerosRes.data.sort((a, b) => 
+          `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`, 'es')
+        );
+        
+        setUsuarios(sortedUsuarios);
+        setMunicipios(sortedMunicipios);
+        setMensajeros(sortedMensajeros);
       } catch (error) {
         console.error('Error al cargar datos:', error);
         message.error('Error al cargar datos iniciales');
@@ -99,9 +121,10 @@ const CreateEncargoPage: React.FC = () => {
         observaciones_text,
         otros_mensajeria,
         mensajero_id,
+        fecha_realizacion,
       } = values;
 
-      // ✅ Construir payload EXACTO para el backend
+      // ✅ NUEVO: Construir payload optimizado para NestJS
       const payload: EncargoFormValues = {
         tipo_solicitud_id: 1,
         mensajeria_enviada: mensajeria_enviada === 'otros' ? otros_mensajeria : mensajeria_enviada,
@@ -109,15 +132,19 @@ const CreateEncargoPage: React.FC = () => {
         destinatario,
         solicitante_id,
         direccion,
-        zona,
         municipio_id,
-        fecha_realizacion: today,
         prioridad,
         prioridad_hora: tiene_hora ? prioridad_hora : 1,
-        observaciones: tiene_observaciones ? observaciones_text : undefined,
-        hora_minima: tiene_hora ? `${hora_minima}:00` : undefined,
-        hora_maxima: tiene_hora && prioridad_hora === 4 ? `${hora_maxima}:00` : undefined,
-        mensajero_id,
+        
+        // ✅ NUEVO: Solo enviar si tienen valor (campos opcionales)
+        ...(zona && { zona }),
+        ...(fecha_realizacion && { fecha_realizacion }), // Se calcula automáticamente si no se envía
+        ...(tiene_observaciones && observaciones_text && { observaciones: observaciones_text }),
+        ...(tiene_hora && hora_minima && { hora_minima: `${hora_minima}:00` }),
+        ...(tiene_hora && prioridad_hora === 4 && hora_maxima && { hora_maxima: `${hora_maxima}:00` }),
+        
+        // ✅ NUEVO: Solo enviar mensajero si tiene permisos
+        ...(canAssignMensajero && mensajero_id && { mensajero_id }),
       };
 
       await createEncargo(payload);
@@ -125,8 +152,16 @@ const CreateEncargoPage: React.FC = () => {
       navigate('/dashboard/mensajeria');
     } catch (error: any) {
       console.error('Error al crear encargo:', error);
-      const msg = error.response?.data?.message || 'Error al crear el envío';
-      message.error(msg);
+      
+      // ✅ NUEVO: Manejo de errores mejorado
+      if (error.response?.status === 403) {
+        message.error('No tienes permiso para asignar mensajero. Contacta a un administrador.');
+      } else if (error.response?.status === 404) {
+        message.error('Solicitante, municipio o tipo de solicitud no encontrado');
+      } else {
+        const msg = error.response?.data?.message || 'Error al crear el envío';
+        message.error(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -154,7 +189,14 @@ const CreateEncargoPage: React.FC = () => {
           name="solicitante_id"
           rules={[{ required: true, message: 'Seleccione un solicitante' }]}
         >
-          <Select placeholder="Seleccione un solicitante">
+          <Select 
+            placeholder="Seleccione un solicitante"
+            showSearch
+            optionFilterProp="children"
+            filterOption={(input, option) =>
+              String(option?.children || '').toLowerCase().includes(input.toLowerCase())
+            }
+          >
             {usuarios.map(u => (
               <Option key={u.id} value={u.id}>
                 {u.first_name} {u.last_name}
@@ -188,7 +230,14 @@ const CreateEncargoPage: React.FC = () => {
           name="mensajeria_enviada"
           rules={[{ required: true, message: 'Seleccione el tipo de mensajería' }]}
         >
-          <Select onChange={handleMensajeriaChange}>
+          <Select 
+            onChange={handleMensajeriaChange}
+            showSearch
+            optionFilterProp="children"
+            filterOption={(input, option) =>
+              String(option?.children || '').toLowerCase().includes(input.toLowerCase())
+            }
+          >
             {TIPOS_MENSAJERIA.map(t => (
               <Option key={t.value} value={t.value}>
                 {t.label}
@@ -207,15 +256,26 @@ const CreateEncargoPage: React.FC = () => {
           </Form.Item>
         )}
 
-        <Form.Item label="Mensajero" name="mensajero_id">
-          <Select placeholder="Seleccione un mensajero">
-            {mensajeros.map(m => (
-              <Option key={m.id} value={m.id}>
-                {m.first_name} {m.last_name}
-              </Option>
-            ))}
-          </Select>
-        </Form.Item>
+        {/* ✅ NUEVO: Solo mostrar mensajero si tiene permisos */}
+        {canAssignMensajero && (
+          <Form.Item label="Mensajero (opcional)" name="mensajero_id">
+            <Select 
+              placeholder="Seleccione un mensajero" 
+              allowClear
+              showSearch
+              optionFilterProp="children"
+              filterOption={(input, option) =>
+                String(option?.children || '').toLowerCase().includes(input.toLowerCase())
+              }
+            >
+              {mensajeros.map(m => (
+                <Option key={m.id} value={m.id}>
+                  {m.first_name} {m.last_name}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+        )}
 
         <div style={{ display: 'flex', gap: 16 }}>
           <Form.Item
@@ -227,13 +287,21 @@ const CreateEncargoPage: React.FC = () => {
             <Input placeholder="Inserta la dirección" />
           </Form.Item>
 
+          {/* ✅ NUEVO: Zona ahora es opcional */}
           <Form.Item
-            label="Zona"
+            label="Zona (opcional)"
             name="zona"
             style={{ flex: 1 }}
-            rules={[{ required: true, message: 'Seleccione la zona' }]}
+            tooltip="Se obtendrá automáticamente del municipio si no se especifica"
           >
-            <Select placeholder="Seleccione zona">
+            <Select 
+              placeholder="Se obtendrá del municipio" 
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                String(option?.children)?.includes(input)
+              }
+            >
               {ZONAS.map(z => (
                 <Option key={z} value={z}>
                   {z}
@@ -250,7 +318,14 @@ const CreateEncargoPage: React.FC = () => {
             style={{ flex: 1 }}
             rules={[{ required: true, message: 'Seleccione municipio' }]}
           >
-            <Select placeholder="Seleccione municipio">
+            <Select 
+              placeholder="Seleccione municipio"
+              showSearch
+              optionFilterProp="children"
+              filterOption={(input, option) =>
+                String(option?.children || '').toLowerCase().includes(input.toLowerCase())
+              }
+            >
               {municipios.map(m => (
                 <Option key={m.id} value={m.id}>
                   {m.nombre}
@@ -265,7 +340,13 @@ const CreateEncargoPage: React.FC = () => {
             initialValue={1}
             style={{ flex: 1 }}
           >
-            <Select>
+            <Select
+              showSearch
+              optionFilterProp="children"
+              filterOption={(input, option) =>
+                String(option?.children || '').toLowerCase().includes(input.toLowerCase())
+              }
+            >
               {PRIORIDADES.map(p => (
                 <Option key={p.value} value={p.value}>
                   {p.label}
@@ -275,8 +356,16 @@ const CreateEncargoPage: React.FC = () => {
           </Form.Item>
         </div>
 
-        <Form.Item label="Fecha de realización">
-          <Input value={today} disabled />
+        {/* ✅ NUEVO: Fecha ahora es opcional y se puede editar */}
+        <Form.Item 
+          label="Fecha de realización (opcional)" 
+          name="fecha_realizacion"
+          tooltip="Se calculará automáticamente según la prioridad si no se especifica"
+        >
+          <Input 
+            type="date" 
+            placeholder="Se calculará según prioridad"
+          />
         </Form.Item>
 
         <Form.Item name="tiene_hora" valuePropName="checked">
@@ -292,7 +381,14 @@ const CreateEncargoPage: React.FC = () => {
               name="prioridad_hora"
               rules={[{ required: true, message: 'Seleccione el tipo de horario' }]}
             >
-              <Select onChange={handleHoraPrioridadChange}>
+              <Select 
+                onChange={handleHoraPrioridadChange}
+                showSearch
+                optionFilterProp="children"
+                filterOption={(input, option) =>
+                  String(option?.children || '').toLowerCase().includes(input.toLowerCase())
+                }
+              >
                 {HORAS_PRIORIDAD.map(h => (
                   <Option key={h.value} value={h.value}>
                     {h.label}

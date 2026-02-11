@@ -102,11 +102,11 @@ const CreateAppointment: React.FC = () => {
         <Row gutter={16}>
           <Col xs={24} md={12}>
             <Form.Item
-              label="Identificación del Acta"
+              label="Identificación del Acta (nombre del cliente)"
               name="deedId"
               rules={[{ required: true, message: 'Campo requerido' }]}
             >
-              <Input placeholder="Ej: ACTA-001-2025" />
+              <Input placeholder="Ej: ACTA-001-2025 o Nombre del Cliente" />
             </Form.Item>
           </Col>
 
@@ -166,8 +166,12 @@ const CreateAppointment: React.FC = () => {
 
         <Row gutter={16}>
           <Col xs={24} md={8}>
-            <Form.Item label="Registro" name="register">
-              <Input placeholder="Ej: Registro Mercantil" />
+            <Form.Item 
+              label="Registro" 
+              name="register"
+              tooltip="Puede ingresar texto (Ej: Registro Mercantil) o número (Ej: 12345)"
+            >
+              <Input placeholder="Ej: Registro Mercantil o 12345" />
             </Form.Item>
           </Col>
 
@@ -197,13 +201,13 @@ const CreateAppointment: React.FC = () => {
 
           <Col xs={24} md={12}>
             <Form.Item
-              label="Correo del Cliente"
+              label="Correos electrónicos a quienes notificar que el nombramiento está por vencer"
               name="clientEmail"
               rules={[
                 { required: true, message: 'Campo requerido' },
                 {
-                  pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                  message: 'Correo inválido',
+                  pattern: /^[\w\.-]+@[\w\.-]+\.\w{2,}(,\s*[\w\.-]+@[\w\.-]+\.\w{2,})*$/,
+                  message: 'Debe proporcionar emails válidos separados por coma',
                 },
               ]}
               tooltip="Puede ingresar múltiples correos separados por coma"

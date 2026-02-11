@@ -4,6 +4,7 @@ import {
   Form,
   Input,
   Modal,
+  Radio,
   Space,
   Table,
   Tabs,
@@ -23,6 +24,7 @@ import {
   PlayCircleOutlined,
   ReloadOutlined,
   PlusOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
@@ -123,6 +125,11 @@ const CourtCasesPage: React.FC = () => {
 
   const [selectedCaseId, setSelectedCaseId] = useState<number | null>(null);
   const [selectedCaseType, setSelectedCaseType] = useState<CaseTypeKey>('litigation');
+
+  const [reportVisible, setReportVisible] = useState(false);
+  const [reportFormat, setReportFormat] = useState<'word' | 'excel'>('excel');
+  const [updateMode, setUpdateMode] = useState<'last' | 'all'>('last');
+  const [reportTo, setReportTo] = useState<string>('');
 
   const caseTypeIdByKey = useMemo(() => {
     const map: Partial<Record<CaseTypeKey, CourtCaseType>> = {};
@@ -247,12 +254,7 @@ const CourtCasesPage: React.FC = () => {
       cancelText: 'No',
       onOk: async () => {
         try {
-          if (activeType === 'labor') await updateLaborCase(record.id, { state: stateId });
-          if (activeType === 'litigation') await updateLitigationCase(record.id, { state: stateId });
-          if (activeType === 'penal') await updatePenalCase(record.id, { state: stateId });
-          if (activeType === 'tributary') await updateTributaryCase(record.id, { state: stateId });
-          if (activeType === 'administrative-tax')
-            await updateAdministrativeTaxCase(record.id, { state: stateId });
+          await updateCase({ state: stateId });
           message.success('Estado actualizado');
           refreshActive();
         } catch {
@@ -513,6 +515,201 @@ const CourtCasesPage: React.FC = () => {
     ];
   }, [activeType, casesByType]);
 
+  const exportExcel = async () => {
+    const ExcelJS = (await import('exceljs')).default;
+    const { saveAs } = await import('file-saver');
+    const cases = searchCases as CourtCase[];
+    if (!cases?.length) {
+      message.info('No hay datos para exportar');
+      return;
+    }
+    try {
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('Casos');
+      ws.columns = [
+        { header: 'Cliente', key: 'client', width: 28 },
+        { header: 'Identificador', key: 'idv', width: 28 },
+        { header: 'Tipo', key: 'type', width: 18 },
+        { header: 'Estado', key: 'state', width: 22 },
+        { header: updateMode === 'all' ? 'Actualización' : 'Última actualización', key: 'update', width: 40 },
+        { header: 'Fecha', key: 'date', width: 16 },
+      ];
+      const top = `Dirigido a: ${reportTo || '-'}`;
+      ws.mergeCells('A1:F1');
+      ws.getCell('A1').value = top;
+      ws.getCell('A1').font = { bold: true, size: 14 };
+      ws.getCell('A1').alignment = { vertical: 'middle', horizontal: 'left' };
+      ws.addRow([]);
+      const label = defaultLabels[activeType];
+      const now = dayjs().format('YYYY-MM-DD HH:mm');
+      ws.addRow([`Reporte de casos — ${label}`, '', '', '', '', `Generado: ${now}`]).font = { bold: true };
+      ws.addRow([]);
+      for (const c of cases) {
+        const client = c.client?.name || '-';
+        const type = label;
+        const state = c.state?.name || '-';
+        const idv =
+          (c as any).expedient ||
+          (c as any).process_number ||
+          (c as any).case_name ||
+          (c as any).subject ||
+          '-';
+        if (updateMode === 'all') {
+          const updates = (c as any).status_updates || [];
+          if (!updates.length) {
+            ws.addRow({ client, idv, type, state, update: '-', date: '-' });
+          } else {
+            for (const u of updates) {
+              ws.addRow({
+                client,
+                idv,
+                type,
+                state,
+                update: u.description || '-',
+                date: u.created ? dayjs(u.created).format('YYYY-MM-DD') : '-',
+              });
+            }
+          }
+        } else {
+          const updates = (c as any).status_updates || [];
+          const last = updates.length ? updates[updates.length - 1] : null;
+          ws.addRow({
+            client,
+            idv,
+            type,
+            state,
+            update: last?.description || '-',
+            date: last?.created ? dayjs(last.created).format('YYYY-MM-DD') : '-',
+          });
+        }
+      }
+      const buf = await wb.xlsx.writeBuffer();
+      saveAs(new Blob([buf]), `reporte-casos-${activeType}-${dayjs().format('YYYYMMDD-HHmm')}.xlsx`);
+      message.success('Excel generado correctamente');
+    } catch {
+      message.error('No fue posible generar el Excel');
+    }
+  };
+
+  const exportWord = async () => {
+    const cases = searchCases as CourtCase[];
+    if (!cases?.length) return message.info('No hay datos para exportar');
+    try {
+      const {
+        Document,
+        Packer,
+        Paragraph,
+        Table,
+        TableRow,
+        TableCell,
+        HeadingLevel,
+        WidthType,
+        TextRun,
+      } = await import('docx');
+      const label = defaultLabels[activeType];
+      const now = dayjs().format('YYYY-MM-DD HH:mm');
+      const children: any[] = [
+        new Paragraph({
+          text: `Reporte de casos — ${label}`,
+          heading: HeadingLevel.TITLE,
+        }),
+        new Paragraph({
+          children: [new TextRun({ text: `Dirigido a: ${reportTo || '-'}`, bold: true })],
+        }),
+        new Paragraph({ text: `Generado: ${now}` }),
+      ];
+      const headerCells = [
+        new TableCell({ children: [new Paragraph({ text: 'Cliente' })] }),
+        new TableCell({ children: [new Paragraph({ text: 'Identificador' })] }),
+        new TableCell({ children: [new Paragraph({ text: 'Estado' })] }),
+        new TableCell({
+          children: [new Paragraph({ text: updateMode === 'all' ? 'Actualización' : 'Última actualización' })],
+        }),
+        new TableCell({ children: [new Paragraph({ text: 'Fecha' })] }),
+      ];
+      const rows: any[] = [new TableRow({ children: headerCells })];
+      for (const c of cases) {
+        const client = c.client?.name || '-';
+        const state = c.state?.name || '-';
+        const idv =
+          (c as any).expedient ||
+          (c as any).process_number ||
+          (c as any).case_name ||
+          (c as any).subject ||
+          '-';
+        const updates = (c as any).status_updates || [];
+        if (updateMode === 'all') {
+          if (!updates.length) {
+            rows.push(
+              new TableRow({
+                children: [
+                  new TableCell({ children: [new Paragraph({ text: client })] }),
+                  new TableCell({ children: [new Paragraph({ text: idv })] }),
+                  new TableCell({ children: [new Paragraph({ text: state })] }),
+                  new TableCell({ children: [new Paragraph({ text: '-' })] }),
+                  new TableCell({ children: [new Paragraph({ text: '-' })] }),
+                ],
+              })
+            );
+          } else {
+            for (const u of updates) {
+              rows.push(
+                new TableRow({
+                  children: [
+                    new TableCell({ children: [new Paragraph({ text: client })] }),
+                    new TableCell({ children: [new Paragraph({ text: idv })] }),
+                    new TableCell({ children: [new Paragraph({ text: state })] }),
+                    new TableCell({ children: [new Paragraph({ text: u.description || '-' })] }),
+                    new TableCell({
+                      children: [
+                        new Paragraph({
+                          text: u.created ? dayjs(u.created).format('YYYY-MM-DD') : '-',
+                        }),
+                      ],
+                    }),
+                  ],
+                })
+              );
+            }
+          }
+        } else {
+          const last = updates.length ? updates[updates.length - 1] : null;
+          rows.push(
+            new TableRow({
+              children: [
+                new TableCell({ children: [new Paragraph({ text: client })] }),
+                new TableCell({ children: [new Paragraph({ text: idv })] }),
+                new TableCell({ children: [new Paragraph({ text: state })] }),
+                new TableCell({ children: [new Paragraph({ text: last?.description || '-' })] }),
+                new TableCell({
+                  children: [
+                    new Paragraph({
+                      text: last?.created ? dayjs(last.created).format('YYYY-MM-DD') : '-',
+                    }),
+                  ],
+                }),
+              ],
+            })
+          );
+        }
+      }
+      const table = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows,
+      });
+      children.push(table);
+      const doc = new Document({
+        sections: [{ properties: {}, children }],
+      });
+      const blob = await Packer.toBlob(doc);
+      const { saveAs } = await import('file-saver');
+      saveAs(blob, `Reporte de Casos ${label}.docx`);
+      message.success('Word generado correctamente');
+    } catch {
+      message.error('No fue posible generar el Word');
+    }
+  };
+
   return (
     <div>
       <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'space-between' }}>
@@ -522,6 +719,9 @@ const CourtCasesPage: React.FC = () => {
           </Button>
           <Button icon={<ReloadOutlined />} onClick={refreshActive}>
             Recargar
+          </Button>
+          <Button icon={<FileTextOutlined />} onClick={() => setReportVisible(true)}>
+            Generar reporte…
           </Button>
         </Space>
         <Input.Search
@@ -639,6 +839,47 @@ const CourtCasesPage: React.FC = () => {
           pagination={false}
           style={{ marginTop: 16 }}
         />
+      </Modal>
+
+      <Modal
+        open={reportVisible}
+        title="Generar reporte"
+        onCancel={() => setReportVisible(false)}
+        onOk={async () => {
+          setReportVisible(false);
+          if (reportFormat === 'excel') await exportExcel();
+          else await exportWord();
+        }}
+      >
+        <Form layout="vertical">
+          <Form.Item label="Formato">
+            <Radio.Group
+              value={reportFormat}
+              onChange={(e: any) => setReportFormat(e.target.value)}
+              options={[
+                { label: 'Excel', value: 'excel' },
+                { label: 'Word', value: 'word' },
+              ]}
+              optionType="button"
+              buttonStyle="solid"
+            />
+          </Form.Item>
+          <Form.Item label="Actualizaciones">
+            <Radio.Group
+              value={updateMode}
+              onChange={(e: any) => setUpdateMode(e.target.value)}
+              options={[
+                { label: 'Última', value: 'last' },
+                { label: 'Todas', value: 'all' },
+              ]}
+              optionType="button"
+              buttonStyle="solid"
+            />
+          </Form.Item>
+          <Form.Item label="Dirigido a">
+            <Input value={reportTo} onChange={(e) => setReportTo(e.target.value)} />
+          </Form.Item>
+        </Form>
       </Modal>
     </div>
   );

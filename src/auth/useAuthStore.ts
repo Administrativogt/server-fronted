@@ -8,12 +8,16 @@ interface AuthState {
   username: string;
   userId: number | null;
   refreshToken: string | null;
-  tipo_usuario: number | null; // 👈 Añadido
+  tipo_usuario: number | null;
+  is_superuser: boolean;
+  permissions: string[];
   setToken: (token: string) => void;
   setUsername: (username: string) => void;
   setUserId: (id: number) => void;
   setRefreshToken: (token: string) => void;
-  setTipoUsuario: (tipo: number) => void; // 👈 Añadido
+  setTipoUsuario: (tipo: number) => void;
+  setIsSuperuser: (value: boolean) => void;
+  setPermissions: (permissions: string[]) => void;
   logout: (redirect?: boolean) => void;
   isAuthenticated: () => boolean;
 }
@@ -24,7 +28,11 @@ const useAuthStore = create<AuthState>((set) => {
   const rawUserId = Number(sessionStorage.getItem('userId'));
   const rawRefresh = sessionStorage.getItem('refreshToken');
   const rawTipoUsuario = sessionStorage.getItem('tipo_usuario');
+  const rawIsSuperuser = sessionStorage.getItem('is_superuser');
+  const rawPermissions = sessionStorage.getItem('permissions');
   const parsedTipoUsuario = rawTipoUsuario ? Number(rawTipoUsuario) : null;
+  const parsedIsSuperuser = rawIsSuperuser === 'true';
+  const parsedPermissions = rawPermissions ? JSON.parse(rawPermissions) : [];
 
   const expiredOrInvalid = !isValidJwt(rawToken) || isTokenExpired(rawToken);
 
@@ -34,6 +42,8 @@ const useAuthStore = create<AuthState>((set) => {
     sessionStorage.removeItem('userId');
     sessionStorage.removeItem('refreshToken');
     sessionStorage.removeItem('tipo_usuario');
+    sessionStorage.removeItem('is_superuser');
+    sessionStorage.removeItem('permissions');
   }
 
   return {
@@ -41,7 +51,9 @@ const useAuthStore = create<AuthState>((set) => {
     username: expiredOrInvalid ? '' : rawUsername,
     userId: expiredOrInvalid ? null : rawUserId,
     refreshToken: expiredOrInvalid ? null : rawRefresh,
-    tipo_usuario: expiredOrInvalid ? null : parsedTipoUsuario, // 👈
+    tipo_usuario: expiredOrInvalid ? null : parsedTipoUsuario,
+    is_superuser: expiredOrInvalid ? false : parsedIsSuperuser,
+    permissions: expiredOrInvalid ? [] : parsedPermissions,
 
     setToken: (token) => {
       if (isValidJwt(token) && !isTokenExpired(token)) {
@@ -72,18 +84,32 @@ const useAuthStore = create<AuthState>((set) => {
       set({ tipo_usuario: tipo });
     },
 
+    setIsSuperuser: (value) => {
+      sessionStorage.setItem('is_superuser', value.toString());
+      set({ is_superuser: value });
+    },
+
+    setPermissions: (permissions) => {
+      sessionStorage.setItem('permissions', JSON.stringify(permissions));
+      set({ permissions });
+    },
+
     logout: (redirect = true) => {
       sessionStorage.removeItem('token');
       sessionStorage.removeItem('username');
       sessionStorage.removeItem('userId');
       sessionStorage.removeItem('refreshToken');
       sessionStorage.removeItem('tipo_usuario');
+      sessionStorage.removeItem('is_superuser');
+      sessionStorage.removeItem('permissions');
       set({
         token: null,
         username: '',
         userId: null,
         refreshToken: null,
         tipo_usuario: null,
+        is_superuser: false,
+        permissions: [],
       });
       message.warning('Tu sesión ha expirado. Por favor, vuelve a iniciar sesión.', 3);
 

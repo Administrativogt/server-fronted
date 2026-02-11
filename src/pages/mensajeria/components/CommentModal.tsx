@@ -73,7 +73,7 @@ const CommentModal: React.FC<CommentModalProps> = ({ open, encargoId, onClose })
         renderItem={(item) => (
           <List.Item
             actions={[
-              userId === item.user_id && (
+              userId === item.user?.id && (
                 <Button
                   type="link"
                   danger
@@ -90,7 +90,7 @@ const CommentModal: React.FC<CommentModalProps> = ({ open, encargoId, onClose })
                 <>
                   <div>{item.text}</div>
                   <small style={{ color: '#999' }}>
-                    {item.user_nombre || 'Usuario'} • {new Date(item.created_at).toLocaleString()}
+                    {item.user?.first_name || item.user?.username || 'Usuario'} • {new Date(item.datetime).toLocaleString('es-GT')}
                   </small>
                 </>
               }

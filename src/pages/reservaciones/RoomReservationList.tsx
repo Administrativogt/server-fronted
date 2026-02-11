@@ -7,7 +7,8 @@ import {
 } from 'antd';
 import {
   EditOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, 
-  ReloadOutlined, DownloadOutlined, SearchOutlined
+  ReloadOutlined, DownloadOutlined, SearchOutlined, StopOutlined,
+  SyncOutlined
 } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import api from '../../api/axios';
@@ -17,11 +18,11 @@ import { saveAs } from 'file-saver';
 const { Title } = Typography;
 const { TextArea } = Input;
 
-type StateFilter = 'all' | 'pending' | 'accepted' | 'rejected';
+type StateFilter = 'all' | 'pending' | 'accepted' | 'rejected' | 'canceled';
 
 type Reservation = {
   id: number;
-  state: 0 | 1 | 2;
+  state: 0 | 1 | 2 | 3;  // 0=pending, 1=accepted, 2=rejected, 3=canceled
   meeting_type: number;
   reservation_date: string; // YYYY-MM-DD
   init_hour: string;        // HH:mm or HH:mm:ss
@@ -36,6 +37,11 @@ type Reservation = {
   shared_with: number[] | null;
   use_computer?: boolean;
   user_projector?: boolean;
+  // Campos de recurrencia
+  is_recurring?: boolean;
+  recurrence_pattern?: 'daily' | 'weekly' | 'biweekly' | 'monthly';
+  recurrence_end_date?: string | null;
+  parent_reservation_id?: number | null;
 };
 
 type Partner = { id: number; full_name: string };
@@ -71,9 +77,29 @@ type ReportSummaryRow = {
   'Compartido (detalle)': string;
 };
 
-const stateLabel = (s: 0|1|2) => (s === 0 ? 'Pendiente' : s === 1 ? 'Aceptada' : 'Rechazada');
-const stateColor  = (s: 0|1|2) => (s === 0 ? 'gold'     : s === 1 ? 'green'   : 'red');
+const stateLabel = (s: 0|1|2|3) => (
+  s === 0 ? 'Pendiente' : 
+  s === 1 ? 'Aceptada' : 
+  s === 2 ? 'Rechazada' : 
+  'Cancelada'
+);
+const stateColor = (s: 0|1|2|3) => (
+  s === 0 ? 'gold' : 
+  s === 1 ? 'green' : 
+  s === 2 ? 'red' : 
+  'default'
+);
 const fmtTime = (t?: string) => (t ? t.slice(0, 5) : '');
+const recurrenceLabel = (pattern?: string) => {
+  if (!pattern) return '';
+  const labels: Record<string, string> = {
+    daily: 'Diaria',
+    weekly: 'Semanal',
+    biweekly: 'Quincenal',
+    monthly: 'Mensual',
+  };
+  return labels[pattern] || pattern;
+};
 
 export default function ReservationsList() {
   const [rows, setRows] = useState<Reservation[]>([]);
@@ -118,6 +144,11 @@ export default function ReservationsList() {
   const [deleteVisible, setDeleteVisible] = useState(false);
   const [deleteRow, setDeleteRow] = useState<Reservation | null>(null);
   const [deleteReason, setDeleteReason] = useState('');
+
+  // Cancel modal
+  const [cancelVisible, setCancelVisible] = useState(false);
+  const [cancelRow, setCancelRow] = useState<Reservation | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
 
   // ---- Filtro de mes para reporte + spinner de descarga ----
   const [reportMonth, setReportMonth] = useState<string>(() => {
@@ -276,6 +307,29 @@ export default function ReservationsList() {
     }
   };
 
+  const openCancel = (row: Reservation) => {
+    setCancelRow(row);
+    setCancelReason('');
+    setCancelVisible(true);
+  };
+
+  const submitCancel = async () => {
+    if (!cancelRow) return;
+    if (!cancelReason.trim()) return message.warning('Ingrese un motivo.');
+    try {
+      await api.patch(`/room-reservations/${cancelRow.id}/cancel`, { cancel_reason: cancelReason.trim() });
+      notification.success({ message: 'Reservación cancelada' });
+      setRows(prev => prev.map(r => (r.id === cancelRow.id ? { ...r, state: 3 } : r)));
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      message.error(error?.response?.data?.message || 'No se pudo cancelar.');
+    } finally {
+      setCancelVisible(false);
+      setCancelRow(null);
+      setCancelReason('');
+    }
+  };
+
   const openEdit = async (row: Reservation) => {
     setEditing(row);
     setEditVisible(true);
@@ -378,6 +432,7 @@ export default function ReservationsList() {
   const isOwner       = (r: Reservation) => me && (r.request_user_id === me.id || r.user?.id === me.id);
   const canEditRow    = (r: Reservation) => (isSuperuser || isOwner(r)) && r.state === 0;
   const canDeleteRow  = (r: Reservation) => (isSuperuser || isOwner(r)) && r.state === 0;
+  const canCancelRow  = (r: Reservation) => isOwner(r) && (r.state === 0 || r.state === 1); // Puede cancelar si está pendiente o aceptada
   const canApproveRow = (r: Reservation) => canApprove && r.state === 0;
 
   // Definición de columnas simplificada (sin inicio y fin)
@@ -440,21 +495,36 @@ export default function ReservationsList() {
         ) : <span>-</span>,
     },
     {
+      title: 'Recurrente',
+      key: 'recurring',
+      width: 110,
+      align: 'center' as const,
+      render: (_: unknown, r: Reservation) => (
+        r.is_recurring ? (
+          <Tooltip title={`Recurrencia ${recurrenceLabel(r.recurrence_pattern)}`}>
+            <Tag icon={<SyncOutlined spin />} color="blue">
+              {recurrenceLabel(r.recurrence_pattern)}
+            </Tag>
+          </Tooltip>
+        ) : <span>-</span>
+      ),
+    },
+    {
       title: 'Estado',
       dataIndex: 'state',
       key: 'state',
       width: 120,
       align: 'center' as const,
-      render: (s: 0|1|2) => (
+      render: (s: 0|1|2|3) => (
         <Tag color={stateColor(s)}>{stateLabel(s)}</Tag>
       ),
     },
     {
       title: 'Acciones',
       key: 'actions',
-      width: 200,
+      width: 240,
       render: (_: unknown, r: Reservation) => (
-        <Space>
+        <Space wrap>
           {canEditRow(r) && (
             <Tooltip title="Editar">
               <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
@@ -463,6 +533,11 @@ export default function ReservationsList() {
           {canDeleteRow(r) && (
             <Tooltip title="Eliminar">
               <Button size="small" danger icon={<DeleteOutlined />} onClick={() => openDelete(r)} />
+            </Tooltip>
+          )}
+          {canCancelRow(r) && (
+            <Tooltip title="Cancelar reservación">
+              <Button size="small" icon={<StopOutlined />} onClick={() => openCancel(r)} />
             </Tooltip>
           )}
           {canApproveRow(r) && (
@@ -664,6 +739,8 @@ export default function ReservationsList() {
     }
   };
 
+ 
+
   return (
     <div>
       <Title level={3}>Reservaciones</Title>
@@ -679,6 +756,7 @@ export default function ReservationsList() {
             { value: 'pending', label: 'Pendientes' },
             { value: 'accepted', label: 'Aceptadas' },
             { value: 'rejected', label: 'Rechazadas' },
+            { value: 'canceled', label: 'Canceladas' },
           ]}
         />
         <Button icon={<ReloadOutlined />} onClick={loadData}>Refrescar</Button>
@@ -922,6 +1000,31 @@ export default function ReservationsList() {
           onChange={(e) => setDeleteReason(e.target.value)}
         />
       </Modal>
+
+      {/* Modal Cancelar */}
+      <Modal
+        title={cancelRow ? `Cancelar reservación #${cancelRow.id}` : 'Cancelar'}
+        open={cancelVisible}
+        onOk={submitCancel}
+        okText="Cancelar reservación"
+        okButtonProps={{ danger: false }}
+        onCancel={() => { setCancelVisible(false); setCancelRow(null); }}
+        destroyOnClose
+      >
+        <div style={{ marginBottom: 16 }}>
+          <p><strong>Sala:</strong> {cancelRow?.room?.name}</p>
+          <p><strong>Fecha:</strong> {cancelRow && dayjs(cancelRow.reservation_date).format('DD/MM/YYYY')}</p>
+          <p><strong>Horario:</strong> {cancelRow && `${fmtTime(cancelRow.init_hour)} - ${fmtTime(cancelRow.end_hour)}`}</p>
+        </div>
+        <TextArea
+          rows={4}
+          placeholder="Motivo de la cancelación (opcional)"
+          value={cancelReason}
+          onChange={(e) => setCancelReason(e.target.value)}
+        />
+      </Modal>
+
+ 
     </div>
   );
 }

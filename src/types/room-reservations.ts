@@ -1,8 +1,20 @@
 // src/types/room-reservations.ts
-export type ReservationState = 0 | 1 | 2; // 0=pending, 1=accepted, 2=rejected
+export type ReservationState = 0 | 1 | 2 | 3; // 0=pending, 1=accepted, 2=rejected, 3=canceled
 
+export type RecurrencePattern = 'daily' | 'weekly' | 'biweekly' | 'monthly';
 
-export interface RoomRef { id: number; name?: string }
+export interface RecurringSummary {
+  message?: string;
+  created_count: number;
+  failed_dates: string[];
+}
+
+export interface RoomRef {
+  id: number;
+  name?: string;
+  email?: string; // Email del encargado de la sala
+}
+
 export interface UserRef { id: number; first_name?: string; last_name?: string }
 
 export interface CreateRoomReservationPayload {
@@ -23,6 +35,13 @@ export interface CreateRoomReservationPayload {
   is_shared_cost: boolean;
   shared_with?: number[];               // requerido si is_shared_cost = true
   room_id: number;
+  user_id?: number;                     // Usuario para quien se hace la reserva
+
+  // ===== CAMPOS DE RECURRENCIA =====
+  is_recurring?: boolean;               // Indica si es recurrente
+  recurrence_pattern?: RecurrencePattern; // Patrón de recurrencia
+  recurrence_end_date?: string;         // 'YYYY-MM-DD' - Fecha fin de recurrencia
+  parent_reservation_id?: number;       // ID de la reserva padre (si es instancia recurrente)
 }
 
 export type UpdateRoomReservationPayload = Partial<
@@ -57,6 +76,14 @@ export interface RoomReservation {
   shared_with: number[] | null;
   room?: RoomRef;
   user?: UserRef;
+
+  // ===== CAMPOS DE RECURRENCIA =====
+  is_recurring?: boolean;
+  recurrence_pattern?: RecurrencePattern;
+  recurrence_end_date?: string | null;
+  parent_reservation_id?: number | null;
+  recurring_instances?: RoomReservation[]; // Instancias hijas si es reserva padre
+  recurring_summary?: RecurringSummary;
 }
 
 export interface MonthReservationRow {

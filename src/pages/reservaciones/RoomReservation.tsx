@@ -19,6 +19,12 @@ interface ApiReservation {
   user_name: string;
 }
 
+interface Room {
+  id: number;
+  name: string;
+  price_per_hour: string | null;
+}
+
 function RoomReservation() {
   const [reservations, setReservations] = useState<ApiReservation[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -26,18 +32,36 @@ function RoomReservation() {
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(dayjs());
   const [selectedRooms, setSelectedRooms] = useState<string[]>([]);
+  const [allRooms, setAllRooms] = useState<Room[]>([]);
 
-  const minMonth = currentMonth.subtract(2, 'month').startOf('month');
-  const maxMonth = currentMonth.endOf('month');
+  const today = dayjs();
+  const minMonth = today.subtract(5, 'month').startOf('month');
+  const maxMonth = today.add(5, 'month').endOf('month');
 
   const rangeText = `Mostrando reservaciones de ${maxMonth.format('MMMM YYYY')}`;
 
-  // 🔹 Obtener salas únicas dinámicamente
+  // 🔹 Obtener TODAS las salas disponibles (no solo las que tienen reservaciones)
   const roomOptions = useMemo(() => {
-    const uniqueRooms = Array.from(new Set(reservations.map(r => r.room_name)));
-    return uniqueRooms.map(r => ({ label: r, value: r }));
-  }, [reservations]);
+    return allRooms
+      .filter(r => r.price_per_hour != null) // Solo salas con precio
+      .map(r => ({ label: r.name, value: r.name }));
+  }, [allRooms]);
 
+  // Cargar todas las salas disponibles al inicio
+  useEffect(() => {
+    const loadRooms = async () => {
+      try {
+        const { data } = await api.get<Room[]>('/rooms');
+        setAllRooms(data || []);
+      } catch (error) {
+        console.error('Error al cargar salas:', error);
+        message.error('Error al cargar las salas disponibles');
+      }
+    };
+    loadRooms();
+  }, []);
+
+  // Cargar reservaciones del mes actual
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -58,6 +82,16 @@ function RoomReservation() {
   }, [currentMonth]);
 
   const handlePanelChange = (value: Dayjs) => {
+    if (value.isBefore(minMonth, 'month')) {
+      message.info('Solo puedes ver reservaciones dentro de 5 meses atrás, el mes actual y 5 meses próximos');
+      setCurrentMonth(minMonth);
+      return;
+    }
+    if (value.isAfter(maxMonth, 'month')) {
+      message.info('Solo puedes ver reservaciones dentro de 5 meses atrás, el mes actual y 5 meses próximos');
+      setCurrentMonth(maxMonth);
+      return;
+    }
     setCurrentMonth(value);
   };
 
@@ -94,7 +128,7 @@ function RoomReservation() {
 
   const handleSelect = (value: Dayjs) => {
     if (value.isBefore(minMonth, 'day') || value.isAfter(maxMonth, 'day')) {
-      message.info('Solo puedes ver reservaciones del rango mostrado');
+      message.info('Solo puedes ver reservaciones dentro de 5 meses atrás, el mes actual y 5 meses próximos');
       return;
     }
     const list = getListData(value);
@@ -136,13 +170,15 @@ function RoomReservation() {
         <Select
           mode="multiple"
           allowClear
-          placeholder="Selecciona sala"
+          placeholder={allRooms.length === 0 ? "Cargando salas..." : "Todas las salas"}
           size="small" // 🔑 compacto en altura
           maxTagCount="responsive" // 🔑 colapsa etiquetas largas
           style={{ width: '100%', maxWidth: 500, marginTop: 8 }} // 🔑 ancho limitado
           options={roomOptions}
           value={selectedRooms}
           onChange={(val) => setSelectedRooms(val)}
+          disabled={allRooms.length === 0}
+          loading={allRooms.length === 0}
         />
       </div>
 

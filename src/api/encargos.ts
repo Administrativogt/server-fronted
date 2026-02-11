@@ -42,13 +42,21 @@ export const sendComplaint = (id: number, reclamo: string) =>
 
 // ─── USUARIOS Y MUNICIPIOS ───────────────────────────────
 
-// Obtener todos los usuarios (incluye solicitantes y mensajeros)
+// ✅ NUEVO: Obtener todos los usuarios (usar solo si es necesario)
 export const getUsuarios = () =>
   axios.get<Usuario[]>('/users');
 
-// Obtener solo los mensajeros (filtro en frontend por tipo_usuario 8 o 10)
+// ✅ NUEVO: Obtener solo solicitantes activos (ordenados alfabéticamente)
+export const getSolicitantes = () =>
+  axios.get<Usuario[]>('/users/solicitantes');
+
+// ✅ NUEVO: Obtener solo mensajeros activos (ordenados alfabéticamente)
 export const getMensajeros = () =>
-  axios.get<Usuario[]>('/users');
+  axios.get<Usuario[]>('/users/mensajeros');
+
+// ✅ NUEVO: Buscar usuarios por nombre/apellido (autocomplete)
+export const searchUsuarios = (query: string) =>
+  axios.get<Usuario[]>(`/users/search?q=${query}`);
 
 // Obtener municipios
 export const getMunicipios = () =>
@@ -166,6 +174,79 @@ export const getAllEncargos = (params?: Record<string, any>) =>
 export const registerEmail = (email: string, password: string) =>
   axios.post('/api/encargos/register-email', { email, password });
 
-// Descargar Excel
-export const downloadEncargosExcel = () =>
-  axios.get('/api/encargos/report/excel', { responseType: 'blob' });
+// ✅ NUEVO: Descargar Excel con filtros mejorados
+export const downloadEncargosExcel = (params?: {
+  mensajeroId?: number;
+  type?: 1 | 2; // 1 = en ruta (estados 2, 5), 2 = pendientes (estados 1, 2, 5)
+  encargoIds?: number[];
+  startDate?: string; // YYYY-MM-DD
+  endDate?: string;   // YYYY-MM-DD
+}) => {
+  const queryParams = new URLSearchParams();
+  
+  if (params?.mensajeroId) {
+    queryParams.append('id', params.mensajeroId.toString());
+  }
+  
+  if (params?.type) {
+    queryParams.append('type', params.type.toString());
+  }
+  
+  if (params?.encargoIds && params.encargoIds.length > 0) {
+    queryParams.append('params', JSON.stringify(params.encargoIds));
+  }
+  
+  if (params?.startDate) {
+    queryParams.append('start', params.startDate);
+  }
+  
+  if (params?.endDate) {
+    queryParams.append('end', params.endDate);
+  }
+
+  return axios.get(`/api/encargos/reportes/excel?${queryParams}`, { 
+    responseType: 'blob' 
+  });
+};
+
+// ✅ NUEVO: Tiempos de entrega del mensajero (a tiempo vs tarde)
+export const getTiemposEntregaMensajero = async (mensajeroId: number, params?: { start?: string; end?: string }) => {
+  const queryParams = new URLSearchParams();
+  if (params?.start) queryParams.append('start', params.start);
+  if (params?.end) queryParams.append('end', params.end);
+  
+  const response = await axios.get(`/api/charts/mensajero/${mensajeroId}/time?${queryParams}`);
+  return response.data;
+};
+
+// ✅ NUEVO: Zonas atendidas por mensajero
+export const getZonasMensajero = async (mensajeroId: number, params?: { start?: string; end?: string }) => {
+  const queryParams = new URLSearchParams();
+  if (params?.start) queryParams.append('start', params.start);
+  if (params?.end) queryParams.append('end', params.end);
+  
+  const response = await axios.get(`/api/charts/mensajero/${mensajeroId}/zones?${queryParams}`);
+  return response.data;
+};
+
+// ✅ NUEVO: Entregas tardías del mensajero
+export const getEntregasTardiaMensajero = async (mensajeroId: number, params?: { start?: string; end?: string }) => {
+  const queryParams = new URLSearchParams();
+  if (params?.start) queryParams.append('start', params.start);
+  if (params?.end) queryParams.append('end', params.end);
+  
+  const response = await axios.get(`/api/charts/mensajero/${mensajeroId}/late?${queryParams}`);
+  return response.data;
+};
+
+// ✅ NUEVO: Encargos problemáticos (rechazados e incidencias)
+export const getEncargosProblematicos = async (params?: { start?: string; end?: string; pk?: number; team?: number }) => {
+  const queryParams = new URLSearchParams();
+  if (params?.start) queryParams.append('start', params.start);
+  if (params?.end) queryParams.append('end', params.end);
+  if (params?.pk) queryParams.append('pk', params.pk.toString());
+  if (params?.team) queryParams.append('team', params.team.toString());
+  
+  const response = await axios.get(`/api/charts/problematic?${queryParams}`);
+  return response.data;
+};

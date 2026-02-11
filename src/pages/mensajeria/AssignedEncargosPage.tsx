@@ -4,6 +4,7 @@ import { Table, Button, Space, Tag, message, Modal } from 'antd';
 import { updateEncargo, getAllEncargos } from '../../api/encargos';
 import type { Encargo } from '../../types/encargo';
 import useAuthStore from '../../auth/useAuthStore';
+import { useMensajeriaPermissions } from '../../hooks/usePermissions';
 
 const { confirm } = Modal;
 
@@ -22,31 +23,56 @@ const AssignedEncargosPage: React.FC = () => {
   const [encargos, setEncargos] = useState<Encargo[]>([]);
   const [loading, setLoading] = useState(true);
   const userId = useAuthStore((state) => state.userId);
-  const username = useAuthStore((state) => state.username);
-
-  // Usuarios que pueden ver todos los envíos asignados
-  const isAdmin = username === 'ESC002' || username === 'BAR008';
+  const tipoUsuario = useAuthStore((state) => state.tipo_usuario);
+  const isMensajero = tipoUsuario === 8;
+  const { isAdminMensajeria } = useMensajeriaPermissions(); // ✅ NUEVO: Usar hook de permisos
 
   useEffect(() => {
     loadEncargos();
-  }, [userId, username]);
+  }, [userId, isMensajero, isAdminMensajeria]); // ✅ NUEVO: Actualizar dependencias
 
   const loadEncargos = async () => {
     try {
-      const res = await getAllEncargos();
+      const params: any = {};
+      
+      // ✅ Si es mensajero, filtrar por sus encargos desde el backend
+      if (isMensajero && userId) {
+        params.mensajero = userId;
+      }
+      
+      const res = await getAllEncargos(params);
 
-      if (isAdmin) {
-        // Admin ve todos los envíos que tienen mensajero asignado
+      if (isAdminMensajeria) {
+        // ✅ Admin ve todos los envíos que tienen mensajero asignado
         setEncargos(res.data.filter(e => e.mensajero != null));
-      } else if (userId) {
-        // Mensajero ve solo sus envíos asignados
-        setEncargos(res.data.filter(e => e.mensajero?.id === userId));
+      } else {
+        // ✅ Mensajero ya viene filtrado del backend
+        setEncargos(res.data.filter(e => e.mensajero != null));
       }
     } catch {
       message.error('Error al cargar envíos asignados');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleStartDelivery = (id: number) => {
+    confirm({
+      title: '¿Iniciar entrega?',
+      content: '¿Desea marcar este envío como "En proceso"?',
+      okText: 'Sí, iniciar',
+      okType: 'primary',
+      cancelText: 'Cancelar',
+      onOk: async () => {
+        try {
+          await updateEncargo(id, { estado: 2 } as any); // Estado 2 = En proceso
+          message.success('Envío marcado como "En proceso"');
+          loadEncargos();
+        } catch (err: any) {
+          message.error(err.response?.data?.message || 'Error al iniciar');
+        }
+      },
+    });
   };
 
   const handleDeliver = (id: number) => {
@@ -70,7 +96,7 @@ const AssignedEncargosPage: React.FC = () => {
 
   const columns = [
     { title: '#', dataIndex: 'id', key: 'id', width: 60 },
-    ...(isAdmin ? [{
+    ...(isAdminMensajeria ? [{
       title: 'Mensajero',
       key: 'mensajero',
       render: (_: any, record: Encargo) =>
@@ -106,9 +132,32 @@ const AssignedEncargosPage: React.FC = () => {
       key: 'acciones',
       render: (_: any, record: Encargo) => (
         <Space size="small">
-          <Button size="small" type="primary" onClick={() => handleDeliver(record.id)}>
-            Entregado
-          </Button>
+          {/* Estado 1 (Pendiente): Mostrar botón "Iniciar" */}
+          {record.estado === 1 && (
+            <Button 
+              size="small" 
+              type="default" 
+              onClick={() => handleStartDelivery(record.id)}
+            >
+              🚀 Iniciar
+            </Button>
+          )}
+          
+          {/* Estado 2 (En proceso): Mostrar botón "Entregado" */}
+          {record.estado === 2 && (
+            <Button 
+              size="small" 
+              type="primary" 
+              onClick={() => handleDeliver(record.id)}
+            >
+              ✅ Entregar
+            </Button>
+          )}
+          
+          {/* Estado 3 (Entregado): Mostrar mensaje completado */}
+          {record.estado === 3 && (
+            <Tag color="green">✓ Completado</Tag>
+          )}
         </Space>
       ),
     },

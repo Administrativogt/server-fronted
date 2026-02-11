@@ -12,9 +12,11 @@ function Login() {
   const navigate = useNavigate();
   const setToken = useAuthStore((state) => state.setToken);
   const setUsername = useAuthStore((state) => state.setUsername);
-  const setUserId = useAuthStore((state) => state.setUserId); // ✅ AGREGAR
-  const setRefreshToken = useAuthStore((state) => state.setRefreshToken); // ✅ AGREGAR
-  const setTipoUsuario = useAuthStore((state) => state.setTipoUsuario); // ✅ AGREGAR
+  const setUserId = useAuthStore((state) => state.setUserId);
+  const setRefreshToken = useAuthStore((state) => state.setRefreshToken);
+  const setTipoUsuario = useAuthStore((state) => state.setTipoUsuario);
+  const setIsSuperuser = useAuthStore((state) => state.setIsSuperuser);
+  const setPermissions = useAuthStore((state) => state.setPermissions);
 
   // Función para decodificar el payload del JWT
   const decodeJwt = (token: string) => {
@@ -53,17 +55,31 @@ function Login() {
       setUsername(decoded.username || transformedValues.username);
       setUserId(decoded.sub); // 'sub' es el id del usuario en el JWT
 
-      // Para tipo_usuario, hacer una llamada al profile después del login
+      // Obtener datos del profile después del login
       try {
         const profileResponse = await api.get('/auth/profile', {
           headers: { Authorization: `Bearer ${access_token}` }
         });
+        console.log('📋 Respuesta del profile:', profileResponse.data);
+
         if (profileResponse.data?.tipo_usuario) {
           setTipoUsuario(profileResponse.data.tipo_usuario);
         }
-      } catch {
-        // Si falla obtener el profile, continuamos sin tipo_usuario
-        console.warn('No se pudo obtener tipo_usuario del profile');
+
+        // Guardar is_superuser para permisos de administración
+        setIsSuperuser(profileResponse.data?.is_superuser === true);
+
+        // Guardar permisos del usuario si están disponibles
+        if (profileResponse.data?.permissions && Array.isArray(profileResponse.data.permissions)) {
+          setPermissions(profileResponse.data.permissions);
+        } else {
+          setPermissions([]);
+        }
+
+      } catch (error) {
+        console.error('❌ Error al obtener profile:', error);
+        setIsSuperuser(false);
+        setPermissions([]);
       }
 
       message.success('Inicio de sesión exitoso');

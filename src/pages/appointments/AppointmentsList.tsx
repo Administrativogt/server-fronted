@@ -10,40 +10,46 @@ import {
   Row,
   Col,
   Tag,
-  Popconfirm,
   message,
   Tooltip,
+  Alert,
 } from 'antd';
 import {
   PlusOutlined,
   EditOutlined,
-  DeleteOutlined,
   FileTextOutlined,
   SearchOutlined,
   ReloadOutlined,
-  MailOutlined,
+  FilterOutlined,
+  InfoCircleOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs, { Dayjs } from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
 import {
   getAppointments,
-  deleteAppointment,
-  sendReminders,
 } from '../../api/appointments';
 import type { Appointment, AppointmentFilters } from '../../types/appointment.types';
 import EditAppointmentModal from './EditAppointmentModal';
+import { usePermissions } from '../../hooks/usePermissions';
 
 const { RangePicker } = DatePicker;
 
 const AppointmentsList: React.FC = () => {
   const navigate = useNavigate();
+  const { hasPermission, isSuperUser } = usePermissions();
+
+  // Permisos
+  const canRead = isSuperUser() || hasPermission('appointments:read');
+  const canCreate = isSuperUser() || hasPermission('appointments:create');
+  const canUpdate = isSuperUser() || hasPermission('appointments:update');
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
+  const [showFilters, setShowFilters] = useState(false);
 
   // Filtros
   const [filters, setFilters] = useState<AppointmentFilters>({});
@@ -113,31 +119,10 @@ const AppointmentsList: React.FC = () => {
     setEditModalVisible(true);
   };
 
-  const handleDelete = async (id: number) => {
-    try {
-      await deleteAppointment(id);
-      message.success('Acta eliminada con éxito');
-      fetchAppointments();
-    } catch (error: any) {
-      message.error(error.response?.data?.message || 'Error al eliminar acta');
-    }
-  };
-
-  const handleSendReminders = async () => {
-    try {
-      setLoading(true);
-      const response = await sendReminders();
-      message.success(response.message);
-    } catch (error: any) {
-      message.error(error.response?.data?.message || 'Error al enviar recordatorios');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const columns: ColumnsType<Appointment> = [
     {
-      title: 'ID Acta',
+      title: 'ID Acta (cliente)',
       dataIndex: 'deedId',
       key: 'deedId',
       width: 150,
@@ -237,28 +222,20 @@ const AppointmentsList: React.FC = () => {
     {
       title: 'Acciones',
       key: 'actions',
-      width: 120,
+      width: 80,
       fixed: 'right',
       render: (_, record) => (
         <Space>
-          <Tooltip title="Editar">
-            <Button
-              type="primary"
-              icon={<EditOutlined />}
-              size="small"
-              onClick={() => handleEdit(record)}
-            />
-          </Tooltip>
-          <Popconfirm
-            title="¿Está seguro de eliminar esta acta?"
-            onConfirm={() => handleDelete(record.id)}
-            okText="Sí"
-            cancelText="No"
-          >
-            <Tooltip title="Eliminar">
-              <Button type="primary" danger icon={<DeleteOutlined />} size="small" />
+          {canUpdate && (
+            <Tooltip title="Editar">
+              <Button
+                type="primary"
+                icon={<EditOutlined />}
+                size="small"
+                onClick={() => handleEdit(record)}
+              />
             </Tooltip>
-          </Popconfirm>
+          )}
         </Space>
       ),
     },
@@ -266,93 +243,120 @@ const AppointmentsList: React.FC = () => {
 
   return (
     <div>
+      {/* Información sobre recordatorios */}
+      <Alert
+        message="📧 Sistema de Recordatorios Automáticos"
+        description={
+          <div>
+            <p style={{ marginBottom: 0 }}>
+              • Los recordatorios se envían <strong>automáticamente</strong> sin intervención manual<br />
+              • <strong>Primer recordatorio:</strong> 60 días antes del vencimiento<br />
+              • <strong>Segundo recordatorio:</strong> 30 días antes del vencimiento<br />
+              • <strong>Hora de envío:</strong> 9:00 AM (Guatemala)<br />
+              • ⚠️ Después del segundo recordatorio, el acta se marca como <strong>inactiva automáticamente</strong>
+            </p>
+          </div>
+        }
+        type="info"
+        showIcon
+        icon={<InfoCircleOutlined />}
+        style={{ marginBottom: 16 }}
+      />
+
       <Card title="Actas de Nombramiento" style={{ marginBottom: 16 }}>
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          {/* Filtros */}
-          <Row gutter={[16, 16]}>
-            <Col xs={24} sm={12} md={8} lg={6}>
-              <Input
-                placeholder="ID Acta"
-                value={deedIdFilter}
-                onChange={(e) => setDeedIdFilter(e.target.value)}
-                prefix={<SearchOutlined />}
-              />
-            </Col>
-            <Col xs={24} sm={12} md={8} lg={6}>
-              <Input
-                placeholder="Representante"
-                value={representativeFilter}
-                onChange={(e) => setRepresentativeFilter(e.target.value)}
-                prefix={<SearchOutlined />}
-              />
-            </Col>
-            <Col xs={24} sm={12} md={8} lg={6}>
-              <Input
-                placeholder="Cargo"
-                value={positionFilter}
-                onChange={(e) => setPositionFilter(e.target.value)}
-                prefix={<SearchOutlined />}
-              />
-            </Col>
-            <Col xs={24} sm={12} md={8} lg={6}>
-              <Input
-                placeholder="Registro"
-                value={registerFilter}
-                onChange={(e) => setRegisterFilter(e.target.value)}
-                prefix={<SearchOutlined />}
-              />
-            </Col>
-            <Col xs={24} sm={12} md={8} lg={6}>
-              <Input
-                placeholder="Folio"
-                value={folioFilter}
-                onChange={(e) => setFolioFilter(e.target.value)}
-                prefix={<SearchOutlined />}
-              />
-            </Col>
-            <Col xs={24} sm={12} md={8} lg={6}>
-              <Input
-                placeholder="Libro"
-                value={bookFilter}
-                onChange={(e) => setBookFilter(e.target.value)}
-                prefix={<SearchOutlined />}
-              />
-            </Col>
-            <Col xs={24} sm={12} md={12} lg={6}>
-              <RangePicker
-                style={{ width: '100%' }}
-                value={dateRange}
-                onChange={(dates) => setDateRange(dates as [Dayjs | null, Dayjs | null])}
-                format="DD/MM/YYYY"
-                placeholder={['Fecha inicio', 'Fecha fin']}
-              />
-            </Col>
-          </Row>
-
-          {/* Botones de acción */}
+          {/* Botones principales */}
           <Space wrap>
-            <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch}>
-              Buscar
-            </Button>
-            <Button icon={<ReloadOutlined />} onClick={handleClearFilters}>
-              Limpiar filtros
-            </Button>
+            {canCreate && (
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => navigate('/dashboard/appointments/create')}
+              >
+                Crear acta
+              </Button>
+            )}
             <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => navigate('/dashboard/appointments/create')}
+              icon={<FilterOutlined />}
+              onClick={() => setShowFilters(!showFilters)}
             >
-              Crear acta
-            </Button>
-            <Button
-              type="default"
-              icon={<MailOutlined />}
-              onClick={handleSendReminders}
-              loading={loading}
-            >
-              Enviar recordatorios
+              {showFilters ? 'Ocultar filtros' : 'Mostrar filtros'}
             </Button>
           </Space>
+
+          {/* Filtros colapsables */}
+          {showFilters && (
+            <Card size="small" title="Búsqueda Avanzada" type="inner">
+              <Row gutter={[16, 16]}>
+                <Col xs={24} sm={12} md={8} lg={6}>
+                  <Input
+                    placeholder="ID Acta (nombre cliente)"
+                    value={deedIdFilter}
+                    onChange={(e) => setDeedIdFilter(e.target.value)}
+                    prefix={<SearchOutlined />}
+                  />
+                </Col>
+                <Col xs={24} sm={12} md={8} lg={6}>
+                  <Input
+                    placeholder="Representante"
+                    value={representativeFilter}
+                    onChange={(e) => setRepresentativeFilter(e.target.value)}
+                    prefix={<SearchOutlined />}
+                  />
+                </Col>
+                <Col xs={24} sm={12} md={8} lg={6}>
+                  <Input
+                    placeholder="Cargo"
+                    value={positionFilter}
+                    onChange={(e) => setPositionFilter(e.target.value)}
+                    prefix={<SearchOutlined />}
+                  />
+                </Col>
+                <Col xs={24} sm={12} md={8} lg={6}>
+                  <Input
+                    placeholder="Registro"
+                    value={registerFilter}
+                    onChange={(e) => setRegisterFilter(e.target.value)}
+                    prefix={<SearchOutlined />}
+                  />
+                </Col>
+                <Col xs={24} sm={12} md={8} lg={6}>
+                  <Input
+                    placeholder="Folio"
+                    value={folioFilter}
+                    onChange={(e) => setFolioFilter(e.target.value)}
+                    prefix={<SearchOutlined />}
+                  />
+                </Col>
+                <Col xs={24} sm={12} md={8} lg={6}>
+                  <Input
+                    placeholder="Libro"
+                    value={bookFilter}
+                    onChange={(e) => setBookFilter(e.target.value)}
+                    prefix={<SearchOutlined />}
+                  />
+                </Col>
+                <Col xs={24} sm={12} md={12} lg={6}>
+                  <RangePicker
+                    style={{ width: '100%' }}
+                    value={dateRange}
+                    onChange={(dates) => setDateRange(dates as [Dayjs | null, Dayjs | null])}
+                    format="DD/MM/YYYY"
+                    placeholder={['Fecha inicio', 'Fecha fin']}
+                  />
+                </Col>
+              </Row>
+
+              <Space wrap style={{ marginTop: 16 }}>
+                <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch}>
+                  Buscar
+                </Button>
+                <Button icon={<ReloadOutlined />} onClick={handleClearFilters}>
+                  Limpiar filtros
+                </Button>
+              </Space>
+            </Card>
+          )}
         </Space>
       </Card>
 

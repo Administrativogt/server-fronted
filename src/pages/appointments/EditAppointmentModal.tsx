@@ -83,7 +83,7 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
         <Row gutter={16}>
           <Col span={12}>
             <Form.Item
-              label="Identificación del Acta"
+              label="Identificación del Acta (nombre del cliente)"
               name="deedId"
               rules={[{ required: true, message: 'Campo requerido' }]}
             >
@@ -115,7 +115,20 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
             <Form.Item
               label="Fecha que Vence"
               name="finishDate"
-              rules={[{ required: true, message: 'Campo requerido' }]}
+              rules={[
+                { required: true, message: 'Campo requerido' },
+                ({ getFieldValue }) => ({
+                  validator(_, value) {
+                    const startDate = getFieldValue('startDate');
+                    if (!value || !startDate || value.isAfter(startDate)) {
+                      return Promise.resolve();
+                    }
+                    return Promise.reject(
+                      new Error('La fecha de vencimiento debe ser posterior a la fecha de inicio')
+                    );
+                  },
+                }),
+              ]}
             >
               <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
             </Form.Item>
@@ -126,7 +139,11 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
 
         <Row gutter={16}>
           <Col span={8}>
-            <Form.Item label="Registro" name="register">
+            <Form.Item 
+              label="Registro" 
+              name="register"
+              tooltip="Puede ser texto (Ej: Registro Mercantil) o número (Ej: 12345)"
+            >
               <Input />
             </Form.Item>
           </Col>
@@ -157,9 +174,16 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
 
           <Col span={12}>
             <Form.Item
-              label="Correo del Cliente"
+              label="Correos electrónicos a quienes notificar que el nombramiento está por vencer"
               name="clientEmail"
-              rules={[{ required: true, message: 'Campo requerido' }]}
+              rules={[
+                { required: true, message: 'Campo requerido' },
+                {
+                  pattern: /^[\w\.-]+@[\w\.-]+\.\w{2,}(,\s*[\w\.-]+@[\w\.-]+\.\w{2,})*$/,
+                  message: 'Debe proporcionar emails válidos separados por coma',
+                },
+              ]}
+              tooltip="Puede ingresar múltiples correos separados por coma"
             >
               <TextArea rows={2} />
             </Form.Item>

@@ -28,15 +28,16 @@ export interface EncargoFormValues {
   destinatario: string;
   solicitante_id: number;
   direccion: string;
-  zona: number;
   municipio_id: number;
-  fecha_realizacion: string; // "YYYY-MM-DD"
   prioridad: number; // 1, 2, 3, 4
   prioridad_hora: number; // 1, 2, 3, 4
+  // ✅ Campos ahora opcionales (NestJS backend)
+  zona?: number; // Se obtiene automáticamente del municipio si no se especifica
+  fecha_realizacion?: string; // "YYYY-MM-DD" - Se calcula automáticamente según prioridad
   observaciones?: string;
   hora_minima?: string; // "HH:mm:ss"
   hora_maxima?: string; // "HH:mm:ss"
-  mensajero_id?: number;
+  mensajero_id?: number; // Solo para admins/coordinadores
 }
 
 // Estructura real que devuelve el backend

@@ -7,9 +7,11 @@ import {
   deleteEncargo,
   rejectEncargo,
   reportIncidence,
+  updateEncargo, // ✅ Agregar import
 } from '../../api/encargos';
 import type { Encargo } from '../../types/encargo';
 import CommentModal from './components/CommentModal';
+import useAuthStore from '../../auth/useAuthStore'; // ✅ Importar
 
 const { confirm } = Modal;
 const { TextArea } = Input;
@@ -51,21 +53,52 @@ const PendingEncargosPage: React.FC = () => {
     reason: '',
   });
   const navigate = useNavigate();
+  
+  // ✅ Obtener usuario actual para filtrar si es mensajero
+  const userId = useAuthStore((state) => state.userId);
+  const tipoUsuario = useAuthStore((state) => state.tipo_usuario);
+  const isMensajero = tipoUsuario === 8;
 
   useEffect(() => {
     loadEncargos();
-  }, []);
+  }, [userId, isMensajero]); // ✅ Agregar dependencias
 
   const loadEncargos = async () => {
     try {
       const res = await getPendingEncargos();
-      setEncargos(res.data);
+      
+      // ✅ Si es mensajero, filtrar solo sus encargos
+      if (isMensajero && userId) {
+        const filtered = res.data.filter((e: Encargo) => e.mensajero?.id === userId);
+        setEncargos(filtered);
+      } else {
+        setEncargos(res.data);
+      }
     } catch (error) {
       console.error('Error al cargar encargos pendientes:', error);
       message.error('No se pudieron cargar los envíos pendientes');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleStartDelivery = (id: number) => {
+    confirm({
+      title: '¿Iniciar entrega?',
+      content: '¿Desea marcar este envío como "En proceso"?',
+      okText: 'Sí, iniciar',
+      okType: 'primary',
+      cancelText: 'Cancelar',
+      onOk: async () => {
+        try {
+          await updateEncargo(id, { estado: 2 } as any);
+          message.success('Envío marcado como "En proceso"');
+          loadEncargos();
+        } catch (err: any) {
+          message.error(err.response?.data?.message || 'Error al iniciar');
+        }
+      },
+    });
   };
 
   const handleDelete = (id: number) => {
@@ -119,12 +152,23 @@ const PendingEncargosPage: React.FC = () => {
 
   const columns = [
     { title: '#', dataIndex: 'id', key: 'id', width: 60 },
-    { title: 'Solicitante', dataIndex: 'solicitante_nombre', key: 'solicitante' },
+    // ✅ CORREGIDO: Usar relaciones correctas del tipo Encargo
+    { 
+      title: 'Solicitante', 
+      key: 'solicitante',
+      render: (_: any, record: Encargo) => 
+        record.solicitante ? `${record.solicitante.first_name} ${record.solicitante.last_name}` : '-'
+    },
     { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario' },
     { title: 'Empresa', dataIndex: 'empresa', key: 'empresa' },
     { title: 'Dirección', dataIndex: 'direccion', key: 'direccion' },
     { title: 'Zona', dataIndex: 'zona', key: 'zona', width: 80 },
-    { title: 'Mensajero', dataIndex: 'mensajero_nombre', key: 'mensajero' },
+    { 
+      title: 'Mensajero', 
+      key: 'mensajero',
+      render: (_: any, record: Encargo) =>
+        record.mensajero ? `${record.mensajero.first_name} ${record.mensajero.last_name}` : 'Sin asignar'
+    },
     {
       title: 'Prioridad',
       dataIndex: 'prioridad',
@@ -155,12 +199,28 @@ const PendingEncargosPage: React.FC = () => {
       width: 280,
       render: (_: any, record: Encargo) => (
         <Space size="small" wrap>
-          <Button size="small" onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}>
-            Editar
-          </Button>
-          <Button size="small" danger onClick={() => handleDelete(record.id)}>
-            Eliminar
-          </Button>
+          {/* Botón Iniciar - Solo si está en estado Pendiente (1) y tiene mensajero asignado */}
+          {record.estado === 1 && record.mensajero && (
+            <Button 
+              size="small" 
+              type="primary"
+              onClick={() => handleStartDelivery(record.id)}
+            >
+              🚀 Iniciar
+            </Button>
+          )}
+          
+          {!isMensajero && (
+            <>
+              <Button size="small" onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}>
+                Editar
+              </Button>
+              <Button size="small" danger onClick={() => handleDelete(record.id)}>
+                Eliminar
+              </Button>
+            </>
+          )}
+          
           <Button size="small" type="primary" danger onClick={() => handleReject(record.id)}>
             Rechazar
           </Button>
@@ -182,9 +242,11 @@ const PendingEncargosPage: React.FC = () => {
     <div style={{ padding: '16px 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h2 style={{ margin: 0 }}>Envíos Pendientes</h2>
-        <Button type="primary" onClick={() => navigate('/dashboard/mensajeria/crear')}>
-          Crear Envío
-        </Button>
+        {!isMensajero && (
+          <Button type="primary" onClick={() => navigate('/dashboard/mensajeria/crear')}>
+            Crear Envío
+          </Button>
+        )}
       </div>
 
       <Table

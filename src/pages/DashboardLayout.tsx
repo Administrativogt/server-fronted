@@ -21,10 +21,13 @@ import {
   AuditOutlined,
   UnorderedListOutlined,
   PlusCircleOutlined,
+  UserOutlined,
+  SettingOutlined,
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import useAuthStore from '../auth/useAuthStore';
 import api from '../api/axios';
+import { useUserAdminPermissions } from '../hooks/usePermissions';
 
 import logoLight from '../assets/logo-cosortium.png';
 import logoDark from '../assets/logo-dark.png';
@@ -47,6 +50,8 @@ const DashboardLayout: React.FC = () => {
   const tipoUsuario = useAuthStore((s) => s.tipo_usuario);
 
   const canSeeAsignados = tipoUsuario === 8 || username === 'ESC002' || username === 'BAR008';
+  const canCreateEncargo = tipoUsuario !== 8; // ✅ Mensajeros NO pueden crear encargos
+  const { canAccessUserAdmin } = useUserAdminPermissions(); // ✅ Permisos de administración
 
   useEffect(() => {
     let mounted = true;
@@ -142,30 +147,67 @@ const DashboardLayout: React.FC = () => {
         icon: <MailOutlined />,
         label: "Mensajería",
         children: [
+          // ✅ VALIDACIÓN #12: "Crear envío" - Solo para admins/coordinadores
+          ...(canCreateEncargo ? [{
+            key: "/dashboard/mensajeria/crear",
+            icon: <PlusCircleOutlined />,
+            label: "Crear envío",
+            onClick: () => navigate('/dashboard/mensajeria/crear')
+          }] : []),
           {
             key: "/dashboard/mensajeria",
+            icon: <ClockCircleOutlined />,
             label: "Envíos pendientes",
             onClick: () => navigate('/dashboard/mensajeria')
           },
           {
-            key: "/dashboard/mensajeria/crear",
-            label: "Crear envío",
-            onClick: () => navigate('/dashboard/mensajeria/crear')
-          },
-          {
             key: "/dashboard/mensajeria/todos",
+            icon: <UnorderedListOutlined />,
             label: "Todos los envíos",
             onClick: () => navigate('/dashboard/mensajeria/todos')
           },
           ...(canSeeAsignados ? [{
             key: "/dashboard/mensajeria/asignados",
+            icon: <FileProtectOutlined />,
             label: "Envíos asignados",
             onClick: () => navigate('/dashboard/mensajeria/asignados')
           }] : []),
           {
             key: "/dashboard/mensajeria/dashboard",
+            icon: <AuditOutlined />,
             label: "Dashboard",
             onClick: () => navigate('/dashboard/mensajeria/dashboard')
+          }
+        ]
+      },
+      {
+        key: "clientes",
+        icon: <UserOutlined />,
+        label: "Clientes",
+        children: [
+          {
+            key: "/dashboard/clientes",
+            icon: <UnorderedListOutlined />,
+            label: "Lista de clientes",
+            onClick: () => navigate('/dashboard/clientes')
+          },
+          {
+            key: "/dashboard/clientes/crear",
+            icon: <FileAddOutlined />,
+            label: "Crear cliente",
+            onClick: () => navigate('/dashboard/clientes/crear')
+          },
+          {
+            key: "/dashboard/casos/solicitudes",
+            icon: <FileSearchOutlined />,
+            label: "Solicitudes de casos",
+            onClick: () => navigate('/dashboard/casos/solicitudes')
+          },
+          {
+            key: "/dashboard/casos/crear-solicitud",
+            icon: <PlusCircleOutlined />,
+            label: "Crear caso",
+            onClick: () => navigate('/dashboard/casos/crear-solicitud')
           }
         ]
       },
@@ -334,7 +376,21 @@ const DashboardLayout: React.FC = () => {
             onClick: () => navigate('/dashboard/procuration/create')
           }
         ]
-      }
+      },
+      // ✅ NUEVO: Menú de Administración (solo para superadmins y Pedro Luis)
+      ...(canAccessUserAdmin ? [{
+        key: "admin",
+        icon: <SettingOutlined />,
+        label: "Administración",
+        children: [
+          {
+            key: "/dashboard/admin/users",
+            icon: <UserOutlined />,
+            label: "Gestión de Usuarios",
+            onClick: () => navigate('/dashboard/admin/users')
+          }
+        ]
+      }] : [])
     ];
 
     return items;

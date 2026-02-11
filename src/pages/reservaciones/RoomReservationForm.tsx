@@ -11,7 +11,7 @@ import api from '../../api/axios';
 import { ReservationsAPI } from '../../services/roomReservations';
 import { generarConvocatoriaICS } from '../../utils/generateTeamsInvite';
 import { CalendarOutlined } from '@ant-design/icons';
-import  { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const { TextArea } = Input;
 const { Title } = Typography;
@@ -53,6 +53,7 @@ const isAuthorizedName = (fullName: string | undefined | null) =>
 
 /* ============ Tipos ============ */
 type MeetingType = 'team_meeting' | 'client_call' | 'urgent' | 'other';
+type RecurrencePattern = 'daily' | 'weekly' | 'biweekly' | 'monthly';
 interface Room { id: number; name: string; price_per_hour: string | null }
 type Partner = { id: number; full_name: string; email: string };
 
@@ -69,15 +70,21 @@ interface FormValues {
   room: number;
   is_shared_cost?: boolean;
   shared_with?: number[];
+  // ===== CAMPOS DE RECURRENCIA =====
+  is_recurring?: boolean;
+  recurrence_pattern?: RecurrencePattern;
+  recurrence_end_date?: Dayjs;
 }
 
 type FastMonthItem = {
-  id: number;
-  room_id: number;
+  reservation_id: number | string;
+  room_name: string;
+  user_name: string;
+  reason: string;
   reservation_date: string; // YYYY-MM-DD
   init_hour: string;        // HH:mm:ss
   end_hour: string;         // HH:mm:ss
-  state: number;            // 0 pending, 1 accepted, 2 rejected
+  state?: number;            // 0 pending, 1 accepted, 2 rejected
   delete_hour?: string | null;
 };
 
@@ -116,6 +123,7 @@ export default function RoomReservationForm() {
   const wInit = Form.useWatch('init_hour', form);
   const wEnd = Form.useWatch('end_hour', form);
   const wShare = Form.useWatch('is_shared_cost', form);
+  const wRecurring = Form.useWatch('is_recurring', form);
 
   // carga inicial
   useEffect(() => {
@@ -140,7 +148,7 @@ export default function RoomReservationForm() {
       last_name: string;
       email: string;
     }
-    
+
     api.get<RawUser[]>('/users')
       .then(res => {
         const mapped: Partner[] = res.data.map((u) => ({
@@ -294,11 +302,14 @@ export default function RoomReservationForm() {
   }, [wDate, wRoom, wInit, wEnd, debounce, checkForConflicts]);
 
   const dayByRoom = useMemo(() => {
-    if (!wRoom) return [];
+    if (!wRoom || !rooms) return [];
+    const roomName = rooms.find(r => r.id === wRoom)?.name;
+    if (!roomName) return [];
+
     return dayReservations
-      .filter(r => r.room_id === wRoom)
+      .filter(r => r.room_name === roomName)
       .sort((a, b) => a.init_hour.localeCompare(b.init_hour));
-  }, [dayReservations, wRoom]);
+  }, [dayReservations, wRoom, rooms]);
 
   const authorizedPartners = useMemo(() => {
     return partners.filter(p => isAuthorizedName(p.full_name) && (!me || p.id !== me.id));
@@ -337,11 +348,17 @@ export default function RoomReservationForm() {
       shared_with: values.is_shared_cost ? (values.shared_with || []) : undefined,
       room_id: values.room,
       user_id: values.user_id,
+      // ===== CAMPOS DE RECURRENCIA =====
+      is_recurring: !!values.is_recurring,
+      recurrence_pattern: values.is_recurring ? values.recurrence_pattern : undefined,
+      recurrence_end_date: values.is_recurring && values.recurrence_end_date
+        ? values.recurrence_end_date.format('YYYY-MM-DD')
+        : undefined,
     };
 
     try {
       setLoadingCreate(true);
-      await ReservationsAPI.create(payload);
+      const response = await ReservationsAPI.create(payload);
 
       setCreated({
         date: payload.reservation_date,
@@ -350,7 +367,29 @@ export default function RoomReservationForm() {
         roomId: payload.room_id,
       });
 
-      notif.success({ message: 'Reservación creada', description: 'La reservación fue creada con éxito.' });
+      // Mostrar mensaje de éxito con información de recurrencia si aplica
+      if (response.recurring_summary) {
+        const summary = response.recurring_summary;
+        notif.success({
+          message: '✅ Reservación recurrente creada',
+          description: summary.message || `Se crearon ${summary.created_count} reservaciones.`,
+          duration: 6,
+        });
+
+        // Si hay fechas fallidas, mostrar advertencia adicional
+        if (summary.failed_dates && summary.failed_dates.length > 0) {
+          notif.warning({
+            message: '⚠️ Algunas fechas fueron omitidas',
+            description: `${summary.failed_dates.length} fecha(s) con conflictos: ${summary.failed_dates.join(', ')}`,
+            duration: 8,
+          });
+        }
+      } else {
+        notif.success({
+          message: 'Reservación creada',
+          description: 'La reservación fue creada con éxito.'
+        });
+      }
     } catch (err: unknown) {
       if (err && typeof err === 'object' && 'response' in err) {
         const response = (err as { response?: { status?: number; data?: { message?: string } } }).response;
@@ -359,8 +398,9 @@ export default function RoomReservationForm() {
 
         if (status === 409) {
           const list = await fetchDay(reservation_date);
+          const conflictRoomName = getRoomName(values.room);
           const first = list.find(r =>
-            r.room_id === values.room &&
+            r.room_name === conflictRoomName &&
             overlaps(payload.init_hour, payload.end_hour, r.init_hour, r.end_hour)
           );
           const desc = first
@@ -405,6 +445,16 @@ export default function RoomReservationForm() {
     }
   }, [wShare, form]);
 
+  // Limpiar campos de recurrencia cuando se desactiva
+  useEffect(() => {
+    if (!wRecurring) {
+      form.setFieldsValue({
+        recurrence_pattern: undefined,
+        recurrence_end_date: undefined
+      });
+    }
+  }, [wRecurring, form]);
+
   if (created) {
     const roomName = getRoomName(created.roomId);
     return (
@@ -429,6 +479,9 @@ export default function RoomReservationForm() {
                   is_shared_cost: false,
                   use_computer: false,
                   user_projector: false,
+                  is_recurring: false,
+                  recurrence_pattern: undefined,
+                  recurrence_end_date: undefined,
                 } as Partial<FormValues>);
               }}>
                 Crear otra
@@ -478,6 +531,9 @@ export default function RoomReservationForm() {
             use_computer: false,
             user_projector: false,
             shared_with: [],
+            is_recurring: false,
+            recurrence_pattern: undefined,
+            recurrence_end_date: undefined,
           }}
         >
           <Row gutter={16}>
@@ -681,6 +737,93 @@ export default function RoomReservationForm() {
             </Row>
           )}
 
+          {/* ===== SECCIÓN DE RECURRENCIA ===== */}
+          <Divider orientation="left">Opciones de Recurrencia</Divider>
+          <Row gutter={16}>
+            <Col xs={24}>
+              <Form.Item
+                name="is_recurring"
+                valuePropName="checked"
+                tooltip="Crea reservaciones automáticas con el mismo horario en múltiples fechas"
+              >
+                <Checkbox>¿Es una reservación recurrente?</Checkbox>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item noStyle shouldUpdate={(prev, cur) => prev.is_recurring !== cur.is_recurring}>
+            {() =>
+              wRecurring ? (
+                <Row gutter={16}>
+                  <Col xs={24} md={12}>
+                    <Form.Item
+                      name="recurrence_pattern"
+                      label="Patrón de repetición"
+                      rules={[{ required: true, message: 'Seleccione un patrón' }]}
+                    >
+                      <Select<RecurrencePattern> placeholder="¿Con qué frecuencia?">
+                        <Select.Option value="daily">Diaria (cada día)</Select.Option>
+                        <Select.Option value="weekly">Semanal (cada semana)</Select.Option>
+                        <Select.Option value="biweekly">Quincenal (cada 2 semanas)</Select.Option>
+                        <Select.Option value="monthly">Mensual (cada mes)</Select.Option>
+                      </Select>
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item
+                      name="recurrence_end_date"
+                      label="Fecha de finalización"
+                      rules={[
+                        { required: true, message: 'Seleccione fecha final' },
+                        {
+                          validator: async (_: unknown, value?: Dayjs) => {
+                            const startDate = form.getFieldValue('reservation_date') as Dayjs | undefined;
+                            if (!value || !startDate) return Promise.resolve();
+                            if (!value.isAfter(startDate)) {
+                              return Promise.reject(new Error('Debe ser posterior a la fecha de inicio'));
+                            }
+                            // Validar que no sea más de 6 meses
+                            if (value.diff(startDate, 'month') > 6) {
+                              return Promise.reject(new Error('No puede exceder 6 meses'));
+                            }
+                            return Promise.resolve();
+                          },
+                        },
+                      ]}
+                    >
+                      <DatePicker
+                        style={{ width: '100%' }}
+                        placeholder="¿Hasta qué fecha?"
+                        disabledDate={(d) => {
+                          const startDate = form.getFieldValue('reservation_date') as Dayjs | undefined;
+                          if (!startDate) return false;
+                          return d && (d.isBefore(startDate, 'day') || d.isAfter(startDate.add(6, 'month')));
+                        }}
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24}>
+                    <div style={{
+                      background: '#e6f7ff',
+                      border: '1px solid #91d5ff',
+                      padding: '12px',
+                      borderRadius: '6px',
+                      marginBottom: '12px'
+                    }}>
+                      <div style={{ color: '#0050b3', fontWeight: 'bold' }}>ℹ️ Información importante</div>
+                      <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px', color: '#0050b3' }}>
+                        <li>Se crearán reservaciones automáticas hasta la fecha seleccionada</li>
+                        <li>Solo se crearán en fechas donde no haya conflictos de horario</li>
+                        <li>Recibirás una confirmación con las fechas creadas exitosamente</li>
+                        <li>Las fechas con conflictos serán omitidas automáticamente</li>
+                      </ul>
+                    </div>
+                  </Col>
+                </Row>
+              ) : null
+            }
+          </Form.Item>
+
           <Form.Item>
             <Space wrap>
               <Button
@@ -714,14 +857,39 @@ export default function RoomReservationForm() {
           <Title level={5} style={{ marginBottom: 8 }}>
             <CalendarOutlined /> Agenda del día — {wDate ? wDate.format('DD/MM/YYYY') : 'sin fecha'} {wRoom ? `· ${getRoomName(wRoom)}` : ''}
           </Title>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {(!wRoom || !wDate) && <span>Seleccione fecha y sala para ver la agenda.</span>}
-            {wRoom && wDate && dayByRoom.length === 0 && <Tag color="green">No hay reservaciones</Tag>}
-            {dayByRoom.map(r => (
-              <Tag key={r.id} color={r.state === 1 ? 'green' : 'gold'}>
-                {fmtHM(r.init_hour)}—{fmtHM(r.end_hour)}
-              </Tag>
-            ))}
+          <div style={{ pointerEvents: 'none' }}>
+            {(!wRoom || !wDate) && <span style={{ color: '#888' }}>Seleccione fecha y sala para ver la agenda.</span>}
+            {wRoom && wDate && dayByRoom.length === 0 && <Tag color="green">No hay reservaciones para hoy</Tag>}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+              {dayByRoom.map((r, idx) => (
+                <div
+                  key={r.reservation_id || idx}
+                  style={{
+                    border: '1px solid #d9d9d9',
+                    borderRadius: 6,
+                    padding: '8px 12px',
+                    background: '#fafafa',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 600, color: '#1890ff' }}>
+                      {fmtHM(r.init_hour)} - {fmtHM(r.end_hour)}
+                    </div>
+                    <div style={{ color: '#595959', fontSize: 13 }}>
+                      {r.reason}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', fontSize: 12, color: '#8c8c8c' }}>
+                    <div style={{ fontWeight: 500 }}>{r.user_name}</div>
+                    {/* Se podría mostrar estado si viene de API, asumimos aprobada/pendiente */}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </Form>
       )}

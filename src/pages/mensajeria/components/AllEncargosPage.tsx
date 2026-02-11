@@ -2,8 +2,9 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Button, Space, Tag, message, Modal, DatePicker, Select, Input } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { downloadEncargosExcel, getAllEncargos, registerEmail, sendComplaint } from '../../../api/encargos';
-import type { Encargo } from '../../../types/encargo';
+import { downloadEncargosExcel, getAllEncargos, sendComplaint, getMensajeros, updateEncargo } from '../../../api/encargos';
+import type { Encargo, Usuario } from '../../../types/encargo';
+import useAuthStore from '../../../auth/useAuthStore'; // ✅ Importar para obtener userId y tipo_usuario
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -41,21 +42,51 @@ const AllEncargosPage: React.FC = () => {
     encargoId: null,
   });
   const [complaintText, setComplaintText] = useState('');
-  const [emailModal, setEmailModal] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  
+  // ✅ NUEVO: Modal para seleccionar mensajero antes de exportar Excel
+  const [exportModal, setExportModal] = useState(false);
+  const [selectedMensajero, setSelectedMensajero] = useState<number | null>(null);
+  const [mensajeros, setMensajeros] = useState<Usuario[]>([]);
+  
   const navigate = useNavigate();
+  
+  // ✅ Obtener usuario actual para filtrar si es mensajero
+  const userId = useAuthStore((state) => state.userId);
+  const tipoUsuario = useAuthStore((state) => state.tipo_usuario); // ✅ CORREGIDO: acceso directo
+  const isMensajero = tipoUsuario === 8;
+
+  // ✅ Cargar mensajeros al inicio
+  useEffect(() => {
+    const loadMensajeros = async () => {
+      try {
+        const res = await getMensajeros();
+        // ✅ Ordenar alfabéticamente
+        const sorted = res.data.sort((a, b) => 
+          `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`, 'es')
+        );
+        setMensajeros(sorted);
+      } catch (error) {
+        console.error('Error al cargar mensajeros:', error);
+      }
+    };
+    loadMensajeros();
+  }, []);
 
   // ✅ Cargar datos dentro del useEffect
   useEffect(() => {
     const loadEncargos = async () => {
       try {
-        const params = {
-          start_date: filters.startDate || undefined,
-          end_date: filters.endDate || undefined,
-          estado: filters.estado || undefined,
-          user_id: filters.userId || undefined,
+        const params: any = {
+          start: filters.startDate || undefined, // ✅ Cambiado de start_date a start
+          end: filters.endDate || undefined, // ✅ Cambiado de end_date a end
+          search: filters.search || undefined,
         };
+        
+        // ✅ Si es mensajero, SIEMPRE filtrar por sus propios encargos
+        if (isMensajero && userId) {
+          params.mensajero = userId; // Filtrar por ID del mensajero actual
+        }
+        
         const res = await getAllEncargos(params);
         setEncargos(res.data);
       } catch {
@@ -66,7 +97,7 @@ const AllEncargosPage: React.FC = () => {
     };
 
     loadEncargos();
-  }, [filters]); // ✅ Dependencias correctas
+  }, [filters, isMensajero, userId]); // ✅ Dependencias correctas
 
   const handleFilterChange = (key: keyof typeof filters, value: any) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -86,6 +117,62 @@ const AllEncargosPage: React.FC = () => {
     setFilters({ startDate: null, endDate: null, estado: null, userId: null });
   };
 
+  const handleStartDelivery = (id: number) => {
+    Modal.confirm({
+      title: '¿Iniciar entrega?',
+      content: '¿Desea marcar este envío como "En proceso"?',
+      okText: 'Sí, iniciar',
+      okType: 'primary',
+      cancelText: 'Cancelar',
+      onOk: async () => {
+        try {
+          await updateEncargo(id, { estado: 2 } as any);
+          message.success('Envío marcado como "En proceso"');
+          const params: any = {
+            start: filters.startDate || undefined,
+            end: filters.endDate || undefined,
+            search: filters.search || undefined,
+          };
+          if (isMensajero && userId) {
+            params.mensajero = userId;
+          }
+          const res = await getAllEncargos(params);
+          setEncargos(res.data);
+        } catch (err: any) {
+          message.error(err.response?.data?.message || 'Error al iniciar');
+        }
+      },
+    });
+  };
+  
+  const handleDeliver = (id: number) => {
+    Modal.confirm({
+      title: '¿Confirmar entrega?',
+      content: '¿Está seguro que desea marcar este envío como entregado?',
+      okText: 'Sí, entregar',
+      okType: 'primary',
+      cancelText: 'Cancelar',
+      onOk: async () => {
+        try {
+          await updateEncargo(id, { estado: 3 } as any);
+          message.success('Envío marcado como entregado');
+          const params: any = {
+            start: filters.startDate || undefined,
+            end: filters.endDate || undefined,
+            search: filters.search || undefined,
+          };
+          if (isMensajero && userId) {
+            params.mensajero = userId;
+          }
+          const res = await getAllEncargos(params);
+          setEncargos(res.data);
+        } catch (err: any) {
+          message.error(err.response?.data?.message || 'Error al entregar');
+        }
+      },
+    });
+  };
+
   const handleComplaint = (id: number) => {
     setComplaintModal({ open: true, encargoId: id });
   };
@@ -96,8 +183,9 @@ const AllEncargosPage: React.FC = () => {
       return;
     }
     try {
+      // ✅ NestJS solo requiere el texto del reclamo (no contraseña)
       await sendComplaint(complaintModal.encargoId, complaintText);
-      message.success('Reclamo enviado');
+      message.success('Reclamo enviado por email exitosamente');
       setComplaintModal({ open: false, encargoId: null });
       setComplaintText('');
     } catch (error: any) {
@@ -105,46 +193,77 @@ const AllEncargosPage: React.FC = () => {
     }
   };
 
-  const handleRegisterEmail = async () => {
-    if (!email || !password) {
-      message.warning('Debe ingresar email y contraseña');
-      return;
-    }
-    try {
-      await registerEmail(email, password);
-      message.success('Email registrado');
-      setEmailModal(false);
-      setEmail('');
-      setPassword('');
-    } catch (error: any) {
-      message.error(error.response?.data?.message || 'Error al registrar email');
-    }
+  // ❌ ELIMINADO: handleRegisterEmail ya no es necesario
+
+  // ✅ Abrir modal para seleccionar mensajero
+  const handleExportExcel = () => {
+    setExportModal(true);
   };
 
-  const handleExportExcel = async () => {
+  // ✅ NUEVO: Exportar con mensajero seleccionado
+  const handleConfirmExport = async () => {
+    if (!selectedMensajero) {
+      message.warning('Por favor seleccione un mensajero');
+      return;
+    }
+
     try {
-      const response = await downloadEncargosExcel();
+      // ✅ Exportar con filtros + mensajero
+      const response = await downloadEncargosExcel({
+        mensajeroId: selectedMensajero,
+        type: 2, // Todos los pendientes/en proceso
+        startDate: filters.startDate || undefined,
+        endDate: filters.endDate || undefined,
+      });
+      
+      // ✅ Extraer nombre del archivo del header si está disponible
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = 'Reporte-Mensajeria.xlsx';
+      
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?(.+)"?/);
+        if (match) filename = match[1];
+      }
+      
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', 'envios.xlsx');
+      link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
-      link.remove();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      message.success('Reporte descargado exitosamente');
+      
+      // Cerrar modal y limpiar selección
+      setExportModal(false);
+      setSelectedMensajero(null);
     } catch (err: any) {
-      const msg = err?.response?.data?.message || 'Error desconocido';
+      const msg = err?.response?.data?.message || 'Error al descargar reporte';
       message.error(msg);
     }
   };
 
   const columns = [
     { title: '#', dataIndex: 'id', key: 'id', width: 60 },
-    { title: 'Solicitante', dataIndex: 'solicitante_nombre', key: 'solicitante' },
+    // ✅ CORREGIDO: Usar relaciones correctas del tipo Encargo
+    { 
+      title: 'Solicitante', 
+      key: 'solicitante',
+      render: (_: any, record: Encargo) => 
+        record.solicitante ? `${record.solicitante.first_name} ${record.solicitante.last_name}` : '-'
+    },
     { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario' },
     { title: 'Empresa', dataIndex: 'empresa', key: 'empresa' },
     { title: 'Dirección', dataIndex: 'direccion', key: 'direccion' },
     { title: 'Zona', dataIndex: 'zona', key: 'zona', width: 80 },
-    { title: 'Mensajero', dataIndex: 'mensajero_nombre', key: 'mensajero' },
+    { 
+      title: 'Mensajero', 
+      key: 'mensajero',
+      render: (_: any, record: Encargo) =>
+        record.mensajero ? `${record.mensajero.first_name} ${record.mensajero.last_name}` : 'Sin asignar'
+    },
     {
       title: 'Prioridad',
       dataIndex: 'prioridad',
@@ -172,16 +291,43 @@ const AllEncargosPage: React.FC = () => {
     {
       title: 'Acciones',
       key: 'acciones',
-      width: 180,
+      width: 250,
       render: (_: any, record: Encargo) => (
-        <Space size="small">
-          <Button size="small" onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}>
-            Editar
-          </Button>
-          {record.estado !== 3 && (
-            <Button size="small" type="dashed" onClick={() => handleComplaint(record.id)}>
-              Reclamo
+        <Space size="small" wrap>
+          {/* Botón Iniciar - Estado Pendiente (1) */}
+          {isMensajero && record.estado === 1 && record.mensajero?.id === userId && (
+            <Button 
+              size="small" 
+              type="primary"
+              onClick={() => handleStartDelivery(record.id)}
+            >
+              🚀 Iniciar
             </Button>
+          )}
+          
+          {/* Botón Entregar - Estado En proceso (2) */}
+          {isMensajero && record.estado === 2 && record.mensajero?.id === userId && (
+            <Button 
+              size="small" 
+              type="primary"
+              onClick={() => handleDeliver(record.id)}
+            >
+              ✅ Entregar
+            </Button>
+          )}
+          
+          {/* Botones de admin */}
+          {!isMensajero && (
+            <>
+              <Button size="small" onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}>
+                Editar
+              </Button>
+              {record.estado !== 3 && (
+                <Button size="small" type="dashed" onClick={() => handleComplaint(record.id)}>
+                  Reclamo
+                </Button>
+              )}
+            </>
           )}
         </Space>
       ),
@@ -191,17 +337,17 @@ const AllEncargosPage: React.FC = () => {
   return (
     <div style={{ padding: '16px 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 style={{ margin: 0 }}>Todos los Envíos</h2>
+        <h2 style={{ margin: 0 }}>{isMensajero ? 'Mis Envíos' : 'Todos los Envíos'}</h2>
         <Space>
-          <Button type="primary" onClick={() => navigate('/dashboard/mensajeria/crear')}>
-            Crear Envío
-          </Button>
+          {!isMensajero && (
+            <Button type="primary" onClick={() => navigate('/dashboard/mensajeria/crear')}>
+              Crear Envío
+            </Button>
+          )}
           <Button type="default" onClick={handleExportExcel}>
             Exportar Excel
           </Button>
-          <Button type="default" onClick={() => setEmailModal(true)}>
-            Registrar Email
-          </Button>
+          {/* ❌ ELIMINADO: Botón "Registrar Email" ya no es necesario en NestJS */}
         </Space>
       </div>
 
@@ -215,6 +361,11 @@ const AllEncargosPage: React.FC = () => {
             value={filters.estado || undefined}
             onChange={(value) => handleFilterChange('estado', value)}
             style={{ width: 180 }}
+            showSearch
+            optionFilterProp="children"
+            filterOption={(input, option) =>
+              String(option?.children || '').toLowerCase().includes(input.toLowerCase())
+            }
           >
             {Object.entries(ESTADOS).map(([key, value]) => (
               <Option key={key} value={parseInt(key)}>{value.label}</Option>
@@ -236,39 +387,58 @@ const AllEncargosPage: React.FC = () => {
 
       {/* Modal de reclamo */}
       <Modal
-        title="Enviar reclamo"
+        title="Enviar Reclamo"
         open={complaintModal.open}
-        onCancel={() => setComplaintModal({ open: false, encargoId: null })}
+        onCancel={() => {
+          setComplaintModal({ open: false, encargoId: null });
+          setComplaintText('');
+        }}
         onOk={handleComplaintSubmit}
-        okText="Enviar"
+        okText="Enviar Reclamo"
+        cancelText="Cancelar"
       >
+        <p style={{ marginBottom: 12, color: '#666' }}>
+          El reclamo será enviado por email al coordinador de mensajería.
+        </p>
         <TextArea
           value={complaintText}
           onChange={(e) => setComplaintText(e.target.value)}
           placeholder="Ingrese el motivo de su reclamo..."
           rows={4}
+          maxLength={250}
+          showCount
         />
       </Modal>
 
-      {/* Modal de registro de email */}
+      {/* ✅ NUEVO: Modal para seleccionar mensajero antes de exportar */}
       <Modal
-        title="Registro de email"
-        open={emailModal}
-        onCancel={() => setEmailModal(false)}
-        onOk={handleRegisterEmail}
-        okText="Registrar"
+        title="Escoga mensajero:"
+        open={exportModal}
+        onCancel={() => {
+          setExportModal(false);
+          setSelectedMensajero(null);
+        }}
+        onOk={handleConfirmExport}
+        okText="Crear"
+        cancelText="Cancelar"
       >
-        <Input
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Correo electrónico"
-          style={{ marginBottom: 12 }}
-        />
-        <Input.Password
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Contraseña"
-        />
+        <Select
+          style={{ width: '100%' }}
+          placeholder="Seleccione un mensajero"
+          value={selectedMensajero}
+          onChange={(value) => setSelectedMensajero(value)}
+          showSearch
+          optionFilterProp="children"
+          filterOption={(input, option) =>
+            String(option?.children || '').toLowerCase().includes(input.toLowerCase())
+          }
+        >
+          {mensajeros.map(m => (
+            <Option key={m.id} value={m.id}>
+              {m.first_name} {m.last_name}
+            </Option>
+          ))}
+        </Select>
       </Modal>
     </div>
   );
