@@ -3,10 +3,19 @@ import { Row, Col, Form, Input, Button, Typography, message, Checkbox, ConfigPro
 import api from '../api/axios';
 import useAuthStore from '../auth/useAuthStore';
 import loginImage from '../assets/new_cover_consortium copy.jpg';
+import logoDark from '../assets/logo-dark.png';
 
 import './Login.css';
 
 const { Title, Text, Link } = Typography;
+
+const darkBg = '#111827';
+const darkCard = '#1f2937';
+const darkBorder = '#374151';
+const accentBlue = '#6366f1';
+const accentBlueHover = '#818cf8';
+const textWhite = '#ffffff';
+const textMuted = '#9ca3af';
 
 function Login() {
   const navigate = useNavigate();
@@ -18,7 +27,6 @@ function Login() {
   const setIsSuperuser = useAuthStore((state) => state.setIsSuperuser);
   const setPermissions = useAuthStore((state) => state.setPermissions);
 
-  // Función para decodificar el payload del JWT
   const decodeJwt = (token: string) => {
     try {
       const base64Payload = token.split('.')[1];
@@ -41,7 +49,6 @@ function Login() {
 
       console.log('📦 Respuesta del backend:', response.data);
 
-      // Decodificar el JWT para obtener los datos del usuario
       const decoded = decodeJwt(access_token);
       console.log('🔓 JWT decodificado:', decoded);
 
@@ -49,13 +56,11 @@ function Login() {
         throw new Error('Token inválido');
       }
 
-      // Guardar en el store
       setToken(access_token);
-      setRefreshToken(''); // El backend no envía refresh_token
+      setRefreshToken('');
       setUsername(decoded.username || transformedValues.username);
-      setUserId(decoded.sub); // 'sub' es el id del usuario en el JWT
+      setUserId(decoded.sub);
 
-      // Obtener datos del profile después del login
       try {
         const profileResponse = await api.get('/auth/profile', {
           headers: { Authorization: `Bearer ${access_token}` }
@@ -66,10 +71,8 @@ function Login() {
           setTipoUsuario(profileResponse.data.tipo_usuario);
         }
 
-        // Guardar is_superuser para permisos de administración
         setIsSuperuser(profileResponse.data?.is_superuser === true);
 
-        // Guardar permisos del usuario si están disponibles
         if (profileResponse.data?.permissions && Array.isArray(profileResponse.data.permissions)) {
           setPermissions(profileResponse.data.permissions);
         } else {
@@ -92,76 +95,145 @@ function Login() {
   };
 
   return (
-    <ConfigProvider theme={{ algorithm: antdTheme.defaultAlgorithm }}>
-    <Row style={{ minHeight: '100vh' }}>
-      {/* Columna izquierda: formulario */}
-      <Col
-        xs={24}
-        md={12}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '2rem',
-          background: '#fff',
-        }}
-      >
-        <div style={{ maxWidth: 400, width: '100%' }}>
-          <div style={{ marginBottom: 32 }}>
-            <Title level={2}>Iniciar sesión</Title>
-            <Text type="secondary">Accede a tu cuenta para continuar</Text>
+    <ConfigProvider
+      theme={{
+        algorithm: antdTheme.darkAlgorithm,
+        token: {
+          colorPrimary: accentBlue,
+          colorBgContainer: darkCard,
+          colorBorder: darkBorder,
+          colorText: textWhite,
+          colorTextSecondary: textMuted,
+          colorTextPlaceholder: textMuted,
+          borderRadius: 8,
+        },
+        components: {
+          Input: {
+            colorBgContainer: darkCard,
+            colorBorder: darkBorder,
+            activeBorderColor: accentBlue,
+            hoverBorderColor: accentBlueHover,
+            colorText: textWhite,
+            colorTextPlaceholder: textMuted,
+          },
+          Form: {
+            labelColor: textWhite,
+          },
+          Checkbox: {
+            colorText: textWhite,
+          },
+          Button: {
+            colorPrimary: accentBlue,
+            colorPrimaryHover: accentBlueHover,
+            primaryColor: textWhite,
+            borderRadius: 8,
+          },
+        },
+      }}
+    >
+      <Row style={{ minHeight: '100vh' }}>
+        {/* Columna izquierda: formulario */}
+        <Col
+          xs={24}
+          md={12}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '2rem',
+            background: darkBg,
+          }}
+        >
+          <div style={{ maxWidth: 400, width: '100%' }}>
+            {/* Logo */}
+            <div style={{ marginBottom: 40, textAlign: 'center' }}>
+              <img
+                src={logoDark}
+                alt="Consortium Legal"
+                style={{ height: 40, marginBottom: 32 }}
+              />
+              <Title level={2} style={{ color: textWhite, marginBottom: 8 }}>
+                Iniciar sesión
+              </Title>
+              <Text style={{ color: textMuted, fontSize: 14 }}>
+                Accede a tu cuenta para continuar
+              </Text>
+            </div>
+
+            <Form layout="vertical" onFinish={onFinish}>
+              <Form.Item
+                label={<span style={{ color: textWhite, fontWeight: 500 }}>Usuario</span>}
+                name="username"
+                rules={[{ required: true, message: 'Ingrese su usuario' }]}
+                normalize={(value) => value?.toUpperCase()}
+              >
+                <Input
+                  size="large"
+                  placeholder="Ej. JGOMEZ"
+                  style={{
+                    background: `${darkCard} !important`,
+                    borderColor: darkBorder,
+                  }}
+                />
+              </Form.Item>
+
+              <Form.Item
+                label={<span style={{ color: textWhite, fontWeight: 500 }}>Contraseña</span>}
+                name="password"
+                rules={[{ required: true, message: 'Ingrese su contraseña' }]}
+              >
+                <Input.Password
+                  size="large"
+                  placeholder="********"
+                  style={{
+                    background: `${darkCard} !important`,
+                    borderColor: darkBorder,
+                  }}
+                />
+              </Form.Item>
+
+              <Form.Item style={{ marginBottom: 24 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Checkbox style={{ color: textWhite }}>Recordarme</Checkbox>
+                  <Link style={{ color: accentBlue }}>¿Olvidaste tu contraseña?</Link>
+                </div>
+              </Form.Item>
+
+              <Form.Item>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  block
+                  size="large"
+                  style={{
+                    height: 48,
+                    fontWeight: 600,
+                    fontSize: 15,
+                    borderRadius: 8,
+                  }}
+                >
+                  Entrar
+                </Button>
+              </Form.Item>
+            </Form>
           </div>
+        </Col>
 
-          <Form layout="vertical" onFinish={onFinish}>
-            <Form.Item
-              label="Usuario"
-              name="username"
-              rules={[{ required: true, message: 'Ingrese su usuario' }]}
-              normalize={(value) => value?.toUpperCase()}
-            >
-              <Input size="large" placeholder="Ej. JGOMEZ" />
-            </Form.Item>
-
-            <Form.Item
-              label="Contraseña"
-              name="password"
-              rules={[{ required: true, message: 'Ingrese su contraseña' }]}
-            >
-              <Input.Password size="large" placeholder="********" />
-            </Form.Item>
-
-            <Form.Item>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Checkbox>Recordarme</Checkbox>
-                <Link>¿Olvidaste tu contraseña?</Link>
-              </div>
-            </Form.Item>
-
-            <Form.Item>
-              <Button type="primary" htmlType="submit" block size="large">
-                Entrar
-              </Button>
-            </Form.Item>
-          </Form>
-
-        </div>
-      </Col>
-
-      {/* Columna derecha: imagen */}
-      <Col
-        xs={0}
-        md={12}
-        style={{
-          backgroundImage: `url(${loginImage})`,
-          backgroundSize: 'contain',
-          backgroundPosition: 'center',
+        {/* Columna derecha: imagen */}
+        <Col
+          xs={0}
+          md={12}
+          style={{
+            backgroundImage: `url(${loginImage})`,
+            backgroundSize: '100%',
+            backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
-          backgroundColor: '#1a1a2e',
+          backgroundColor: '#0f172a',
           height: '100vh',
-          width: '100%',
-        }}
-      />
-    </Row>
+            width: '100%',
+          }}
+        />
+      </Row>
     </ConfigProvider>
   );
 }
