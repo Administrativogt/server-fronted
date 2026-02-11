@@ -1,8 +1,8 @@
 import { useNavigate } from 'react-router-dom';
-import { Row, Col, Form, Input, Button, Typography, message, Checkbox, Divider } from 'antd';
+import { Row, Col, Form, Input, Button, Typography, message, Checkbox, ConfigProvider, theme as antdTheme } from 'antd';
 import api from '../api/axios';
 import useAuthStore from '../auth/useAuthStore';
-import loginImage from '../assets/new_cover_consortium.jpg';
+import loginImage from '../assets/new_cover_consortium copy.jpg';
 
 import './Login.css';
 
@@ -92,6 +92,7 @@ function Login() {
   };
 
   return (
+    <ConfigProvider theme={{ algorithm: antdTheme.defaultAlgorithm }}>
     <Row style={{ minHeight: '100vh' }}>
       {/* Columna izquierda: formulario */}
       <Col
@@ -143,15 +144,6 @@ function Login() {
             </Form.Item>
           </Form>
 
-          <Divider>O continuar con</Divider>
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <Button block icon={<i className="fab fa-google" />} disabled>
-              Google
-            </Button>
-            <Button block icon={<i className="fab fa-github" />} disabled>
-              GitHub
-            </Button>
-          </div>
         </div>
       </Col>
 
@@ -161,14 +153,16 @@ function Login() {
         md={12}
         style={{
           backgroundImage: `url(${loginImage})`,
-          backgroundSize: 'cover',
+          backgroundSize: 'contain',
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
+          backgroundColor: '#1a1a2e',
           height: '100vh',
           width: '100%',
         }}
       />
     </Row>
+    </ConfigProvider>
   );
 }
 
