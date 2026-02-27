@@ -88,10 +88,26 @@ const DashboardLayout: React.FC = () => {
         onClick: () => navigate('/dashboard')
       },
       {
-        key: "/agenda",
+        key: "agendador",
         icon: <ScheduleOutlined />,
         label: "Agendador",
-        onClick: () => navigate('/agenda')
+        children: [
+          {
+            key: "/dashboard/agendador",
+            label: "Lista",
+            onClick: () => navigate('/dashboard/agendador')
+          },
+          {
+            key: "/dashboard/agendador/crear",
+            label: "Crear",
+            onClick: () => navigate('/dashboard/agendador/crear')
+          },
+          {
+            key: "/dashboard/agendador/calendario",
+            label: "Calendario",
+            onClick: () => navigate('/dashboard/agendador/calendario')
+          }
+        ]
       },
       {
         key: "cheques",

@@ -140,7 +140,7 @@ const CrearNotificacion: React.FC = () => {
               >
                 {proveniences.map((p) => (
                   <Option key={p.id} value={p.id}>
-                    {p.name}
+                    {`${p.name}`}
                   </Option>
                 ))}
               </Select>
@@ -238,7 +238,7 @@ const CrearNotificacion: React.FC = () => {
               <Select placeholder="Selecciona receptor" showSearch filterOption={filterOption}>
                 {users.map((u) => (
                   <Option key={u.id} value={u.id}>
-                    {u.first_name} {u.last_name}
+                    {`${u.first_name} ${u.last_name}`}
                   </Option>
                 ))}
               </Select>

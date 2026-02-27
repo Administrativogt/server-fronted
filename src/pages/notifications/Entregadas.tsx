@@ -14,7 +14,6 @@ import {
 import type { User } from "../../types/user.types";
 
 const { Title } = Typography;
-const { Option } = Select;
 
 const Entregadas: React.FC = () => {
   const [notifications, setNotifications] = useState<NotificationDto[]>([]);
@@ -35,12 +34,14 @@ const Entregadas: React.FC = () => {
     try {
       const cleanFilters: Record<string, string> = {};
       for (const [key, value] of Object.entries(filters)) {
+        if (key === "state") continue; // se aplica client-side
         if (value !== undefined && value !== "") {
           cleanFilters[key] = value;
         }
       }
       const data = await filterNotifications(cleanFilters);
-      setNotifications(data);
+      const stateVal = filters.state ? Number(filters.state) : undefined;
+      setNotifications(stateVal ? data.filter((n) => n.state === stateVal) : data);
     } catch {
       message.error("Error al cargar entregadas");
     } finally {
@@ -233,6 +234,22 @@ const Entregadas: React.FC = () => {
           />
         </Col>
         <Col span={6}>
+          <Select
+            style={{ width: "100%" }}
+            placeholder="Estado"
+            allowClear
+            value={filters.state ? Number(filters.state) : undefined}
+            options={[
+              { value: NOTIFICATION_STATES.DELIVERED, label: "Entregado" },
+              { value: NOTIFICATION_STATES.FINALIZED, label: "Finalizado" },
+            ]}
+            onChange={(val) => handleFilterChange("state", val !== undefined ? String(val) : undefined)}
+          />
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 12]} style={{ marginBottom: 16 }}>
+        <Col>
           <Space>
             <Button type="primary" onClick={handleSearch}>
               Buscar

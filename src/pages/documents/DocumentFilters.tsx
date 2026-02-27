@@ -203,13 +203,16 @@ const DocumentFilters: React.FC = () => {
           </Col>
           <Col span={6}>
             <Form.Item label="Entregado por" name="documentDeliverBy">
-              <Select allowClear showSearch placeholder="Todos">
-                {filterValues?.documentDelivers?.map((d: string) => (
-                  <Option key={d} value={d}>
-                    {resolveToUserName(d, usersMap)}
-                  </Option>
-                ))}
-              </Select>
+              <Select
+                allowClear
+                showSearch
+                placeholder="Todos"
+                optionFilterProp="label"
+                options={filterValues?.documentDelivers?.map((d: string) => ({
+                  value: d,
+                  label: resolveToUserName(d, usersMap),
+                }))}
+              />
             </Form.Item>
           </Col>
           <Col span={6}>
