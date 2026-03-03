@@ -16,6 +16,7 @@ import {
   MailOutlined,
   ReloadOutlined,
 } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import AgregarCheque from './AgregarCheque';
 import type { CashReceipt, Check } from '../../api/cashReceipts';
 import cashReceiptsApi from '../../api/cashReceipts';
@@ -53,8 +54,9 @@ const RecibosCaja: React.FC = () => {
       const response = await cashReceiptsApi.getPdf(Number(id));
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
+      const stamp = dayjs().format('YYYYMMDD_HHmmss');
       link.href = url;
-      link.setAttribute('download', `recibo_${id}.pdf`);
+      link.setAttribute('download', `recibo_${id}_${stamp}.pdf`);
       document.body.appendChild(link);
       link.click();
       link.remove();

@@ -40,7 +40,7 @@ export interface CreateAppointmentDto {
   representative: string;
   position: string;
   clientEmail: string;
-  creatorId: number;
+  creatorId?: number; // compatibilidad opcional; backend usa usuario autenticado
 }
 
 export interface UpdateAppointmentDto {

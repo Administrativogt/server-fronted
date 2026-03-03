@@ -55,7 +55,9 @@ export const createAppointment = async (
   formData.append('representative', appointmentData.representative);
   formData.append('position', appointmentData.position);
   formData.append('clientEmail', appointmentData.clientEmail);
-  formData.append('creatorId', appointmentData.creatorId.toString());
+  if (appointmentData.creatorId !== undefined) {
+    formData.append('creatorId', appointmentData.creatorId.toString());
+  }
 
   if (appointmentData.register) formData.append('register', appointmentData.register);
   if (appointmentData.folio) formData.append('folio', appointmentData.folio);

@@ -36,21 +36,30 @@ const CrearRecibo: React.FC = () => {
   const [checks, setChecks] = useState<Check[]>([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentForm] = Form.useForm<Omit<Check, 'id'>>();
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   // Serie visual (solo para mostrar, no se envía al backend)
   const [serie, setSerie] = useState<string>('A');
   const [correlative, setCorrelative] = useState<string>('');
 
-  // Asignar serie visual según usuario (solo display)
-  useEffect(() => {
-    if (username?.startsWith('ESC')) setSerie('E');
-    else if (username?.startsWith('BAR')) setSerie('B');
-    else setSerie('A');
-  }, [username]);
+  const loadPreview = async () => {
+    setLoadingPreview(true);
+    try {
+      const { data } = await cashReceiptsApi.getNextCorrelative();
+      setSerie(data.serie_letter);
+      setCorrelative(data.correlative);
+    } catch {
+      setSerie('-');
+      setCorrelative('----');
+      message.warning('No fue posible obtener serie/correlativo en este momento');
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
 
-  // Generar correlativo temporal (solo display)
   useEffect(() => {
-    setCorrelative(String(Math.floor(Math.random() * 10000)).padStart(4, '0'));
+    loadPreview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleAddPayment = (values: Omit<Check, 'id'>) => {
@@ -138,12 +147,18 @@ const CrearRecibo: React.FC = () => {
             </Col>
             <Col span={6}>
               <Form.Item label="Serie">
-                <Input value={serie} disabled />
+                <Input
+                  value={loadingPreview ? '...' : serie}
+                  disabled
+                />
               </Form.Item>
             </Col>
             <Col span={6}>
               <Form.Item label="Correlativo">
-                <Input value={correlative} disabled />
+                <Input
+                  value={loadingPreview ? '...' : correlative}
+                  disabled
+                />
               </Form.Item>
             </Col>
           </Row>

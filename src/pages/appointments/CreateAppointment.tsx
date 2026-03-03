@@ -22,7 +22,6 @@ import { useNavigate } from 'react-router-dom';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { createAppointment } from '../../api/appointments';
 import type { CreateAppointmentDto } from '../../types/appointment.types';
-import useAuthStore from '../../auth/useAuthStore';
 
 const { Dragger } = Upload;
 const { TextArea } = Input;
@@ -30,7 +29,6 @@ const { TextArea } = Input;
 const CreateAppointment: React.FC = () => {
   const navigate = useNavigate();
   const [form] = Form.useForm();
-  const userId = useAuthStore((s) => s.userId);
 
   const [loading, setLoading] = useState(false);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
@@ -38,11 +36,6 @@ const CreateAppointment: React.FC = () => {
   const handleSubmit = async (values: any) => {
     if (fileList.length === 0) {
       message.error('Debe subir al menos un archivo PDF');
-      return;
-    }
-
-    if (!userId) {
-      message.error('Error: Usuario no autenticado');
       return;
     }
 
@@ -58,7 +51,6 @@ const CreateAppointment: React.FC = () => {
         representative: values.representative,
         position: values.position,
         clientEmail: values.clientEmail,
-        creatorId: userId,
       };
 
       const files = fileList.map((file) => file.originFileObj as File);

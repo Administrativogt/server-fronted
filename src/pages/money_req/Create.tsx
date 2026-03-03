@@ -21,6 +21,14 @@ import { createMoneyRequirement, sendAuthorizationEmail } from '../../api/moneyR
 
 const { Title } = Typography;
 
+const formatAmountInput = (value?: string | number): string => {
+  if (value === undefined || value === null || value === '') return '';
+  const raw = String(value);
+  const [integerPart, decimalPart] = raw.split('.');
+  const withThousands = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return decimalPart !== undefined ? `${withThousands}.${decimalPart}` : withThousands;
+};
+
 interface FormValues {
   payableTo: string;
   nit?: string;
@@ -76,7 +84,6 @@ const CreateMoneyRequirement: React.FC = () => {
         date: values.date ? dayjs(values.date).format('YYYY-MM-DD') : undefined,
         teamId: values.teamId,
         areaIds: values.areaIds,
-        applicantId: 1, // ⚠️ Reemplazar con usuario autenticado real
         responsibleForAuthorizingId: values.responsibleForAuthorizingId,
       };
 
@@ -102,7 +109,6 @@ const CreateMoneyRequirement: React.FC = () => {
         date: values.date ? dayjs(values.date).format('YYYY-MM-DD') : undefined,
         teamId: values.teamId,
         areaIds: values.areaIds,
-        applicantId: 1,
         responsibleForAuthorizingId: values.responsibleForAuthorizingId,
       };
 
@@ -137,8 +143,24 @@ const CreateMoneyRequirement: React.FC = () => {
           <Input />
         </Form.Item>
 
-        <Form.Item label="Monto" name="amount" rules={[{ required: true }]}>
-          <InputNumber style={{ width: '100%' }} min={0} step={0.01} />
+        <Form.Item
+          label="Monto"
+          name="amount"
+          rules={[{ required: true, message: 'Ingrese un monto válido' }]}
+          extra="Formato sugerido: coma para miles y punto para decimales. Ejemplo: 1,000.00"
+        >
+          <InputNumber
+            style={{ width: '100%' }}
+            min={0}
+            step={0.01}
+            placeholder="Ejemplo: 1,000.00"
+            formatter={(value) => formatAmountInput(value)}
+            parser={(value) => {
+              const normalized = (value ?? '').replace(/,/g, '').replace(/\s/g, '');
+              const parsed = Number(normalized);
+              return Number.isFinite(parsed) ? parsed : 0;
+            }}
+          />
         </Form.Item>
 
         <Form.Item label="Moneda" name="currency" rules={[{ required: true }]}>
@@ -166,8 +188,13 @@ const CreateMoneyRequirement: React.FC = () => {
           </Select>
         </Form.Item>
 
-        <Form.Item label="Área de práctica" name="areaId" rules={[{ required: true }]}>
-          <Select placeholder="Seleccione un área" showSearch optionFilterProp="children">
+        <Form.Item label="Área de práctica" name="areaIds" rules={[{ required: true }]}>
+          <Select
+            mode="multiple"
+            placeholder="Seleccione una o más áreas"
+            showSearch
+            optionFilterProp="children"
+          >
             {areas.map((a) => (
               <Select.Option key={a.id} value={a.id}>
                 {a.name}
