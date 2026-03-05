@@ -375,14 +375,15 @@ const CourtCasesPage: React.FC = () => {
     if (!selectedCaseId || (!caseTypeId && !caseTypeName)) return;
     try {
       const values = await actionForm.validateFields();
-      await createAction({
+      const payload = {
         description: values.description,
         is_reminder: values.is_reminder,
         instance_id: selectedCaseId,
-        case_type: caseTypeId,
-        case_type_name: caseTypeName,
+        ...(caseTypeId != null ? { case_type: caseTypeId } : {}),
+        ...(caseTypeId == null && caseTypeName ? { case_type_name: caseTypeName } : {}),
         creator: userId || undefined,
-      });
+      };
+      await createAction(payload);
       actionForm.resetFields();
       setAddActionMode(false);
       const data = await fetchActions(selectedCaseId, caseTypeId, caseTypeName);
@@ -423,13 +424,14 @@ const CourtCasesPage: React.FC = () => {
     if (!selectedCaseId || (!caseTypeId && !caseTypeName)) return;
     try {
       const values = await statusForm.validateFields();
-      await createStatusUpdate({
+      const payload = {
         description: values.description,
         instance_id: selectedCaseId,
-        case_type: caseTypeId,
-        case_type_name: caseTypeName,
+        ...(caseTypeId != null ? { case_type: caseTypeId } : {}),
+        ...(caseTypeId == null && caseTypeName ? { case_type_name: caseTypeName } : {}),
         creator: userId || undefined,
-      });
+      };
+      await createStatusUpdate(payload);
       statusForm.resetFields();
       setAddStatusMode(false);
       const data = await fetchStatusUpdates(selectedCaseId, caseTypeId, caseTypeName);
