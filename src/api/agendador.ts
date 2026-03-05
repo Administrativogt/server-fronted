@@ -6,6 +6,9 @@ import type {
   ProcessType,
   Stage,
   UpdateStageDto,
+  UpdateInstallmentDto,
+  Holiday,
+  CreateHolidayDto,
 } from '../types/agendador.types';
 
 const BASE = ((import.meta as any).env?.VITE_AGENDADOR_BASE || '/agendador').replace(/\/+$/, '');
@@ -43,6 +46,14 @@ export const deleteInstallment = async (id: number): Promise<{ message?: string 
   return data;
 };
 
+export const updateInstallment = async (
+  id: number,
+  payload: UpdateInstallmentDto
+): Promise<Installment> => {
+  const { data } = await api.patch<Installment>(`${BASE}/installments/${id}`, payload);
+  return data;
+};
+
 export const finalizeInstallment = async (id: number): Promise<{ message?: string }> => {
   const { data } = await api.get<{ message?: string }>(`${BASE}/installments/finalize/${id}`);
   return data;
@@ -60,6 +71,40 @@ export const sendReport = async (
   const { data } = await api.post<{ message: string }>(
     `${BASE}/installments/send-report/${id}`,
     { emails }
+  );
+  return data;
+};
+
+export const removeLastStage = async (installmentId: number): Promise<{ message: string }> => {
+  const { data } = await api.get<{ message: string }>(`${BASE}/api/remove-stage/${installmentId}`);
+  return data;
+};
+
+export const sendInstallmentReminders = async (): Promise<{ message: string; sent: boolean; count: number }> => {
+  const { data } = await api.get<{ message: string; sent: boolean; count: number }>(
+    `${BASE}/installments/send-reminders/bulk`
+  );
+  return data;
+};
+
+export const getHolidays = async (): Promise<Holiday[]> => {
+  const { data } = await api.get<Holiday[]>(`${BASE}/holidays`);
+  return data;
+};
+
+export const createHoliday = async (payload: CreateHolidayDto): Promise<Holiday> => {
+  const { data } = await api.post<Holiday>(`${BASE}/holidays`, payload);
+  return data;
+};
+
+export const deleteHoliday = async (id: number): Promise<{ message: string }> => {
+  const { data } = await api.delete<{ message: string }>(`${BASE}/holidays/${id}`);
+  return data;
+};
+
+export const changeYearOfHolidays = async (): Promise<{ message: string; updated: number; deleted: number }> => {
+  const { data } = await api.post<{ message: string; updated: number; deleted: number }>(
+    `${BASE}/holidays/change-year`
   );
   return data;
 };

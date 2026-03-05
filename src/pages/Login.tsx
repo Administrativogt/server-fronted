@@ -71,6 +71,10 @@ function Login() {
           setTipoUsuario(profileResponse.data.tipo_usuario);
         }
 
+        if (profileResponse.data?.area?.id) {
+          useAuthStore.getState().setAreaId(profileResponse.data.area.id);
+        }
+
         setIsSuperuser(profileResponse.data?.is_superuser === true);
 
         if (profileResponse.data?.permissions && Array.isArray(profileResponse.data.permissions)) {

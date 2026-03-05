@@ -88,6 +88,8 @@ import UsersAdminPage from './pages/admin/UsersAdminPage';
 import SchedulerList from './pages/agendador/SchedulerList';
 import SchedulerForm from './pages/agendador/SchedulerForm';
 import SchedulerCalendar from './pages/agendador/SchedulerCalendar';
+import SchedulerHolidaysList from './pages/agendador/SchedulerHolidaysList';
+import SchedulerHolidayForm from './pages/agendador/SchedulerHolidayForm';
 
 dayjs.locale('es');
 
@@ -189,6 +191,8 @@ function AppInner() {
               {/* Agendador */}
               <Route path="/dashboard/agendador" element={<SchedulerList />} />
               <Route path="/dashboard/agendador/crear" element={<SchedulerForm />} />
+              <Route path="/dashboard/agendador/feriados" element={<SchedulerHolidaysList />} />
+              <Route path="/dashboard/agendador/feriados/crear" element={<SchedulerHolidayForm />} />
               <Route path="/dashboard/agendador/calendario" element={<SchedulerCalendar />} />
 
               {/* Módulo Control de Procuraciones */}

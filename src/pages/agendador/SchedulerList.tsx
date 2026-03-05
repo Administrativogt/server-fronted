@@ -1,20 +1,23 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Card, Table, Button, Space, Input, Tag, Tooltip, Modal,
-  Descriptions, App as AntdApp, DatePicker,
+  Descriptions, App as AntdApp, DatePicker, Form, Select,
 } from 'antd';
 import {
   PlusOutlined, ReloadOutlined, SearchOutlined, CalendarOutlined,
   DeleteOutlined, InfoCircleOutlined, CheckOutlined, EditOutlined,
-  WarningOutlined,
+  WarningOutlined, MailOutlined, RollbackOutlined, SendOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
 import {
-  getInstallments, deleteInstallment, finalizeInstallment, updateStage,
+  getInstallments, deleteInstallment, finalizeInstallment, updateStage, sendReport,
+  removeLastStage, sendInstallmentReminders, getInstallment, getProcessTypes, updateInstallment,
 } from '../../api/agendador';
-import type { Installment, Stage } from '../../types/agendador.types';
+import type { Installment, Stage, ProcessType } from '../../types/agendador.types';
+
+const PROCESSES_WITH_DILIGENCIES = [2, 6];
 
 /** Etapa actual = último elemento del array stages */
 const getCurrentStage = (record: Installment | null | undefined): Stage | null => {
@@ -22,11 +25,43 @@ const getCurrentStage = (record: Installment | null | undefined): Stage | null =
   return record.stages[record.stages.length - 1];
 };
 
+const installmentHasDiligencies = (record: Installment): boolean =>
+  PROCESSES_WITH_DILIGENCIES.includes(record.process_type?.id) && (record.stages?.length || 0) === 2;
+
+const isActiveInstallment = (record: Installment): boolean => String(record.state) === '1';
+
+const addBusinessDays = (startDate: dayjs.Dayjs, businessDays: number): dayjs.Dayjs => {
+  let current = startDate;
+  let added = 0;
+  while (added < businessDays) {
+    current = current.add(1, 'day');
+    const day = current.day();
+    if (day !== 0 && day !== 6) added += 1;
+  }
+  return current;
+};
+
+const getStageFinalizationDate = (stage: Stage | null): dayjs.Dayjs | null => {
+  if (!stage) return null;
+  if (stage.finalization) return dayjs(stage.finalization);
+  if (!stage.start || !stage.duration || stage.duration <= 0) return null;
+
+  const stageStart = dayjs(stage.start);
+  if (!stageStart.isValid()) return null;
+
+  // 0 = manual, 1 = días hábiles, 2 = meses
+  if (stage.date_format === 1) return addBusinessDays(stageStart, stage.duration);
+  if (stage.date_format === 2) return stageStart.add(stage.duration, 'month');
+  return null;
+};
+
 const SchedulerList: React.FC = () => {
   const { message, modal } = AntdApp.useApp();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [editForm] = Form.useForm();
   const [rows, setRows] = useState<Installment[]>([]);
+  const [processTypes, setProcessTypes] = useState<ProcessType[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(15);
@@ -37,12 +72,17 @@ const SchedulerList: React.FC = () => {
   const [dateModalRecord, setDateModalRecord] = useState<Installment | null>(null);
   const [manualDate, setManualDate] = useState<dayjs.Dayjs | null>(null);
   const [savingDate, setSavingDate] = useState(false);
+  const [reportModalRecord, setReportModalRecord] = useState<Installment | null>(null);
+  const [reportEmails, setReportEmails] = useState('');
+  const [sendingReport, setSendingReport] = useState(false);
+  const [sendingReminder, setSendingReminder] = useState(false);
+  const [editModalRecord, setEditModalRecord] = useState<Installment | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const res = await getInstallments({ page, limit, q: query || undefined });
-      console.log('[Agendador] stages ejemplo:', res.data[0]?.stages);
       setRows(res.data);
       setTotal(res.count);
     } catch (e: any) {
@@ -55,6 +95,17 @@ const SchedulerList: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const types = await getProcessTypes();
+        setProcessTypes(types);
+      } catch {
+        setProcessTypes([]);
+      }
+    })();
+  }, []);
 
   const handleDelete = (record: Installment) => {
     modal.confirm({
@@ -93,6 +144,41 @@ const SchedulerList: React.FC = () => {
     });
   };
 
+  const handleRemoveStage = (record: Installment) => {
+    modal.confirm({
+      title: '¿Eliminar la última etapa?',
+      content: 'Solo se elimina la etapa más reciente.',
+      okText: 'Eliminar etapa',
+      okButtonProps: { danger: true },
+      cancelText: 'Cancelar',
+      onOk: async () => {
+        try {
+          const res = await removeLastStage(record.id);
+          message.success(res.message || 'Etapa eliminada');
+          fetchData();
+        } catch (e: any) {
+          message.error(e.response?.data?.message || 'No se pudo eliminar la etapa');
+        }
+      },
+    });
+  };
+
+  const handleSendReminder = async () => {
+    setSendingReminder(true);
+    try {
+      const res = await sendInstallmentReminders();
+      if (res.sent) {
+        message.success(`Recordatorio enviado (${res.count} plazo(s))`);
+      } else {
+        message.info(res.message || 'No hay plazos próximos a vencer');
+      }
+    } catch (e: any) {
+      message.error(e.response?.data?.message || 'No se pudo enviar recordatorios');
+    } finally {
+      setSendingReminder(false);
+    }
+  };
+
   const handleSaveManualDate = async () => {
     if (!dateModalRecord || !manualDate) return;
     const stage = getCurrentStage(dateModalRecord);
@@ -111,7 +197,87 @@ const SchedulerList: React.FC = () => {
     }
   };
 
+  const handleSendReport = async () => {
+    if (!reportModalRecord) return;
+    const emails = reportEmails
+      .split(/[,\n;]/)
+      .map((e) => e.trim())
+      .filter(Boolean);
+
+    if (!emails.length) {
+      message.warning('Ingrese al menos un correo');
+      return;
+    }
+
+    const invalidEmails = emails.filter((email) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+    if (invalidEmails.length) {
+      message.warning(`Correo(s) inválido(s): ${invalidEmails.join(', ')}`);
+      return;
+    }
+
+    setSendingReport(true);
+    try {
+      const res = await sendReport(reportModalRecord.id, emails);
+      message.success(res.message || 'Reporte enviado por correo');
+      setReportModalRecord(null);
+      setReportEmails('');
+    } catch (e: any) {
+      message.error(e.response?.data?.message || 'No se pudo enviar el correo');
+    } finally {
+      setSendingReport(false);
+    }
+  };
+
+  const openDetail = async (record: Installment) => {
+    try {
+      const full = await getInstallment(record.id);
+      setDetail(full);
+    } catch {
+      setDetail(record);
+    }
+  };
+
+  const openEdit = (record: Installment) => {
+    setEditModalRecord(record);
+    editForm.setFieldsValue({
+      expedient_number: record.expedient_number,
+      process_type_id: record.process_type?.id,
+      start_date: record.start_date ? dayjs(record.start_date) : null,
+      client: record.client,
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editModalRecord) return;
+    try {
+      const values = await editForm.validateFields();
+      setSavingEdit(true);
+      await updateInstallment(editModalRecord.id, {
+        expedient_number: values.expedient_number,
+        process_type_id: values.process_type_id,
+        start_date: values.start_date?.format('YYYY-MM-DD'),
+        client: values.client,
+      });
+      message.success('Plazo actualizado');
+      setEditModalRecord(null);
+      editForm.resetFields();
+      fetchData();
+    } catch (e: any) {
+      if (e?.errorFields) return;
+      message.error(e.response?.data?.message || 'No se pudo actualizar el plazo');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   const columns: ColumnsType<Installment> = [
+    {
+      title: '#',
+      key: 'row_number',
+      width: 70,
+      fixed: 'left',
+      render: (_: unknown, __: Installment, index: number) => ((page - 1) * limit) + index + 1,
+    },
     {
       title: 'Número de expediente',
       dataIndex: 'expedient_number',
@@ -159,33 +325,46 @@ const SchedulerList: React.FC = () => {
       },
     },
     {
-      title: 'Finalización de etapa',
+      title: 'Fecha finalización',
       key: 'stage_end',
       width: 160,
       render: (_, r) => {
         const stage = getCurrentStage(r);
-        if (!stage?.finalization) return <Tag>N/A</Tag>;
-        return dayjs(stage.finalization).format('DD/MM/YYYY');
+        const finalizationDate = getStageFinalizationDate(stage);
+        if (!finalizationDate) {
+          if (installmentHasDiligencies(r)) return <Tag>N/A</Tag>;
+          return <Tag color="warning">Fecha de finalización requerida</Tag>;
+        }
+        return finalizationDate.format('DD/MM/YYYY');
       },
     },
     {
       title: 'Acciones',
       key: 'actions',
       fixed: 'right',
-      width: 160,
+      width: 210,
       render: (_, record) => {
         const stage = getCurrentStage(record);
         const needsManual = stage?.date_format === 0 && !stage?.finalization;
+        const canFinalize = isActiveInstallment(record)
+          && (installmentHasDiligencies(record) || !!stage?.finalization);
         return (
           <Space>
             <Tooltip title="Detalle">
               <Button
                 icon={<InfoCircleOutlined />}
                 size="small"
-                onClick={() => setDetail(record)}
+                onClick={() => openDetail(record)}
               />
             </Tooltip>
-            {needsManual ? (
+            <Tooltip title="Editar plazo">
+              <Button
+                icon={<EditOutlined />}
+                size="small"
+                onClick={() => openEdit(record)}
+              />
+            </Tooltip>
+            {isActiveInstallment(record) && needsManual ? (
               <Tooltip title="Ingresar fecha">
                 <Button
                   icon={<EditOutlined />}
@@ -196,7 +375,8 @@ const SchedulerList: React.FC = () => {
                   }}
                 />
               </Tooltip>
-            ) : (
+            ) : null}
+            {canFinalize ? (
               <Tooltip title="Finalizar etapa">
                 <Button
                   type="primary"
@@ -205,7 +385,7 @@ const SchedulerList: React.FC = () => {
                   onClick={() => handleFinalize(record)}
                 />
               </Tooltip>
-            )}
+            ) : null}
             <Tooltip title="Ver calendario">
               <Button
                 icon={<CalendarOutlined />}
@@ -213,6 +393,25 @@ const SchedulerList: React.FC = () => {
                 onClick={() => navigate('/dashboard/agendador/calendario')}
               />
             </Tooltip>
+            <Tooltip title="Enviar reporte por correo">
+              <Button
+                icon={<MailOutlined />}
+                size="small"
+                onClick={() => {
+                  setReportModalRecord(record);
+                  setReportEmails('');
+                }}
+              />
+            </Tooltip>
+            {isActiveInstallment(record) ? (
+              <Tooltip title="Eliminar etapa">
+                <Button
+                  icon={<RollbackOutlined />}
+                  size="small"
+                  onClick={() => handleRemoveStage(record)}
+                />
+              </Tooltip>
+            ) : null}
             <Tooltip title="Eliminar">
               <Button
                 danger
@@ -243,6 +442,9 @@ const SchedulerList: React.FC = () => {
             prefix={<SearchOutlined />}
           />
           <Button icon={<ReloadOutlined />} onClick={fetchData} />
+          <Button icon={<SendOutlined />} onClick={handleSendReminder} loading={sendingReminder}>
+            Enviar recordatorios
+          </Button>
           <Button
             type="primary"
             icon={<PlusOutlined />}
@@ -268,7 +470,7 @@ const SchedulerList: React.FC = () => {
             setLimit(l || 15);
           },
         }}
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1300 }}
       />
 
       {/* Modal detalle */}
@@ -304,7 +506,12 @@ const SchedulerList: React.FC = () => {
                   title: 'Duración',
                   dataIndex: 'duration',
                   key: 'duration',
-                  render: (v: number) => `${v} mes${v !== 1 ? 'es' : ''}`,
+                  render: (v: number, stage: Stage) => {
+                    if (!v) return '0';
+                    if (stage.date_format === 1) return `${v} días hábiles`;
+                    if (stage.date_format === 2) return `${v} mes${v !== 1 ? 'es' : ''}`;
+                    return String(v);
+                  },
                 },
                 {
                   title: 'Finalización',
@@ -344,6 +551,79 @@ const SchedulerList: React.FC = () => {
           onChange={(d) => setManualDate(d)}
           format="DD/MM/YYYY"
         />
+      </Modal>
+
+      {/* Modal envío de reporte por correo */}
+      <Modal
+        title="Enviar reporte por correo"
+        open={!!reportModalRecord}
+        onCancel={() => {
+          setReportModalRecord(null);
+          setReportEmails('');
+        }}
+        onOk={handleSendReport}
+        okText="Enviar"
+        cancelText="Cancelar"
+        confirmLoading={sendingReport}
+        okButtonProps={{ disabled: !reportEmails.trim() }}
+      >
+        <p>
+          Expediente: <strong>{reportModalRecord?.expedient_number}</strong>
+        </p>
+        <Input.TextArea
+          value={reportEmails}
+          onChange={(e) => setReportEmails(e.target.value)}
+          placeholder="Ingrese uno o varios correos separados por coma, punto y coma o salto de línea"
+          autoSize={{ minRows: 3, maxRows: 6 }}
+        />
+      </Modal>
+
+      {/* Modal editar plazo */}
+      <Modal
+        title="Editar plazo"
+        open={!!editModalRecord}
+        onCancel={() => {
+          setEditModalRecord(null);
+          editForm.resetFields();
+        }}
+        onOk={handleSaveEdit}
+        okText="Guardar"
+        cancelText="Cancelar"
+        confirmLoading={savingEdit}
+      >
+        <Form form={editForm} layout="vertical">
+          <Form.Item
+            name="expedient_number"
+            label="Número de expediente"
+            rules={[{ required: true, message: 'Requerido' }]}
+          >
+            <Input />
+          </Form.Item>
+          <Form.Item
+            name="process_type_id"
+            label="Procedimiento"
+            rules={[{ required: true, message: 'Requerido' }]}
+          >
+            <Select
+              placeholder="Seleccione procedimiento"
+              options={processTypes.map((t) => ({ value: t.id, label: t.name }))}
+            />
+          </Form.Item>
+          <Form.Item
+            name="start_date"
+            label="Fecha de inicio"
+            rules={[{ required: true, message: 'Requerido' }]}
+          >
+            <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
+          </Form.Item>
+          <Form.Item
+            name="client"
+            label="Cliente"
+            rules={[{ required: true, message: 'Requerido' }]}
+          >
+            <Input />
+          </Form.Item>
+        </Form>
       </Modal>
     </Card>
   );

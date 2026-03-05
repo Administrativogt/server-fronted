@@ -17,6 +17,18 @@ export interface UserLite {
   first_name: string;
   last_name: string;
   email: string;
+  estado?: number;
+  tipo_usuario?: number;
+  area?: {
+    id: number;
+    name?: string;
+    nombre?: string;
+  };
+  equipo?: {
+    id: number;
+    name?: string;
+    nombre?: string;
+  };
 }
 
 /**
@@ -36,12 +48,21 @@ export const fullName = (user: UserLite | null | undefined): string => {
  */
 export const getAllUsers = () => axios.get('/users');
 
+/** Asegura recibir un array tanto si el backend devuelve [] como { data: [] } */
+function ensureUserArray(data: UserLite[] | { data?: UserLite[] } | null | undefined): UserLite[] {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === 'object' && Array.isArray((data as { data?: UserLite[] }).data)) {
+    return (data as { data: UserLite[] }).data;
+  }
+  return [];
+}
+
 /**
  * Obtener lista simplificada de usuarios (alias de getAllUsers para compatibilidad)
  */
 export const fetchUsers = async (): Promise<UserLite[]> => {
-  const response = await axios.get('/users');
-  return response.data;
+  const response = await axios.get<UserLite[] | { data: UserLite[] }>('/users');
+  return ensureUserArray(response.data);
 };
 
 /**

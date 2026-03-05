@@ -20,6 +20,8 @@ import {
 } from '../../api/courtCases';
 import CourtCaseForm from './CourtCaseForm';
 import { normalizeCasePayload } from './utils';
+import { getCourtCasesAccess } from './access';
+import { filterLawyersForCourtCases } from './lawyers';
 
 const tabLabels: Record<CaseTypeKey, string> = {
   labor: 'Laboral',
@@ -32,7 +34,14 @@ const tabLabels: Record<CaseTypeKey, string> = {
 const CreateCourtCase: React.FC = () => {
   const navigate = useNavigate();
   const userId = useAuthStore((s) => s.userId);
-  const [activeType, setActiveType] = useState<CaseTypeKey>('litigation');
+  const areaId = useAuthStore((s) => s.areaId);
+  const { defaultCaseType, allowedCaseTypes } = useMemo(
+    () => getCourtCasesAccess(areaId),
+    [areaId]
+  );
+  const [activeType, setActiveType] = useState<CaseTypeKey>(
+    defaultCaseType
+  );
   const [states, setStates] = useState<CourtCaseState[]>([]);
   const [dependencies, setDependencies] = useState<Dependency[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -51,20 +60,20 @@ const CreateCourtCase: React.FC = () => {
 
   useEffect(() => {
     const loadMasterData = async () => {
-      try {
-        const [statesRes, depsRes, clientsRes, usersRes] = await Promise.all([
-          fetchCaseStates(),
-          fetchDependencies(),
-          fetchClients(),
-          fetchUsers(),
-        ]);
-        setStates(statesRes);
-        setDependencies(depsRes);
-        setClients(clientsRes);
-        setLawyers(usersRes);
-      } catch {
-        message.error('Error al cargar datos base');
-      }
+      const [statesRes, depsRes, clientsRes, usersRes] = await Promise.allSettled([
+        fetchCaseStates(),
+        fetchDependencies(),
+        fetchClients(),
+        fetchUsers(),
+      ]);
+      if (statesRes.status === 'fulfilled') setStates(statesRes.value);
+      else message.error('No se pudieron cargar los estados');
+      if (depsRes.status === 'fulfilled') setDependencies(depsRes.value);
+      else console.warn('Dependencias no cargadas');
+      if (clientsRes.status === 'fulfilled') setClients(clientsRes.value ?? []);
+      else message.error('No se pudieron cargar los clientes');
+      if (usersRes.status === 'fulfilled') setLawyers(usersRes.value ?? []);
+      else message.error('No se pudieron cargar los abogados');
     };
     loadMasterData();
   }, []);
@@ -72,11 +81,12 @@ const CreateCourtCase: React.FC = () => {
   useEffect(() => {
     if (!defaultStateId) return;
     const defaults = { state: defaultStateId, currency: 1 };
+    const administrativeTaxDefaults = { ...defaults, entity: 'SAT', entity_mode: false };
     laborForm.setFieldsValue(defaults);
     litigationForm.setFieldsValue(defaults);
     penalForm.setFieldsValue(defaults);
     tributaryForm.setFieldsValue(defaults);
-    administrativeTaxForm.setFieldsValue(defaults);
+    administrativeTaxForm.setFieldsValue(administrativeTaxDefaults);
   }, [defaultStateId, laborForm, litigationForm, penalForm, tributaryForm, administrativeTaxForm]);
 
   const submitForm = async (type: CaseTypeKey) => {
@@ -112,38 +122,48 @@ const CreateCourtCase: React.FC = () => {
     }
   };
 
-  const renderTab = (type: CaseTypeKey, form: any) => (
-    <div>
-      <CourtCaseForm
-        type={type}
-        form={form}
-        clients={clients}
-        lawyers={lawyers}
-        states={states}
-        dependencies={dependencies}
-      />
-      <Button type="primary" onClick={() => submitForm(type)}>
-        Crear caso
-      </Button>
-    </div>
-  );
+  const renderTab = (type: CaseTypeKey, form: any) => {
+    const filteredLawyers = filterLawyersForCourtCases(lawyers, areaId, type, 'create');
+    return (
+      <div>
+        <CourtCaseForm
+          type={type}
+          form={form}
+          clients={clients}
+          lawyers={filteredLawyers}
+          dependencies={dependencies}
+        />
+        <Button type="primary" onClick={() => submitForm(type)}>
+          Crear caso
+        </Button>
+      </div>
+    );
+  };
+
+  useEffect(() => {
+    if (!allowedCaseTypes.includes(activeType)) {
+      setActiveType(defaultCaseType);
+    }
+  }, [activeType, allowedCaseTypes, defaultCaseType]);
+
+  const availableTabs = useMemo(() => {
+    const allTabs = [
+      { key: 'labor' as CaseTypeKey, label: tabLabels.labor, children: renderTab('labor', laborForm) },
+      { key: 'litigation' as CaseTypeKey, label: tabLabels.litigation, children: renderTab('litigation', litigationForm) },
+      { key: 'penal' as CaseTypeKey, label: tabLabels.penal, children: renderTab('penal', penalForm) },
+      { key: 'tributary' as CaseTypeKey, label: tabLabels.tributary, children: renderTab('tributary', tributaryForm) },
+      { key: 'administrative-tax' as CaseTypeKey, label: tabLabels['administrative-tax'], children: renderTab('administrative-tax', administrativeTaxForm) },
+    ];
+
+    return allTabs.filter((tab) => allowedCaseTypes.includes(tab.key));
+  }, [allowedCaseTypes, laborForm, litigationForm, penalForm, tributaryForm, administrativeTaxForm, clients, lawyers, states, dependencies]);
 
   return (
     <div>
       <Tabs
         activeKey={activeType}
         onChange={(key) => setActiveType(key as CaseTypeKey)}
-        items={[
-          { key: 'labor', label: tabLabels.labor, children: renderTab('labor', laborForm) },
-          { key: 'litigation', label: tabLabels.litigation, children: renderTab('litigation', litigationForm) },
-          { key: 'penal', label: tabLabels.penal, children: renderTab('penal', penalForm) },
-          { key: 'tributary', label: tabLabels.tributary, children: renderTab('tributary', tributaryForm) },
-          {
-            key: 'administrative-tax',
-            label: tabLabels['administrative-tax'],
-            children: renderTab('administrative-tax', administrativeTaxForm),
-          },
-        ]}
+        items={availableTabs}
       />
     </div>
   );

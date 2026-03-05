@@ -34,7 +34,6 @@ import { fetchUsers } from '../../api/users';
 import {
   type CaseTypeKey,
   type CourtCaseType,
-  type CourtCaseState,
   type Dependency,
   type LaborCase,
   type LitigationCase,
@@ -43,8 +42,8 @@ import {
   type AdministrativeTaxCase,
   type Action,
   type StatusUpdate,
-  fetchCaseStates,
   fetchCaseTypes,
+  fetchCaseTypeByName,
   fetchDependencies,
   fetchLaborCases,
   fetchLitigationCases,
@@ -65,6 +64,16 @@ import CourtCaseForm from './CourtCaseForm';
 import type { Client } from '../../api/clients';
 import type { UserLite } from '../../api/users';
 import { normalizeCasePayload, parseAdjustments } from './utils';
+import { getCourtCasesAccess } from './access';
+import { filterLawyersForCourtCases } from './lawyers';
+import {
+  canCreateReminderForUser,
+  canTransitionCaseState,
+  COURT_CASE_STATE,
+  getAvailableCaseActions,
+  isCourtCaseStateId,
+  type CourtCaseStateId,
+} from './caseRules';
 
 type CourtCase =
   | LaborCase
@@ -89,12 +98,28 @@ const defaultLabels: Record<CaseTypeKey, string> = {
   'administrative-tax': 'Administrativo-Tributario',
 };
 
+const caseTypeNameByKey: Record<CaseTypeKey, string> = {
+  labor: 'labor',
+  litigation: 'litigation',
+  penal: 'penal',
+  tributary: 'tributary',
+  'administrative-tax': 'administrative_tax',
+};
+
 const CourtCasesPage: React.FC = () => {
   const navigate = useNavigate();
   const userId = useAuthStore((s) => s.userId);
-  const [activeType, setActiveType] = useState<CaseTypeKey>('litigation');
+  const areaId = useAuthStore((s) => s.areaId);
+  const isSuperuser = useAuthStore((s) => s.is_superuser);
+  const { defaultCaseType, allowedCaseTypes } = useMemo(
+    () => getCourtCasesAccess(areaId),
+    [areaId]
+  );
+  const canCreateReminder = canCreateReminderForUser(areaId, isSuperuser);
+  const [activeType, setActiveType] = useState<CaseTypeKey>(
+    defaultCaseType
+  );
   const [caseTypes, setCaseTypes] = useState<CourtCaseType[]>([]);
-  const [states, setStates] = useState<CourtCaseState[]>([]);
   const [dependencies, setDependencies] = useState<Dependency[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [lawyers, setLawyers] = useState<UserLite[]>([]);
@@ -117,11 +142,13 @@ const CourtCasesPage: React.FC = () => {
   const [actionsList, setActionsList] = useState<Action[]>([]);
   const [actionsLoading, setActionsLoading] = useState(false);
   const [actionForm] = Form.useForm();
+  const [addActionMode, setAddActionMode] = useState(false);
 
   const [statusOpen, setStatusOpen] = useState(false);
   const [statusList, setStatusList] = useState<StatusUpdate[]>([]);
   const [statusLoading, setStatusLoading] = useState(false);
   const [statusForm] = Form.useForm();
+  const [addStatusMode, setAddStatusMode] = useState(false);
 
   const [selectedCaseId, setSelectedCaseId] = useState<number | null>(null);
   const [selectedCaseType, setSelectedCaseType] = useState<CaseTypeKey>('litigation');
@@ -130,6 +157,11 @@ const CourtCasesPage: React.FC = () => {
   const [reportFormat, setReportFormat] = useState<'word' | 'excel'>('excel');
   const [updateMode, setUpdateMode] = useState<'last' | 'all'>('last');
   const [reportTo, setReportTo] = useState<string>('');
+
+  const filteredLawyers = useMemo(
+    () => filterLawyersForCourtCases(lawyers, areaId, activeType, 'list'),
+    [lawyers, areaId, activeType]
+  );
 
   const caseTypeIdByKey = useMemo(() => {
     const map: Partial<Record<CaseTypeKey, CourtCaseType>> = {};
@@ -140,16 +172,29 @@ const CourtCasesPage: React.FC = () => {
     return map;
   }, [caseTypes]);
 
-  const tabItems = useMemo(
-    () =>
-      (Object.keys(defaultLabels) as CaseTypeKey[]).map((key) => ({
-        key,
-        label: caseTypeIdByKey[key]?.display_name || defaultLabels[key],
-      })),
-    [caseTypeIdByKey]
-  );
+  // Usar initial state diferido para no montar component en 'litigation' y luego cambiar
+  // aunque el useState ya esté inicializado, interceptamos en un useEffect con alta prioridad
+  useEffect(() => {
+    if (!allowedCaseTypes.includes(activeType)) {
+      setActiveType(defaultCaseType);
+    }
+  }, [activeType, allowedCaseTypes, defaultCaseType]);
+
+  const tabItems = useMemo(() => {
+    let keys = Object.keys(defaultLabels) as CaseTypeKey[];
+    keys = keys.filter((key) => allowedCaseTypes.includes(key));
+
+    return keys.map((key) => ({
+      key,
+      label: caseTypeIdByKey[key]?.display_name || defaultLabels[key],
+    }));
+  }, [caseTypeIdByKey, allowedCaseTypes]);
 
   const fetchCases = async (type: CaseTypeKey) => {
+    if (!allowedCaseTypes.includes(type)) {
+      return;
+    }
+    
     setLoading(true);
     try {
       const data =
@@ -172,18 +217,36 @@ const CourtCasesPage: React.FC = () => {
 
   const refreshActive = () => fetchCases(activeType);
 
+  const resolveCaseTypeId = async (key: CaseTypeKey): Promise<number | undefined> => {
+    const existing = caseTypeIdByKey[key];
+    if (existing?.id) return existing.id;
+
+    try {
+      const resolved = await fetchCaseTypeByName(caseTypeNameByKey[key]);
+      if (!resolved?.id) return undefined;
+      setCaseTypes((prev) => {
+        const next = [...prev];
+        const idx = next.findIndex((item) => item.id === resolved.id);
+        if (idx >= 0) next[idx] = { ...next[idx], ...resolved };
+        else next.push(resolved);
+        return next;
+      });
+      return resolved.id;
+    } catch {
+      return undefined;
+    }
+  };
+
   useEffect(() => {
     const loadMasterData = async () => {
       try {
-        const [types, statesRes, deps, clientsRes, usersRes] = await Promise.all([
+        const [types, deps, clientsRes, usersRes] = await Promise.all([
           fetchCaseTypes(),
-          fetchCaseStates(),
           fetchDependencies(),
           fetchClients(),
           fetchUsers(),
         ]);
         setCaseTypes(types);
-        setStates(statesRes);
         setDependencies(deps);
         setClients(clientsRes);
         setLawyers(usersRes);
@@ -214,23 +277,31 @@ const CourtCasesPage: React.FC = () => {
       client: record.client?.id,
       responsible_lawyer: record.responsible_lawyer?.id,
       state: record.state?.id,
+      entity_mode:
+        activeType === 'administrative-tax' && (record as AdministrativeTaxCase)?.entity !== 'SAT'
+          ? true
+          : false,
       sat_dependency: (record as AdministrativeTaxCase)?.sat_dependency?.id,
       init_date: record.init_date ? dayjs(record.init_date) : undefined,
       end_date: record.end_date ? dayjs(record.end_date) : undefined,
+      stage: record.stage,
       adjustments: parseAdjustments((record as AdministrativeTaxCase | TributaryCase)?.adjustments),
     };
 
     editForm.setFieldsValue(initialValues);
   };
 
-  const updateCase = async (payload: Record<string, any>) => {
-    if (!selectedCase) return;
-    const id = selectedCase.id;
+  const updateCaseById = async (id: number, payload: Record<string, any>) => {
     if (activeType === 'labor') return updateLaborCase(id, payload);
     if (activeType === 'litigation') return updateLitigationCase(id, payload);
     if (activeType === 'penal') return updatePenalCase(id, payload);
     if (activeType === 'tributary') return updateTributaryCase(id, payload);
     return updateAdministrativeTaxCase(id, payload);
+  };
+
+  const updateCase = async (payload: Record<string, any>) => {
+    if (!selectedCase) return;
+    return updateCaseById(selectedCase.id, payload);
   };
 
   const handleSaveEdit = async () => {
@@ -246,7 +317,17 @@ const CourtCasesPage: React.FC = () => {
     }
   };
 
-  const updateCaseState = (record: CourtCase, stateId: number) => {
+  const updateCaseState = (record: CourtCase, stateId: CourtCaseStateId) => {
+    const currentStateId = record.state?.id;
+    if (!isCourtCaseStateId(currentStateId)) {
+      message.error('Estado del caso inválido');
+      return;
+    }
+    if (!canTransitionCaseState(currentStateId, stateId)) {
+      message.warning('Transición de estado no permitida');
+      return;
+    }
+
     Modal.confirm({
       title: 'Confirmar acción',
       content: '¿Deseas actualizar el estado del caso?',
@@ -254,7 +335,7 @@ const CourtCasesPage: React.FC = () => {
       cancelText: 'No',
       onOk: async () => {
         try {
-          await updateCase({ state: stateId });
+          await updateCaseById(record.id, { state: stateId });
           message.success('Estado actualizado');
           refreshActive();
         } catch {
@@ -265,18 +346,21 @@ const CourtCasesPage: React.FC = () => {
   };
 
   const openActions = async (record: CourtCase) => {
-    const caseTypeId = caseTypeIdByKey[activeType]?.id;
-    if (!caseTypeId) {
+    const caseTypeId = await resolveCaseTypeId(activeType);
+    const caseTypeName = caseTypeNameByKey[activeType];
+    if (!caseTypeId && !caseTypeName) {
       message.error('No se pudo determinar el tipo de caso');
       return;
     }
 
     setSelectedCaseId(record.id);
     setSelectedCaseType(activeType);
+    setAddActionMode(false);
+    actionForm.resetFields();
     setActionsOpen(true);
     setActionsLoading(true);
     try {
-      const data = await fetchActions(record.id, caseTypeId);
+      const data = await fetchActions(record.id, caseTypeId, caseTypeName);
       setActionsList(data);
     } catch {
       message.error('Error al cargar acciones');
@@ -286,8 +370,9 @@ const CourtCasesPage: React.FC = () => {
   };
 
   const submitAction = async () => {
-    const caseTypeId = caseTypeIdByKey[selectedCaseType]?.id;
-    if (!selectedCaseId || !caseTypeId) return;
+    const caseTypeId = await resolveCaseTypeId(selectedCaseType);
+    const caseTypeName = caseTypeNameByKey[selectedCaseType];
+    if (!selectedCaseId || (!caseTypeId && !caseTypeName)) return;
     try {
       const values = await actionForm.validateFields();
       await createAction({
@@ -295,10 +380,12 @@ const CourtCasesPage: React.FC = () => {
         is_reminder: values.is_reminder,
         instance_id: selectedCaseId,
         case_type: caseTypeId,
+        case_type_name: caseTypeName,
         creator: userId || undefined,
       });
       actionForm.resetFields();
-      const data = await fetchActions(selectedCaseId, caseTypeId);
+      setAddActionMode(false);
+      const data = await fetchActions(selectedCaseId, caseTypeId, caseTypeName);
       setActionsList(data);
       message.success('Acción agregada');
     } catch {
@@ -307,18 +394,21 @@ const CourtCasesPage: React.FC = () => {
   };
 
   const openStatusUpdates = async (record: CourtCase) => {
-    const caseTypeId = caseTypeIdByKey[activeType]?.id;
-    if (!caseTypeId) {
+    const caseTypeId = await resolveCaseTypeId(activeType);
+    const caseTypeName = caseTypeNameByKey[activeType];
+    if (!caseTypeId && !caseTypeName) {
       message.error('No se pudo determinar el tipo de caso');
       return;
     }
 
     setSelectedCaseId(record.id);
     setSelectedCaseType(activeType);
+    setAddStatusMode(false);
+    statusForm.resetFields();
     setStatusOpen(true);
     setStatusLoading(true);
     try {
-      const data = await fetchStatusUpdates(record.id, caseTypeId);
+      const data = await fetchStatusUpdates(record.id, caseTypeId, caseTypeName);
       setStatusList(data);
     } catch {
       message.error('Error al cargar actualizaciones');
@@ -328,18 +418,21 @@ const CourtCasesPage: React.FC = () => {
   };
 
   const submitStatusUpdate = async () => {
-    const caseTypeId = caseTypeIdByKey[selectedCaseType]?.id;
-    if (!selectedCaseId || !caseTypeId) return;
+    const caseTypeId = await resolveCaseTypeId(selectedCaseType);
+    const caseTypeName = caseTypeNameByKey[selectedCaseType];
+    if (!selectedCaseId || (!caseTypeId && !caseTypeName)) return;
     try {
       const values = await statusForm.validateFields();
       await createStatusUpdate({
         description: values.description,
         instance_id: selectedCaseId,
         case_type: caseTypeId,
+        case_type_name: caseTypeName,
         creator: userId || undefined,
       });
       statusForm.resetFields();
-      const data = await fetchStatusUpdates(selectedCaseId, caseTypeId);
+      setAddStatusMode(false);
+      const data = await fetchStatusUpdates(selectedCaseId, caseTypeId, caseTypeName);
       setStatusList(data);
       message.success('Estado actualizado');
     } catch {
@@ -374,46 +467,60 @@ const CourtCasesPage: React.FC = () => {
       <Tooltip title="Ver detalle">
         <Button icon={<EyeOutlined />} onClick={() => openEditModal(record, true)} />
       </Tooltip>
-      {record.state?.id !== 4 && (
+      {(() => {
+        const stateId = isCourtCaseStateId(record.state?.id) ? record.state.id : COURT_CASE_STATE.ACTIVE;
+        const actions = getAvailableCaseActions(activeType, stateId);
+        const hasAction = (action: (typeof actions)[number]) => actions.includes(action);
+
+        return (
+          <>
+      {hasAction('edit') && (
         <Tooltip title="Editar">
           <Button icon={<EditOutlined />} onClick={() => openEditModal(record, false)} />
         </Tooltip>
       )}
-      {record.state?.id === 1 && (
+      {hasAction('delete') && (
         <Tooltip title="Eliminar">
-          <Button danger icon={<DeleteOutlined />} onClick={() => updateCaseState(record, 2)} />
+          <Button
+            danger
+            icon={<DeleteOutlined />}
+            onClick={() => updateCaseState(record, COURT_CASE_STATE.DELETED)}
+          />
         </Tooltip>
       )}
-      {record.state?.id === 1 && (
+      {hasAction('actions') && (
         <Tooltip title="Acciones">
           <Button icon={<InfoCircleOutlined />} onClick={() => openActions(record)} />
         </Tooltip>
       )}
-      {record.state?.id === 1 && (
+      {hasAction('statusUpdates') && (
         <Tooltip title="Actualizaciones de estado">
           <Button icon={<CommentOutlined />} onClick={() => openStatusUpdates(record)} />
         </Tooltip>
       )}
-      {record.state?.id === 1 && (
+      {hasAction('finalize') && (
         <Tooltip title="Finalizar">
-          <Button icon={<CheckOutlined />} onClick={() => updateCaseState(record, 4)} />
+          <Button icon={<CheckOutlined />} onClick={() => updateCaseState(record, COURT_CASE_STATE.FINISHED)} />
         </Tooltip>
       )}
-      {record.state?.id === 1 && (
+      {hasAction('suspend') && (
         <Tooltip title="Suspender">
-          <Button icon={<PauseOutlined />} onClick={() => updateCaseState(record, 3)} />
+          <Button icon={<PauseOutlined />} onClick={() => updateCaseState(record, COURT_CASE_STATE.SUSPENDED)} />
         </Tooltip>
       )}
-      {record.state?.id === 3 && (
+      {hasAction('resume') && (
         <Tooltip title="Reanudar">
-          <Button icon={<PlayCircleOutlined />} onClick={() => updateCaseState(record, 1)} />
+          <Button icon={<PlayCircleOutlined />} onClick={() => updateCaseState(record, COURT_CASE_STATE.ACTIVE)} />
         </Tooltip>
       )}
-      {record.state?.id === 4 && (
+      {hasAction('reopen') && (
         <Tooltip title="Reabrir">
-          <Button icon={<PlayCircleOutlined />} onClick={() => updateCaseState(record, 1)} />
+          <Button icon={<PlayCircleOutlined />} onClick={() => updateCaseState(record, COURT_CASE_STATE.ACTIVE)} />
         </Tooltip>
       )}
+          </>
+        );
+      })()}
     </Space>
   );
 
@@ -756,8 +863,7 @@ const CourtCasesPage: React.FC = () => {
           type={activeType}
           form={editForm}
           clients={clients}
-          lawyers={lawyers}
-          states={states}
+          lawyers={filteredLawyers}
           dependencies={dependencies}
           viewOnly={viewOnly}
         />
@@ -770,38 +876,51 @@ const CourtCasesPage: React.FC = () => {
         footer={null}
         width={700}
       >
-        <Form form={actionForm} layout="vertical" onFinish={submitAction}>
-          <Form.Item name="description" label="Descripción" rules={[{ required: true, message: 'Descripción requerida' }]}>
-            <Input.TextArea rows={3} />
-          </Form.Item>
-          <Form.Item name="is_reminder" valuePropName="checked">
-            <Checkbox>Es recordatorio</Checkbox>
-          </Form.Item>
-          <Button type="primary" htmlType="submit">
-            Agregar
-          </Button>
-        </Form>
+        <Checkbox checked={addActionMode} onChange={(e) => setAddActionMode(e.target.checked)}>
+          Agregar acción
+        </Checkbox>
 
-        <Table
-          rowKey="id"
-          loading={actionsLoading}
-          dataSource={actionsList}
-          columns={[
-            { title: '#', render: (_: unknown, __: unknown, index: number) => index + 1 },
-            {
-              title: 'Fecha',
-              dataIndex: 'created',
-              render: (value: string) => (value ? new Date(value).toLocaleDateString() : '-'),
-            },
-            {
-              title: 'Observación',
-              dataIndex: 'description',
-              render: (val: string, record: any) => (record.is_reminder ? <Tag color="blue">{val}</Tag> : val),
-            },
-          ]}
-          pagination={false}
-          style={{ marginTop: 16 }}
-        />
+        {addActionMode ? (
+          <Form form={actionForm} layout="vertical" onFinish={submitAction} style={{ marginTop: 16 }}>
+            <Form.Item
+              name="description"
+              label="Descripción"
+              rules={[{ required: true, message: 'Descripción requerida' }]}
+            >
+              <Input.TextArea rows={3} />
+            </Form.Item>
+            {canCreateReminder && (
+              <Form.Item name="is_reminder" valuePropName="checked">
+                <Checkbox>Es recordatorio</Checkbox>
+              </Form.Item>
+            )}
+            <Button type="primary" htmlType="submit">
+              Agregar
+            </Button>
+          </Form>
+        ) : (
+          <Table
+            rowKey="id"
+            loading={actionsLoading}
+            dataSource={actionsList}
+            columns={[
+              { title: '#', render: (_: unknown, __: unknown, index: number) => index + 1 },
+              {
+                title: 'Fecha',
+                dataIndex: 'created',
+                render: (value: string) => (value ? new Date(value).toLocaleDateString() : '-'),
+              },
+              {
+                title: 'Observación',
+                dataIndex: 'description',
+                render: (val: string, record: any) =>
+                  record.is_reminder ? <Tag color="blue">{val}</Tag> : val,
+              },
+            ]}
+            pagination={false}
+            style={{ marginTop: 16 }}
+          />
+        )}
       </Modal>
 
       <Modal
@@ -811,34 +930,44 @@ const CourtCasesPage: React.FC = () => {
         footer={null}
         width={700}
       >
-        <Form form={statusForm} layout="vertical" onFinish={submitStatusUpdate}>
-          <Form.Item name="description" label="Descripción" rules={[{ required: true, message: 'Descripción requerida' }]}>
-            <Input.TextArea rows={3} />
-          </Form.Item>
-          <Button type="primary" htmlType="submit">
-            Agregar
-          </Button>
-        </Form>
+        <Checkbox checked={addStatusMode} onChange={(e) => setAddStatusMode(e.target.checked)}>
+          Actualizar estado
+        </Checkbox>
 
-        <Table
-          rowKey="id"
-          loading={statusLoading}
-          dataSource={statusList}
-          columns={[
-            { title: '#', render: (_: unknown, __: unknown, index: number) => index + 1 },
-            {
-              title: 'Fecha',
-              dataIndex: 'created',
-              render: (value: string) => (value ? new Date(value).toLocaleDateString() : '-'),
-            },
-            {
-              title: 'Actualización',
-              dataIndex: 'description',
-            },
-          ]}
-          pagination={false}
-          style={{ marginTop: 16 }}
-        />
+        {addStatusMode ? (
+          <Form form={statusForm} layout="vertical" onFinish={submitStatusUpdate} style={{ marginTop: 16 }}>
+            <Form.Item
+              name="description"
+              label="Descripción"
+              rules={[{ required: true, message: 'Descripción requerida' }]}
+            >
+              <Input.TextArea rows={3} />
+            </Form.Item>
+            <Button type="primary" htmlType="submit">
+              Agregar
+            </Button>
+          </Form>
+        ) : (
+          <Table
+            rowKey="id"
+            loading={statusLoading}
+            dataSource={statusList}
+            columns={[
+              { title: '#', render: (_: unknown, __: unknown, index: number) => index + 1 },
+              {
+                title: 'Fecha',
+                dataIndex: 'created',
+                render: (value: string) => (value ? new Date(value).toLocaleDateString() : '-'),
+              },
+              {
+                title: 'Actualización',
+                dataIndex: 'description',
+              },
+            ]}
+            pagination={false}
+            style={{ marginTop: 16 }}
+          />
+        )}
       </Modal>
 
       <Modal

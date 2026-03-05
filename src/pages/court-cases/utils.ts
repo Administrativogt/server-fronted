@@ -34,6 +34,7 @@ export function normalizeCasePayload(values: Record<string, any>) {
   if ('end_date' in payload) payload.end_date = toApiDate(payload.end_date);
 
   if ('adjustments' in payload) payload.adjustments = serializeAdjustments(payload.adjustments);
+  if ('entity_mode' in payload) delete payload.entity_mode;
 
   return payload;
 }

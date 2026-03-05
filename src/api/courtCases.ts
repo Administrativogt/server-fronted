@@ -2,6 +2,15 @@ import api from './axios';
 import type { UserLite } from './users';
 import type { Client } from './clients';
 
+/** Asegura recibir un array tanto si el backend devuelve [] como { data: [] } */
+function ensureArray<T>(data: T[] | { data?: T[] } | null | undefined): T[] {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === 'object' && Array.isArray((data as { data?: T[] }).data)) {
+    return (data as { data: T[] }).data;
+  }
+  return [];
+}
+
 export interface CourtCaseType {
   id: number;
   name: string;
@@ -113,23 +122,30 @@ export type CaseTypeKey =
   | 'administrative-tax';
 
 export async function fetchCaseTypes(): Promise<CourtCaseType[]> {
-  const { data } = await api.get('/court-cases/types');
+  const { data } = await api.get<CourtCaseType[] | { data: CourtCaseType[] }>('/court-cases/types');
+  return ensureArray(data);
+}
+
+export async function fetchCaseTypeByName(caseTypeName: string): Promise<CourtCaseType> {
+  const { data } = await api.get<CourtCaseType>('/court-cases/case-type', {
+    params: { case_type: caseTypeName },
+  });
   return data;
 }
 
 export async function fetchCaseStates(): Promise<CourtCaseState[]> {
-  const { data } = await api.get('/court-cases/states');
-  return data;
+  const { data } = await api.get<CourtCaseState[] | { data: CourtCaseState[] }>('/court-cases/states');
+  return ensureArray(data);
 }
 
 export async function fetchDependencies(): Promise<Dependency[]> {
-  const { data } = await api.get('/court-cases/dependencies');
-  return data;
+  const { data } = await api.get<Dependency[] | { data: Dependency[] }>('/court-cases/dependencies');
+  return ensureArray(data);
 }
 
 export async function fetchLaborCases(): Promise<LaborCase[]> {
-  const { data } = await api.get('/court-cases/labor');
-  return data;
+  const { data } = await api.get<LaborCase[] | { data: LaborCase[] }>('/court-cases/labor');
+  return ensureArray(data);
 }
 
 export async function fetchLaborCase(id: number): Promise<LaborCase> {
@@ -148,8 +164,8 @@ export async function updateLaborCase(id: number, payload: Partial<LaborCase>) {
 }
 
 export async function fetchLitigationCases(): Promise<LitigationCase[]> {
-  const { data } = await api.get('/court-cases/litigation');
-  return data;
+  const { data } = await api.get<LitigationCase[] | { data: LitigationCase[] }>('/court-cases/litigation');
+  return ensureArray(data);
 }
 
 export async function fetchLitigationCase(id: number): Promise<LitigationCase> {
@@ -168,8 +184,8 @@ export async function updateLitigationCase(id: number, payload: Partial<Litigati
 }
 
 export async function fetchPenalCases(): Promise<PenalCase[]> {
-  const { data } = await api.get('/court-cases/penal');
-  return data;
+  const { data } = await api.get<PenalCase[] | { data: PenalCase[] }>('/court-cases/penal');
+  return ensureArray(data);
 }
 
 export async function fetchPenalCase(id: number): Promise<PenalCase> {
@@ -188,8 +204,8 @@ export async function updatePenalCase(id: number, payload: Partial<PenalCase>) {
 }
 
 export async function fetchTributaryCases(): Promise<TributaryCase[]> {
-  const { data } = await api.get('/court-cases/tributary');
-  return data;
+  const { data } = await api.get<TributaryCase[] | { data: TributaryCase[] }>('/court-cases/tributary');
+  return ensureArray(data);
 }
 
 export async function fetchTributaryCase(id: number): Promise<TributaryCase> {
@@ -208,8 +224,8 @@ export async function updateTributaryCase(id: number, payload: Partial<Tributary
 }
 
 export async function fetchAdministrativeTaxCases(): Promise<AdministrativeTaxCase[]> {
-  const { data } = await api.get('/court-cases/administrative-tax');
-  return data;
+  const { data } = await api.get<AdministrativeTaxCase[] | { data: AdministrativeTaxCase[] }>('/court-cases/administrative-tax');
+  return ensureArray(data);
 }
 
 export async function fetchAdministrativeTaxCase(id: number): Promise<AdministrativeTaxCase> {
@@ -232,24 +248,33 @@ export async function createAction(payload: {
   creator?: number;
   is_reminder?: boolean;
   instance_id: number;
-  case_type: number;
+  case_type?: number;
+  case_type_name?: string;
 }) {
   const { data } = await api.post('/court-cases/actions', payload);
   return data as Action;
 }
 
-export async function fetchActions(instanceId: number, caseTypeId: number): Promise<Action[]> {
-  const { data } = await api.get(`/court-cases/actions/${instanceId}`, {
-    params: { case_type: caseTypeId },
+export async function fetchActions(
+  instanceId: number,
+  caseTypeId?: number,
+  caseTypeName?: string
+): Promise<Action[]> {
+  const { data } = await api.get<Action[] | { data: Action[] }>(`/court-cases/actions/${instanceId}`, {
+    params: {
+      ...(caseTypeId != null ? { case_type: caseTypeId } : {}),
+      ...(caseTypeName ? { case_type_name: caseTypeName } : {}),
+    },
   });
-  return data;
+  return ensureArray(data);
 }
 
 export async function createStatusUpdate(payload: {
   description: string;
   creator?: number;
   instance_id: number;
-  case_type: number;
+  case_type?: number;
+  case_type_name?: string;
 }) {
   const { data } = await api.post('/court-cases/status-updates', payload);
   return data as StatusUpdate;
@@ -257,10 +282,14 @@ export async function createStatusUpdate(payload: {
 
 export async function fetchStatusUpdates(
   instanceId: number,
-  caseTypeId: number
+  caseTypeId?: number,
+  caseTypeName?: string
 ): Promise<StatusUpdate[]> {
-  const { data } = await api.get(`/court-cases/status-updates/${instanceId}`, {
-    params: { case_type: caseTypeId },
+  const { data } = await api.get<StatusUpdate[] | { data: StatusUpdate[] }>(`/court-cases/status-updates/${instanceId}`, {
+    params: {
+      ...(caseTypeId != null ? { case_type: caseTypeId } : {}),
+      ...(caseTypeName ? { case_type_name: caseTypeName } : {}),
+    },
   });
-  return data;
+  return ensureArray(data);
 }

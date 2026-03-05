@@ -10,7 +10,8 @@ interface AuthState {
   refreshToken: string | null;
   tipo_usuario: number | null;
   is_superuser: boolean;
-  permissions: string[];
+  areaId: number | null;
+  setAreaId: (id: number) => void;
   setToken: (token: string) => void;
   setUsername: (username: string) => void;
   setUserId: (id: number) => void;
@@ -18,6 +19,7 @@ interface AuthState {
   setTipoUsuario: (tipo: number) => void;
   setIsSuperuser: (value: boolean) => void;
   setPermissions: (permissions: string[]) => void;
+  setAreaId: (id: number) => void;
   logout: (redirect?: boolean) => void;
   isAuthenticated: () => boolean;
 }
@@ -28,9 +30,11 @@ const useAuthStore = create<AuthState>((set) => {
   const rawUserId = Number(sessionStorage.getItem('userId'));
   const rawRefresh = sessionStorage.getItem('refreshToken');
   const rawTipoUsuario = sessionStorage.getItem('tipo_usuario');
+  const rawAreaId = sessionStorage.getItem('areaId');
   const rawIsSuperuser = sessionStorage.getItem('is_superuser');
   const rawPermissions = sessionStorage.getItem('permissions');
   const parsedTipoUsuario = rawTipoUsuario ? Number(rawTipoUsuario) : null;
+  const parsedAreaId = rawAreaId ? Number(rawAreaId) : null;
   const parsedIsSuperuser = rawIsSuperuser === 'true';
   const parsedPermissions = rawPermissions ? JSON.parse(rawPermissions) : [];
 
@@ -42,6 +46,7 @@ const useAuthStore = create<AuthState>((set) => {
     sessionStorage.removeItem('userId');
     sessionStorage.removeItem('refreshToken');
     sessionStorage.removeItem('tipo_usuario');
+    sessionStorage.removeItem('areaId');
     sessionStorage.removeItem('is_superuser');
     sessionStorage.removeItem('permissions');
   }
@@ -52,6 +57,7 @@ const useAuthStore = create<AuthState>((set) => {
     userId: expiredOrInvalid ? null : rawUserId,
     refreshToken: expiredOrInvalid ? null : rawRefresh,
     tipo_usuario: expiredOrInvalid ? null : parsedTipoUsuario,
+    areaId: expiredOrInvalid ? null : parsedAreaId,
     is_superuser: expiredOrInvalid ? false : parsedIsSuperuser,
     permissions: expiredOrInvalid ? [] : parsedPermissions,
 
@@ -89,6 +95,11 @@ const useAuthStore = create<AuthState>((set) => {
       set({ is_superuser: value });
     },
 
+    setAreaId: (id) => {
+      sessionStorage.setItem('areaId', id.toString());
+      set({ areaId: id });
+    },
+
     setPermissions: (permissions) => {
       sessionStorage.setItem('permissions', JSON.stringify(permissions));
       set({ permissions });
@@ -100,6 +111,7 @@ const useAuthStore = create<AuthState>((set) => {
       sessionStorage.removeItem('userId');
       sessionStorage.removeItem('refreshToken');
       sessionStorage.removeItem('tipo_usuario');
+      sessionStorage.removeItem('areaId');
       sessionStorage.removeItem('is_superuser');
       sessionStorage.removeItem('permissions');
       set({
@@ -108,6 +120,7 @@ const useAuthStore = create<AuthState>((set) => {
         userId: null,
         refreshToken: null,
         tipo_usuario: null,
+        areaId: null,
         is_superuser: false,
         permissions: [],
       });

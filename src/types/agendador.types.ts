@@ -22,10 +22,25 @@ export interface Installment {
   start_date: string;
   end_date: string | null;
   client: string;
-  state: "1" | "2";        // "1"=Activo, "2"=Finalizado
+  state: "1" | "2" | 1 | 2;        // "1"/1=Activo, "2"/2=Finalizado
   process_type: ProcessType;
   stages: Stage[];          // no existe "current_stage" en el API
   creator?: any;
+}
+
+export interface Holiday {
+  id: number;
+  created: string;
+  date: string;
+  name: string;
+  is_repetitive: boolean;
+  creator?: any;
+}
+
+export interface CreateHolidayDto {
+  date: string;
+  name: string;
+  is_repetitive?: boolean;
 }
 
 export interface CreateInstallmentDto {
@@ -35,10 +50,17 @@ export interface CreateInstallmentDto {
   process_type_id: number;
 }
 
+export interface UpdateInstallmentDto {
+  expedient_number?: string;
+  start_date?: string;
+  client?: string;
+  process_type_id?: number;
+}
+
 export interface UpdateStageDto {
   name?: string;
   start?: string;
-  finalization?: string;
+  finalization?: string | null;
   duration?: number;
   date_format?: 0 | 1 | 2;
 }

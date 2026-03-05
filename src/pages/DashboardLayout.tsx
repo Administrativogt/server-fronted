@@ -103,6 +103,16 @@ const DashboardLayout: React.FC = () => {
             onClick: () => navigate('/dashboard/agendador/crear')
           },
           {
+            key: "/dashboard/agendador/feriados",
+            label: "Lista de feriados",
+            onClick: () => navigate('/dashboard/agendador/feriados')
+          },
+          {
+            key: "/dashboard/agendador/feriados/crear",
+            label: "Crear feriado",
+            onClick: () => navigate('/dashboard/agendador/feriados/crear')
+          },
+          {
             key: "/dashboard/agendador/calendario",
             label: "Calendario",
             onClick: () => navigate('/dashboard/agendador/calendario')
