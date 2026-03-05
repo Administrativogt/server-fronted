@@ -1,21 +1,21 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Card, Table, Button, Space, Input, Tag, Tooltip, Modal,
-  Descriptions, App as AntdApp, DatePicker, Form, Select,
+  Descriptions, App as AntdApp,
 } from 'antd';
 import {
-  PlusOutlined, ReloadOutlined, SearchOutlined, CalendarOutlined,
-  DeleteOutlined, InfoCircleOutlined, CheckOutlined, EditOutlined,
+  PlusOutlined, ReloadOutlined, SearchOutlined,
+  DeleteOutlined, InfoCircleOutlined, CheckOutlined,
   WarningOutlined, MailOutlined, RollbackOutlined, SendOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
 import {
-  getInstallments, deleteInstallment, finalizeInstallment, updateStage, sendReport,
-  removeLastStage, sendInstallmentReminders, getInstallment, getProcessTypes, updateInstallment,
+  getInstallments, deleteInstallment, finalizeInstallment, sendReport,
+  removeLastStage, sendInstallmentReminders, getInstallment,
 } from '../../api/agendador';
-import type { Installment, Stage, ProcessType } from '../../types/agendador.types';
+import type { Installment, Stage } from '../../types/agendador.types';
 
 const PROCESSES_WITH_DILIGENCIES = [2, 6];
 
@@ -59,25 +59,17 @@ const SchedulerList: React.FC = () => {
   const { message, modal } = AntdApp.useApp();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [editForm] = Form.useForm();
   const [rows, setRows] = useState<Installment[]>([]);
-  const [processTypes, setProcessTypes] = useState<ProcessType[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(15);
   const [query, setQuery] = useState<string>('');
   const [detail, setDetail] = useState<Installment | null>(null);
 
-  // Modal para ingresar fecha manual en etapas date_format === 0
-  const [dateModalRecord, setDateModalRecord] = useState<Installment | null>(null);
-  const [manualDate, setManualDate] = useState<dayjs.Dayjs | null>(null);
-  const [savingDate, setSavingDate] = useState(false);
   const [reportModalRecord, setReportModalRecord] = useState<Installment | null>(null);
   const [reportEmails, setReportEmails] = useState('');
   const [sendingReport, setSendingReport] = useState(false);
   const [sendingReminder, setSendingReminder] = useState(false);
-  const [editModalRecord, setEditModalRecord] = useState<Installment | null>(null);
-  const [savingEdit, setSavingEdit] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -95,17 +87,6 @@ const SchedulerList: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const types = await getProcessTypes();
-        setProcessTypes(types);
-      } catch {
-        setProcessTypes([]);
-      }
-    })();
-  }, []);
 
   const handleDelete = (record: Installment) => {
     modal.confirm({
@@ -179,24 +160,6 @@ const SchedulerList: React.FC = () => {
     }
   };
 
-  const handleSaveManualDate = async () => {
-    if (!dateModalRecord || !manualDate) return;
-    const stage = getCurrentStage(dateModalRecord);
-    if (!stage) return;
-    setSavingDate(true);
-    try {
-      await updateStage(stage.id, { finalization: manualDate.format('YYYY-MM-DD') });
-      message.success('Fecha guardada');
-      setDateModalRecord(null);
-      setManualDate(null);
-      fetchData();
-    } catch (e: any) {
-      message.error(e.response?.data?.message || 'No se pudo guardar la fecha');
-    } finally {
-      setSavingDate(false);
-    }
-  };
-
   const handleSendReport = async () => {
     if (!reportModalRecord) return;
     const emails = reportEmails
@@ -234,39 +197,6 @@ const SchedulerList: React.FC = () => {
       setDetail(full);
     } catch {
       setDetail(record);
-    }
-  };
-
-  const openEdit = (record: Installment) => {
-    setEditModalRecord(record);
-    editForm.setFieldsValue({
-      expedient_number: record.expedient_number,
-      process_type_id: record.process_type?.id,
-      start_date: record.start_date ? dayjs(record.start_date) : null,
-      client: record.client,
-    });
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editModalRecord) return;
-    try {
-      const values = await editForm.validateFields();
-      setSavingEdit(true);
-      await updateInstallment(editModalRecord.id, {
-        expedient_number: values.expedient_number,
-        process_type_id: values.process_type_id,
-        start_date: values.start_date?.format('YYYY-MM-DD'),
-        client: values.client,
-      });
-      message.success('Plazo actualizado');
-      setEditModalRecord(null);
-      editForm.resetFields();
-      fetchData();
-    } catch (e: any) {
-      if (e?.errorFields) return;
-      message.error(e.response?.data?.message || 'No se pudo actualizar el plazo');
-    } finally {
-      setSavingEdit(false);
     }
   };
 
@@ -345,7 +275,6 @@ const SchedulerList: React.FC = () => {
       width: 210,
       render: (_, record) => {
         const stage = getCurrentStage(record);
-        const needsManual = stage?.date_format === 0 && !stage?.finalization;
         const canFinalize = isActiveInstallment(record)
           && (installmentHasDiligencies(record) || !!stage?.finalization);
         return (
@@ -357,25 +286,6 @@ const SchedulerList: React.FC = () => {
                 onClick={() => openDetail(record)}
               />
             </Tooltip>
-            <Tooltip title="Editar plazo">
-              <Button
-                icon={<EditOutlined />}
-                size="small"
-                onClick={() => openEdit(record)}
-              />
-            </Tooltip>
-            {isActiveInstallment(record) && needsManual ? (
-              <Tooltip title="Ingresar fecha">
-                <Button
-                  icon={<EditOutlined />}
-                  size="small"
-                  onClick={() => {
-                    setDateModalRecord(record);
-                    setManualDate(null);
-                  }}
-                />
-              </Tooltip>
-            ) : null}
             {canFinalize ? (
               <Tooltip title="Finalizar etapa">
                 <Button
@@ -386,13 +296,6 @@ const SchedulerList: React.FC = () => {
                 />
               </Tooltip>
             ) : null}
-            <Tooltip title="Ver calendario">
-              <Button
-                icon={<CalendarOutlined />}
-                size="small"
-                onClick={() => navigate('/dashboard/agendador/calendario')}
-              />
-            </Tooltip>
             <Tooltip title="Enviar reporte por correo">
               <Button
                 icon={<MailOutlined />}
@@ -528,31 +431,6 @@ const SchedulerList: React.FC = () => {
         ) : null}
       </Modal>
 
-      {/* Modal ingresar fecha manual */}
-      <Modal
-        title="Ingresar fecha de finalización"
-        open={!!dateModalRecord}
-        onCancel={() => {
-          setDateModalRecord(null);
-          setManualDate(null);
-        }}
-        onOk={handleSaveManualDate}
-        okText="Guardar"
-        cancelText="Cancelar"
-        confirmLoading={savingDate}
-        okButtonProps={{ disabled: !manualDate }}
-      >
-        <p>
-          Etapa: <strong>{getCurrentStage(dateModalRecord!)?.name}</strong>
-        </p>
-        <DatePicker
-          style={{ width: '100%' }}
-          value={manualDate}
-          onChange={(d) => setManualDate(d)}
-          format="DD/MM/YYYY"
-        />
-      </Modal>
-
       {/* Modal envío de reporte por correo */}
       <Modal
         title="Enviar reporte por correo"
@@ -576,54 +454,6 @@ const SchedulerList: React.FC = () => {
           placeholder="Ingrese uno o varios correos separados por coma, punto y coma o salto de línea"
           autoSize={{ minRows: 3, maxRows: 6 }}
         />
-      </Modal>
-
-      {/* Modal editar plazo */}
-      <Modal
-        title="Editar plazo"
-        open={!!editModalRecord}
-        onCancel={() => {
-          setEditModalRecord(null);
-          editForm.resetFields();
-        }}
-        onOk={handleSaveEdit}
-        okText="Guardar"
-        cancelText="Cancelar"
-        confirmLoading={savingEdit}
-      >
-        <Form form={editForm} layout="vertical">
-          <Form.Item
-            name="expedient_number"
-            label="Número de expediente"
-            rules={[{ required: true, message: 'Requerido' }]}
-          >
-            <Input />
-          </Form.Item>
-          <Form.Item
-            name="process_type_id"
-            label="Procedimiento"
-            rules={[{ required: true, message: 'Requerido' }]}
-          >
-            <Select
-              placeholder="Seleccione procedimiento"
-              options={processTypes.map((t) => ({ value: t.id, label: t.name }))}
-            />
-          </Form.Item>
-          <Form.Item
-            name="start_date"
-            label="Fecha de inicio"
-            rules={[{ required: true, message: 'Requerido' }]}
-          >
-            <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
-          </Form.Item>
-          <Form.Item
-            name="client"
-            label="Cliente"
-            rules={[{ required: true, message: 'Requerido' }]}
-          >
-            <Input />
-          </Form.Item>
-        </Form>
       </Modal>
     </Card>
   );

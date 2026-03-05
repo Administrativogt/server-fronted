@@ -21,7 +21,12 @@ export const getInstallments = async (params?: {
   const qs = new URLSearchParams();
   if (params?.page) qs.append('page', String(params.page));
   if (params?.limit) qs.append('limit', String(params.limit));
-  if (params?.q) qs.append('q', params.q);
+  if (params?.q?.trim()) {
+    const searchValue = params.q.trim();
+    // Compatibilidad: algunos backends esperan "q" y otros "search"
+    qs.append('q', searchValue);
+    qs.append('search', searchValue);
+  }
   const { data } = await api.get<InstallmentsResponse>(`${BASE}/installments?${qs.toString()}`);
   return data;
 };
