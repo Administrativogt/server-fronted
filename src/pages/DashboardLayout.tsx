@@ -25,12 +25,14 @@ import {
   SettingOutlined,
   SunOutlined,
   MoonOutlined,
+  UploadOutlined,
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import useAuthStore from '../auth/useAuthStore';
 import useThemeStore from '../hooks/useThemeStore';
 import api from '../api/axios';
 import { useUserAdminPermissions } from '../hooks/usePermissions';
+import type { ModuleKey } from '../types/module-access.types';
 
 import logoLight from '../assets/logo-cosortium.png';
 import logoDark from '../assets/logo-dark.png';
@@ -39,6 +41,7 @@ const { Header, Sider, Content, Footer } = Layout;
 
 const DashboardLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const [openKeys, setOpenKeys] = useState<string[]>([]);
   const [canSeeReport, setCanSeeReport] = useState<boolean | null>(null);
 
   const themeMode = useThemeStore((s) => s.mode);
@@ -54,10 +57,13 @@ const DashboardLayout: React.FC = () => {
   const logout = useAuthStore((s) => s.logout);
   const username = useAuthStore((s) => s.username);
   const tipoUsuario = useAuthStore((s) => s.tipo_usuario);
+  const modules = useAuthStore((s) => s.modules);
 
   const canSeeAsignados = tipoUsuario === 8 || username === 'ESC002' || username === 'BAR008';
   const canCreateEncargo = tipoUsuario !== 8; // ✅ Mensajeros NO pueden crear encargos
   const { canAccessUserAdmin } = useUserAdminPermissions(); // ✅ Permisos de administración
+  const hasModule = (moduleKey: ModuleKey) =>
+    modules.some((module) => module.key === moduleKey);
 
   useEffect(() => {
     let mounted = true;
@@ -120,6 +126,25 @@ const DashboardLayout: React.FC = () => {
         ]
       },
       {
+        key: "autorizacion-cheques",
+        icon: <FileDoneOutlined />,
+        label: "Autorización de cheques",
+        children: [
+          {
+            key: "/dashboard/autorizacion-cheques/cargar",
+            icon: <UploadOutlined />,
+            label: "Cargar cheques",
+            onClick: () => navigate('/dashboard/autorizacion-cheques/cargar'),
+          },
+          {
+            key: "/dashboard/autorizacion-cheques/lista",
+            icon: <UnorderedListOutlined />,
+            label: "Lista de cheques",
+            onClick: () => navigate('/dashboard/autorizacion-cheques/lista'),
+          },
+        ],
+      },
+      {
         key: "cheques",
         icon: <FolderOpenOutlined />,
         label: "Gestión de cheques",
@@ -147,6 +172,12 @@ const DashboardLayout: React.FC = () => {
             icon: <FileTextOutlined />,
             label: "Gastos inmobiliarios",
             onClick: () => navigate('/dashboard/cheques/inmobiliario')
+          },
+          {
+            key: "/dashboard/cheques/litigio",
+            icon: <FileTextOutlined />,
+            label: "Gastos litigio",
+            onClick: () => navigate('/dashboard/cheques/litigio')
           },
           {
             key: "/dashboard/cheques/pendientes",
@@ -425,7 +456,37 @@ const DashboardLayout: React.FC = () => {
       }] : [])
     ];
 
-    return items;
+    return items.filter((item: any) => {
+      switch (item.key) {
+        case 'mensajeria':
+          return hasModule('encargos');
+        case 'reservaciones':
+          return hasModule('reservas_salas');
+        case '/dashboard/casos':
+        case '/dashboard/casos/crear':
+          return hasModule('expedientes_judiciales');
+        case 'clientes':
+          return hasModule('clientes');
+        case 'notificaciones':
+          return hasModule('notificaciones');
+        case 'recibos':
+          return hasModule('recibos_caja');
+        case 'money-req-submenu':
+          return hasModule('solicitudes_dinero');
+        case 'appointments':
+          return hasModule('actas');
+        case 'procuration':
+          return hasModule('procuracion');
+        case 'cheques':
+          return hasModule('cheques') || hasModule('autorizacion_cheques');
+        case 'cargability':
+          return hasModule('cargabilidad');
+        case 'admin':
+          return canAccessUserAdmin && hasModule('usuarios');
+        default:
+          return true;
+      }
+    });
   };
 
   return (
@@ -443,6 +504,8 @@ const DashboardLayout: React.FC = () => {
           theme={isDark ? 'dark' : 'light'}
           mode="inline"
           selectedKeys={[location.pathname]}
+          openKeys={collapsed ? [] : openKeys}
+          onOpenChange={(keys) => setOpenKeys(keys.slice(-1))}
           items={getMenuItems()}
         />
       </Sider>

@@ -1,9 +1,11 @@
-import { Calendar, Badge, Modal, List, Skeleton, message, Select } from 'antd';
+import { Calendar, Badge, Modal, List, Skeleton, message, Select, Button } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
 import 'dayjs/locale/es';
 import utc from 'dayjs/plugin/utc';
 import { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 
 dayjs.locale('es');
@@ -26,6 +28,7 @@ interface Room {
 }
 
 function RoomReservation() {
+  const navigate = useNavigate();
   const [reservations, setReservations] = useState<ApiReservation[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -38,7 +41,7 @@ function RoomReservation() {
   const minMonth = today.subtract(5, 'month').startOf('month');
   const maxMonth = today.add(5, 'month').endOf('month');
 
-  const rangeText = `Mostrando reservaciones de ${maxMonth.format('MMMM YYYY')}`;
+  const rangeText = `Mostrando reservaciones de ${currentMonth.format('MMMM YYYY').replace(/^\w/, c => c.toUpperCase())}`;
 
   // 🔹 Obtener TODAS las salas disponibles (no solo las que tienen reservaciones)
   const roomOptions = useMemo(() => {
@@ -99,11 +102,11 @@ function RoomReservation() {
     if (value.isBefore(minMonth, 'day') || value.isAfter(maxMonth, 'day')) {
       return [];
     }
-    const dateStr = value.format('YYYY-MM-DD');
+    const dateStr = dayjs.utc(value).format('YYYY-MM-DD');
 
     return reservations.filter((r) => {
       const matchDate =
-        dayjs.utc(r.reservation_date).local().format('YYYY-MM-DD') === dateStr;
+        dayjs.utc(r.reservation_date).format('YYYY-MM-DD') === dateStr;
       const matchRoom =
         selectedRooms.length === 0 || selectedRooms.includes(r.room_name);
       return matchDate && matchRoom;
@@ -133,7 +136,7 @@ function RoomReservation() {
     }
     const list = getListData(value);
     if (list.length) {
-      setSelectedDate(value.format('YYYY-MM-DD'));
+      setSelectedDate(dayjs.utc(value).format('YYYY-MM-DD'));
       setIsModalOpen(true);
     }
   };
@@ -146,8 +149,7 @@ function RoomReservation() {
   const selectedDayReservations = reservations
     .filter((r) => {
       const matchDate =
-        dayjs.utc(r.reservation_date).local().format('YYYY-MM-DD') ===
-        selectedDate;
+        dayjs.utc(r.reservation_date).format('YYYY-MM-DD') === selectedDate;
       const matchRoom =
         selectedRooms.length === 0 || selectedRooms.includes(r.room_name);
       return matchDate && matchRoom;
@@ -162,7 +164,16 @@ function RoomReservation() {
 
   return (
     <div>
-      <h2>Reservación de Salas</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h2 style={{ margin: 0 }}>Reservación de Salas</h2>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={() => navigate('/dashboard/reservaciones/crear')}
+        >
+          Crear reservación
+        </Button>
+      </div>
 
       {/* 🔹 Select de Filtros por Sala (más compacto) */}
       <div style={{ marginBottom: 12 }}>

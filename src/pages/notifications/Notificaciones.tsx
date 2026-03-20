@@ -34,17 +34,20 @@ const Notificaciones: React.FC = () => {
     {
       title: "Fecha",
       dataIndex: "receptionDatetime",
+      width: 110,
       render: (value: string) => new Date(value).toLocaleDateString(),
     },
     {
       title: "Hora recibido",
       dataIndex: "receptionDatetime",
       key: "hora",
+      width: 120,
       render: (value: string) =>
         new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     },
     {
       title: "De",
+      width: 200,
       render: (_: unknown, record: NotificationDto) => {
         const prov = record.provenience?.name || record.otherProvenience || "";
         const hall = record.hall?.name || "";
@@ -54,14 +57,17 @@ const Notificaciones: React.FC = () => {
     {
       title: "Cédula",
       dataIndex: "cedule",
+      width: 130,
     },
     {
       title: "No. Expediente",
       dataIndex: "expedientNum",
+      width: 140,
     },
     {
       title: "Dirigida a",
       dataIndex: "directedTo",
+      width: 180,
     },
   ];
 
@@ -99,6 +105,7 @@ const Notificaciones: React.FC = () => {
           onChange: setSelectedRowKeys,
         }}
         pagination={{ pageSize: 10 }}
+        scroll={{ x: 900, y: 500 }}
       />
 
       <NotificationActions

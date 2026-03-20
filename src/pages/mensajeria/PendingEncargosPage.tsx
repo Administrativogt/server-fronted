@@ -1,20 +1,24 @@
 // src/pages/mensajeria/PendingEncargosPage.tsx
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Space, Tag, message, Modal, Input } from 'antd';
+import { Table, Button, Space, Tag, message, Modal, Input, Select, Tooltip } from 'antd';
+import { InfoCircleOutlined, FlagFilled } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import {
   getPendingEncargos,
   deleteEncargo,
   rejectEncargo,
   reportIncidence,
-  updateEncargo, // ✅ Agregar import
+  updateEncargo,
+  getMensajeros,
+  downloadEncargosExcel,
 } from '../../api/encargos';
-import type { Encargo } from '../../types/encargo';
+import type { Encargo, Usuario } from '../../types/encargo';
 import CommentModal from './components/CommentModal';
 import useAuthStore from '../../auth/useAuthStore'; // ✅ Importar
 
 const { confirm } = Modal;
 const { TextArea } = Input;
+const { Option } = Select;
 
 const ESTADOS: Record<number, { label: string; color: string }> = {
   1: { label: 'Pendiente', color: 'orange' },
@@ -52,6 +56,9 @@ const PendingEncargosPage: React.FC = () => {
     encargoId: null,
     reason: '',
   });
+  const [exportModal, setExportModal] = useState(false);
+  const [selectedMensajero, setSelectedMensajero] = useState<number | null>(null);
+  const [mensajeros, setMensajeros] = useState<Usuario[]>([]);
   const navigate = useNavigate();
   
   // ✅ Obtener usuario actual para filtrar si es mensajero
@@ -61,18 +68,28 @@ const PendingEncargosPage: React.FC = () => {
 
   useEffect(() => {
     loadEncargos();
+    if (!isMensajero) {
+      getMensajeros()
+        .then((res) => {
+          const sorted = res.data.sort((a: Usuario, b: Usuario) =>
+            `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`, 'es'),
+          );
+          setMensajeros(sorted);
+        })
+        .catch(() => {});
+    }
   }, [userId, isMensajero]); // ✅ Agregar dependencias
 
   const loadEncargos = async () => {
     try {
       const res = await getPendingEncargos();
-      
-      // ✅ Si es mensajero, filtrar solo sus encargos
+      // Estados activos: Pendiente (1), En proceso (2), Extraordinario (5) — igual que Django original
+      const activeOnly = res.data.filter((e: Encargo) => [1, 2, 5].includes(e.estado));
+
       if (isMensajero && userId) {
-        const filtered = res.data.filter((e: Encargo) => e.mensajero?.id === userId);
-        setEncargos(filtered);
+        setEncargos(activeOnly.filter((e: Encargo) => e.mensajero?.id === userId));
       } else {
-        setEncargos(res.data);
+        setEncargos(activeOnly);
       }
     } catch (error) {
       console.error('Error al cargar encargos pendientes:', error);
@@ -80,6 +97,48 @@ const PendingEncargosPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const downloadExcel = async (mensajeroId: number) => {
+    try {
+      const encargoIds = encargos.map((e) => e.id);
+      const response = await downloadEncargosExcel({ mensajeroId, encargoIds });
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = 'Ruta-Pendientes.xlsx';
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?(.+)"?/);
+        if (match) filename = match[1];
+      }
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      message.success('Reporte descargado exitosamente');
+    } catch (err: any) {
+      message.error(err?.response?.data?.message || 'Error al descargar reporte');
+    }
+  };
+
+  const handleExportExcel = () => {
+    if (isMensajero && userId) {
+      downloadExcel(userId);
+    } else {
+      setExportModal(true);
+    }
+  };
+
+  const handleConfirmExport = async () => {
+    if (!selectedMensajero) {
+      message.warning('Por favor seleccione un mensajero');
+      return;
+    }
+    await downloadExcel(selectedMensajero);
+    setExportModal(false);
+    setSelectedMensajero(null);
   };
 
   const handleStartDelivery = (id: number) => {
@@ -151,7 +210,25 @@ const PendingEncargosPage: React.FC = () => {
   };
 
   const columns = [
-    { title: '#', dataIndex: 'id', key: 'id', width: 60 },
+    {
+      title: '#',
+      dataIndex: 'id',
+      key: 'id',
+      width: 80,
+      render: (_: any, record: Encargo, index: number) => (
+        <Space size={4}>
+          <span>{index + 1}</span>
+          <Tooltip title={`Creado: ${new Date(record.fecha_creacion).toLocaleString('es-GT')}`}>
+            <InfoCircleOutlined style={{ color: '#f5222d', fontSize: 12, cursor: 'pointer' }} />
+          </Tooltip>
+          {record.razon_extra && (
+            <Tooltip title={`Comentario: ${record.razon_extra}`}>
+              <FlagFilled style={{ color: '#f5222d', fontSize: 12, cursor: 'pointer' }} />
+            </Tooltip>
+          )}
+        </Space>
+      ),
+    },
     // ✅ CORREGIDO: Usar relaciones correctas del tipo Encargo
     { 
       title: 'Solicitante', 
@@ -242,11 +319,16 @@ const PendingEncargosPage: React.FC = () => {
     <div style={{ padding: '16px 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h2 style={{ margin: 0 }}>Envíos Pendientes</h2>
-        {!isMensajero && (
-          <Button type="primary" onClick={() => navigate('/dashboard/mensajeria/crear')}>
-            Crear Envío
+        <Space>
+          {!isMensajero && (
+            <Button type="primary" onClick={() => navigate('/dashboard/mensajeria/crear')}>
+              Crear Envío
+            </Button>
+          )}
+          <Button type="default" onClick={handleExportExcel} disabled={!encargos.length}>
+            Exportar Excel
           </Button>
-        )}
+        </Space>
       </div>
 
       <Table
@@ -255,8 +337,15 @@ const PendingEncargosPage: React.FC = () => {
         rowKey="id"
         loading={loading}
         pagination={{ pageSize: 10 }}
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1200, y: 500 }}
         bordered
+        rowClassName={(record: Encargo) =>
+          record.observaciones ? 'encargo-row-with-observations' : ''
+        }
+        onRow={(record: Encargo) => ({
+          title: record.observaciones ? `Observaciones: ${record.observaciones}` : undefined,
+          style: record.observaciones ? { backgroundColor: 'rgba(0, 0, 255, 0.1)' } : {},
+        })}
       />
 
       {/* Modal de comentarios */}
@@ -267,6 +356,34 @@ const PendingEncargosPage: React.FC = () => {
           onClose={() => setCommentModalOpen({ open: false, encargoId: null })}
         />
       )}
+
+      {/* Modal para seleccionar mensajero al exportar (solo admin) */}
+      <Modal
+        title="Seleccione el mensajero"
+        open={exportModal}
+        onCancel={() => { setExportModal(false); setSelectedMensajero(null); }}
+        onOk={handleConfirmExport}
+        okText="Descargar"
+        cancelText="Cancelar"
+      >
+        <Select
+          style={{ width: '100%' }}
+          placeholder="Seleccione un mensajero"
+          value={selectedMensajero}
+          onChange={(value) => setSelectedMensajero(value)}
+          showSearch
+          optionFilterProp="children"
+          filterOption={(input, option) =>
+            String(option?.children || '').toLowerCase().includes(input.toLowerCase())
+          }
+        >
+          {mensajeros.map((m) => (
+            <Option key={m.id} value={m.id}>
+              {m.first_name} {m.last_name}
+            </Option>
+          ))}
+        </Select>
+      </Modal>
 
       {/* Modal de rechazo / incidencia */}
       {actionModal.open && (

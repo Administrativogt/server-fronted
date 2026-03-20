@@ -1,6 +1,7 @@
 // src/pages/mensajeria/AllEncargosPage.tsx
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Space, Tag, message, Modal, DatePicker, Select, Input } from 'antd';
+import { Table, Button, Space, Tag, message, Modal, DatePicker, Select, Input, Tooltip } from 'antd';
+import { InfoCircleOutlined, FlagFilled } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { downloadEncargosExcel, getAllEncargos, sendComplaint, getMensajeros, updateEncargo } from '../../../api/encargos';
 import type { Encargo, Usuario } from '../../../types/encargo';
@@ -77,14 +78,15 @@ const AllEncargosPage: React.FC = () => {
     const loadEncargos = async () => {
       try {
         const params: any = {
-          start: filters.startDate || undefined, // ✅ Cambiado de start_date a start
-          end: filters.endDate || undefined, // ✅ Cambiado de end_date a end
+          start: filters.startDate || undefined,
+          end: filters.endDate || undefined,
           search: filters.search || undefined,
+          estados: filters.estado ? [filters.estado] : undefined,
         };
-        
+
         // ✅ Si es mensajero, SIEMPRE filtrar por sus propios encargos
         if (isMensajero && userId) {
-          params.mensajero = userId; // Filtrar por ID del mensajero actual
+          params.mensajero = userId;
         }
         
         const res = await getAllEncargos(params);
@@ -132,6 +134,7 @@ const AllEncargosPage: React.FC = () => {
             start: filters.startDate || undefined,
             end: filters.endDate || undefined,
             search: filters.search || undefined,
+            estados: filters.estado ? [filters.estado] : undefined,
           };
           if (isMensajero && userId) {
             params.mensajero = userId;
@@ -160,6 +163,7 @@ const AllEncargosPage: React.FC = () => {
             start: filters.startDate || undefined,
             end: filters.endDate || undefined,
             search: filters.search || undefined,
+            estados: filters.estado ? [filters.estado] : undefined,
           };
           if (isMensajero && userId) {
             params.mensajero = userId;
@@ -246,7 +250,25 @@ const AllEncargosPage: React.FC = () => {
   };
 
   const columns = [
-    { title: '#', dataIndex: 'id', key: 'id', width: 60 },
+    {
+      title: '#',
+      dataIndex: 'id',
+      key: 'id',
+      width: 80,
+      render: (_: any, record: Encargo, index: number) => (
+        <Space size={4}>
+          <span>{index + 1}</span>
+          <Tooltip title={`Creado: ${new Date(record.fecha_creacion).toLocaleString('es-GT')}`}>
+            <InfoCircleOutlined style={{ color: '#f5222d', fontSize: 12, cursor: 'pointer' }} />
+          </Tooltip>
+          {record.razon_extra && (
+            <Tooltip title={`Comentario: ${record.razon_extra}`}>
+              <FlagFilled style={{ color: '#f5222d', fontSize: 12, cursor: 'pointer' }} />
+            </Tooltip>
+          )}
+        </Space>
+      ),
+    },
     // ✅ CORREGIDO: Usar relaciones correctas del tipo Encargo
     { 
       title: 'Solicitante', 
@@ -294,21 +316,21 @@ const AllEncargosPage: React.FC = () => {
       width: 250,
       render: (_: any, record: Encargo) => (
         <Space size="small" wrap>
-          {/* Botón Iniciar - Estado Pendiente (1) */}
-          {isMensajero && record.estado === 1 && record.mensajero?.id === userId && (
-            <Button 
-              size="small" 
+          {/* Botón Iniciar - Estado Pendiente (1): mensajero solo ve el suyo, admin ve todos */}
+          {record.estado === 1 && (!isMensajero || record.mensajero?.id === userId) && (
+            <Button
+              size="small"
               type="primary"
               onClick={() => handleStartDelivery(record.id)}
             >
               🚀 Iniciar
             </Button>
           )}
-          
-          {/* Botón Entregar - Estado En proceso (2) */}
-          {isMensajero && record.estado === 2 && record.mensajero?.id === userId && (
-            <Button 
-              size="small" 
+
+          {/* Botón Entregar - Estado En proceso (2): mensajero solo ve el suyo, admin ve todos */}
+          {record.estado === 2 && (!isMensajero || record.mensajero?.id === userId) && (
+            <Button
+              size="small"
               type="primary"
               onClick={() => handleDeliver(record.id)}
             >
@@ -381,8 +403,12 @@ const AllEncargosPage: React.FC = () => {
         rowKey="id"
         loading={loading}
         pagination={{ pageSize: 10 }}
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1200, y: 500 }}
         bordered
+        onRow={(record: Encargo) => ({
+          title: record.observaciones ? `Observaciones: ${record.observaciones}` : undefined,
+          style: record.observaciones ? { backgroundColor: 'rgba(0, 0, 255, 0.1)' } : {},
+        })}
       />
 
       {/* Modal de reclamo */}

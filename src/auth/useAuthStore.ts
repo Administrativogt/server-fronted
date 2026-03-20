@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import { message } from 'antd';
 import { isTokenExpired, isValidJwt } from '../utils/auth';
+import type { ModuleAccessItem } from '../types/module-access.types';
 
 interface AuthState {
   token: string | null;
@@ -11,15 +12,17 @@ interface AuthState {
   tipo_usuario: number | null;
   is_superuser: boolean;
   areaId: number | null;
-  setAreaId: (id: number) => void;
+  permissions: string[];
+  modules: ModuleAccessItem[];
+  setAreaId: (id: number | null) => void;
   setToken: (token: string) => void;
   setUsername: (username: string) => void;
   setUserId: (id: number) => void;
   setRefreshToken: (token: string) => void;
-  setTipoUsuario: (tipo: number) => void;
+  setTipoUsuario: (tipo: number | null) => void;
   setIsSuperuser: (value: boolean) => void;
   setPermissions: (permissions: string[]) => void;
-  setAreaId: (id: number) => void;
+  setModules: (modules: ModuleAccessItem[]) => void;
   logout: (redirect?: boolean) => void;
   isAuthenticated: () => boolean;
 }
@@ -33,10 +36,12 @@ const useAuthStore = create<AuthState>((set) => {
   const rawAreaId = sessionStorage.getItem('areaId');
   const rawIsSuperuser = sessionStorage.getItem('is_superuser');
   const rawPermissions = sessionStorage.getItem('permissions');
+  const rawModules = sessionStorage.getItem('modules');
   const parsedTipoUsuario = rawTipoUsuario ? Number(rawTipoUsuario) : null;
   const parsedAreaId = rawAreaId ? Number(rawAreaId) : null;
   const parsedIsSuperuser = rawIsSuperuser === 'true';
   const parsedPermissions = rawPermissions ? JSON.parse(rawPermissions) : [];
+  const parsedModules = rawModules ? JSON.parse(rawModules) : [];
 
   const expiredOrInvalid = !isValidJwt(rawToken) || isTokenExpired(rawToken);
 
@@ -49,6 +54,7 @@ const useAuthStore = create<AuthState>((set) => {
     sessionStorage.removeItem('areaId');
     sessionStorage.removeItem('is_superuser');
     sessionStorage.removeItem('permissions');
+    sessionStorage.removeItem('modules');
   }
 
   return {
@@ -60,6 +66,7 @@ const useAuthStore = create<AuthState>((set) => {
     areaId: expiredOrInvalid ? null : parsedAreaId,
     is_superuser: expiredOrInvalid ? false : parsedIsSuperuser,
     permissions: expiredOrInvalid ? [] : parsedPermissions,
+    modules: expiredOrInvalid ? [] : parsedModules,
 
     setToken: (token) => {
       if (isValidJwt(token) && !isTokenExpired(token)) {
@@ -86,6 +93,11 @@ const useAuthStore = create<AuthState>((set) => {
     },
 
     setTipoUsuario: (tipo) => {
+      if (tipo === null || Number.isNaN(tipo)) {
+        sessionStorage.removeItem('tipo_usuario');
+        set({ tipo_usuario: null });
+        return;
+      }
       sessionStorage.setItem('tipo_usuario', tipo.toString());
       set({ tipo_usuario: tipo });
     },
@@ -96,6 +108,11 @@ const useAuthStore = create<AuthState>((set) => {
     },
 
     setAreaId: (id) => {
+      if (id === null || Number.isNaN(id)) {
+        sessionStorage.removeItem('areaId');
+        set({ areaId: null });
+        return;
+      }
       sessionStorage.setItem('areaId', id.toString());
       set({ areaId: id });
     },
@@ -103,6 +120,11 @@ const useAuthStore = create<AuthState>((set) => {
     setPermissions: (permissions) => {
       sessionStorage.setItem('permissions', JSON.stringify(permissions));
       set({ permissions });
+    },
+
+    setModules: (modules) => {
+      sessionStorage.setItem('modules', JSON.stringify(modules));
+      set({ modules });
     },
 
     logout: (redirect = true) => {
@@ -114,6 +136,7 @@ const useAuthStore = create<AuthState>((set) => {
       sessionStorage.removeItem('areaId');
       sessionStorage.removeItem('is_superuser');
       sessionStorage.removeItem('permissions');
+      sessionStorage.removeItem('modules');
       set({
         token: null,
         username: '',
@@ -123,6 +146,7 @@ const useAuthStore = create<AuthState>((set) => {
         areaId: null,
         is_superuser: false,
         permissions: [],
+        modules: [],
       });
       message.warning('Tu sesión ha expirado. Por favor, vuelve a iniciar sesión.', 3);
 

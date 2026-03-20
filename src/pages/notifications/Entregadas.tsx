@@ -109,10 +109,12 @@ const Entregadas: React.FC = () => {
     {
       title: "Fecha recepción",
       dataIndex: "receptionDatetime",
+      width: 130,
       render: (value: string) => new Date(value).toLocaleDateString(),
     },
     {
       title: "De",
+      width: 200,
       render: (_: unknown, record: NotificationDto) => {
         const prov = record.provenience?.name || record.otherProvenience || "";
         const hall = record.hall?.name || "";
@@ -122,34 +124,41 @@ const Entregadas: React.FC = () => {
     {
       title: "Cédula",
       dataIndex: "cedule",
+      width: 120,
     },
     {
       title: "Expediente",
       dataIndex: "expedientNum",
+      width: 120,
     },
     {
       title: "Dirigida a",
       dataIndex: "directedTo",
+      width: 160,
     },
     {
       title: "Entregada a",
+      width: 160,
       render: (_: unknown, record: NotificationDto) =>
         `${record.deliverTo?.first_name ?? ""} ${record.deliverTo?.last_name ?? ""}`.trim(),
     },
     {
       title: "Quien entrega",
+      width: 160,
       render: (_: unknown, record: NotificationDto) =>
         `${record.recepDelivery?.first_name ?? ""} ${record.recepDelivery?.last_name ?? ""}`.trim(),
     },
     {
       title: "Fecha entrega",
       dataIndex: "deliveryDatetime",
+      width: 130,
       render: (value: string | null) =>
         value ? new Date(value).toLocaleDateString() : "-",
     },
     {
       title: "Estado",
       dataIndex: "state",
+      width: 110,
       render: (val: number) => {
         if (val === NOTIFICATION_STATES.DELIVERED) return <Tag color="orange">Entregado</Tag>;
         if (val === NOTIFICATION_STATES.FINALIZED) return <Tag color="green">Finalizado</Tag>;
@@ -297,6 +306,7 @@ const Entregadas: React.FC = () => {
           }),
         }}
         pagination={{ pageSize: 10 }}
+        scroll={{ x: 1300, y: 500 }}
       />
     </div>
   );

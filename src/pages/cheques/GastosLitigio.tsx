@@ -14,31 +14,31 @@ import {
   Tag,
   Typography,
 } from 'antd';
-import type { InmobiliarioExpense } from '../../types/checks.types';
+import type { LitigioExpense } from '../../types/checks.types';
 import {
-  createInmobiliarioExpense,
-  deleteInmobiliarioExpense,
-  downloadExpensesReport,
-  getInmobiliarioExpenses,
-  liquidateInmobiliarioExpense,
-  updateInmobiliarioExpense,
+  createLitigioExpense,
+  deleteLitigioExpense,
+  downloadLitigioExpensesReport,
+  getLitigioExpenses,
+  liquidateLitigioExpense,
+  updateLitigioExpense,
 } from '../../api/checks';
 import { fetchUsers, fullName, type UserLite } from '../../api/users';
 import useAuthStore from '../../auth/useAuthStore';
 
 const { Title } = Typography;
 
-function GastosInmobiliarios() {
+function GastosLitigio() {
   const userId = useAuthStore((s) => s.userId);
   const tipoUsuario = useAuthStore((s) => s.tipo_usuario);
   const isSuperuser = useAuthStore((s) => s.is_superuser);
   const canViewAll = isSuperuser || [1, 2, 10].includes(tipoUsuario || 0);
 
-  const [data, setData] = useState<InmobiliarioExpense[]>([]);
+  const [data, setData] = useState<LitigioExpense[]>([]);
   const [users, setUsers] = useState<UserLite[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<InmobiliarioExpense | null>(null);
+  const [editing, setEditing] = useState<LitigioExpense | null>(null);
   const [form] = Form.useForm();
   const [filters, setFilters] = useState({
     request_id: undefined as number | undefined,
@@ -57,7 +57,7 @@ function GastosInmobiliarios() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const response = await getInmobiliarioExpenses({
+      const response = await getLitigioExpenses({
         ...filters,
         request_id: filters.request_id || undefined,
         responsible_id: canViewAll ? filters.responsible_id || undefined : userId || undefined,
@@ -90,7 +90,7 @@ function GastosInmobiliarios() {
     setModalOpen(true);
   };
 
-  const openEdit = (expense: InmobiliarioExpense) => {
+  const openEdit = (expense: LitigioExpense) => {
     setEditing(expense);
     form.setFieldsValue({
       request_id: expense.request_id?.request_id,
@@ -113,10 +113,10 @@ function GastosInmobiliarios() {
     try {
       const values = await form.validateFields();
       if (editing?.id) {
-        await updateInmobiliarioExpense(editing.id, values);
+        await updateLitigioExpense(editing.id, values);
         message.success('Gasto actualizado');
       } else {
-        await createInmobiliarioExpense(values);
+        await createLitigioExpense(values);
         message.success('Gasto creado');
       }
       setModalOpen(false);
@@ -129,7 +129,7 @@ function GastosInmobiliarios() {
 
   const handleDelete = async (id: number) => {
     try {
-      await deleteInmobiliarioExpense(id);
+      await deleteLitigioExpense(id);
       message.success('Gasto eliminado');
       await loadData();
     } catch (error: any) {
@@ -139,7 +139,7 @@ function GastosInmobiliarios() {
 
   const handleLiquidateExpense = async (id: number) => {
     try {
-      await liquidateInmobiliarioExpense(id);
+      await liquidateLitigioExpense(id);
       message.success('Estado actualizado');
       await loadData();
     } catch (error: any) {
@@ -151,13 +151,13 @@ function GastosInmobiliarios() {
     <Card>
       <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }} wrap>
         <Title level={4} style={{ margin: 0 }}>
-          Gastos inmobiliarios
+          Gastos litigio
         </Title>
         <Space>
           <Button onClick={() => loadData()} loading={loading}>
             Recargar
           </Button>
-          <Button onClick={() => downloadExpensesReport(filters.request_id)}>
+          <Button onClick={() => downloadLitigioExpensesReport(filters.request_id)}>
             Descargar reporte
           </Button>
           <Button type="primary" onClick={openCreate}>
@@ -198,7 +198,7 @@ function GastosInmobiliarios() {
         </Button>
       </Space>
 
-      <Table<InmobiliarioExpense>
+      <Table<LitigioExpense>
         rowKey="id"
         loading={loading}
         dataSource={data}
@@ -242,7 +242,7 @@ function GastosInmobiliarios() {
                   <Button danger>Eliminar</Button>
                 </Popconfirm>
                 <Button type="primary" onClick={() => handleLiquidateExpense(record.id)}>
-                  Marcar liquidado
+                  Marcar aceptado
                 </Button>
               </Space>
             ),
@@ -251,7 +251,7 @@ function GastosInmobiliarios() {
       />
 
       <Modal
-        title={editing ? 'Editar gasto inmobiliario' : 'Crear gasto inmobiliario'}
+        title={editing ? 'Editar gasto litigio' : 'Crear gasto litigio'}
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         onOk={handleSave}
@@ -312,4 +312,4 @@ function GastosInmobiliarios() {
   );
 }
 
-export default GastosInmobiliarios;
+export default GastosLitigio;

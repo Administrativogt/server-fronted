@@ -4,6 +4,7 @@ import api from '../api/axios';
 import useAuthStore from '../auth/useAuthStore';
 import loginImage from '../assets/new_cover_consortium copy.jpg';
 import logoDark from '../assets/logo-dark.png';
+import type { ModuleAccessItem } from '../types/module-access.types';
 
 import './Login.css';
 
@@ -26,6 +27,7 @@ function Login() {
   const setTipoUsuario = useAuthStore((state) => state.setTipoUsuario);
   const setIsSuperuser = useAuthStore((state) => state.setIsSuperuser);
   const setPermissions = useAuthStore((state) => state.setPermissions);
+  const setModules = useAuthStore((state) => state.setModules);
 
   const decodeJwt = (token: string) => {
     try {
@@ -45,7 +47,7 @@ function Login() {
       };
 
       const response = await api.post('/auth/login', transformedValues);
-      const { access_token } = response.data;
+      const { access_token, user } = response.data;
 
       console.log('📦 Respuesta del backend:', response.data);
 
@@ -60,34 +62,11 @@ function Login() {
       setRefreshToken('');
       setUsername(decoded.username || transformedValues.username);
       setUserId(decoded.sub);
-
-      try {
-        const profileResponse = await api.get('/auth/profile', {
-          headers: { Authorization: `Bearer ${access_token}` }
-        });
-        console.log('📋 Respuesta del profile:', profileResponse.data);
-
-        if (profileResponse.data?.tipo_usuario) {
-          setTipoUsuario(profileResponse.data.tipo_usuario);
-        }
-
-        if (profileResponse.data?.area?.id) {
-          useAuthStore.getState().setAreaId(profileResponse.data.area.id);
-        }
-
-        setIsSuperuser(profileResponse.data?.is_superuser === true);
-
-        if (profileResponse.data?.permissions && Array.isArray(profileResponse.data.permissions)) {
-          setPermissions(profileResponse.data.permissions);
-        } else {
-          setPermissions([]);
-        }
-
-      } catch (error) {
-        console.error('❌ Error al obtener profile:', error);
-        setIsSuperuser(false);
-        setPermissions([]);
-      }
+      setTipoUsuario(user?.tipo_usuario ?? null);
+      useAuthStore.getState().setAreaId(user?.area?.id ?? null);
+      setIsSuperuser(user?.is_superuser === true);
+      setPermissions(Array.isArray(user?.codenames) ? user.codenames : []);
+      setModules(Array.isArray(user?.modules) ? (user.modules as ModuleAccessItem[]) : []);
 
       message.success('Inicio de sesión exitoso');
       navigate('/dashboard');

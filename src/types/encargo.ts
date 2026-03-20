@@ -57,6 +57,7 @@ export interface Encargo {
   hora_minima?: string;
   hora_maxima?: string;
   observaciones?: string;
+  razon_extra?: string;
   razon_rechazo?: string;
   incidencias?: string;
   reclamo?: string;

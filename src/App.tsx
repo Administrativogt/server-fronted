@@ -1,5 +1,5 @@
 // src/App.tsx
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { ConfigProvider, theme as antdTheme, App as AntdApp } from 'antd';
 import esES from 'antd/locale/es_ES';
 import dayjs from 'dayjs';
@@ -12,6 +12,7 @@ import Login from './pages/Login';
 
 // Layout / Guards
 import PrivateRoute from './routes/PrivateRoute';
+import ModuleRoute from './routes/ModuleRoute';
 import DashboardLayout from './pages/DashboardLayout';
 import DashboardPage from './pages/DashboardPage';
 
@@ -21,9 +22,13 @@ import 'ag-grid-community/styles/ag-theme-alpine.css';
 
 // Módulo de cheques
 import AutorizacionCheque from './pages/cheques/AutorizacionCheque';
+import CargarCheques from './pages/autorizacion-cheques/CargarCheques';
+import ListaCheques from './pages/autorizacion-cheques/ListaCheques';
+import AutorizacionParcial from './pages/cheques/AutorizacionParcial';
 import LiquidacionCheque from './pages/cheques/LiquidacionCheque';
 import ChequesLiquidados from './pages/cheques/ChequesLiquidados';
 import GastosInmobiliarios from './pages/cheques/GastosInmobiliarios';
+import GastosLitigio from './pages/cheques/GastosLitigio';
 import ChequesPendientes from './pages/cheques/ChequesPendientes';
 
 // Módulo de reservaciones
@@ -97,14 +102,17 @@ function AppInner() {
   const { isAuthenticated, clearToken } = useToken();
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
+    // Rutas públicas que no requieren autenticación
+    if (location.pathname === '/autorizacion-parcial') return;
     if (!isAuthenticated()) {
       clearToken();
       logout(false);
       navigate('/login', { replace: true });
     }
-  }, [isAuthenticated, clearToken, logout, navigate]);
+  }, [isAuthenticated, clearToken, logout, navigate, location.pathname]);
 
   const themeMode = useThemeStore((s) => s.mode);
 
@@ -123,6 +131,7 @@ function AppInner() {
         <Routes>
           {/* Ruta pública */}
           <Route path="/login" element={<Login />} />
+          <Route path="/autorizacion-parcial" element={<AutorizacionParcial />} />
 
           {/* Rutas privadas */}
           <Route element={<PrivateRoute />}>
@@ -130,89 +139,124 @@ function AppInner() {
               {/* Dashboard principal */}
               <Route path="/dashboard" element={<DashboardPage />} />
 
+              {/* Autorización de cheques (cargar + lista) */}
+              <Route element={<ModuleRoute moduleKeys={['cheques', 'autorizacion_cheques']} />}>
+                <Route path="/dashboard/autorizacion-cheques/cargar" element={<CargarCheques />} />
+                <Route path="/dashboard/autorizacion-cheques/lista" element={<ListaCheques />} />
+              </Route>
+
               {/* Gestión de cheques */}
-              <Route path="/dashboard/cheques/autorizacion" element={<AutorizacionCheque />} />
-              <Route path="/dashboard/cheques/liquidacion" element={<LiquidacionCheque />} />
-              <Route path="/dashboard/cheques/liquidados" element={<ChequesLiquidados />} />
-              <Route path="/dashboard/cheques/inmobiliario" element={<GastosInmobiliarios />} />
-              <Route path="/dashboard/cheques/pendientes" element={<ChequesPendientes />} />
+              <Route element={<ModuleRoute moduleKeys={['cheques', 'autorizacion_cheques']} />}>
+                <Route path="/dashboard/cheques/autorizacion" element={<AutorizacionCheque />} />
+                <Route path="/dashboard/cheques/liquidacion" element={<LiquidacionCheque />} />
+                <Route path="/dashboard/cheques/liquidados" element={<ChequesLiquidados />} />
+                <Route path="/dashboard/cheques/inmobiliario" element={<GastosInmobiliarios />} />
+                <Route path="/dashboard/cheques/litigio" element={<GastosLitigio />} />
+                <Route path="/dashboard/cheques/pendientes" element={<ChequesPendientes />} />
+              </Route>
 
               {/* Reservaciones */}
-              <Route path="/dashboard/reservaciones" element={<RoomReservation />} />
-              <Route path="/dashboard/reservaciones/crear" element={<RoomReservationForm />} />
-              <Route path="/dashboard/reservaciones/listar" element={<RoomReservationList />} />
-              <Route path="/dashboard/reservaciones/reporte-exclusivo" element={<ExclusiveMonthlyReport />} />
+              <Route element={<ModuleRoute moduleKey="reservas_salas" />}>
+                <Route path="/dashboard/reservaciones" element={<RoomReservation />} />
+                <Route path="/dashboard/reservaciones/crear" element={<RoomReservationForm />} />
+                <Route path="/dashboard/reservaciones/listar" element={<RoomReservationList />} />
+                <Route path="/dashboard/reservaciones/reporte-exclusivo" element={<ExclusiveMonthlyReport />} />
+              </Route>
 
               {/* Notificaciones */}
-              <Route path="/dashboard/notificaciones" element={<Notificaciones />} />
-              <Route path="/dashboard/notificaciones/crear" element={<CrearNotificacion />} />
-              <Route path="/dashboard/notificaciones/entregadas" element={<Entregadas />} />
+              <Route element={<ModuleRoute moduleKey="notificaciones" />}>
+                <Route path="/dashboard/notificaciones" element={<Notificaciones />} />
+                <Route path="/dashboard/notificaciones/crear" element={<CrearNotificacion />} />
+                <Route path="/dashboard/notificaciones/entregadas" element={<Entregadas />} />
+              </Route>
 
               {/* Recibos de Caja */}
-              <Route path="/dashboard/recibos/listar" element={<ListarRecibos />} />
-              <Route path="/dashboard/recibos/crear" element={<CrearRecibo />} />
-              <Route path="/dashboard/recibos/:id" element={<RecibosCaja />} />
-              <Route path="/dashboard/recibos/editar/:id" element={<EditarRecibo mode="page" />} />
+              <Route element={<ModuleRoute moduleKey="recibos_caja" />}>
+                <Route path="/dashboard/recibos/listar" element={<ListarRecibos />} />
+                <Route path="/dashboard/recibos/crear" element={<CrearRecibo />} />
+                <Route path="/dashboard/recibos/:id" element={<RecibosCaja />} />
+                <Route path="/dashboard/recibos/editar/:id" element={<EditarRecibo mode="page" />} />
+              </Route>
 
               <Route path="/dashboard/documentos" element={<Documentos />} />
               <Route path="/dashboard/documentos/crear" element={<CreateDocumentForm />} />
               <Route path="/dashboard/documentos/entregados" element={<DocumentFilters />} />
 
               {/* Requerimientos de dinero */}
-              <Route path="/dashboard/money-req" element={<MoneyReqList />} />
-              <Route path="/dashboard/money-req/create" element={<CreateMoneyRequirement />} />
+              <Route element={<ModuleRoute moduleKey="solicitudes_dinero" />}>
+                <Route path="/dashboard/money-req" element={<MoneyReqList />} />
+                <Route path="/dashboard/money-req/create" element={<CreateMoneyRequirement />} />
+              </Route>
 
               {/* Módulo Mensajería */}
-              <Route path="/dashboard/mensajeria/crear" element={<CreateEncargoPage />} />
-              <Route path="/dashboard/mensajeria" element={<PendingEncargosPage />} />
-              <Route path="/dashboard/mensajeria/editar/:id" element={<EditEncargoPage />} />
-              <Route path="/dashboard/mensajeria/dashboard" element={<MensajeriaDashboardPage />} />
-              <Route path="/dashboard/mensajeria/asignados" element={<AssignedEncargosPage />} />
-              <Route path="/dashboard/mensajeria/todos" element={<AllEncargosPage />} />
+              <Route element={<ModuleRoute moduleKey="encargos" />}>
+                <Route path="/dashboard/mensajeria/crear" element={<CreateEncargoPage />} />
+                <Route path="/dashboard/mensajeria" element={<PendingEncargosPage />} />
+                <Route path="/dashboard/mensajeria/editar/:id" element={<EditEncargoPage />} />
+                <Route path="/dashboard/mensajeria/dashboard" element={<MensajeriaDashboardPage />} />
+                <Route path="/dashboard/mensajeria/asignados" element={<AssignedEncargosPage />} />
+                <Route path="/dashboard/mensajeria/todos" element={<AllEncargosPage />} />
+              </Route>
 
               {/* Módulo Cargabilidad */}
-              <Route path="/dashboard/cargability/upload" element={<UploadCargabilityReport />} />
-              <Route path="/dashboard/cargability/users" element={<CargabilityUsersList />} />
-              <Route path="/dashboard/cargability/report/:username" element={<CargabilityReportView />} />
+              <Route element={<ModuleRoute moduleKey="cargabilidad" />}>
+                <Route path="/dashboard/cargability/upload" element={<UploadCargabilityReport />} />
+                <Route path="/dashboard/cargability/users" element={<CargabilityUsersList />} />
+                <Route path="/dashboard/cargability/report/:username" element={<CargabilityReportView />} />
+              </Route>
 
               {/* Control de casos */}
-              <Route path="/dashboard/casos" element={<CourtCasesPage />} />
-              <Route path="/dashboard/casos/crear" element={<CreateCourtCase />} />
-              <Route path="/casos" element={<Navigate to="/dashboard/casos" replace />} />
-              <Route path="/casos/crear" element={<Navigate to="/dashboard/casos/crear" replace />} />
+              <Route element={<ModuleRoute moduleKey="expedientes_judiciales" />}>
+                <Route path="/dashboard/casos" element={<CourtCasesPage />} />
+                <Route path="/dashboard/casos/crear" element={<CreateCourtCase />} />
+                <Route path="/casos" element={<Navigate to="/dashboard/casos" replace />} />
+                <Route path="/casos/crear" element={<Navigate to="/dashboard/casos/crear" replace />} />
+              </Route>
 
               {/* Recursos humanos */}
-              <Route path="/dashboard/recursos-humanos" element={<HumanResourcesPage />} />
+              <Route element={<ModuleRoute moduleKey="recursos_humanos" />}>
+                <Route path="/dashboard/recursos-humanos" element={<HumanResourcesPage />} />
+              </Route>
 
               {/* ✨ NUEVO - Módulo Appointments (Actas de Nombramiento) */}
-              <Route path="/dashboard/appointments" element={<AppointmentsList />} />
-              <Route path="/dashboard/appointments/create" element={<CreateAppointment />} />
+              <Route element={<ModuleRoute moduleKey="actas" />}>
+                <Route path="/dashboard/appointments" element={<AppointmentsList />} />
+                <Route path="/dashboard/appointments/create" element={<CreateAppointment />} />
+              </Route>
 
-              {/* Agendador */}
-              <Route path="/dashboard/agendador" element={<SchedulerList />} />
-              <Route path="/dashboard/agendador/crear" element={<SchedulerForm />} />
-              <Route path="/dashboard/agendador/feriados" element={<SchedulerHolidaysList />} />
-              <Route path="/dashboard/agendador/feriados/crear" element={<SchedulerHolidayForm />} />
-              <Route path="/dashboard/agendador/calendario" element={<SchedulerCalendar />} />
+              {/* Agendador (control_de_plazos) */}
+              <Route element={<ModuleRoute moduleKey="control_plazos" />}>
+                <Route path="/dashboard/agendador" element={<SchedulerList />} />
+                <Route path="/dashboard/agendador/crear" element={<SchedulerForm />} />
+                <Route path="/dashboard/agendador/feriados" element={<SchedulerHolidaysList />} />
+                <Route path="/dashboard/agendador/feriados/crear" element={<SchedulerHolidayForm />} />
+                <Route path="/dashboard/agendador/calendario" element={<SchedulerCalendar />} />
+              </Route>
 
               {/* Módulo Control de Procuraciones */}
-              <Route path="/dashboard/procuration" element={<ProcurationList />} />
-              <Route path="/dashboard/procuration/create" element={<CreateProcuration />} />
-              <Route path="/dashboard/procuration/:id" element={<ProcurationDetail />} />
-              <Route path="/dashboard/procuration/clients" element={<ClientsMasterDataPage />} />
+              <Route element={<ModuleRoute moduleKey="procuracion" />}>
+                <Route path="/dashboard/procuration" element={<ProcurationList />} />
+                <Route path="/dashboard/procuration/create" element={<CreateProcuration />} />
+                <Route path="/dashboard/procuration/:id" element={<ProcurationDetail />} />
+                <Route path="/dashboard/procuration/clients" element={<ClientsMasterDataPage />} />
+              </Route>
 
               {/* ✨ NUEVO - Módulo de Administración de Usuarios */}
-              <Route path="/dashboard/admin/users" element={<UsersAdminPage />} />
+              <Route element={<ModuleRoute moduleKey="usuarios" />}>
+                <Route path="/dashboard/admin/users" element={<UsersAdminPage />} />
+              </Route>
               
               {/* Módulo Clientes y Casos */}
-              <Route path="/dashboard/clientes" element={<ClientListPage />} />
-              <Route path="/dashboard/clientes/crear" element={<ClientCreationPage />} />
-              <Route path="/dashboard/clientes/:id" element={<ClientDetailPage />} />
-              <Route path="/dashboard/clientes/editar/:id" element={<EditClientPage />} />
-              <Route path="/dashboard/casos/crear-solicitud" element={<CaseCreationPage />} />
-              <Route path="/dashboard/casos/solicitudes" element={<CaseListPage />} />
-              <Route path="/dashboard/casos/solicitud/:id" element={<CaseDetailPage />} />
-              <Route path="/dashboard/casos/solicitud/editar/:id" element={<EditCasePage />} />
+              <Route element={<ModuleRoute moduleKey="clientes" />}>
+                <Route path="/dashboard/clientes" element={<ClientListPage />} />
+                <Route path="/dashboard/clientes/crear" element={<ClientCreationPage />} />
+                <Route path="/dashboard/clientes/:id" element={<ClientDetailPage />} />
+                <Route path="/dashboard/clientes/editar/:id" element={<EditClientPage />} />
+                <Route path="/dashboard/casos/crear-solicitud" element={<CaseCreationPage />} />
+                <Route path="/dashboard/casos/solicitudes" element={<CaseListPage />} />
+                <Route path="/dashboard/casos/solicitud/:id" element={<CaseDetailPage />} />
+                <Route path="/dashboard/casos/solicitud/editar/:id" element={<EditCasePage />} />
+              </Route>
 
               {/* Fallback dentro del layout */}
               <Route path="*" element={<Navigate to="/dashboard" replace />} />

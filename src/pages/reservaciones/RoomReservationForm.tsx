@@ -347,7 +347,7 @@ export default function RoomReservationForm() {
       is_shared_cost: !!values.is_shared_cost,
       shared_with: values.is_shared_cost ? (values.shared_with || []) : undefined,
       room_id: values.room,
-      user_id: values.user_id,
+      user_id: values.user_id ?? me?.id,
       // ===== CAMPOS DE RECURRENCIA =====
       is_recurring: !!values.is_recurring,
       recurrence_pattern: values.is_recurring ? values.recurrence_pattern : undefined,
@@ -664,12 +664,13 @@ export default function RoomReservationForm() {
               <Form.Item
                 name="user_id"
                 label="Reservar para"
-                rules={[{ required: true, message: 'Seleccione un usuario' }]}
+                extra="Si no seleccionas a nadie, la reserva se hará a tu nombre."
               >
                 <Select<number>
                   showSearch
+                  allowClear
                   optionFilterProp="children"
-                  placeholder="Selecciona a quién se le hará la reserva"
+                  placeholder="Dejar vacío para reservar a tu nombre"
                 >
                   {partners.map(p => (
                     <Select.Option key={p.id} value={p.id}>
