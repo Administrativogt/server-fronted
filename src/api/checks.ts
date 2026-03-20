@@ -158,6 +158,15 @@ export const manageAuthorizationLink = async (
   });
 };
 
+export const batchDecision = async (
+  decisions: { check_id: number; action: 'authorize' | 'deny' }[],
+  authorizerId: number,
+): Promise<void> => {
+  await api.post('/checks/manage/batch-decision', { decisions }, {
+    params: { authorizer_id: authorizerId },
+  });
+};
+
 export const getLitigioExpenses = async (
   params?: Record<string, unknown>,
 ): Promise<LitigioExpenseListResponse> => {
