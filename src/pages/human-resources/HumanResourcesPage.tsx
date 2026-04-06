@@ -72,6 +72,7 @@ import {
   requestWorkCertificate,
   updateCertificateState,
   uploadOrnamentTicketFile,
+  downloadIrtraDocument,
 } from '../../api/humanResources';
 import type { UploadFile } from 'antd/es/upload';
 
@@ -824,6 +825,36 @@ const HumanResourcesPage: React.FC = () => {
                 onClick={() => setIgssModalOpen(true)}
                 block
                 style={{ background: '#52c41a', borderColor: '#52c41a' }}
+              >
+                Solicitar
+              </Button>
+            </Card>
+          </Col>
+
+          <Col xs={24} sm={12} md={8}>
+            <Card
+              size="small"
+              hoverable
+              style={{ textAlign: 'center' }}
+            >
+              <FileProtectOutlined
+                style={{ fontSize: 32, color: '#fa8c16', marginBottom: 8 }}
+              />
+              <Title level={5} style={{ marginBottom: 8 }}>
+                Solicitud carnet de IRTRA
+              </Title>
+              <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+                <ul style={{ textAlign: 'left', paddingLeft: 16 }}>
+                  <li>El documento debe ser llenado en computadora</li>
+                  <li>El documento deberá ser entregado a Gloria Reyes</li>
+                  <li>El único día de recepción de solicitudes serán los lunes</li>
+                </ul>
+              </Text>
+              <Button
+                icon={<FileProtectOutlined />}
+                onClick={downloadIrtraDocument}
+                block
+                style={{ borderColor: '#fa8c16', color: '#fa8c16' }}
               >
                 Solicitar
               </Button>

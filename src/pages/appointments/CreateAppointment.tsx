@@ -158,23 +158,32 @@ const CreateAppointment: React.FC = () => {
 
         <Row gutter={16}>
           <Col xs={24} md={8}>
-            <Form.Item 
-              label="Registro" 
+            <Form.Item
+              label="Registro"
               name="register"
               tooltip="Puede ingresar texto (Ej: Registro Mercantil) o número (Ej: 12345)"
+              rules={[{ required: true, message: 'Campo requerido' }]}
             >
               <Input placeholder="Ej: Registro Mercantil o 12345" />
             </Form.Item>
           </Col>
 
           <Col xs={24} md={8}>
-            <Form.Item label="Folio" name="folio">
+            <Form.Item
+              label="Folio"
+              name="folio"
+              rules={[{ required: true, message: 'Campo requerido' }]}
+            >
               <Input placeholder="Ej: 123" />
             </Form.Item>
           </Col>
 
           <Col xs={24} md={8}>
-            <Form.Item label="Libro" name="book">
+            <Form.Item
+              label="Libro"
+              name="book"
+              rules={[{ required: true, message: 'Campo requerido' }]}
+            >
               <Input placeholder="Ej: 456" />
             </Form.Item>
           </Col>

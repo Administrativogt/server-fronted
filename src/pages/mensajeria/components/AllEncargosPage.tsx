@@ -36,13 +36,14 @@ const AllEncargosPage: React.FC = () => {
     startDate: null as string | null,
     endDate: null as string | null,
     estado: null as number | null,
-    userId: null as number | null,
+    search: null as string | null,
   });
   const [complaintModal, setComplaintModal] = useState<{ open: boolean; encargoId: number | null }>({
     open: false,
     encargoId: null,
   });
   const [complaintText, setComplaintText] = useState('');
+  const [complaintPassword, setComplaintPassword] = useState('');
   
   // ✅ NUEVO: Modal para seleccionar mensajero antes de exportar Excel
   const [exportModal, setExportModal] = useState(false);
@@ -116,7 +117,7 @@ const AllEncargosPage: React.FC = () => {
   };
 
   const handleResetFilters = () => {
-    setFilters({ startDate: null, endDate: null, estado: null, userId: null });
+    setFilters({ startDate: null, endDate: null, estado: null, search: null });
   };
 
   const handleStartDelivery = (id: number) => {
@@ -186,14 +187,18 @@ const AllEncargosPage: React.FC = () => {
       message.warning('Debe ingresar un reclamo');
       return;
     }
+    if (!complaintPassword.trim()) {
+      message.warning('Debe ingresar su contraseña de correo');
+      return;
+    }
     try {
-      // ✅ NestJS solo requiere el texto del reclamo (no contraseña)
-      await sendComplaint(complaintModal.encargoId, complaintText);
+      await sendComplaint(complaintModal.encargoId, complaintText, complaintPassword);
       message.success('Reclamo enviado por email exitosamente');
       setComplaintModal({ open: false, encargoId: null });
       setComplaintText('');
+      setComplaintPassword('');
     } catch (error: any) {
-      message.error(error.response?.data?.message || 'Error al enviar reclamo');
+      message.error(error.response?.data?.message || 'Las credenciales ingresadas están incorrectas');
     }
   };
 
@@ -418,13 +423,14 @@ const AllEncargosPage: React.FC = () => {
         onCancel={() => {
           setComplaintModal({ open: false, encargoId: null });
           setComplaintText('');
+          setComplaintPassword('');
         }}
         onOk={handleComplaintSubmit}
         okText="Enviar Reclamo"
         cancelText="Cancelar"
       >
         <p style={{ marginBottom: 12, color: '#666' }}>
-          El reclamo será enviado por email al coordinador de mensajería.
+          El reclamo será enviado desde su correo personal al coordinador de mensajería.
         </p>
         <TextArea
           value={complaintText}
@@ -433,6 +439,12 @@ const AllEncargosPage: React.FC = () => {
           rows={4}
           maxLength={250}
           showCount
+          style={{ marginBottom: 12 }}
+        />
+        <Input.Password
+          value={complaintPassword}
+          onChange={(e) => setComplaintPassword(e.target.value)}
+          placeholder="Ingrese su contraseña de correo"
         />
       </Modal>
 

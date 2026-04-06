@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
-import { Card, Col, Row, Typography, Statistic, Table, Tag, Spin, Space, Button, Divider } from "antd";
+import React, { useEffect, useState, useCallback } from "react";
+import { Card, Col, Row, Typography, Table, Tag, Spin, Button, Tooltip, Badge } from "antd";
 import {
   MailOutlined,
   FileTextOutlined,
@@ -9,8 +9,11 @@ import {
   SendOutlined,
   ArrowRightOutlined,
   ReloadOutlined,
+  RightOutlined,
+  ExclamationCircleFilled,
 } from "@ant-design/icons";
-import { Pie, Column } from "@ant-design/charts";
+import { ResponsivePie } from "@nivo/pie";
+import { ResponsiveBar } from "@nivo/bar";
 import { useNavigate } from "react-router-dom";
 import useAuthStore from "../auth/useAuthStore";
 import {
@@ -28,6 +31,190 @@ import {
 
 const { Title, Text } = Typography;
 
+// ── PrimaryCard — gradient style ─────────────────────────────────────
+interface PrimaryCardProps {
+  title: string;
+  value: number;
+  icon: React.ReactNode;
+  gradient: [string, string];
+  shadow: string;
+  footer: string;
+  onClick: () => void;
+  urgent?: boolean;
+}
+
+function PrimaryCard({ title, value, icon, gradient, shadow, footer, onClick, urgent }: PrimaryCardProps) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: `linear-gradient(135deg, ${gradient[0]} 0%, ${gradient[1]} 100%)`,
+        borderRadius: 16,
+        padding: "22px 22px 18px",
+        boxShadow: hovered
+          ? `0 16px 36px ${shadow}`
+          : `0 4px 16px ${shadow}`,
+        transform: hovered ? "translateY(-4px) scale(1.01)" : "translateY(0) scale(1)",
+        transition: "box-shadow 0.25s ease, transform 0.25s ease",
+        cursor: "pointer",
+        overflow: "hidden",
+        position: "relative",
+        minHeight: 148,
+      }}
+    >
+      {/* Large decorative background icon */}
+      <div style={{
+        position: "absolute",
+        right: -10,
+        bottom: -10,
+        fontSize: 100,
+        color: "rgba(255,255,255,0.12)",
+        lineHeight: 1,
+        pointerEvents: "none",
+        transition: "transform 0.25s ease, opacity 0.25s ease",
+        transform: hovered ? "scale(1.12) rotate(-8deg)" : "scale(1) rotate(0deg)",
+      }}>
+        {icon}
+      </div>
+
+      {/* Urgent pulse dot */}
+      {urgent && value > 0 && (
+        <div style={{
+          position: "absolute",
+          top: 16,
+          right: 16,
+          width: 10,
+          height: 10,
+          borderRadius: "50%",
+          background: "#fff",
+          boxShadow: "0 0 0 3px rgba(255,255,255,0.4)",
+          animation: "pulse 1.5s infinite",
+        }} />
+      )}
+
+      {/* Label */}
+      <div style={{
+        fontSize: 12,
+        fontWeight: 600,
+        color: "rgba(255,255,255,0.75)",
+        textTransform: "uppercase",
+        letterSpacing: "0.08em",
+        marginBottom: 10,
+      }}>
+        {title}
+      </div>
+
+      {/* Value */}
+      <div style={{
+        fontSize: 42,
+        fontWeight: 800,
+        color: "#fff",
+        lineHeight: 1,
+        marginBottom: 18,
+        letterSpacing: "-2px",
+      }}>
+        {value.toLocaleString()}
+      </div>
+
+      {/* Footer link */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        color: "rgba(255,255,255,0.80)",
+        fontSize: 12,
+        fontWeight: 500,
+        transition: "color 0.2s",
+      }}>
+        <span>{footer}</span>
+        <RightOutlined style={{
+          fontSize: 10,
+          transition: "transform 0.2s ease",
+          transform: hovered ? "translateX(4px)" : "translateX(0)",
+        }} />
+      </div>
+    </div>
+  );
+}
+
+// ── MiniCard — outlined pill style ───────────────────────────────────
+interface MiniCardProps {
+  title: string;
+  value: number;
+  icon: React.ReactNode;
+  color: string;
+  gradient: [string, string];
+}
+
+function MiniCard({ title, value, icon, color, gradient }: MiniCardProps) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: hovered
+          ? `linear-gradient(135deg, ${gradient[0]}18, ${gradient[1]}28)`
+          : "#fff",
+        borderRadius: 12,
+        padding: "14px 18px",
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        border: `1.5px solid ${hovered ? color + "66" : "#ebebeb"}`,
+        boxShadow: hovered ? `0 6px 18px ${color}22` : "0 1px 3px rgba(0,0,0,0.05)",
+        transform: hovered ? "translateY(-2px)" : "translateY(0)",
+        transition: "all 0.2s ease",
+        cursor: "default",
+      }}
+    >
+      {/* Icon pill */}
+      <div style={{
+        width: 38,
+        height: 38,
+        borderRadius: 10,
+        background: hovered ? color : color + "18",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 17,
+        color: hovered ? "#fff" : color,
+        flexShrink: 0,
+        transition: "background 0.2s, color 0.2s",
+      }}>
+        {icon}
+      </div>
+      <div>
+        <div style={{
+          fontSize: 11,
+          color: "#aaa",
+          fontWeight: 500,
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+          marginBottom: 3,
+        }}>
+          {title}
+        </div>
+        <div style={{
+          fontSize: 20,
+          fontWeight: 700,
+          color: hovered ? color : "#1f1f1f",
+          lineHeight: 1,
+          transition: "color 0.2s",
+        }}>
+          {value.toLocaleString()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── DashboardStats interface ──────────────────────────────────────────
 interface DashboardStats {
   notifPending: number;
   notifDelivered: number;
@@ -142,15 +329,6 @@ function DashboardPage() {
     { type: "Rechazados", value: stats.docsRejected },
   ].filter((d) => d.value > 0);
 
-  // Datos para gráfica de barras comparativa
-  const barData = [
-    { categoria: "Pendientes", tipo: "Notificaciones", cantidad: stats.notifPending },
-    { categoria: "Pendientes", tipo: "Documentos", cantidad: stats.docsPending },
-    { categoria: "Entregados", tipo: "Notificaciones", cantidad: stats.notifDelivered },
-    { categoria: "Entregados", tipo: "Documentos", cantidad: stats.docsDelivered },
-    { categoria: "Finalizados", tipo: "Notificaciones", cantidad: stats.notifFinalized },
-    { categoria: "Finalizados", tipo: "Documentos", cantidad: stats.docsFinalized },
-  ];
 
   const notifColumns = [
     {
@@ -221,109 +399,126 @@ function DashboardPage() {
 
   return (
     <div style={{ maxWidth: 1400 }}>
-      <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
-        <Col>
-          <Title level={2} style={{ marginBottom: 4 }}>
-            Bienvenido, {username || "Usuario"}
+
+      {/* ── Header ── */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 28 }}>
+        <div>
+          <Title level={2} style={{ marginBottom: 2, fontWeight: 700, letterSpacing: "-0.5px" }}>
+            Bienvenido, {username || "Usuario"} 👋
           </Title>
-          <Text type="secondary">
-            Resumen general del sistema
+          <Text type="secondary" style={{ fontSize: 14 }}>
+            {new Date().toLocaleDateString("es-ES", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+            {" · "}Resumen general del sistema
           </Text>
-        </Col>
-        <Col>
+        </div>
+        <Tooltip title="Refrescar datos">
           <Button
             icon={<ReloadOutlined spin={refreshing} />}
             onClick={() => loadDashboard(true)}
             loading={refreshing}
+            style={{ borderRadius: 8, fontWeight: 500 }}
           >
             Actualizar
           </Button>
+        </Tooltip>
+      </div>
+
+      {/* ── Primary action cards ── */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col xs={24} sm={12} lg={6}>
+          <PrimaryCard
+            title="Notificaciones pendientes"
+            value={stats.notifPending}
+            icon={<MailOutlined />}
+            gradient={["#ff9a3c", "#fa5c00"]}
+            shadow="rgba(250,92,0,0.35)"
+            onClick={() => navigate("/dashboard/notificaciones")}
+            footer="Ver notificaciones"
+          />
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <PrimaryCard
+            title="Documentos pendientes"
+            value={stats.docsPending}
+            icon={<FileTextOutlined />}
+            gradient={["#4facfe", "#1677ff"]}
+            shadow="rgba(22,119,255,0.32)"
+            onClick={() => navigate("/dashboard/documentos")}
+            footer="Ver documentos"
+          />
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <PrimaryCard
+            title="Mis notif. por aceptar"
+            value={stats.myNotifToAccept}
+            icon={<ClockCircleOutlined />}
+            gradient={stats.myNotifToAccept > 0 ? ["#ff4d4f", "#cf1322"] : ["#73d13d", "#389e0d"]}
+            shadow={stats.myNotifToAccept > 0 ? "rgba(207,19,34,0.32)" : "rgba(56,158,13,0.28)"}
+            onClick={() => navigate("/dashboard/notificaciones/entregadas")}
+            footer="Ir a mis notificaciones"
+            urgent={stats.myNotifToAccept > 0}
+          />
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <PrimaryCard
+            title="Mis docs. por aceptar"
+            value={stats.myDocsToAccept}
+            icon={<ClockCircleOutlined />}
+            gradient={stats.myDocsToAccept > 0 ? ["#ff4d4f", "#cf1322"] : ["#73d13d", "#389e0d"]}
+            shadow={stats.myDocsToAccept > 0 ? "rgba(207,19,34,0.32)" : "rgba(56,158,13,0.28)"}
+            onClick={() => navigate("/dashboard/documentos/entregados")}
+            footer="Ir a mis documentos"
+            urgent={stats.myDocsToAccept > 0}
+          />
         </Col>
       </Row>
 
-      {/* Tarjetas principales */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={12} lg={6}>
-          <Card hoverable onClick={() => navigate("/dashboard/notificaciones")} style={{ cursor: "pointer" }}>
-            <Statistic
-              title="Notificaciones pendientes"
-              value={stats.notifPending}
-              prefix={<MailOutlined style={{ color: "#fa8c16" }} />}
-              valueStyle={{ color: "#fa8c16" }}
-            />
-          </Card>
+      {/* ── Secondary stat cards ── */}
+      <Row gutter={[12, 12]} style={{ marginBottom: 24 }}>
+        <Col xs={12} sm={8} md={6} lg={24 / 5}>
+          <MiniCard
+            title="Notif. entregadas"
+            value={stats.notifDelivered}
+            icon={<SendOutlined />}
+            color="#fa8c16"
+            gradient={["#ff9a3c", "#fa5c00"]}
+          />
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card hoverable onClick={() => navigate("/dashboard/documentos")} style={{ cursor: "pointer" }}>
-            <Statistic
-              title="Documentos pendientes"
-              value={stats.docsPending}
-              prefix={<FileTextOutlined style={{ color: "#1677ff" }} />}
-              valueStyle={{ color: "#1677ff" }}
-            />
-          </Card>
+        <Col xs={12} sm={8} md={6} lg={24 / 5}>
+          <MiniCard
+            title="Notif. finalizadas"
+            value={stats.notifFinalized}
+            icon={<CheckCircleOutlined />}
+            color="#52c41a"
+            gradient={["#73d13d", "#389e0d"]}
+          />
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card hoverable onClick={() => navigate("/dashboard/notificaciones/entregadas")} style={{ cursor: "pointer" }}>
-            <Statistic
-              title="Tus notif. por aceptar"
-              value={stats.myNotifToAccept}
-              prefix={<ClockCircleOutlined style={{ color: stats.myNotifToAccept > 0 ? "#f5222d" : "#52c41a" }} />}
-              valueStyle={{ color: stats.myNotifToAccept > 0 ? "#f5222d" : "#52c41a" }}
-            />
-          </Card>
+        <Col xs={12} sm={8} md={6} lg={24 / 5}>
+          <MiniCard
+            title="Docs. entregados"
+            value={stats.docsDelivered}
+            icon={<SendOutlined />}
+            color="#1677ff"
+            gradient={["#4facfe", "#1677ff"]}
+          />
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card hoverable onClick={() => navigate("/dashboard/documentos/entregados")} style={{ cursor: "pointer" }}>
-            <Statistic
-              title="Tus docs. por aceptar"
-              value={stats.myDocsToAccept}
-              prefix={<ClockCircleOutlined style={{ color: stats.myDocsToAccept > 0 ? "#f5222d" : "#52c41a" }} />}
-              valueStyle={{ color: stats.myDocsToAccept > 0 ? "#f5222d" : "#52c41a" }}
-            />
-          </Card>
+        <Col xs={12} sm={8} md={6} lg={24 / 5}>
+          <MiniCard
+            title="Docs. finalizados"
+            value={stats.docsFinalized}
+            icon={<CheckCircleOutlined />}
+            color="#52c41a"
+            gradient={["#73d13d", "#389e0d"]}
+          />
         </Col>
-      </Row>
-
-      {/* Tarjetas de estado completado */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={8}>
-          <Card size="small">
-            <Statistic
-              title="Notif. entregadas"
-              value={stats.notifDelivered}
-              prefix={<SendOutlined />}
-              valueStyle={{ color: "#fa8c16", fontSize: 20 }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={8}>
-          <Card size="small">
-            <Statistic
-              title="Notif. finalizadas"
-              value={stats.notifFinalized}
-              prefix={<CheckCircleOutlined />}
-              valueStyle={{ color: "#52c41a", fontSize: 20 }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={8}>
-          <Card size="small">
-            <Space split={<Divider type="vertical" />}>
-              <Statistic
-                title="Docs. finalizados"
-                value={stats.docsFinalized}
-                prefix={<CheckCircleOutlined />}
-                valueStyle={{ color: "#52c41a", fontSize: 20 }}
-              />
-              <Statistic
-                title="Docs. rechazados"
-                value={stats.docsRejected}
-                prefix={<CloseCircleOutlined />}
-                valueStyle={{ color: "#f5222d", fontSize: 20 }}
-              />
-            </Space>
-          </Card>
+        <Col xs={12} sm={8} md={6} lg={24 / 5}>
+          <MiniCard
+            title="Docs. rechazados"
+            value={stats.docsRejected}
+            icon={<CloseCircleOutlined />}
+            color="#f5222d"
+            gradient={["#ff4d4f", "#cf1322"]}
+          />
         </Col>
       </Row>
 
@@ -332,24 +527,30 @@ function DashboardPage() {
         <Col xs={24} lg={8}>
           <Card title="Notificaciones por estado" size="small">
             {notifPieData.length > 0 ? (
-              <Pie
-                data={notifPieData}
-                angleField="value"
-                colorField="type"
-                radius={0.8}
-                innerRadius={0.6}
-                height={220}
-                label={{
-                  text: "value",
-                  style: { fontWeight: "bold" },
-                }}
-                legend={{
-                  color: { position: "bottom", layout: { justifyContent: "center" } },
-                }}
-                scale={{
-                  color: { range: ["#fa8c16", "#faad14", "#52c41a"] },
-                }}
-              />
+              <div style={{ height: 220 }}>
+                <ResponsivePie
+                  data={notifPieData.map((d) => ({ id: d.type, label: d.type, value: d.value }))}
+                  innerRadius={0.6}
+                  padAngle={2}
+                  cornerRadius={3}
+                  colors={["#fa8c16", "#faad14", "#52c41a"]}
+                  arcLinkLabelsSkipAngle={10}
+                  arcLinkLabelsTextColor="#666"
+                  arcLinkLabelsThickness={2}
+                  arcLinkLabelsColor={{ from: "color" }}
+                  arcLabelsSkipAngle={10}
+                  legends={[{
+                    anchor: "bottom",
+                    direction: "row",
+                    translateY: 32,
+                    itemWidth: 90,
+                    itemHeight: 14,
+                    symbolSize: 12,
+                    symbolShape: "circle",
+                  }]}
+                  margin={{ top: 16, right: 16, bottom: 40, left: 16 }}
+                />
+              </div>
             ) : (
               <div style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Text type="secondary">Sin datos</Text>
@@ -360,24 +561,30 @@ function DashboardPage() {
         <Col xs={24} lg={8}>
           <Card title="Documentos por estado" size="small">
             {docsPieData.length > 0 ? (
-              <Pie
-                data={docsPieData}
-                angleField="value"
-                colorField="type"
-                radius={0.8}
-                innerRadius={0.6}
-                height={220}
-                label={{
-                  text: "value",
-                  style: { fontWeight: "bold" },
-                }}
-                legend={{
-                  color: { position: "bottom", layout: { justifyContent: "center" } },
-                }}
-                scale={{
-                  color: { range: ["#1677ff", "#fa8c16", "#52c41a", "#f5222d"] },
-                }}
-              />
+              <div style={{ height: 220 }}>
+                <ResponsivePie
+                  data={docsPieData.map((d) => ({ id: d.type, label: d.type, value: d.value }))}
+                  innerRadius={0.6}
+                  padAngle={2}
+                  cornerRadius={3}
+                  colors={["#1677ff", "#fa8c16", "#52c41a", "#f5222d"]}
+                  arcLinkLabelsSkipAngle={10}
+                  arcLinkLabelsTextColor="#666"
+                  arcLinkLabelsThickness={2}
+                  arcLinkLabelsColor={{ from: "color" }}
+                  arcLabelsSkipAngle={10}
+                  legends={[{
+                    anchor: "bottom",
+                    direction: "row",
+                    translateY: 32,
+                    itemWidth: 90,
+                    itemHeight: 14,
+                    symbolSize: 12,
+                    symbolShape: "circle",
+                  }]}
+                  margin={{ top: 16, right: 16, bottom: 40, left: 16 }}
+                />
+              </div>
             ) : (
               <div style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Text type="secondary">Sin datos</Text>
@@ -387,24 +594,38 @@ function DashboardPage() {
         </Col>
         <Col xs={24} lg={8}>
           <Card title="Comparativa general" size="small">
-            <Column
-              data={barData}
-              xField="categoria"
-              yField="cantidad"
-              colorField="tipo"
-              group
-              height={220}
-              legend={{
-                color: { position: "bottom", layout: { justifyContent: "center" } },
-              }}
-              scale={{
-                color: { range: ["#fa8c16", "#1677ff"] },
-              }}
-              style={{
-                radiusTopLeft: 4,
-                radiusTopRight: 4,
-              }}
-            />
+            <div style={{ height: 220 }}>
+              <ResponsiveBar
+                data={[
+                  { categoria: "Pendientes", Notificaciones: stats.notifPending, Documentos: stats.docsPending },
+                  { categoria: "Entregados", Notificaciones: stats.notifDelivered, Documentos: stats.docsDelivered },
+                  { categoria: "Finalizados", Notificaciones: stats.notifFinalized, Documentos: stats.docsFinalized },
+                ]}
+                keys={["Notificaciones", "Documentos"]}
+                indexBy="categoria"
+                groupMode="grouped"
+                colors={["#fa8c16", "#1677ff"]}
+                borderRadius={3}
+                padding={0.3}
+                innerPadding={3}
+                axisBottom={{ tickSize: 0, tickPadding: 8 }}
+                axisLeft={{ tickSize: 0, tickPadding: 8 }}
+                enableGridY
+                gridYValues={4}
+                enableLabel={false}
+                legends={[{
+                  dataFrom: "keys",
+                  anchor: "bottom",
+                  direction: "row",
+                  translateY: 32,
+                  itemWidth: 90,
+                  itemHeight: 14,
+                  symbolSize: 12,
+                  symbolShape: "square",
+                }]}
+                margin={{ top: 8, right: 16, bottom: 40, left: 32 }}
+              />
+            </div>
           </Card>
         </Col>
       </Row>

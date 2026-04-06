@@ -1,17 +1,20 @@
 // src/types/clientCreation.types.ts
 
+export type ContactType = 'principal' | 'in-house' | 'facturacion' | 'representante_legal';
+
 export interface ClientContact {
   id: number;
+  contact_type: ContactType;
   first_name: string;
   last_name: string;
-  position: string;
+  position?: string;
   email: string;
   birth_date?: string;
   country?: { id: number; name: string };
-  city: string;
-  phone: string;
+  city?: string;
+  phone?: string;
   language?: { id: number; name: string };
-  subscribe_to_database: boolean;
+  subscribe_to_db: boolean;
 }
 
 export interface Client {

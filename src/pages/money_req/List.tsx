@@ -124,9 +124,7 @@ const MoneyReqList: React.FC = () => {
           <Button danger onClick={doDeny} disabled={!selectedIds.length}>
             ⛔ Denegar
           </Button>
-          <Button type="dashed" onClick={() => navigate('/dashboard/money-req/create')}>
-            ➕ Crear
-          </Button>
+
         </Space>
       </Space>
 
@@ -136,6 +134,7 @@ const MoneyReqList: React.FC = () => {
         columns={columns}
         dataSource={data}
         pagination={{ pageSize: 10 }}
+        scroll={{ x: 'max-content' }}
         rowSelection={{
           selectedRowKeys,
           onChange: setSelectedRowKeys,

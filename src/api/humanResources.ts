@@ -303,3 +303,15 @@ export async function fetchComplaintObservations(id: number): Promise<Observatio
   const { data } = await api.post(`${BASE}/complaints/${id}/observations`, {});
   return data;
 }
+
+export async function downloadIrtraDocument() {
+  const response = await api.get(`${BASE}/irtra/document`, { responseType: 'blob' });
+  const url = window.URL.createObjectURL(new Blob([response.data]));
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', 'boleta_irtra.doc');
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}

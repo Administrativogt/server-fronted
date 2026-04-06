@@ -29,6 +29,7 @@ import {
   PlayCircleOutlined,
   FilterOutlined,
   CommentOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs, { Dayjs } from 'dayjs';
@@ -643,13 +644,21 @@ const ProcurationList: React.FC = () => {
               Filtro avanzado
             </Button>
             {!isProcurator && (
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => navigate('/dashboard/procuration/create')}
-              >
-                Crear procuracion
-              </Button>
+              <>
+                <Button
+                  icon={<BarChartOutlined />}
+                  onClick={() => navigate('/dashboard/procuration/charts')}
+                >
+                  Gráficas
+                </Button>
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={() => navigate('/dashboard/procuration/create')}
+                >
+                  Crear procuracion
+                </Button>
+              </>
             )}
           </Space>
         </Space>

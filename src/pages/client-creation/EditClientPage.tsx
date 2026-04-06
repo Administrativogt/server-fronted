@@ -118,7 +118,7 @@ const EditClientPage: React.FC = () => {
               city: c.city,
               country_id: c.country?.id,
               language_id: c.language?.id,
-              subscribe_to_database: c.subscribe_to_database,
+              subscribe_to_db: c.subscribe_to_db,
               birth_date: c.birth_date ? dayjs(c.birth_date) : undefined,
             })),
           });

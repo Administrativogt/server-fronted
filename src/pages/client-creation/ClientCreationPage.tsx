@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Card,
   Form,
@@ -13,6 +13,7 @@ import {
   InputNumber,
   DatePicker,
   Steps,
+  Radio,
 } from 'antd';
 import {
   getCountries,
@@ -32,7 +33,12 @@ import { useNavigate } from 'react-router-dom';
 
 const { Option } = Select;
 
-const GUATEMALA_ID = 11;
+const CONTACT_TYPE_OPTIONS = [
+  { label: 'Principal', value: 'principal' },
+  { label: 'In-house', value: 'in-house' },
+  { label: 'Facturación', value: 'facturacion' },
+  { label: 'Representante Legal', value: 'representante_legal' },
+];
 
 const ClientCreationPage: React.FC = () => {
   const navigate = useNavigate();
@@ -47,18 +53,7 @@ const ClientCreationPage: React.FC = () => {
   const [origins, setOrigins] = useState<OriginItem[]>([]);
 
   const taxpayerType = Form.useWatch('type_of_taxpayer', form) as 'Juridica' | 'Fisica' | undefined;
-  const selectedCountry = Form.useWatch('country_of_origin_id', form) as number | undefined;
   const isExemptIva = Form.useWatch('is_exempt_iva', form) as boolean | undefined;
-
-  const isNitReadonly = useMemo(() => {
-    return selectedCountry !== undefined && selectedCountry !== GUATEMALA_ID;
-  }, [selectedCountry]);
-
-  useEffect(() => {
-    if (isNitReadonly) {
-      form.setFieldValue('nit', 'CF');
-    }
-  }, [isNitReadonly, form]);
 
   useEffect(() => {
     const loadCatalogs = async () => {
@@ -84,14 +79,19 @@ const ClientCreationPage: React.FC = () => {
     loadCatalogs();
   }, []);
 
-
   const next = async () => {
     try {
       if (currentStep === 0) {
-        await form.validateFields(['nationality', 'type_of_taxpayer']);
+        await form.validateFields(['internal_code', 'nationality', 'type_of_taxpayer']);
       } else if (currentStep === 1) {
-        const fields: (keyof CreateClientPayload)[] = ['full_name', 'country_of_origin_id', 'address'];
-        await form.validateFields(fields as any);
+        const commonFields = [
+          'full_name', 'country_of_origin_id', 'address',
+          'economic_sector_id', 'responsible_partner_id', 'origin_id',
+        ];
+        const juridicaFields = taxpayerType === 'Juridica'
+          ? ['commercial_name', 'tax_document_type', 'referred_by']
+          : [];
+        await form.validateFields([...commonFields, ...juridicaFields] as any);
       }
       setCurrentStep(prev => prev + 1);
     } catch {
@@ -134,7 +134,7 @@ const ClientCreationPage: React.FC = () => {
     <div style={{ padding: 16 }}>
       <Card title="Creación de Cliente">
         <Steps current={currentStep} style={{ marginBottom: 32 }}>
-          <Steps.Step title="Información inicial" />
+          <Steps.Step title="Clasificación" />
           <Steps.Step title="Datos del cliente" />
           <Steps.Step title="Contactos" />
         </Steps>
@@ -142,21 +142,25 @@ const ClientCreationPage: React.FC = () => {
         <Form
           form={form}
           layout="vertical"
-          initialValues={{ is_exempt_iva: false, type_of_taxpayer: 'Juridica', nationality: 'Nacional' }}
+          initialValues={{ is_exempt_iva: false, type_of_taxpayer: 'Juridica', nationality: 'nacional' }}
         >
-          {/* ============ PASO 1: Información inicial ============ */}
+          {/* ============ PASO 1: Clasificación ============ */}
           <div style={{ display: currentStep === 0 ? 'block' : 'none' }}>
             <Row gutter={16}>
               <Col xs={24} sm={8}>
-                <Form.Item name="internal_code" label="Código interno del sistema">
+                <Form.Item
+                  name="internal_code"
+                  label="Código interno del sistema"
+                  rules={[{ required: true, message: 'Ingrese el código interno' }]}
+                >
                   <Input placeholder="Código interno" />
                 </Form.Item>
               </Col>
               <Col xs={24} sm={8}>
                 <Form.Item name="nationality" label="Nacionalidad" rules={[{ required: true }]}>
                   <Select placeholder="Seleccione">
-                    <Option value="Nacional">Nacional</Option>
-                    <Option value="Extranjero">Extranjero</Option>
+                    <Option value="nacional">Nacional</Option>
+                    <Option value="extranjero">Extranjero</Option>
                   </Select>
                 </Form.Item>
               </Col>
@@ -180,7 +184,11 @@ const ClientCreationPage: React.FC = () => {
                   <Form.Item name="full_name" label="Razón social" rules={[{ required: true }, { max: 150 }]}>
                     <Input />
                   </Form.Item>
-                  <Form.Item name="commercial_name" label="Nombre comercial">
+                  <Form.Item
+                    name="commercial_name"
+                    label="Nombre comercial"
+                    rules={[{ required: true, message: 'Ingrese el nombre comercial' }, { max: 150 }]}
+                  >
                     <Input />
                   </Form.Item>
                   <Form.Item name="address" label="Dirección de la empresa" rules={[{ required: true }, { max: 150 }]}>
@@ -189,34 +197,50 @@ const ClientCreationPage: React.FC = () => {
                   <Form.Item name="business_group" label="Grupo empresarial">
                     <Input />
                   </Form.Item>
-                  <Form.Item name="economic_sector_id" label="Sector económico">
+                  <Form.Item
+                    name="economic_sector_id"
+                    label="Sector económico"
+                    rules={[{ required: true, message: 'Seleccione el sector económico' }]}
+                  >
                     <Select showSearch placeholder="Seleccione" optionFilterProp="children" allowClear>
                       {sectors.map(s => (
                         <Option key={s.id} value={s.id}>{s.name}</Option>
                       ))}
                     </Select>
                   </Form.Item>
-                  <Form.Item name="tax_document_type" label="Tipo de documento tributario">
-                    <Input />
+                  <Form.Item
+                    name="tax_document_type"
+                    label="Tipo de documento tributario"
+                    rules={[{ required: true, message: 'Seleccione el tipo de documento tributario' }]}
+                  >
+                    <Select placeholder="Seleccione">
+                      <Option value="NIT">NIT</Option>
+                      <Option value="DPI">DPI</Option>
+                      <Option value="Pasaporte">Pasaporte</Option>
+                    </Select>
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>
-                  <Form.Item name="nit" label="Número de identificación tributaria" tooltip="Si se deja vacío se guardará como CF">
-                    <Input disabled={isNitReadonly} />
+                  <Form.Item
+                    name="nit"
+                    label="Número de identificación tributaria"
+                    tooltip="Si se deja vacío se guardará como CF"
+                  >
+                    <Input placeholder="Ej: 12345678 (vacío = CF)" />
                   </Form.Item>
-                  <Form.Item name="is_exempt_iva" valuePropName="checked">
+                  <Form.Item name="is_exempt_iva" valuePropName="checked" label="Exención de IVA">
                     <Checkbox>¿Se encuentra exento de IVA?</Checkbox>
                   </Form.Item>
                   {!isExemptIva && (
-                    <Form.Item
-                      name="iva_percentage"
-                      label="Porcentaje IVA"
-                      rules={[{ required: true, message: 'Ingrese porcentaje de IVA' }]}
-                    >
+                    <Form.Item name="iva_percentage" label="Porcentaje IVA">
                       <InputNumber min={0} max={100} style={{ width: '100%' }} addonAfter="%" />
                     </Form.Item>
                   )}
-                  <Form.Item name="country_of_origin_id" label="País sede" rules={[{ required: true }]}>
+                  <Form.Item
+                    name="country_of_origin_id"
+                    label="País sede"
+                    rules={[{ required: true, message: 'Seleccione el país' }]}
+                  >
                     <Select showSearch placeholder="Seleccione" optionFilterProp="children" allowClear>
                       {countries.map(c => (
                         <Option key={c.id} value={c.id}>{c.name}</Option>
@@ -226,19 +250,34 @@ const ClientCreationPage: React.FC = () => {
                   <Form.Item name="website" label="Página web">
                     <Input />
                   </Form.Item>
-                  <Form.Item name="responsible_partner_id" label="Socio responsable">
+                  <Form.Item
+                    name="responsible_partner_id"
+                    label="Socio responsable"
+                    rules={[{ required: true, message: 'Seleccione el socio responsable' }]}
+                  >
                     <Select showSearch placeholder="Seleccione" optionFilterProp="children" allowClear>
                       {partners.map(p => (
                         <Option key={p.id} value={p.id}>{p.name}</Option>
                       ))}
                     </Select>
                   </Form.Item>
-                  <Form.Item name="origin_id" label="Origen del cliente">
+                  <Form.Item
+                    name="origin_id"
+                    label="Origen del cliente"
+                    rules={[{ required: true, message: 'Seleccione el origen' }]}
+                  >
                     <Select placeholder="Seleccione" allowClear>
                       {origins.map(o => (
                         <Option key={o.id} value={o.id}>{o.name}</Option>
                       ))}
                     </Select>
+                  </Form.Item>
+                  <Form.Item
+                    name="referred_by"
+                    label="Nombre del abogado/cliente que refiere"
+                    rules={[{ required: true, message: 'Ingrese el nombre de quien refiere' }]}
+                  >
+                    <Input />
                   </Form.Item>
                 </Col>
               </Row>
@@ -249,13 +288,21 @@ const ClientCreationPage: React.FC = () => {
                   <Form.Item name="full_name" label="Nombre completo" rules={[{ required: true }, { max: 150 }]}>
                     <Input />
                   </Form.Item>
-                  <Form.Item name="nit" label="Número de identificación tributaria (NIT)" tooltip="Si se deja vacío se guardará como CF">
-                    <Input disabled={isNitReadonly} />
+                  <Form.Item
+                    name="nit"
+                    label="Número de identificación tributaria (NIT)"
+                    tooltip="Si se deja vacío se guardará como CF"
+                  >
+                    <Input placeholder="Ej: 12345678 (vacío = CF)" />
                   </Form.Item>
                   <Form.Item name="email" label="Email" rules={[{ type: 'email' }]}>
                     <Input type="email" />
                   </Form.Item>
-                  <Form.Item name="economic_sector_id" label="Sector económico">
+                  <Form.Item
+                    name="economic_sector_id"
+                    label="Sector económico"
+                    rules={[{ required: true, message: 'Seleccione el sector económico' }]}
+                  >
                     <Select showSearch placeholder="Seleccione" optionFilterProp="children" allowClear>
                       {sectors.map(s => (
                         <Option key={s.id} value={s.id}>{s.name}</Option>
@@ -264,7 +311,11 @@ const ClientCreationPage: React.FC = () => {
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>
-                  <Form.Item name="country_of_origin_id" label="País" rules={[{ required: true }]}>
+                  <Form.Item
+                    name="country_of_origin_id"
+                    label="País"
+                    rules={[{ required: true, message: 'Seleccione el país' }]}
+                  >
                     <Select showSearch placeholder="Seleccione" optionFilterProp="children" allowClear>
                       {countries.map(c => (
                         <Option key={c.id} value={c.id}>{c.name}</Option>
@@ -274,14 +325,22 @@ const ClientCreationPage: React.FC = () => {
                   <Form.Item name="address" label="Dirección" rules={[{ required: true }, { max: 150 }]}>
                     <Input />
                   </Form.Item>
-                  <Form.Item name="responsible_partner_id" label="Socio responsable">
+                  <Form.Item
+                    name="responsible_partner_id"
+                    label="Socio responsable"
+                    rules={[{ required: true, message: 'Seleccione el socio responsable' }]}
+                  >
                     <Select showSearch placeholder="Seleccione" optionFilterProp="children" allowClear>
                       {partners.map(p => (
                         <Option key={p.id} value={p.id}>{p.name}</Option>
                       ))}
                     </Select>
                   </Form.Item>
-                  <Form.Item name="origin_id" label="Origen del cliente">
+                  <Form.Item
+                    name="origin_id"
+                    label="Origen del cliente"
+                    rules={[{ required: true, message: 'Seleccione el origen' }]}
+                  >
                     <Select placeholder="Seleccione" allowClear>
                       {origins.map(o => (
                         <Option key={o.id} value={o.id}>{o.name}</Option>
@@ -295,76 +354,120 @@ const ClientCreationPage: React.FC = () => {
 
           {/* ============ PASO 3: Contactos ============ */}
           <div style={{ display: currentStep === 2 ? 'block' : 'none' }}>
-            <Card size="small" title="Contactos del cliente">
+            <Card size="small" title="Contactos de la empresa">
               <Form.List name="contacts">
                 {(fields, { add, remove }) => (
                   <>
                     {fields.map(({ key, name }) => (
-                      <Row key={key} gutter={12} style={{ marginBottom: 12 }}>
-                        <Col span={4}>
-                          <Form.Item name={[name, 'first_name']} label="Nombre" rules={[{ required: true }]}>
-                            <Input />
-                          </Form.Item>
-                        </Col>
-                        <Col span={4}>
-                          <Form.Item name={[name, 'last_name']} label="Apellido" rules={[{ required: true }]}>
-                            <Input />
-                          </Form.Item>
-                        </Col>
-                        <Col span={4}>
-                          <Form.Item name={[name, 'email']} label="Email" rules={[{ type: 'email' }]}>
-                            <Input />
-                          </Form.Item>
-                        </Col>
-                        <Col span={3}>
-                          <Form.Item name={[name, 'phone']} label="Teléfono">
-                            <Input />
-                          </Form.Item>
-                        </Col>
-                        <Col span={3}>
-                          <Form.Item name={[name, 'position']} label="Cargo">
-                            <Input />
-                          </Form.Item>
-                        </Col>
-                        <Col span={3}>
-                          <Form.Item name={[name, 'birth_date']} label="Fecha nac.">
-                            <DatePicker style={{ width: '100%' }} />
-                          </Form.Item>
-                        </Col>
-                        <Col span={3}>
-                          <Form.Item name={[name, 'city']} label="Ciudad">
-                            <Input />
-                          </Form.Item>
-                        </Col>
-                        <Col span={3}>
-                          <Form.Item name={[name, 'country_id']} label="País">
-                            <Select placeholder="País" allowClear size="small">
-                              {countries.map(c => (
-                                <Option key={c.id} value={c.id}>{c.name}</Option>
-                              ))}
-                            </Select>
-                          </Form.Item>
-                        </Col>
-                        <Col span={3}>
-                          <Form.Item name={[name, 'language_id']} label="Idioma">
-                            <Select placeholder="Idioma" allowClear size="small">
-                              {languages.map(l => (
-                                <Option key={l.id} value={l.id}>{l.name}</Option>
-                              ))}
-                            </Select>
-                          </Form.Item>
-                        </Col>
-                        <Col span={3}>
-                          <Form.Item name={[name, 'subscribe_to_database']} valuePropName="checked" label=" ">
-                            <Checkbox>Suscribir BD</Checkbox>
-                          </Form.Item>
-                        </Col>
-                        <Col span={1}>
-                          <Form.Item label=" ">
-                            <Button danger size="small" onClick={() => remove(name)}>X</Button>
-                          </Form.Item>
-                        </Col>
-                      </Row>
+                      <Card
+                        key={key}
+                        size="small"
+                        style={{ marginBottom: 16, background: '#fafafa' }}
+                        extra={
+                          <Button danger size="small" onClick={() => remove(name)}>Eliminar</Button>
+                        }
+                      >
+                        <Row gutter={12}>
+                          <Col xs={24} sm={12} md={6}>
+                            <Form.Item
+                              name={[name, 'contact_type']}
+                              label="Tipo de contacto"
+                              rules={[{ required: true, message: 'Seleccione el tipo' }]}
+                            >
+                              <Radio.Group>
+                                {CONTACT_TYPE_OPTIONS.map(opt => (
+                                  <Radio key={opt.value} value={opt.value} style={{ display: 'block', marginBottom: 4 }}>
+                                    {opt.label}
+                                  </Radio>
+                                ))}
+                              </Radio.Group>
+                            </Form.Item>
+                          </Col>
+                          <Col xs={24} sm={12} md={18}>
+                            <Row gutter={12}>
+                              <Col xs={24} sm={12}>
+                                <Form.Item
+                                  name={[name, 'first_name']}
+                                  label="Nombre"
+                                  rules={[{ required: true, message: 'Requerido' }]}
+                                >
+                                  <Input />
+                                </Form.Item>
+                              </Col>
+                              <Col xs={24} sm={12}>
+                                <Form.Item
+                                  name={[name, 'last_name']}
+                                  label="Apellido"
+                                  rules={[{ required: true, message: 'Requerido' }]}
+                                >
+                                  <Input />
+                                </Form.Item>
+                              </Col>
+                              <Col xs={24} sm={12}>
+                                <Form.Item name={[name, 'position']} label="Cargo">
+                                  <Input />
+                                </Form.Item>
+                              </Col>
+                              <Col xs={24} sm={12}>
+                                <Form.Item
+                                  name={[name, 'email']}
+                                  label="Email"
+                                  rules={[{ required: true, message: 'Requerido' }, { type: 'email' }]}
+                                >
+                                  <Input />
+                                </Form.Item>
+                              </Col>
+                              <Col xs={24} sm={12}>
+                                <Form.Item name={[name, 'birth_date']} label="Fecha de nacimiento">
+                                  <DatePicker style={{ width: '100%' }} />
+                                </Form.Item>
+                              </Col>
+                              <Col xs={24} sm={12}>
+                                <Form.Item name={[name, 'country_id']} label="País">
+                                  <Select placeholder="Seleccione" allowClear showSearch optionFilterProp="children">
+                                    {countries.map(c => (
+                                      <Option key={c.id} value={c.id}>{c.name}</Option>
+                                    ))}
+                                  </Select>
+                                </Form.Item>
+                              </Col>
+                              <Col xs={24} sm={12}>
+                                <Form.Item name={[name, 'city']} label="Ciudad">
+                                  <Input />
+                                </Form.Item>
+                              </Col>
+                              <Col xs={24} sm={12}>
+                                <Form.Item name={[name, 'phone']} label="Teléfono">
+                                  <Input />
+                                </Form.Item>
+                              </Col>
+                              <Col xs={24} sm={12}>
+                                <Form.Item
+                                  name={[name, 'language_id']}
+                                  label="Idioma"
+                                  rules={[{ required: true, message: 'Seleccione el idioma' }]}
+                                >
+                                  <Select placeholder="Seleccione" allowClear showSearch optionFilterProp="children">
+                                    {languages.map(l => (
+                                      <Option key={l.id} value={l.id}>{l.name}</Option>
+                                    ))}
+                                  </Select>
+                                </Form.Item>
+                              </Col>
+                              <Col xs={24} sm={12}>
+                                <Form.Item
+                                  name={[name, 'subscribe_to_db']}
+                                  valuePropName="checked"
+                                  label="Suscripción"
+                                  rules={[{ required: true, message: 'Indique si desea suscribirse' }]}
+                                >
+                                  <Checkbox>¿Desea suscribirse a nuestra base de datos?</Checkbox>
+                                </Form.Item>
+                              </Col>
+                            </Row>
+                          </Col>
+                        </Row>
+                      </Card>
                     ))}
                     <Button type="dashed" onClick={() => add()} block>
                       + Agregar contacto

@@ -57,39 +57,42 @@ export interface AddressedToUser {
 // ===================== PAYLOAD TYPES =====================
 
 export interface CreateClientContact {
+  contact_type: 'principal' | 'in-house' | 'facturacion' | 'representante_legal';
   first_name: string;
   last_name: string;
+  email: string;
+  language_id: number;
+  subscribe_to_db: boolean;
   phone?: string;
-  email?: string;
   position?: string;
-  language_id?: number;
   birth_date?: string;
   country_id?: number;
   city?: string;
-  subscribe_to_database?: boolean;
 }
 
 export interface CreateClientPayload {
-  full_name: string;
+  internal_code: string;
+  nationality: 'nacional' | 'extranjero';
   type_of_taxpayer: 'Juridica' | 'Fisica';
-  nationality: 'Nacional' | 'Extranjero';
-  business_group?: string;
-  country_of_origin_id?: number;
-  address?: string;
+  full_name: string;
   nit?: string;
-  phone?: string;
-  email?: string;
-  responsible_partner_id?: number;
-  origin_id?: number;
+  country_of_origin_id: number;
+  address: string;
+  economic_sector_id: number;
+  responsible_partner_id: number;
+  origin_id: number;
+  // Jurídica only (required for Juridica)
+  commercial_name?: string;
+  tax_document_type?: string;
   referred_by?: string;
-  economic_sector_id?: number;
+  // Optional
+  email?: string;
+  phone?: string;
+  business_group?: string;
+  website?: string;
   language_id?: number;
   is_exempt_iva?: boolean;
   iva_percentage?: number;
-  website?: string;
-  internal_code?: string;
-  commercial_name?: string;
-  tax_document_type?: string;
   contacts?: CreateClientContact[];
 }
 

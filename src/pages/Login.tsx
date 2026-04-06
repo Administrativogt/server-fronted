@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Row, Col, Form, Input, Button, Typography, message, Checkbox, ConfigProvider, theme as antdTheme } from 'antd';
+import { Row, Col, Form, Input, Button, Typography, message, Checkbox, ConfigProvider, Modal, theme as antdTheme } from 'antd';
 import api from '../api/axios';
 import useAuthStore from '../auth/useAuthStore';
 import loginImage from '../assets/new_cover_consortium copy.jpg';
@@ -20,6 +21,12 @@ const textMuted = '#9ca3af';
 
 function Login() {
   const navigate = useNavigate();
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotForm] = Form.useForm();
+  const [forceChangeOpen, setForceChangeOpen] = useState(false);
+  const [forceChangeLoading, setForceChangeLoading] = useState(false);
+  const [forceChangeForm] = Form.useForm();
   const setToken = useAuthStore((state) => state.setToken);
   const setUsername = useAuthStore((state) => state.setUsername);
   const setUserId = useAuthStore((state) => state.setUserId);
@@ -68,12 +75,59 @@ function Login() {
       setPermissions(Array.isArray(user?.codenames) ? user.codenames : []);
       setModules(Array.isArray(user?.modules) ? (user.modules as ModuleAccessItem[]) : []);
 
+      if (user?.must_change_password === true) {
+        forceChangeForm.setFieldsValue({
+          currentPassword: values.password,
+          newPassword: '',
+          confirmPassword: '',
+        });
+        setForceChangeOpen(true);
+        message.warning('Debes cambiar la contraseña temporal por una más segura.');
+        return;
+      }
+
       message.success('Inicio de sesión exitoso');
       navigate('/dashboard');
     } catch (error: any) {
       console.error('❌ Error en login:', error);
       const errorMsg = error.response?.data?.message || 'Credenciales inválidas';
       message.error(errorMsg);
+    }
+  };
+
+  const onForgotPassword = async (values: { email: string }) => {
+    try {
+      setForgotLoading(true);
+      await api.post('/auth/forgot-password', {
+        email: values.email.trim().toLowerCase(),
+      });
+      message.success('Si los datos son correctos, enviamos una contraseña temporal al correo registrado.');
+      forgotForm.resetFields();
+      setForgotOpen(false);
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.message || 'No se pudo procesar la solicitud';
+      message.error(errorMsg);
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const onForceChangePassword = async (values: { currentPassword: string; newPassword: string }) => {
+    try {
+      setForceChangeLoading(true);
+      await api.post('/auth/change-password', {
+        currentPassword: values.currentPassword,
+        newPassword: values.newPassword,
+      });
+      message.success('Contraseña actualizada. Bienvenido.');
+      setForceChangeOpen(false);
+      forceChangeForm.resetFields();
+      navigate('/dashboard');
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.message || 'No se pudo cambiar la contraseña';
+      message.error(errorMsg);
+    } finally {
+      setForceChangeLoading(false);
     }
   };
 
@@ -152,7 +206,6 @@ function Login() {
               >
                 <Input
                   size="large"
-                  placeholder="Ej. JGOMEZ"
                   style={{
                     background: `${darkCard} !important`,
                     borderColor: darkBorder,
@@ -178,7 +231,15 @@ function Login() {
               <Form.Item style={{ marginBottom: 24 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Checkbox style={{ color: textWhite }}>Recordarme</Checkbox>
-                  <Link style={{ color: accentBlue }}>¿Olvidaste tu contraseña?</Link>
+                  <Link
+                    style={{ color: accentBlue }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setForgotOpen(true);
+                    }}
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </Link>
                 </div>
               </Form.Item>
 
@@ -217,6 +278,96 @@ function Login() {
           }}
         />
       </Row>
+
+      <Modal
+        title="Restablecer contraseña"
+        open={forgotOpen}
+        onCancel={() => {
+          if (!forgotLoading) setForgotOpen(false);
+        }}
+        onOk={() => forgotForm.submit()}
+        okText="Enviar recuperación"
+        cancelText="Cancelar"
+        okButtonProps={{ loading: forgotLoading }}
+      >
+        <Form
+          form={forgotForm}
+          layout="vertical"
+          onFinish={onForgotPassword}
+          initialValues={{ email: '' }}
+        >
+          <Form.Item
+            label="Correo electrónico registrado"
+            name="email"
+            rules={[
+              { required: true, message: 'Ingrese su correo' },
+              { type: 'email', message: 'Correo inválido' },
+            ]}
+          >
+            <Input placeholder="usuario@correo.com" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Cambio obligatorio de contraseña"
+        open={forceChangeOpen}
+        closable={false}
+        maskClosable={false}
+        keyboard={false}
+        onOk={() => forceChangeForm.submit()}
+        okText="Actualizar contraseña"
+        okButtonProps={{ loading: forceChangeLoading }}
+        cancelButtonProps={{ style: { display: 'none' } }}
+      >
+        <Text style={{ display: 'block', marginBottom: 16 }}>
+          Iniciaste sesión con una contraseña temporal. Debes cambiarla ahora por una contraseña segura.
+        </Text>
+
+        <Form
+          form={forceChangeForm}
+          layout="vertical"
+          onFinish={onForceChangePassword}
+        >
+          <Form.Item
+            label="Contraseña actual (temporal)"
+            name="currentPassword"
+            rules={[{ required: true, message: 'Ingrese la contraseña temporal' }]}
+          >
+            <Input.Password placeholder="Contraseña temporal" />
+          </Form.Item>
+
+          <Form.Item
+            label="Nueva contraseña"
+            name="newPassword"
+            rules={[
+              { required: true, message: 'Ingrese una nueva contraseña' },
+              { min: 8, message: 'Debe tener al menos 8 caracteres' },
+            ]}
+          >
+            <Input.Password placeholder="Nueva contraseña segura" />
+          </Form.Item>
+
+          <Form.Item
+            label="Confirmar nueva contraseña"
+            name="confirmPassword"
+            dependencies={['newPassword']}
+            rules={[
+              { required: true, message: 'Confirme la nueva contraseña' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('newPassword') === value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('Las contraseñas no coinciden'));
+                },
+              }),
+            ]}
+          >
+            <Input.Password placeholder="Confirmar nueva contraseña" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </ConfigProvider>
   );
 }

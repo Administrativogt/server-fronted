@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Card, Table, Button, Space, Input, Tag, Tooltip, Modal,
-  Descriptions, App as AntdApp,
+  Descriptions, App as AntdApp, Form, DatePicker, Select, Row, Col,
 } from 'antd';
 import {
   PlusOutlined, ReloadOutlined, SearchOutlined,
   DeleteOutlined, InfoCircleOutlined, CheckOutlined,
-  WarningOutlined, MailOutlined, RollbackOutlined, SendOutlined,
+  WarningOutlined, MailOutlined, RollbackOutlined, SendOutlined, EditOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
@@ -14,8 +14,9 @@ import { useNavigate } from 'react-router-dom';
 import {
   getInstallments, deleteInstallment, finalizeInstallment, sendReport,
   removeLastStage, sendInstallmentReminders, getInstallment,
+  updateInstallment, updateStage, getProcessTypes,
 } from '../../api/agendador';
-import type { Installment, Stage } from '../../types/agendador.types';
+import type { Installment, Stage, ProcessType } from '../../types/agendador.types';
 
 const PROCESSES_WITH_DILIGENCIES = [2, 6];
 
@@ -71,6 +72,17 @@ const SchedulerList: React.FC = () => {
   const [sendingReport, setSendingReport] = useState(false);
   const [sendingReminder, setSendingReminder] = useState(false);
 
+  // Edit installment
+  const [editInstallmentRecord, setEditInstallmentRecord] = useState<Installment | null>(null);
+  const [editInstallmentForm] = Form.useForm();
+  const [savingInstallment, setSavingInstallment] = useState(false);
+  const [processTypes, setProcessTypes] = useState<ProcessType[]>([]);
+
+  // Edit stage
+  const [editStageRecord, setEditStageRecord] = useState<Stage | null>(null);
+  const [editStageForm] = Form.useForm();
+  const [savingStage, setSavingStage] = useState(false);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -87,6 +99,13 @@ const SchedulerList: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Cargar tipos de proceso para el modal de edición
+  useEffect(() => {
+    getProcessTypes()
+      .then((res) => setProcessTypes(res || []))
+      .catch(() => setProcessTypes([]));
+  }, []);
 
   const handleDelete = (record: Installment) => {
     modal.confirm({
@@ -200,6 +219,78 @@ const SchedulerList: React.FC = () => {
     }
   };
 
+  // Abrir modal editar plazo
+  const openEditInstallment = (record: Installment) => {
+    setEditInstallmentRecord(record);
+    editInstallmentForm.setFieldsValue({
+      expedient_number: record.expedient_number,
+      client: record.client,
+      start_date: record.start_date ? dayjs(record.start_date) : null,
+      process_type_id: record.process_type?.id,
+    });
+  };
+
+  const handleSaveInstallment = async () => {
+    if (!editInstallmentRecord) return;
+    try {
+      const values = await editInstallmentForm.validateFields();
+      setSavingInstallment(true);
+      await updateInstallment(editInstallmentRecord.id, {
+        expedient_number: values.expedient_number,
+        client: values.client,
+        start_date: values.start_date?.format('YYYY-MM-DD'),
+        process_type_id: values.process_type_id,
+      });
+      message.success('Plazo actualizado');
+      setEditInstallmentRecord(null);
+      fetchData();
+      // Refrescar detalle si está abierto
+      if (detail?.id === editInstallmentRecord.id) {
+        const updated = await getInstallment(editInstallmentRecord.id);
+        setDetail(updated);
+      }
+    } catch (e: any) {
+      if (e?.errorFields) return; // validación del form, no mostrar error
+      message.error(e.response?.data?.message || 'No se pudo actualizar el plazo');
+    } finally {
+      setSavingInstallment(false);
+    }
+  };
+
+  // Abrir modal editar etapa
+  const openEditStage = (stage: Stage) => {
+    setEditStageRecord(stage);
+    editStageForm.setFieldsValue({
+      name: stage.name,
+      finalization: stage.finalization ? dayjs(stage.finalization) : null,
+    });
+  };
+
+  const handleSaveStage = async () => {
+    if (!editStageRecord) return;
+    try {
+      const values = await editStageForm.validateFields();
+      setSavingStage(true);
+      await updateStage(editStageRecord.id, {
+        name: values.name,
+        finalization: values.finalization ? values.finalization.format('YYYY-MM-DD') : null,
+      });
+      message.success('Etapa actualizada');
+      setEditStageRecord(null);
+      // Refrescar detalle si está abierto
+      if (detail) {
+        const updated = await getInstallment(detail.id);
+        setDetail(updated);
+      }
+      fetchData();
+    } catch (e: any) {
+      if (e?.errorFields) return;
+      message.error(e.response?.data?.message || 'No se pudo actualizar la etapa');
+    } finally {
+      setSavingStage(false);
+    }
+  };
+
   const columns: ColumnsType<Installment> = [
     {
       title: '#',
@@ -272,7 +363,7 @@ const SchedulerList: React.FC = () => {
       title: 'Acciones',
       key: 'actions',
       fixed: 'right',
-      width: 210,
+      width: 240,
       render: (_, record) => {
         const stage = getCurrentStage(record);
         const canFinalize = isActiveInstallment(record)
@@ -284,6 +375,13 @@ const SchedulerList: React.FC = () => {
                 icon={<InfoCircleOutlined />}
                 size="small"
                 onClick={() => openDetail(record)}
+              />
+            </Tooltip>
+            <Tooltip title="Editar plazo">
+              <Button
+                icon={<EditOutlined />}
+                size="small"
+                onClick={() => openEditInstallment(record)}
               />
             </Tooltip>
             {canFinalize ? (
@@ -423,6 +521,20 @@ const SchedulerList: React.FC = () => {
                   render: (v?: string | null) =>
                     v ? dayjs(v).format('YYYY-MM-DD') : 'N/A',
                 },
+                {
+                  title: '',
+                  key: 'edit_stage',
+                  width: 60,
+                  render: (_: any, stage: Stage) => (
+                    <Tooltip title="Editar etapa">
+                      <Button
+                        icon={<EditOutlined />}
+                        size="small"
+                        onClick={() => openEditStage(stage)}
+                      />
+                    </Tooltip>
+                  ),
+                },
               ]}
               dataSource={detail.stages || []}
               pagination={false}
@@ -454,6 +566,92 @@ const SchedulerList: React.FC = () => {
           placeholder="Ingrese uno o varios correos separados por coma, punto y coma o salto de línea"
           autoSize={{ minRows: 3, maxRows: 6 }}
         />
+      </Modal>
+
+      {/* Modal editar plazo */}
+      <Modal
+        title="Editar plazo"
+        open={!!editInstallmentRecord}
+        onCancel={() => setEditInstallmentRecord(null)}
+        onOk={handleSaveInstallment}
+        okText="Guardar"
+        cancelText="Cancelar"
+        confirmLoading={savingInstallment}
+        width={600}
+      >
+        <Form form={editInstallmentForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Row gutter={16}>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="expedient_number"
+                label="Número de expediente"
+                rules={[{ required: true, message: 'Requerido' }]}
+              >
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="client"
+                label="Cliente"
+                rules={[{ required: true, message: 'Requerido' }]}
+              >
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="start_date"
+                label="Fecha de inicio"
+                rules={[{ required: true, message: 'Requerido' }]}
+              >
+                <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="process_type_id"
+                label="Tipo de proceso"
+                rules={[{ required: true, message: 'Requerido' }]}
+              >
+                <Select
+                  options={processTypes.map((t) => ({ value: t.id, label: t.name }))}
+                  placeholder="Seleccione tipo de proceso"
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Modal>
+
+      {/* Modal editar etapa */}
+      <Modal
+        title="Editar etapa"
+        open={!!editStageRecord}
+        onCancel={() => setEditStageRecord(null)}
+        onOk={handleSaveStage}
+        okText="Guardar"
+        cancelText="Cancelar"
+        confirmLoading={savingStage}
+        width={460}
+      >
+        <Form form={editStageForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item
+            name="name"
+            label="Nombre de la etapa"
+            rules={[{ required: true, message: 'Requerido' }]}
+          >
+            <Input />
+          </Form.Item>
+          <Form.Item
+            name="finalization"
+            label="Fecha de finalización"
+          >
+            <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
+          </Form.Item>
+        </Form>
       </Modal>
     </Card>
   );

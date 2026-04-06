@@ -36,9 +36,9 @@ export const rejectEncargo = (id: number, razon_rechazo: string) =>
 export const reportIncidence = (id: number, incidencias: string) =>
   axios.patch(`/api/encargos/${id}/incidence`, { incidencias });
 
-// Enviar reclamo
-export const sendComplaint = (id: number, reclamo: string) =>
-  axios.patch(`/api/encargos/${id}/complaint`, { reclamo });
+// Enviar reclamo (requiere contraseña del usuario para autenticar el SMTP, igual que Django)
+export const sendComplaint = (id: number, reclamo: string, user_password: string) =>
+  axios.patch(`/api/encargos/${id}/complaint`, { reclamo, user_password });
 
 // ─── USUARIOS Y MUNICIPIOS ───────────────────────────────
 
@@ -167,6 +167,14 @@ export const getChartByMensajero = async (params: { mensajero_id: number; start?
 // Obtener todos los envíos (con filtros)
 export const getAllEncargos = (params?: Record<string, any>) =>
   axios.get<Encargo[]>('/api/encargos', { params });
+
+// Obtener encargos finalizados (estados 3,4,6,7,8). Sin filtro de fecha usa el mes actual.
+export const getEncargosFinalizados = (params?: { start?: string; end?: string; search?: string }) =>
+  axios.get<Encargo[]>('/api/encargos/finalizados', { params });
+
+// Obtener lista de usuarios para formulario de encargo (respeta lógica de grupo 6)
+export const getUsuariosFormulario = () =>
+  axios.get<Usuario[]>('/api/encargos/usuarios-formulario');
 
 
 

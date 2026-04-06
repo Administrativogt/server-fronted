@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Form, Input, Select, Checkbox, Button, message, Space, Card, Modal } from 'antd';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getEncargoById, updateEncargo, getMensajeros, getSolicitantes, getMunicipios } from '../../api/encargos';
+import { getEncargoById, updateEncargo, getMensajeros, getUsuariosFormulario, getMunicipios } from '../../api/encargos';
 import type { EncargoFormValues, Usuario, Municipio } from '../../types/encargo';
 import useAuthStore from '../../auth/useAuthStore';
 import { useMensajeriaPermissions } from '../../hooks/usePermissions';
@@ -57,7 +57,7 @@ const EditEncargoPage: React.FC = () => {
         // 1. Primero cargar las listas
         const [mensajerosRes, solicitantesRes, municipiosRes] = await Promise.all([
           getMensajeros(),
-          getSolicitantes(),
+          getUsuariosFormulario(), // Respeta grupo 6: secretaria ve todos, el resto solo su equipo
           getMunicipios(),
         ]);
         

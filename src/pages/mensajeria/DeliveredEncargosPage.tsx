@@ -2,9 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Button, Space, Tag, message, DatePicker } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { getAllEncargos, downloadEncargosExcel } from '../../api/encargos';
+import { getEncargosFinalizados, downloadEncargosExcel } from '../../api/encargos';
 import type { Encargo } from '../../types/encargo';
-import useAuthStore from '../../auth/useAuthStore'; // ✅ Importar
 
 const { RangePicker } = DatePicker;
 
@@ -34,36 +33,22 @@ const DeliveredEncargosPage: React.FC = () => {
     endDate: null as string | null,
   });
   const navigate = useNavigate();
-  
-  // ✅ Obtener usuario actual para filtrar si es mensajero
-  const userId = useAuthStore((state) => state.userId);
-  const tipoUsuario = useAuthStore((state) => state.tipo_usuario);
-  const isMensajero = tipoUsuario === 8;
 
   useEffect(() => {
     loadEncargos();
-  }, [filters, userId, isMensajero]); // ✅ Agregar dependencias
+  }, [filters]);
 
   const loadEncargos = async () => {
     try {
-      const params: any = {};
-      
+      const params: { start?: string; end?: string } = {};
       if (filters.startDate) params.start = filters.startDate;
       if (filters.endDate) params.end = filters.endDate;
-      
-      // ✅ Si es mensajero, filtrar por sus encargos
-      if (isMensajero && userId) {
-        params.mensajero = userId;
-      }
-      
-      const res = await getAllEncargos(params);
-      
-      // Filtrar solo encargos entregados (estado 3 o 8)
-      const delivered = res.data.filter(e => e.estado === 3 || e.estado === 8);
-      setEncargos(delivered);
+
+      const res = await getEncargosFinalizados(params);
+      setEncargos(res.data);
     } catch (error) {
-      console.error('Error al cargar encargos entregados:', error);
-      message.error('No se pudieron cargar los envíos entregados');
+      console.error('Error al cargar encargos finalizados:', error);
+      message.error('No se pudieron cargar los envíos finalizados');
     } finally {
       setLoading(false);
     }
@@ -175,7 +160,7 @@ const DeliveredEncargosPage: React.FC = () => {
   return (
     <div style={{ padding: '16px 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 style={{ margin: 0 }}>Envíos Entregados</h2>
+        <h2 style={{ margin: 0 }}>Envíos Finalizados</h2>
         <Button type="default" onClick={handleExportExcel}>
           Exportar Excel
         </Button>

@@ -81,7 +81,7 @@ export const sendReport = async (
 };
 
 export const removeLastStage = async (installmentId: number): Promise<{ message: string }> => {
-  const { data } = await api.get<{ message: string }>(`${BASE}/api/remove-stage/${installmentId}`);
+  const { data } = await api.delete<{ message: string }>(`${BASE}/stages/remove-last/${installmentId}`);
   return data;
 };
 

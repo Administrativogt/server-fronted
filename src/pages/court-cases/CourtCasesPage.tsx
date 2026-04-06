@@ -98,6 +98,43 @@ const defaultLabels: Record<CaseTypeKey, string> = {
   'administrative-tax': 'Administrativo-Tributario',
 };
 
+const CASE_TYPE_COLORS: Record<CaseTypeKey, string> = {
+  labor: '#52c41a',
+  litigation: '#1677ff',
+  penal: '#ff4d4f',
+  tributary: '#fa8c16',
+  'administrative-tax': '#722ed1',
+};
+
+const STATE_TAG_COLORS: Record<number, string> = {
+  1: 'success',   // Activo
+  2: 'error',     // Eliminado
+  3: 'warning',   // Suspendido
+  4: 'processing', // Finalizado
+};
+
+const renderStateTag = (record: CourtCase) => {
+  const stateId = record.state?.id;
+  const color = stateId != null ? STATE_TAG_COLORS[stateId] : undefined;
+  return <Tag color={color}>{record.state?.name || '-'}</Tag>;
+};
+
+const renderTabLabel = (key: CaseTypeKey, label: string) => (
+  <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+    <span
+      style={{
+        display: 'inline-block',
+        width: 10,
+        height: 10,
+        borderRadius: '50%',
+        backgroundColor: CASE_TYPE_COLORS[key],
+        flexShrink: 0,
+      }}
+    />
+    {label}
+  </span>
+);
+
 const caseTypeNameByKey: Record<CaseTypeKey, string> = {
   labor: 'labor',
   litigation: 'litigation',
@@ -186,7 +223,7 @@ const CourtCasesPage: React.FC = () => {
 
     return keys.map((key) => ({
       key,
-      label: caseTypeIdByKey[key]?.display_name || defaultLabels[key],
+      label: renderTabLabel(key, caseTypeIdByKey[key]?.display_name || defaultLabels[key]),
     }));
   }, [caseTypeIdByKey, allowedCaseTypes]);
 
@@ -559,7 +596,7 @@ const CourtCasesPage: React.FC = () => {
         },
         {
           title: 'Estado',
-          render: (_: unknown, record: CourtCase) => <Tag>{record.state?.name || '-'}</Tag>,
+          render: (_: unknown, record: CourtCase) => renderStateTag(record),
         },
         { title: 'Prob. éxito', dataIndex: 'success_probability', key: 'success_probability' },
         { title: 'Opciones', render: (_: unknown, record: CourtCase) => renderActionsColumn(record) },
@@ -578,7 +615,7 @@ const CourtCasesPage: React.FC = () => {
         },
         {
           title: 'Estado',
-          render: (_: unknown, record: CourtCase) => <Tag>{record.state?.name || '-'}</Tag>,
+          render: (_: unknown, record: CourtCase) => renderStateTag(record),
         },
         { title: 'Prob. éxito', dataIndex: 'success_probability', key: 'success_probability' },
         { title: 'Opciones', render: (_: unknown, record: CourtCase) => renderActionsColumn(record) },
@@ -596,7 +633,7 @@ const CourtCasesPage: React.FC = () => {
         },
         {
           title: 'Estado',
-          render: (_: unknown, record: CourtCase) => <Tag>{record.state?.name || '-'}</Tag>,
+          render: (_: unknown, record: CourtCase) => renderStateTag(record),
         },
         { title: 'Prob. éxito', dataIndex: 'success_probability', key: 'success_probability' },
         { title: 'Opciones', render: (_: unknown, record: CourtCase) => renderActionsColumn(record) },
@@ -842,7 +879,13 @@ const CourtCasesPage: React.FC = () => {
         />
       </Space>
 
-      <Tabs activeKey={activeType} onChange={(key) => setActiveType(key as CaseTypeKey)} items={tabItems} />
+      <Tabs
+        activeKey={activeType}
+        onChange={(key) => setActiveType(key as CaseTypeKey)}
+        items={tabItems}
+        style={{ '--ant-tabs-ink-bar-color': CASE_TYPE_COLORS[activeType] } as React.CSSProperties}
+        tabBarStyle={{ borderBottom: `2px solid ${CASE_TYPE_COLORS[activeType]}33` }}
+      />
 
       <Table
         rowKey="id"
@@ -850,6 +893,7 @@ const CourtCasesPage: React.FC = () => {
         dataSource={searchCases}
         columns={columns as any}
         pagination={{ pageSize: 10 }}
+
       />
 
       <Modal

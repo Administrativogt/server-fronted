@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Form, Input, Select, Checkbox, Button, message, Space, Card, Alert } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { createEncargo, getSolicitantes, getMunicipios, getMensajeros } from '../../api/encargos';
+import { createEncargo, getUsuariosFormulario, getMunicipios, getMensajeros } from '../../api/encargos';
 import type { Usuario, Municipio, EncargoFormValues } from '../../types/encargo';
 import { useMensajeriaPermissions } from '../../hooks/usePermissions';
 import useAuthStore from '../../auth/useAuthStore'; // ✅ Importar
@@ -60,9 +60,9 @@ const CreateEncargoPage: React.FC = () => {
       try {
         // ✅ NUEVO: Usar endpoints especializados
         const [usuariosRes, municipiosRes, mensajerosRes] = await Promise.all([
-          getSolicitantes(), // Endpoint nuevo: solo activos, ordenados alfabéticamente
+          getUsuariosFormulario(), // Respeta grupo 6: secretaria ve todos, el resto solo su equipo
           getMunicipios(),
-          getMensajeros(), // Endpoint nuevo: solo mensajeros activos
+          getMensajeros(),
         ]);
         
         // ✅ Ordenar alfabéticamente por nombre

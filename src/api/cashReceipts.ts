@@ -48,6 +48,8 @@ export interface CashReceiptPreview {
   serie_letter: string;
   correlative: string;
   correlative_number: number;
+  is_superuser?: boolean;
+  message?: string;
 }
 
 const cashReceiptsApi = {
@@ -62,8 +64,10 @@ const cashReceiptsApi = {
   getById: (id: number) => api.get<CashReceipt>(`/cash-receipts/${id}`),
 
   // ✅ Obtener serie/correlativo sugerido para el usuario actual
-  getNextCorrelative: () =>
-    api.get<CashReceiptPreview>('/cash-receipts/next-correlative'),
+  getNextCorrelative: (serie?: number) =>
+    api.get<CashReceiptPreview>('/cash-receipts/next-correlative', {
+      params: serie !== undefined ? { serie } : undefined,
+    }),
 
   // ✅ Actualizar recibo
   update: (id: number, data: Partial<CashReceipt>) =>

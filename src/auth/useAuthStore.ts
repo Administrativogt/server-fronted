@@ -4,6 +4,9 @@ import { message } from 'antd';
 import { isTokenExpired, isValidJwt } from '../utils/auth';
 import type { ModuleAccessItem } from '../types/module-access.types';
 
+let lastSessionExpiredWarnAt = 0;
+const SESSION_WARN_COOLDOWN_MS = 3000;
+
 interface AuthState {
   token: string | null;
   username: string;
@@ -128,6 +131,7 @@ const useAuthStore = create<AuthState>((set) => {
     },
 
     logout: (redirect = true) => {
+      const hadToken = !!sessionStorage.getItem('token');
       sessionStorage.removeItem('token');
       sessionStorage.removeItem('username');
       sessionStorage.removeItem('userId');
@@ -148,7 +152,12 @@ const useAuthStore = create<AuthState>((set) => {
         permissions: [],
         modules: [],
       });
-      message.warning('Tu sesión ha expirado. Por favor, vuelve a iniciar sesión.', 3);
+
+      const now = Date.now();
+      if (hadToken && now - lastSessionExpiredWarnAt > SESSION_WARN_COOLDOWN_MS) {
+        lastSessionExpiredWarnAt = now;
+        message.warning('Tu sesión ha expirado. Por favor, vuelve a iniciar sesión.', 3);
+      }
 
       if (redirect) {
         setTimeout(() => {
@@ -165,7 +174,6 @@ const useAuthStore = create<AuthState>((set) => {
 });
 
 export default useAuthStore;
-
 
 
 

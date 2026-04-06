@@ -6,6 +6,13 @@ html, body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+/* ── Pulse animation for urgent indicators ── */
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(255,255,255,0.6); }
+  70%  { box-shadow: 0 0 0 8px rgba(255,255,255,0); }
+  100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+}
+
 /* Transiciones suaves para el cambio de tema */
 .ant-layout,
 .ant-layout-sider,

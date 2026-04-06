@@ -79,6 +79,7 @@ import ProcurationList from './pages/procuration/ProcurationList';
 import CreateProcuration from './pages/procuration/CreateProcuration';
 import ProcurationDetail from './pages/procuration/ProcurationDetail';
 import ClientsMasterDataPage from './pages/procuration/ClientsMasterDataPage';
+import ProcurationChartsPage from './pages/procuration/ProcurationChartsPage';
 import ClientCreationPage from './pages/client-creation/ClientCreationPage';
 import ClientListPage from './pages/client-creation/ClientListPage';
 import ClientDetailPage from './pages/client-creation/ClientDetailPage';
@@ -239,6 +240,7 @@ function AppInner() {
                 <Route path="/dashboard/procuration/create" element={<CreateProcuration />} />
                 <Route path="/dashboard/procuration/:id" element={<ProcurationDetail />} />
                 <Route path="/dashboard/procuration/clients" element={<ClientsMasterDataPage />} />
+                <Route path="/dashboard/procuration/charts" element={<ProcurationChartsPage />} />
               </Route>
 
               {/* ✨ NUEVO - Módulo de Administración de Usuarios */}
