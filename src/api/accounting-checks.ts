@@ -1,12 +1,14 @@
 import api from './axios';
 import type { AccountingCheck } from '../types/accounting-checks.types';
 
-export const uploadLiquidationChecks = async (file: File): Promise<void> => {
+export const uploadLiquidationChecks = async (file: File) => {
   const formData = new FormData();
   formData.append('file_liquidate_checks', file);
-  await api.post('/checks/liquidation-checks/upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+  return api.post<{ unmatched: { codigo: string; nombre: string }[] }>(
+    '/checks/liquidation-checks/upload',
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  );
 };
 
 export const listLiquidationChecks = async (search?: string): Promise<AccountingCheck[]> => {

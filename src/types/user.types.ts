@@ -17,6 +17,7 @@ export interface CreateUserPayload {
   email: string;
   employee_code?: string;
   extension?: string;
+  codigo_directorio?: string;
   tipo_usuario?: number;
   equipo_id?: number;
   area_id?: number;
@@ -35,6 +36,7 @@ export interface UpdateUserPayload {
   email?: string;
   employee_code?: string;
   extension?: string;
+  codigo_directorio?: string;
   tipo_usuario?: number;
   equipo_id?: number;
   area_id?: number;
@@ -67,6 +69,7 @@ export interface User {
   email: string;
   employee_code?: string;
   extension?: string;
+  codigo_directorio?: string;
   tipo_usuario?: number;
   estado: number;
   is_active: boolean;

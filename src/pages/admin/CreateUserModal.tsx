@@ -72,6 +72,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
         email: values.email,
         employee_code: values.employee_code,
         extension: values.extension,
+        codigo_directorio: values.codigo_directorio || undefined,
         tipo_usuario: values.tipo_usuario,
         equipo_id: values.equipo_id,
         area_id: values.area_id,
@@ -194,6 +195,14 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
           <Col span={6}>
             <Form.Item name="extension" label="Extensión">
               <Input placeholder="1234" />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Item name="codigo_directorio" label="Código de Directorio (Sirvo)">
+              <Input placeholder="Ej. ABC123" />
             </Form.Item>
           </Col>
         </Row>

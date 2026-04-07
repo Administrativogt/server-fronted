@@ -53,6 +53,9 @@ const UserDetailsDrawer: React.FC<UserDetailsDrawerProps> = ({ open, user, onClo
         <Descriptions.Item label={<><PhoneOutlined /> Extensión</>}>
           {user.extension || '-'}
         </Descriptions.Item>
+        <Descriptions.Item label="Código de Directorio (Sirvo)">
+          {user.codigo_directorio || '-'}
+        </Descriptions.Item>
       </Descriptions>
 
       <Divider orientation="left">Asignaciones</Divider>

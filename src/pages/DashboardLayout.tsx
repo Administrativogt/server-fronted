@@ -26,6 +26,7 @@ import {
   SunOutlined,
   MoonOutlined,
   UploadOutlined,
+  BankOutlined,
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import useAuthStore from '../auth/useAuthStore';
@@ -188,6 +189,43 @@ const DashboardLayout: React.FC = () => {
         ]
       },
       {
+        key: "contabilidad",
+        icon: <BankOutlined />,
+        label: "Contabilidad",
+        children: [
+          {
+            key: "/dashboard/contabilidad/contrasenas",
+            icon: <FileTextOutlined />,
+            label: "Contraseñas de pago",
+            onClick: () => navigate('/dashboard/contabilidad/contrasenas'),
+          },
+          {
+            key: "/dashboard/contabilidad/contrasenas/pendientes",
+            icon: <PushpinOutlined />,
+            label: "Pendientes",
+            onClick: () => navigate('/dashboard/contabilidad/contrasenas/pendientes'),
+          },
+          {
+            key: "/dashboard/contabilidad/proveedores",
+            icon: <UnorderedListOutlined />,
+            label: "Proveedores",
+            onClick: () => navigate('/dashboard/contabilidad/proveedores'),
+          },
+          {
+            key: "/dashboard/contabilidad/cheques/cargar",
+            icon: <UploadOutlined />,
+            label: "Cargar cheques",
+            onClick: () => navigate('/dashboard/contabilidad/cheques/cargar'),
+          },
+          {
+            key: "/dashboard/contabilidad/cheques/lista",
+            icon: <DollarOutlined />,
+            label: "Lista de cheques",
+            onClick: () => navigate('/dashboard/contabilidad/cheques/lista'),
+          },
+        ],
+      },
+      {
         key: "/dashboard/casos",
         icon: <FileTextOutlined />,
         label: "Control de casos",
@@ -325,16 +363,16 @@ const DashboardLayout: React.FC = () => {
         label: "Documentos",
         children: [
           {
-            key: "/dashboard/documentos",
-            icon: <FileSearchOutlined />,
-            label: "Pendientes",
-            onClick: () => navigate('/dashboard/documentos')
-          },
-          {
             key: "/dashboard/documentos/crear",
             icon: <FileAddOutlined />,
             label: "Crear documento",
             onClick: () => navigate('/dashboard/documentos/crear')
+          },
+          {
+            key: "/dashboard/documentos",
+            icon: <FileSearchOutlined />,
+            label: "Pendientes",
+            onClick: () => navigate('/dashboard/documentos')
           },
           {
             key: "/dashboard/documentos/entregados",
@@ -350,18 +388,18 @@ const DashboardLayout: React.FC = () => {
         label: "Notificaciones",
         children: [
           {
-            key: "/dashboard/notificaciones",
-            label: "Notificaciones",
-            onClick: () => navigate('/dashboard/notificaciones')
-          },
-          {
             key: "/dashboard/notificaciones/crear",
             label: "Crear notificación",
             onClick: () => navigate('/dashboard/notificaciones/crear')
           },
           {
+            key: "/dashboard/notificaciones",
+            label: "Listado de notificaciones",
+            onClick: () => navigate('/dashboard/notificaciones')
+          },
+          {
             key: "/dashboard/notificaciones/entregadas",
-            label: "Entregadas",
+            label: "Pendientes de entrega",
             onClick: () => navigate('/dashboard/notificaciones/entregadas')
           }
         ]
@@ -372,18 +410,13 @@ const DashboardLayout: React.FC = () => {
         label: "Recibos de Caja",
         children: [
           {
-            key: "/dashboard/recibos",
-            label: "Inicio",
-            onClick: () => navigate('/dashboard/recibos')
-          },
-          {
             key: "/dashboard/recibos/crear",
             label: "Crear recibo",
             onClick: () => navigate('/dashboard/recibos/crear')
           },
           {
             key: "/dashboard/recibos/listar",
-            label: "Listar recibos",
+            label: "Ver recibos",
             onClick: () => navigate('/dashboard/recibos/listar')
           }
         ]
@@ -479,6 +512,8 @@ const DashboardLayout: React.FC = () => {
           return hasModule('procuracion');
         case 'cheques':
           return hasModule('cheques') || hasModule('autorizacion_cheques');
+        case 'contabilidad':
+          return hasModule('contabilidad');
         case 'cargability':
           return hasModule('cargabilidad');
         case 'admin':

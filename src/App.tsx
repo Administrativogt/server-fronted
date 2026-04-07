@@ -97,6 +97,14 @@ import SchedulerCalendar from './pages/agendador/SchedulerCalendar';
 import SchedulerHolidaysList from './pages/agendador/SchedulerHolidaysList';
 import SchedulerHolidayForm from './pages/agendador/SchedulerHolidayForm';
 
+// Módulo de Contabilidad
+import ContrasenaList from './pages/contabilidad/ContrasenaList';
+import ContrasenaCreate from './pages/contabilidad/ContrasenaCreate';
+import ContrasenasPendientes from './pages/contabilidad/ContrasenasPendientes';
+import ProveedoresList from './pages/contabilidad/ProveedoresList';
+import LiquidacionCheques from './pages/contabilidad/LiquidacionCheques';
+import LiquidacionList from './pages/contabilidad/LiquidacionList';
+
 dayjs.locale('es');
 
 function AppInner() {
@@ -258,6 +266,16 @@ function AppInner() {
                 <Route path="/dashboard/casos/solicitudes" element={<CaseListPage />} />
                 <Route path="/dashboard/casos/solicitud/:id" element={<CaseDetailPage />} />
                 <Route path="/dashboard/casos/solicitud/editar/:id" element={<EditCasePage />} />
+              </Route>
+
+              {/* Módulo de Contabilidad */}
+              <Route element={<ModuleRoute moduleKey="contabilidad" />}>
+                <Route path="/dashboard/contabilidad/contrasenas" element={<ContrasenaList />} />
+                <Route path="/dashboard/contabilidad/contrasenas/crear" element={<ContrasenaCreate />} />
+                <Route path="/dashboard/contabilidad/contrasenas/pendientes" element={<ContrasenasPendientes />} />
+                <Route path="/dashboard/contabilidad/proveedores" element={<ProveedoresList />} />
+                <Route path="/dashboard/contabilidad/cheques/cargar" element={<LiquidacionCheques />} />
+                <Route path="/dashboard/contabilidad/cheques/lista" element={<LiquidacionList />} />
               </Route>
 
               {/* Fallback dentro del layout */}
