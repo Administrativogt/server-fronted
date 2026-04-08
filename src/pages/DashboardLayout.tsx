@@ -226,16 +226,17 @@ const DashboardLayout: React.FC = () => {
         ],
       },
       {
-        key: "/dashboard/casos",
+        key: "casos",
         icon: <FileTextOutlined />,
         label: "Control de casos",
-        onClick: () => navigate('/dashboard/casos')
-      },
-      {
-        key: "/dashboard/casos/crear",
-        icon: <FileAddOutlined />,
-        label: "Crear caso",
-        onClick: () => navigate('/dashboard/casos/crear')
+        children: [
+          {
+            key: "/dashboard/casos/crear",
+            icon: <FileAddOutlined />,
+            label: "Crear caso",
+            onClick: () => navigate('/dashboard/casos/crear')
+          },
+        ],
       },
       {
         key: "/dashboard/recursos-humanos",
