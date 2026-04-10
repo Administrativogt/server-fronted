@@ -102,6 +102,12 @@ export const resetUserPassword = (id: number, newPassword: string, forceChange: 
 export const searchUsers = (query: string) => axios.get(`/users/search?q=${query}`);
 
 /**
+ * Actualizar solo el código de directorio Sirvo de un usuario
+ */
+export const updateCodigoDirectorio = (id: number, codigo_directorio: string | null) =>
+  axios.patch(`/users/${id}/codigo-directorio`, { codigo_directorio });
+
+/**
  * Obtener solicitantes activos
  */
 export const getSolicitantes = () => axios.get('/users/solicitantes');

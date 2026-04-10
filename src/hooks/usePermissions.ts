@@ -84,14 +84,19 @@ export const useMensajeriaPermissions = () => {
 
 /**
  * Hook para permisos de administración de usuarios
- * Solo superadmins y Pedro Luis pueden acceder al módulo de administración
+ * Superadmins y usuarios admin tienen acceso completo.
+ * MIR001 tiene acceso restringido: solo puede editar el código de directorio Sirvo.
  */
 export const useUserAdminPermissions = () => {
   const is_superuser = useAuthStore(state => state.is_superuser);
   const username = useAuthStore(state => state.username);
 
   const adminUsernames = ['TOR002', 'ESC002', 'BAR008'];
-  const canAccessUserAdmin = is_superuser || adminUsernames.includes(username);
+  const sirvoCodeUsernames = ['MIR001'];
 
-  return { canAccessUserAdmin };
+  const isFullAdmin = is_superuser || adminUsernames.includes(username);
+  const isSirvoCodeUser = sirvoCodeUsernames.includes(username);
+  const canAccessUserAdmin = isFullAdmin || isSirvoCodeUser;
+
+  return { canAccessUserAdmin, isFullAdmin, isSirvoCodeUser };
 };

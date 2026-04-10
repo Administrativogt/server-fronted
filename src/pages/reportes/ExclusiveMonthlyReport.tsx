@@ -12,6 +12,7 @@ import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import api from '../../api/axios';
 import reportLogo from '../../assets/logo-cosortium.png';
+import useThemeStore from '../../hooks/useThemeStore';
 import type { AxiosError } from 'axios';
 
 const { Title } = Typography;
@@ -52,8 +53,23 @@ const pctTxt = (n: number) => `${fmtNum(n).toFixed(2)}%`;
 const money = (n: number) => `$${fmtNum(n).toFixed(2)}`;
 const fmtTime = (t?: string) => (t ? String(t).slice(0, 5) : '');
 
-// 🎨 Colores UI (consistentes con el Excel)
-const UI = {
+type Palette = {
+  primary: string;
+  primarySoft: string;
+  headerBg: string;
+  zebraA: string;
+  zebraB: string;
+  hover: string;
+  kpiBg: string;
+  textOnPrimary: string;
+  border: string;
+  cardBg: string;
+  text: string;
+  summaryBg: string;
+  gridBorder: string;
+};
+
+const LIGHT_UI: Palette = {
   primary: '#003B5C',
   primarySoft: '#0F5C87',
   headerBg: '#F0F5FF',
@@ -63,9 +79,32 @@ const UI = {
   kpiBg: '#F7FAFC',
   textOnPrimary: '#FFFFFF',
   border: '#CAD0D4',
+  cardBg: '#FFFFFF',
+  text: '#0F172A',
+  summaryBg: '#FDF7E3',
+  gridBorder: '#E5E7EB',
+};
+
+const DARK_UI: Palette = {
+  primary: '#1F7AD4',
+  primarySoft: '#64B5F6',
+  headerBg: '#14243A',
+  zebraA: '#0F1C2C',
+  zebraB: '#091220',
+  hover: '#173459',
+  kpiBg: '#0D1A2B',
+  textOnPrimary: '#E2E8F0',
+  border: '#1F3654',
+  cardBg: '#0B1220',
+  text: '#F1F5F9',
+  summaryBg: '#132036',
+  gridBorder: '#1E293B',
 };
 
 export default function ExclusiveMonthlyReport(): JSX.Element {
+  const themeMode = useThemeStore((s) => s.mode);
+  const isDark = themeMode === 'dark';
+  const UI = useMemo(() => (isDark ? DARK_UI : LIGHT_UI), [isDark]);
   const [canSee, setCanSee] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
   const [reportMonth, setReportMonth] = useState<Dayjs>(() => dayjs().startOf('month'));
@@ -482,37 +521,81 @@ export default function ExclusiveMonthlyReport(): JSX.Element {
   ];
 
   return (
-    <div className="report-styles" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div
+      className="report-styles"
+      style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12, color: UI.text }}
+    >
       {/* 🎨 estilos scoped */}
       <style>
         {`
+          .report-styles {
+            color: ${UI.text};
+          }
+          .report-styles .ant-card,
+          .report-styles .ant-card-bordered {
+            background: ${UI.cardBg};
+            border-color: ${UI.border};
+            color: ${UI.text};
+          }
           .report-styles .ant-card-head {
             background: ${UI.primary};
             color: ${UI.textOnPrimary};
             border-radius: 8px 8px 0 0;
           }
           .report-styles .ant-card-head-title { color: ${UI.textOnPrimary}; font-weight: 600; }
-          .report-styles .ant-card { border-color: ${UI.border}; }
-          .report-styles .ant-card-body { background: #FFFFFF; }
+          .report-styles .ant-card-body {
+            background: ${UI.cardBg};
+            color: ${UI.text};
+          }
+          .report-styles .ant-statistic-title,
+          .report-styles .ant-statistic-content {
+            color: ${UI.text};
+          }
 
           /* Tabla resumen por equipo */
+          .report-styles .ant-table {
+            background: ${UI.cardBg};
+            color: ${UI.text};
+          }
           .report-styles .ant-table-thead > tr > th {
             background: ${UI.headerBg} !important;
             font-weight: 600;
+            color: ${UI.text};
+            border-color: ${UI.border};
+          }
+          .report-styles .ant-table-tbody > tr > td {
+            border-color: ${UI.border};
+            color: ${UI.text};
           }
           .report-styles .ant-table-tbody > tr.row-zebra-even > td { background: ${UI.zebraA}; }
           .report-styles .ant-table-tbody > tr.row-zebra-odd  > td { background: ${UI.zebraB}; }
           .report-styles .ant-table-tbody > tr:hover > td { background: ${UI.hover} !important; }
 
           /* DataGrid (MUI) */
+          .report-styles .MuiDataGrid-root {
+            color: ${UI.text};
+            background: ${UI.cardBg};
+            border: 1px solid ${UI.gridBorder};
+          }
           .report-styles .MuiDataGrid-columnHeaders {
             background: ${UI.headerBg};
-            border-bottom: 1px solid ${UI.border};
+            border-bottom: 1px solid ${UI.gridBorder};
+            color: ${UI.text};
+          }
+          .report-styles .MuiDataGrid-columnHeaderTitle {
+            color: ${UI.text};
           }
           .report-styles .MuiDataGrid-row:nth-of-type(even) { background: ${UI.zebraA}; }
           .report-styles .MuiDataGrid-row:nth-of-type(odd)  { background: ${UI.zebraB}; }
           .report-styles .MuiDataGrid-row:hover { background: ${UI.hover}; }
-          .report-styles .MuiDataGrid-footerContainer { border-top: 1px solid ${UI.border}; }
+          .report-styles .MuiDataGrid-cell {
+            color: ${UI.text};
+            border-color: ${UI.gridBorder};
+          }
+          .report-styles .MuiDataGrid-footerContainer {
+            border-top: 1px solid ${UI.gridBorder};
+            background: ${UI.cardBg};
+          }
         `}
       </style>
 
@@ -543,8 +626,9 @@ export default function ExclusiveMonthlyReport(): JSX.Element {
           <Card
             size="small"
             title="KPIs del mes"
-            headStyle={{ background: UI.primary, color: UI.textOnPrimary }}
-            bodyStyle={{ background: UI.kpiBg }}
+            headStyle={{ background: UI.primary, color: UI.textOnPrimary, borderColor: UI.border }}
+            bodyStyle={{ background: UI.kpiBg, color: UI.text }}
+            style={{ borderColor: UI.border }}
           >
             <Row gutter={[12, 12]}>
               <Col xs={12}><Statistic title="Total USD (utilizado)" value={totalUSD} precision={2} prefix="$" valueStyle={{ color: UI.primary }} /></Col>
@@ -565,7 +649,9 @@ export default function ExclusiveMonthlyReport(): JSX.Element {
           <Card
             size="small"
             title="Resumen por equipo"
-            headStyle={{ background: UI.primary, color: UI.textOnPrimary }}
+            headStyle={{ background: UI.primary, color: UI.textOnPrimary, borderColor: UI.border }}
+            bodyStyle={{ background: UI.cardBg, color: UI.text }}
+            style={{ borderColor: UI.border }}
           >
             <Table<EquipoAgg>
               rowKey={(r) => r.equipo}
@@ -579,7 +665,7 @@ export default function ExclusiveMonthlyReport(): JSX.Element {
                 const sumUsd = data.reduce((s, r) => s + (r.usd || 0), 0);
                 return (
                   <Table.Summary fixed>
-                    <Table.Summary.Row style={{ background: '#FDF7E3', fontWeight: 600 }}>
+                    <Table.Summary.Row style={{ background: UI.summaryBg, fontWeight: 600, color: UI.text }}>
                       <Table.Summary.Cell index={0}>Totales</Table.Summary.Cell>
                       <Table.Summary.Cell index={1} align="right">{fmtNum(sumHoras).toFixed(2)}</Table.Summary.Cell>
                       <Table.Summary.Cell index={2} align="right">{money(sumUsd)}</Table.Summary.Cell>
@@ -597,7 +683,9 @@ export default function ExclusiveMonthlyReport(): JSX.Element {
       <Card
         size="small"
         title="Detalle por persona / reserva"
-        headStyle={{ background: UI.primary, color: UI.textOnPrimary }}
+        headStyle={{ background: UI.primary, color: UI.textOnPrimary, borderColor: UI.border }}
+        bodyStyle={{ background: UI.cardBg, color: UI.text }}
+        style={{ borderColor: UI.border }}
       >
         <div style={{ height: 620, width: '100%' }}>
           <DataGrid

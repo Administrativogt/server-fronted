@@ -21,6 +21,7 @@ import {
   CheckCircleOutlined,
   StopOutlined,
   DownloadOutlined,
+  IdcardOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { useUserAdminPermissions } from '../../hooks/usePermissions';
@@ -36,13 +37,14 @@ import CreateUserModal from './CreateUserModal';
 import EditUserModal from './EditUserModal';
 import ResetPasswordModal from './ResetPasswordModal';
 import UserDetailsDrawer from './UserDetailsDrawer';
+import EditSirvoCodeModal from './EditSirvoCodeModal';
 
 const { Search } = Input;
 const { Option } = Select;
 
 const UsersAdminPage: React.FC = () => {
   const navigate = useNavigate();
-  const { canAccessUserAdmin } = useUserAdminPermissions();
+  const { canAccessUserAdmin, isFullAdmin, isSirvoCodeUser } = useUserAdminPermissions();
 
   // Estados principales
   const [users, setUsers] = useState<User[]>([]);
@@ -58,6 +60,7 @@ const UsersAdminPage: React.FC = () => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [resetPasswordModalOpen, setResetPasswordModalOpen] = useState(false);
   const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(false);
+  const [sirvoCodeModalOpen, setSirvoCodeModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   // ============================================
@@ -77,8 +80,8 @@ const UsersAdminPage: React.FC = () => {
 
   useEffect(() => {
     loadUsers();
-    loadFilters();
-  }, []);
+    if (isFullAdmin) loadFilters();
+  }, [isFullAdmin]);
 
   const loadUsers = async () => {
     try {
@@ -239,9 +242,10 @@ const UsersAdminPage: React.FC = () => {
       title: 'Acciones',
       key: 'actions',
       fixed: 'right',
-      width: 200,
+      width: isSirvoCodeUser ? 80 : 200,
       render: (_, record) => (
         <Space size="small">
+          {/* Ver detalles — disponible para todos */}
           <Tooltip title="Ver detalles">
             <Button
               type="text"
@@ -253,45 +257,65 @@ const UsersAdminPage: React.FC = () => {
               }}
             />
           </Tooltip>
-          <Tooltip title="Editar">
+
+          {/* Botón de código Sirvo — visible para todos los que acceden al panel */}
+          <Tooltip title="Editar Código de Directorio (Sirvo)">
             <Button
               type="text"
-              icon={<EditOutlined />}
+              icon={<IdcardOutlined />}
               size="small"
+              style={{ color: record.codigo_directorio ? undefined : '#faad14' }}
               onClick={() => {
                 setSelectedUser(record);
-                setEditModalOpen(true);
+                setSirvoCodeModalOpen(true);
               }}
             />
           </Tooltip>
-          <Tooltip title="Resetear contraseña">
-            <Button
-              type="text"
-              icon={<KeyOutlined />}
-              size="small"
-              onClick={() => {
-                setSelectedUser(record);
-                setResetPasswordModalOpen(true);
-              }}
-            />
-          </Tooltip>
-          {record.estado === 1 && (
-            <Popconfirm
-              title="¿Desactivar este usuario?"
-              description="El usuario no podrá iniciar sesión"
-              onConfirm={() => handleDeactivateUser(record.id)}
-              okText="Sí, desactivar"
-              cancelText="Cancelar"
-            >
-              <Tooltip title="Desactivar">
+
+          {/* Acciones solo para admins completos */}
+          {isFullAdmin && (
+            <>
+              <Tooltip title="Editar">
                 <Button
                   type="text"
-                  danger
-                  icon={<DeleteOutlined />}
+                  icon={<EditOutlined />}
                   size="small"
+                  onClick={() => {
+                    setSelectedUser(record);
+                    setEditModalOpen(true);
+                  }}
                 />
               </Tooltip>
-            </Popconfirm>
+              <Tooltip title="Resetear contraseña">
+                <Button
+                  type="text"
+                  icon={<KeyOutlined />}
+                  size="small"
+                  onClick={() => {
+                    setSelectedUser(record);
+                    setResetPasswordModalOpen(true);
+                  }}
+                />
+              </Tooltip>
+              {record.estado === 1 && (
+                <Popconfirm
+                  title="¿Desactivar este usuario?"
+                  description="El usuario no podrá iniciar sesión"
+                  onConfirm={() => handleDeactivateUser(record.id)}
+                  okText="Sí, desactivar"
+                  cancelText="Cancelar"
+                >
+                  <Tooltip title="Desactivar">
+                    <Button
+                      type="text"
+                      danger
+                      icon={<DeleteOutlined />}
+                      size="small"
+                    />
+                  </Tooltip>
+                </Popconfirm>
+              )}
+            </>
           )}
         </Space>
       ),
@@ -307,13 +331,15 @@ const UsersAdminPage: React.FC = () => {
       <Card
         title="Administración de Usuarios"
         extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => setCreateModalOpen(true)}
-          >
-            Crear Usuario
-          </Button>
+          isFullAdmin && (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setCreateModalOpen(true)}
+            >
+              Crear Usuario
+            </Button>
+          )
         }
       >
         {/* FILTROS */}
@@ -339,42 +365,46 @@ const UsersAdminPage: React.FC = () => {
                 </Option>
               ))}
             </Select>
-            <Select
-              placeholder="Equipo"
-              allowClear
-              style={{ width: 180 }}
-              value={filters.equipo_id}
-              onChange={(value) => setFilters({ ...filters, equipo_id: value })}
-              showSearch
-              optionFilterProp="children"
-              filterOption={(input, option) =>
-                String(option?.children || '').toLowerCase().includes(input.toLowerCase())
-              }
-            >
-              {equipos.map((equipo) => (
-                <Option key={equipo.id} value={equipo.id}>
-                  {equipo.nombre}
-                </Option>
-              ))}
-            </Select>
-            <Select
-              placeholder="Área"
-              allowClear
-              style={{ width: 180 }}
-              value={filters.area_id}
-              onChange={(value) => setFilters({ ...filters, area_id: value })}
-              showSearch
-              optionFilterProp="children"
-              filterOption={(input, option) =>
-                String(option?.children || '').toLowerCase().includes(input.toLowerCase())
-              }
-            >
-              {areas.map((area) => (
-                <Option key={area.id} value={area.id}>
-                  {area.nombre}
-                </Option>
-              ))}
-            </Select>
+            {isFullAdmin && (
+              <>
+                <Select
+                  placeholder="Equipo"
+                  allowClear
+                  style={{ width: 180 }}
+                  value={filters.equipo_id}
+                  onChange={(value) => setFilters({ ...filters, equipo_id: value })}
+                  showSearch
+                  optionFilterProp="children"
+                  filterOption={(input, option) =>
+                    String(option?.children || '').toLowerCase().includes(input.toLowerCase())
+                  }
+                >
+                  {equipos.map((equipo) => (
+                    <Option key={equipo.id} value={equipo.id}>
+                      {equipo.nombre}
+                    </Option>
+                  ))}
+                </Select>
+                <Select
+                  placeholder="Área"
+                  allowClear
+                  style={{ width: 180 }}
+                  value={filters.area_id}
+                  onChange={(value) => setFilters({ ...filters, area_id: value })}
+                  showSearch
+                  optionFilterProp="children"
+                  filterOption={(input, option) =>
+                    String(option?.children || '').toLowerCase().includes(input.toLowerCase())
+                  }
+                >
+                  {areas.map((area) => (
+                    <Option key={area.id} value={area.id}>
+                      {area.nombre}
+                    </Option>
+                  ))}
+                </Select>
+              </>
+            )}
             <Select
               placeholder="Estado"
               allowClear
@@ -449,6 +479,20 @@ const UsersAdminPage: React.FC = () => {
             onClose={() => {
               setDetailsDrawerOpen(false);
               setSelectedUser(null);
+            }}
+          />
+
+          <EditSirvoCodeModal
+            open={sirvoCodeModalOpen}
+            user={selectedUser}
+            onClose={() => {
+              setSirvoCodeModalOpen(false);
+              setSelectedUser(null);
+            }}
+            onSuccess={() => {
+              setSirvoCodeModalOpen(false);
+              setSelectedUser(null);
+              loadUsers();
             }}
           />
         </>
