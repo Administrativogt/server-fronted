@@ -49,7 +49,7 @@ const UsersAdminPage: React.FC = () => {
   // Estados principales
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState<UserFilters>({});
+  const [filters, setFilters] = useState<UserFilters>({ estado: 1 });
   
   // Listas para filtros
   const [areas, setAreas] = useState<UserArea[]>([]);

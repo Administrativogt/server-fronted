@@ -8,8 +8,14 @@ import {
   Space,
   Modal,
   Select,
+  Input,
+  DatePicker,
+  Row,
+  Col,
   message,
 } from 'antd';
+import { SearchOutlined, ClearOutlined } from '@ant-design/icons';
+import dayjs, { type Dayjs } from 'dayjs';
 import {
   getMoneyRequirements,
   authorizeMoneyRequirements,
@@ -18,9 +24,12 @@ import {
   type MoneyRequirement,
 } from '../../api/moneyRequirements';
 import { fetchUsers, type UserLite, fullName } from '../../api/users';
+import { getTeams, type Team } from '../../api/teams';
 import { useNavigate } from 'react-router-dom';
+import { usePermissions } from '../../hooks/usePermissions';
 
 const { Title } = Typography;
+const { RangePicker } = DatePicker;
 
 const stateMap: Record<number, { text: string; color: string }> = {
   1: { text: 'Pendiente', color: 'orange' },
@@ -29,20 +38,46 @@ const stateMap: Record<number, { text: string; color: string }> = {
   4: { text: 'Denegado', color: 'red' },
 };
 
+interface Filters {
+  payableTo: string;
+  teamId: number | null;
+  state: number | null;
+  dateRange: [Dayjs, Dayjs] | null;
+}
+
+const defaultFilters: Filters = {
+  payableTo: '',
+  teamId: null,
+  state: null,
+  dateRange: null,
+};
+
 const MoneyReqList: React.FC = () => {
   const [data, setData] = useState<MoneyRequirement[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [users, setUsers] = useState<UserLite[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [filters, setFilters] = useState<Filters>(defaultFilters);
 
   const navigate = useNavigate();
+  const { hasPermission, isSuperUser } = usePermissions();
+  const canAuthorize = isSuperUser() || hasPermission('money requirements authorizers');
 
-  const fetchRequirements = async () => {
+  const fetchRequirements = async (activeFilters: Filters = filters) => {
     try {
       setLoading(true);
-      const res = await getMoneyRequirements();
+      const params: Record<string, unknown> = {};
+      if (activeFilters.payableTo) params.payableTo = activeFilters.payableTo;
+      if (activeFilters.teamId) params.teamId = activeFilters.teamId;
+      if (activeFilters.state !== null) params.state = activeFilters.state;
+      if (activeFilters.dateRange) {
+        params.startDate = activeFilters.dateRange[0].format('YYYY-MM-DD');
+        params.endDate = activeFilters.dateRange[1].format('YYYY-MM-DD');
+      }
+      const res = await getMoneyRequirements(params);
       setData(res);
     } catch (err) {
       console.error('Error cargando requerimientos', err);
@@ -52,11 +87,21 @@ const MoneyReqList: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchRequirements();
+    fetchRequirements(defaultFilters);
     fetchUsers().then(setUsers).catch(() => {});
+    getTeams().then(setTeams).catch(() => {});
   }, []);
 
+  const handleSearch = () => fetchRequirements(filters);
+
+  const handleClear = () => {
+    setFilters(defaultFilters);
+    fetchRequirements(defaultFilters);
+  };
+
   const selectedIds = selectedRowKeys.map((k) => Number(k));
+  const selectedRecords = data.filter((r) => selectedIds.includes(r.id));
+  const hasPendingSelected = selectedRecords.some((r) => Number(r.state) === 1 || Number(r.state) === 2);
 
   const doAuthorize = async () => {
     if (!selectedIds.length) return message.info('Seleccione al menos un registro');
@@ -91,18 +136,36 @@ const MoneyReqList: React.FC = () => {
   };
 
   const columns = [
-    { title: 'Correlativo', dataIndex: 'correlative', key: 'correlative' },
-    { title: 'Beneficiario', dataIndex: 'payableTo', key: 'payableTo' },
-    { title: 'NIT', dataIndex: 'nit', key: 'nit' },
-    { title: 'Monto', dataIndex: 'amount', key: 'amount' },
-    { title: 'Fecha', dataIndex: 'date', key: 'date' },
-    { title: 'Descripción', dataIndex: 'description', key: 'description' },
-    { title: 'Equipo', dataIndex: 'teamName', key: 'teamName' },
-    { title: 'Área', dataIndex: 'areaName', key: 'areaName' },
+    { title: 'Fecha', dataIndex: 'date', key: 'date', width: 110 },
+    { title: 'A nombre de', dataIndex: 'payableTo', key: 'payableTo', width: 180 },
+    {
+      title: 'Monto',
+      key: 'amount',
+      width: 130,
+      render: (_: unknown, record: MoneyRequirement) =>
+        `${record.currency === 'USD' ? '$' : 'Q'} ${Number(record.amount).toLocaleString('es-GT', { minimumFractionDigits: 2 })}`,
+    },
+    { title: 'Descripción', dataIndex: 'description', key: 'description', width: 220 },
+    { title: 'Correlativo', dataIndex: 'correlative', key: 'correlative', width: 130 },
+    { title: 'NT', dataIndex: 'workNoteNumber', key: 'workNoteNumber', width: 120 },
+    { title: 'Equipo', dataIndex: 'teamName', key: 'teamName', width: 130 },
+    { title: 'Área', dataIndex: 'areaName', key: 'areaName', width: 150 },
+    {
+      title: 'Creación',
+      dataIndex: 'created',
+      key: 'created',
+      width: 150,
+      render: (val: string) => {
+        if (!val) return '—';
+        const d = new Date(val);
+        return `${d.toLocaleDateString('es-GT')} ${d.toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' })}`;
+      },
+    },
     {
       title: 'Estado',
       dataIndex: 'state',
       key: 'state',
+      width: 140,
       render: (state: number) => {
         const info = stateMap[state] || { text: 'Desconocido', color: 'default' };
         return <Tag color={info.color}>{info.text}</Tag>;
@@ -113,31 +176,106 @@ const MoneyReqList: React.FC = () => {
   return (
     <Card>
       <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title level={4}>📋 Requerimientos de dinero</Title>
+        <Title level={4}>Requerimientos de dinero</Title>
         <Space>
-          <Button onClick={openEmailModal} disabled={!selectedIds.length}>
+          <Button onClick={openEmailModal} disabled={!hasPendingSelected}>
             ✉️ Enviar autorización
           </Button>
-          <Button type="primary" onClick={doAuthorize} disabled={!selectedIds.length}>
-            ✅ Autorizar
-          </Button>
-          <Button danger onClick={doDeny} disabled={!selectedIds.length}>
-            ⛔ Denegar
-          </Button>
-
+          {canAuthorize && (
+            <>
+              <Button type="primary" onClick={doAuthorize} disabled={!selectedIds.length}>
+                ✅ Autorizar
+              </Button>
+              <Button danger onClick={doDeny} disabled={!selectedIds.length}>
+                ⛔ Denegar
+              </Button>
+            </>
+          )}
         </Space>
       </Space>
+
+      {/* ── Filtros ── */}
+      <Card size="small" style={{ marginBottom: 16, background: 'transparent' }} bordered>
+        <Row gutter={[12, 12]} align="middle">
+          <Col xs={24} sm={12} md={6}>
+            <RangePicker
+              style={{ width: '100%' }}
+              format="DD/MM/YYYY"
+              placeholder={['Fecha inicio', 'Fecha fin']}
+              value={filters.dateRange}
+              onChange={(vals) =>
+                setFilters((f) => ({ ...f, dateRange: vals as [Dayjs, Dayjs] | null }))
+              }
+            />
+          </Col>
+          <Col xs={24} sm={12} md={5}>
+            <Select
+              style={{ width: '100%' }}
+              placeholder="Equipo"
+              allowClear
+              value={filters.teamId ?? undefined}
+              onChange={(v) => setFilters((f) => ({ ...f, teamId: v ?? null }))}
+              showSearch
+              optionFilterProp="children"
+            >
+              {teams.map((t) => (
+                <Select.Option key={t.id} value={t.id}>{t.name}</Select.Option>
+              ))}
+            </Select>
+          </Col>
+          <Col xs={24} sm={12} md={5}>
+            <Input
+              placeholder="A nombre de"
+              value={filters.payableTo}
+              onChange={(e) => setFilters((f) => ({ ...f, payableTo: e.target.value }))}
+              onPressEnter={handleSearch}
+              allowClear
+            />
+          </Col>
+          <Col xs={24} sm={12} md={4}>
+            <Select
+              style={{ width: '100%' }}
+              placeholder="Estado"
+              allowClear
+              value={filters.state ?? undefined}
+              onChange={(v) => setFilters((f) => ({ ...f, state: v ?? null }))}
+            >
+              {Object.entries(stateMap).map(([key, val]) => (
+                <Select.Option key={key} value={Number(key)}>{val.text}</Select.Option>
+              ))}
+            </Select>
+          </Col>
+          <Col xs={24} sm={12} md={4}>
+            <Space>
+              <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch}>
+                Buscar
+              </Button>
+              <Button icon={<ClearOutlined />} onClick={handleClear}>
+                Limpiar
+              </Button>
+            </Space>
+          </Col>
+        </Row>
+      </Card>
 
       <Table
         rowKey="id"
         loading={loading}
         columns={columns}
         dataSource={data}
-        pagination={{ pageSize: 10 }}
-        scroll={{ x: 'max-content' }}
+        pagination={{
+          defaultPageSize: 10,
+          showSizeChanger: true,
+          pageSizeOptions: [10, 25, 50, 100],
+          showTotal: (total, range) => `${range[0]}-${range[1]} de ${total} registros`,
+        }}
+        scroll={{ x: 'max-content', y: 500 }}
         rowSelection={{
           selectedRowKeys,
           onChange: setSelectedRowKeys,
+          getCheckboxProps: (record: MoneyRequirement) => ({
+            style: Number(record.state) === 3 || Number(record.state) === 4 ? { display: 'none' } : {},
+          }),
         }}
       />
 

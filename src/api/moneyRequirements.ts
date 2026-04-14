@@ -15,8 +15,10 @@ export interface MoneyRequirement {
   areaIds?: number[];
   applicantId?: number;
   responsibleForAuthorizingId?: number;
+  workNoteNumber?: string;
   teamName?: string;
   areaName?: string;
+  created?: string;
 }
 
 // Crear

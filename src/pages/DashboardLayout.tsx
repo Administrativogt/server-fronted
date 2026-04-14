@@ -437,6 +437,12 @@ const DashboardLayout: React.FC = () => {
             key: "/dashboard/money-req",
             label: "Listar requerimientos",
             onClick: () => navigate('/dashboard/money-req')
+          },
+          {
+            key: "/dashboard/money-req/create",
+            icon: <PlusCircleOutlined />,
+            label: "Crear requerimiento",
+            onClick: () => navigate('/dashboard/money-req/create')
           }
         ]
       },

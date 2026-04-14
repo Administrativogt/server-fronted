@@ -87,16 +87,18 @@ export interface User {
 }
 
 export const TIPOS_USUARIO = [
-  { value: 1, label: 'Administrador General', color: 'red' },
-  { value: 2, label: 'Asistente Legal', color: 'cyan' },
-  { value: 3, label: 'Abogado', color: 'green' },
-  { value: 4, label: 'Contador', color: 'orange' },
-  { value: 5, label: 'Recursos Humanos', color: 'gold' },
-  { value: 6, label: 'Recepcionista', color: 'lime' },
-  { value: 7, label: 'Auxiliar', color: 'geekblue' },
+  { value: 1, label: 'Socio', color: 'red' },
+  { value: 2, label: 'Gerencia', color: 'magenta' },
+  { value: 3, label: 'Asociado', color: 'green' },
+  { value: 4, label: 'Asistente', color: 'cyan' },
+  { value: 5, label: 'Procurador', color: 'gold' },
+  { value: 6, label: 'Secretaria', color: 'lime' },
+  { value: 7, label: 'Recepcionista', color: 'geekblue' },
   { value: 8, label: 'Mensajero', color: 'blue' },
-  { value: 9, label: 'Gerente', color: 'magenta' },
-  { value: 10, label: 'Coordinador', color: 'purple' },
+  { value: 9, label: 'Contabilidad', color: 'orange' },
+  { value: 10, label: 'Personal Administrativo', color: 'purple' },
+  { value: 11, label: 'Socio de Práctica', color: 'volcano' },
+  { value: 12, label: 'Cliente', color: 'default' },
 ];
 
 export const getTipoUsuarioLabel = (tipoId?: number): string => {
