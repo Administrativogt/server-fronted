@@ -31,18 +31,18 @@ import {
 } from '../../api/appointments';
 import type { Appointment, AppointmentFilters } from '../../types/appointment.types';
 import EditAppointmentModal from './EditAppointmentModal';
-import { usePermissions } from '../../hooks/usePermissions';
+import useAuthStore from '../../auth/useAuthStore';
 
 const { RangePicker } = DatePicker;
 
 const AppointmentsList: React.FC = () => {
   const navigate = useNavigate();
-  const { hasPermission, isSuperUser } = usePermissions();
+  const modules = useAuthStore((s) => s.modules);
+  const hasActasModule = modules.some((m: { key: string }) => m.key === 'actas');
 
-  // Permisos
-  const canRead = isSuperUser() || hasPermission('appointments:read');
-  const canCreate = isSuperUser() || hasPermission('appointments:create');
-  const canUpdate = isSuperUser() || hasPermission('appointments:update');
+  // Permisos — cualquier usuario con acceso al módulo actas puede operar
+  const canCreate = hasActasModule;
+  const canUpdate = hasActasModule;
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(false);
