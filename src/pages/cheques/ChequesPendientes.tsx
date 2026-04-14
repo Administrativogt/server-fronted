@@ -118,6 +118,7 @@ function ChequesPendientes() {
         rowKey="id"
         loading={loading}
         dataSource={oldestByResponsible}
+        scroll={{ x: 'max-content', y: 480 }}
         pagination={{ pageSize: 20 }}
         columns={[
           {

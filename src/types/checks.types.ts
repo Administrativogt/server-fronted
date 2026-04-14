@@ -36,6 +36,7 @@ export interface CheckRequest {
   invoice_adress?: string;
   invoice_nit?: string;
   sent_to_liquidation?: boolean;
+  inmobiliario_expenses_amount?: number;
 }
 
 export interface CheckListResponse {
@@ -150,6 +151,12 @@ export interface CreateExpensePayload {
 }
 
 export type UpdateExpensePayload = Partial<CreateExpensePayload>;
+
+export interface ParentCheckResponse {
+  has_parent: boolean;
+  message?: string;
+  parent?: CheckRequest;
+}
 
 export interface LitigioExpense {
   id: number;

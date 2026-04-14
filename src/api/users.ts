@@ -60,8 +60,9 @@ function ensureUserArray(data: UserLite[] | { data?: UserLite[] } | null | undef
 /**
  * Obtener lista simplificada de usuarios (alias de getAllUsers para compatibilidad)
  */
-export const fetchUsers = async (): Promise<UserLite[]> => {
-  const response = await axios.get<UserLite[] | { data: UserLite[] }>('/users');
+export const fetchUsers = async (equipoId?: number): Promise<UserLite[]> => {
+  const params = equipoId ? { equipo_id: equipoId } : undefined;
+  const response = await axios.get<UserLite[] | { data: UserLite[] }>('/users', { params });
   return ensureUserArray(response.data);
 };
 

@@ -18,6 +18,7 @@ import type {
   CreateLitigioExpensePayload,
   LitigioExpense,
   UpdateLitigioExpensePayload,
+  ParentCheckResponse,
 } from '../types/checks.types';
 
 export const getCheckEntities = async (): Promise<CheckEntity[]> => {
@@ -112,6 +113,24 @@ export const getInmobiliarioExpenses = async (
 ): Promise<InmobiliarioExpenseListResponse> => {
   const { data } = await api.get('/checks/inmobiliario-expenses', { params });
   return data;
+};
+
+export const getCheckByRequestId = async (requestId: number): Promise<CheckRequest> => {
+  const { data } = await api.get(`/checks/request/${requestId}`);
+  return data;
+};
+
+export const verifyParentCheck = async (requestId: number): Promise<ParentCheckResponse> => {
+  try {
+    const { data } = await api.get(`/checks/verify-parent/${requestId}`);
+    return data;
+  } catch (error: any) {
+    const responseData = error?.response?.data;
+    if (error?.response?.status === 400 && responseData?.has_parent) {
+      return responseData as ParentCheckResponse;
+    }
+    throw error;
+  }
 };
 
 export const createInmobiliarioExpense = async (

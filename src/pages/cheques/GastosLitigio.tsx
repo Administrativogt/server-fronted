@@ -1,27 +1,36 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import dayjs from 'dayjs';
+import type { Dayjs } from 'dayjs';
 import {
+  Alert,
   Button,
   Card,
+  Col,
+  DatePicker,
   Form,
   Input,
   InputNumber,
   message,
   Modal,
   Popconfirm,
+  Row,
   Select,
   Space,
   Table,
   Tag,
   Typography,
 } from 'antd';
-import type { LitigioExpense } from '../../types/checks.types';
+import type { CheckRequest, LitigioExpense, ParentCheckResponse } from '../../types/checks.types';
 import {
   createLitigioExpense,
   deleteLitigioExpense,
   downloadLitigioExpensesReport,
+  getCheckByRequestId,
   getLitigioExpenses,
+  getPendingLiquidation,
   liquidateLitigioExpense,
   updateLitigioExpense,
+  verifyParentCheck,
 } from '../../api/checks';
 import { fetchUsers, fullName, type UserLite } from '../../api/users';
 import useAuthStore from '../../auth/useAuthStore';
@@ -39,7 +48,35 @@ function GastosLitigio() {
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<LitigioExpense | null>(null);
+  const [checkOptions, setCheckOptions] = useState<CheckRequest[]>([]);
+  const [checkOptionsLoading, setCheckOptionsLoading] = useState(false);
+  const [selectedCheck, setSelectedCheck] = useState<CheckRequest | null>(null);
+  const [checkBalance, setCheckBalance] = useState<number | null>(null);
+  const [parentWarning, setParentWarning] = useState<ParentCheckResponse | null>(null);
+  const [checkingRequest, setCheckingRequest] = useState(false);
   const [form] = Form.useForm();
+
+  const requestOptions = useMemo(() => {
+    const map = new Map<number, CheckRequest>();
+    checkOptions.forEach((item) => map.set(item.request_id, item));
+    if (selectedCheck) {
+      map.set(selectedCheck.request_id, selectedCheck);
+    }
+    if (editing?.request_id?.request_id) {
+      map.set(editing.request_id.request_id, editing.request_id as CheckRequest);
+    }
+    return Array.from(map.values());
+  }, [checkOptions, editing, selectedCheck]);
+
+  const requestSelectOptions = useMemo(
+    () =>
+      requestOptions.map((item) => ({
+        label: `${item.request_id} — ${item.client}`,
+        value: item.request_id,
+      })),
+    [requestOptions],
+  );
+
   const [filters, setFilters] = useState({
     request_id: undefined as number | undefined,
     responsible_id: canViewAll ? (undefined as number | undefined) : (userId ?? undefined),
@@ -53,6 +90,108 @@ function GastosLitigio() {
       setFilters((prev) => ({ ...prev, responsible_id: userId }));
     }
   }, [canViewAll, userId]);
+
+  const fetchCheckOptions = useCallback(async () => {
+    setCheckOptionsLoading(true);
+    try {
+      const response = await getPendingLiquidation({
+        page: 1,
+        per_page: 200,
+        equipo_id: 6,
+        ...(canViewAll ? {} : { responsible_id: userId ?? undefined }),
+      });
+      setCheckOptions(response.data);
+    } catch (error: any) {
+      setCheckOptions([]);
+      message.error(
+        error?.response?.data?.message || 'Error al cargar solicitudes disponibles',
+      );
+    } finally {
+      setCheckOptionsLoading(false);
+    }
+  }, [canViewAll, userId]);
+
+  useEffect(() => {
+    if (modalOpen) {
+      fetchCheckOptions();
+    } else {
+      form.resetFields();
+      setSelectedCheck(null);
+      setCheckBalance(null);
+      setParentWarning(null);
+    }
+  }, [modalOpen, fetchCheckOptions, form]);
+
+  const detectParentCheck = useCallback(async (requestId: number) => {
+    try {
+      const response = await verifyParentCheck(requestId);
+      if (response?.has_parent) {
+        setParentWarning(response);
+      } else {
+        setParentWarning(null);
+      }
+    } catch (error: any) {
+      if (error?.response?.status === 400 && error.response.data?.has_parent) {
+        setParentWarning(error.response.data);
+      } else {
+        setParentWarning(null);
+      }
+    }
+  }, []);
+
+  const handleRequestChange = async (requestId?: number) => {
+    if (!requestId) {
+      setSelectedCheck(null);
+      setCheckBalance(null);
+      setParentWarning(null);
+      return;
+    }
+    setCheckingRequest(true);
+    try {
+      const check = await getCheckByRequestId(requestId);
+      setSelectedCheck(check);
+      setCheckBalance(
+        typeof check.inmobiliario_expenses_amount === 'number'
+          ? Number(check.inmobiliario_expenses_amount)
+          : null,
+      );
+      form.setFieldsValue({
+        note_number: check.work_note_number,
+        client: check.client,
+        description: check.description,
+      });
+      await detectParentCheck(requestId);
+    } catch (error: any) {
+      form.setFieldsValue({ request_id: undefined });
+      setSelectedCheck(null);
+      setCheckBalance(null);
+      setParentWarning(null);
+      message.error(error?.response?.data?.message || 'No se pudo obtener el cheque');
+    } finally {
+      setCheckingRequest(false);
+    }
+  };
+
+  const handleApplyParentCheck = () => {
+    if (!parentWarning?.parent?.request_id) return;
+    const parentId = parentWarning.parent.request_id;
+    form.setFieldsValue({ request_id: parentId });
+    handleRequestChange(parentId);
+  };
+
+  const handleExtractReceiptData = () => {
+    const reference: string = form.getFieldValue('receipt_number_reference') || '';
+    if (!reference.trim()) {
+      message.warning('Ingresa el número de comprobante completo primero');
+      return;
+    }
+    const digits = reference.replace(/[^0-9]/g, '');
+    const letters = reference.replace(/[0-9]/g, '').trim();
+    form.setFieldsValue({
+      receipt_number: digits,
+      receipt_serie: letters,
+    });
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -81,12 +220,15 @@ function GastosLitigio() {
   }, [filters.page, filters.per_page]);
 
   useEffect(() => {
-    fetchUsers().then(setUsers).catch(() => setUsers([]));
+    fetchUsers(6).then(setUsers).catch(() => setUsers([]));
   }, []);
 
   const openCreate = () => {
     setEditing(null);
     form.resetFields();
+    setSelectedCheck(null);
+    setParentWarning(null);
+    setCheckBalance(null);
     setModalOpen(true);
   };
 
@@ -95,7 +237,7 @@ function GastosLitigio() {
     form.setFieldsValue({
       request_id: expense.request_id?.request_id,
       note_number: expense.note_number,
-      date: expense.date,
+      date: expense.date ? dayjs(expense.date) : undefined,
       description: expense.description,
       client: expense.client,
       documents: expense.documents,
@@ -106,17 +248,31 @@ function GastosLitigio() {
       comment: expense.comment,
       delivered_by_id: expense.delivered_by?.id,
     });
+    setSelectedCheck(expense.request_id ?? null);
+    setCheckBalance(
+      expense.request_id?.inmobiliario_expenses_amount !== undefined
+        ? Number(expense.request_id?.inmobiliario_expenses_amount)
+        : null,
+    );
+    setParentWarning(null);
     setModalOpen(true);
   };
 
   const handleSave = async () => {
     try {
       const values = await form.validateFields();
+      const payload = {
+        ...values,
+        date:
+          values.date && typeof values.date !== 'string'
+            ? (values.date as Dayjs).format('YYYY-MM-DD')
+            : values.date,
+      };
       if (editing?.id) {
-        await updateLitigioExpense(editing.id, values);
+        await updateLitigioExpense(editing.id, payload);
         message.success('Gasto actualizado');
       } else {
-        await createLitigioExpense(values);
+        await createLitigioExpense(payload);
         message.success('Gasto creado');
       }
       setModalOpen(false);
@@ -202,6 +358,7 @@ function GastosLitigio() {
         rowKey="id"
         loading={loading}
         dataSource={data}
+        scroll={{ x: 'max-content', y: 480 }}
         pagination={{
           current: pagination.page,
           pageSize: pagination.per_page,
@@ -242,7 +399,7 @@ function GastosLitigio() {
                   <Button danger>Eliminar</Button>
                 </Popconfirm>
                 <Button type="primary" onClick={() => handleLiquidateExpense(record.id)}>
-                  Marcar aceptado
+                  Marcar liquidado
                 </Button>
               </Space>
             ),
@@ -258,54 +415,171 @@ function GastosLitigio() {
         okText="Guardar"
         width={760}
       >
+        {parentWarning?.has_parent && parentWarning.parent ? (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message="Advertencia"
+            description={
+              <div>
+                <div>{parentWarning.message || 'Esta solicitud cuenta con un ID matriz.'}</div>
+                <div style={{ marginTop: 8 }}>
+                  ID matriz: <strong>{parentWarning.parent.request_id}</strong> — NT{' '}
+                  {parentWarning.parent.work_note_number} — Cliente {parentWarning.parent.client}
+                </div>
+                <Button type="link" onClick={handleApplyParentCheck} style={{ paddingLeft: 0 }}>
+                  Presiona acá para seleccionarlo
+                </Button>
+              </div>
+            }
+          />
+        ) : null}
         <Form form={form} layout="vertical">
-          <Form.Item name="request_id" label="Request ID" rules={[{ required: true }]}>
-            <InputNumber min={1} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="note_number" label="No. Nota" rules={[{ required: true }]}>
-            <InputNumber min={1} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="date" label="Fecha" rules={[{ required: true }]}>
-            <Input placeholder="YYYY-MM-DD" />
-          </Form.Item>
-          <Form.Item name="client" label="Cliente" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="description" label="Descripción">
-            <Input.TextArea rows={2} />
-          </Form.Item>
-          <Form.Item
-            name="receipt_number_reference"
-            label="No. recibo referencia"
-            rules={[{ required: true }]}
-          >
-            <Input />
-          </Form.Item>
-          <Form.Item name="receipt_number" label="No. recibo" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="receipt_serie" label="Serie recibo">
-            <Input />
-          </Form.Item>
-          <Form.Item name="receipt_value" label="Valor recibo" rules={[{ required: true }]}>
-            <InputNumber min={0.01} step={0.01} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="documents" label="Documentos">
-            <Input />
-          </Form.Item>
-          <Form.Item name="comment" label="Comentario">
-            <Input.TextArea rows={2} />
-          </Form.Item>
-          <Form.Item name="delivered_by_id" label="Entregado por" rules={[{ required: true }]}>
-            <Select
-              showSearch
-              options={users.map((user) => ({
-                label: `${fullName(user)} (${user.username})`,
-                value: user.id,
-              }))}
-              optionFilterProp="label"
-            />
-          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="request_id"
+                label="Request ID"
+                rules={[{ required: true, message: 'Selecciona un Request ID' }]}
+              >
+                <Select<number>
+                  showSearch
+                  allowClear
+                  placeholder="Selecciona un request"
+                  loading={checkOptionsLoading || checkingRequest}
+                  options={requestSelectOptions}
+                  optionFilterProp="label"
+                  onChange={(value) => handleRequestChange(value)}
+                  onClear={() => handleRequestChange(undefined)}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="note_number" label="No. Nota" rules={[{ required: true }]}>
+                <InputNumber min={1} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="client" label="Cliente" rules={[{ required: true }]}>
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="description" label="Descripción">
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="date" label="Fecha" rules={[{ required: true }]}>
+                <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="documents" label="Documentos">
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="receipt_number_reference"
+                label="No. documento entregado"
+                rules={[{ required: true }]}
+                extra={<span style={{ color: '#0050b3' }}>Ingresar número de comprobante completo</span>}
+              >
+                <Input />
+              </Form.Item>
+              <Button
+                size="small"
+                type="primary"
+                htmlType="button"
+                onClick={handleExtractReceiptData}
+                style={{ marginBottom: 16 }}
+              >
+                Extraer número y serie
+              </Button>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="receipt_number"
+                label="No. documento para liquidar"
+                rules={[{ required: true }]}
+                extra={
+                  <span style={{ color: '#0050b3' }}>
+                    Este número es el que el usuario deberá ingresar al liquidar y que el sistema validará
+                  </span>
+                }
+              >
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="receipt_serie"
+                label="Serie documento para liquidar"
+                extra={
+                  <span style={{ color: '#0050b3' }}>
+                    Este número de serie es el que el sistema validará durante la liquidación
+                  </span>
+                }
+              >
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="receipt_value" label="Valor a liquidar" rules={[{ required: true }]}>
+                <InputNumber min={0.01} step={0.01} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="Saldo en ID seleccionado">
+                <Input
+                  readOnly
+                  value={
+                    checkBalance !== null && !Number.isNaN(checkBalance)
+                      ? checkBalance.toFixed(2)
+                      : ''
+                  }
+                  placeholder="Selecciona un Request ID"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="comment" label="Comentario">
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="delivered_by_id" label="Entregado por" rules={[{ required: true }]}>
+                <Select
+                  showSearch
+                  options={users.map((user) => ({
+                    label: `${fullName(user)} (${user.username})`,
+                    value: user.id,
+                  }))}
+                  optionFilterProp="label"
+                />
+              </Form.Item>
+            </Col>
+          </Row>
         </Form>
       </Modal>
     </Card>

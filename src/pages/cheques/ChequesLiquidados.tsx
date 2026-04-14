@@ -187,6 +187,7 @@ function ChequesLiquidados() {
         rowKey="id"
         loading={loading}
         dataSource={data}
+        scroll={{ x: 'max-content', y: 480 }}
         rowSelection={{
           selectedRowKeys,
           onChange: setSelectedRowKeys,

@@ -155,7 +155,7 @@ function LiquidacionCheque() {
     liquidateForm.setFieldsValue({
       entity_id: defaultEntityId,
       codigo_tipo_documento: 'COMP',
-      serie_factura: check.document_serie || 'B',
+      serie_factura: check.document_serie || '',
       numero_factura: check.document_number ? String(check.document_number) : '',
       nit_factura: check.invoice_nit || 'CF',
       nombre_factura: check.invoice_name || check.client_name || check.client,
@@ -216,30 +216,61 @@ function LiquidacionCheque() {
       await loadData();
     } catch (error: any) {
       const err = error?.response?.data;
-      const rawMsg: string = Array.isArray(err?.message)
-        ? err.message.join(', ')
-        : err?.message || '';
+      // Extraer mensaje sin importar si viene como string, array o campo message/error
+      const rawMsg: string =
+        typeof err === 'string'
+          ? err
+          : Array.isArray(err?.message)
+          ? err.message.join(', ')
+          : err?.message || err?.error || '';
 
-      if (
-        rawMsg.toLowerCase().includes('duplicate') ||
-        rawMsg.toLowerCase().includes('unique') ||
-        rawMsg.toLowerCase().includes('ya existe') ||
-        rawMsg.toLowerCase().includes('ya fue utilizado') ||
-        rawMsg.toLowerCase().includes('numero_factura') ||
-        rawMsg.toLowerCase().includes('numero de comprobante')
+      const msg = rawMsg.toLowerCase();
+
+      if (!error?.response) {
+        // Error de red / timeout
+        message.error('No se pudo conectar al servidor. Verifique su conexión e intente nuevamente.', 6);
+      } else if (msg.includes('gladys')) {
+        // Validación litigio — el gasto no está en el listado de Gladys
+        message.error(
+          `No se puede liquidar: ${rawMsg}. ` +
+          'Verifique que el número de recibo, serie y monto coincidan exactamente con el gasto registrado en el módulo de Gastos Litigio.',
+          10,
+        );
+      } else if (msg.includes('marina')) {
+        // Validación inmobiliario — el gasto no está registrado por Marina Muñoz
+        message.error(
+          `No se puede liquidar: ${rawMsg}. ` +
+          'Verifique que el número de recibo, serie y monto coincidan exactamente con el gasto registrado en el módulo de Gastos Inmobiliarios.',
+          10,
+        );
+      } else if (
+        msg.includes('duplicate') ||
+        msg.includes('unique') ||
+        msg.includes('ya existe') ||
+        msg.includes('ya fue utilizado') ||
+        msg.includes('numero_factura') ||
+        msg.includes('numero de comprobante')
       ) {
         message.error(
           'El número de comprobante ya fue utilizado en otra liquidación. Verifique e ingrese un número diferente.',
           6,
         );
-      } else if (rawMsg.toLowerCase().includes('monto') || rawMsg.toLowerCase().includes('valor')) {
+      } else if (msg.includes('pagina') || msg.includes('pdf')) {
+        message.error(rawMsg, 7);
+      } else if (msg.includes('monto') || msg.includes('valor')) {
         message.error(`Error en el monto: ${rawMsg}`, 5);
-      } else if (rawMsg.toLowerCase().includes('entidad') || rawMsg.toLowerCase().includes('entity')) {
+      } else if (msg.includes('entidad') || msg.includes('entity')) {
         message.error(`Error con la entidad seleccionada: ${rawMsg}`, 5);
+      } else if (msg.includes('permisos')) {
+        message.error('No tiene permisos para liquidar esta solicitud.', 5);
+      } else if (msg.includes('pendiente de liquidacion') || msg.includes('estado')) {
+        message.error('La solicitud no está en estado pendiente de liquidación.', 5);
+      } else if (msg.includes('sirvo') || msg.includes('conexion') || msg.includes('timeout')) {
+        message.error(`Error de comunicación con Sirvo: ${rawMsg}`, 7);
       } else if (rawMsg) {
-        message.error(rawMsg, 5);
+        message.error(rawMsg, 6);
       } else {
-        message.error('Error al liquidar el cheque. Intente nuevamente.');
+        message.error('Error al liquidar el cheque. Intente nuevamente.', 5);
       }
     } finally {
       setLiquidateLoading(false);
@@ -320,6 +351,7 @@ function LiquidacionCheque() {
         rowKey="id"
         loading={loading}
         dataSource={data}
+        scroll={{ x: 'max-content', y: 480 }}
         pagination={{
           current: pagination.page,
           pageSize: pagination.per_page,
@@ -331,6 +363,15 @@ function LiquidacionCheque() {
         columns={[
           { title: 'Request ID', dataIndex: 'request_id', width: 120 },
           { title: 'NT', dataIndex: 'work_note_number', width: 110 },
+          {
+            title: 'Solicitante',
+            dataIndex: 'responsible',
+            width: 180,
+            render: (responsible: CheckRequest['responsible']) =>
+              responsible
+                ? `${responsible.first_name ?? ''} ${responsible.last_name ?? ''}`.trim() || responsible.username
+                : '—',
+          },
           { title: 'Cliente', dataIndex: 'client', width: 110 },
           { title: 'Descripción', dataIndex: 'description', ellipsis: true },
           {
