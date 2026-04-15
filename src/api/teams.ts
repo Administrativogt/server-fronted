@@ -23,6 +23,6 @@ export async function getTeams(): Promise<Team[]> {
 }
 
 export async function getPracticeAreas(): Promise<PracticeArea[]> {
-  const { data } = await api.get('/money-requirements/practice-areas');
+  const { data } = await api.get('/money-requirements/user-areas');
   return data;
 }

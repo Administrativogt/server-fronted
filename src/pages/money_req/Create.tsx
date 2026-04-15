@@ -30,7 +30,7 @@ const formatAmountInput = (value?: string | number): string => {
 
 interface FormValues {
   payableTo: string;
-  nit?: string;
+  workNoteNumber?: string;
   amount: number;
   currency: string;
   description?: string;
@@ -76,7 +76,7 @@ const CreateMoneyRequirement: React.FC = () => {
     try {
       const payload: Partial<MoneyRequirement> = {
         payableTo: values.payableTo,
-        nit: values.nit,
+        workNoteNumber: values.workNoteNumber,
         amount: values.amount,
         currency: values.currency,
         description: values.description,
@@ -101,7 +101,7 @@ const CreateMoneyRequirement: React.FC = () => {
       const values = await form.validateFields();
       const payload: Partial<MoneyRequirement> = {
         payableTo: values.payableTo,
-        nit: values.nit,
+        workNoteNumber: values.workNoteNumber,
         amount: values.amount,
         currency: values.currency,
         description: values.description,
@@ -138,7 +138,7 @@ const CreateMoneyRequirement: React.FC = () => {
           <Input />
         </Form.Item>
 
-        <Form.Item label="NIT" name="nit">
+        <Form.Item label="NT (Nota de trabajo)" name="workNoteNumber">
           <Input />
         </Form.Item>
 
@@ -187,7 +187,7 @@ const CreateMoneyRequirement: React.FC = () => {
           </Select>
         </Form.Item>
 
-        <Form.Item label="Área de práctica" name="areaIds" rules={[{ required: true }]}>
+        <Form.Item label="Área" name="areaIds" rules={[{ required: true }]}>
           <Select
             mode="multiple"
             placeholder="Seleccione una o más áreas"
