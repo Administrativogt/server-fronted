@@ -110,11 +110,18 @@ function ChequesLiquidados() {
   };
 
   const handleDownloadExcel = async () => {
+    if (!selectedCheckIds.length) {
+      message.info('Seleccione al menos un registro');
+      return;
+    }
     try {
-      await downloadLiquidatedReport({
-        init_date: filters.init_date || undefined,
-        end_date: filters.end_date || undefined,
-      });
+      await downloadLiquidatedReport(
+        {
+          init_date: filters.init_date || undefined,
+          end_date: filters.end_date || undefined,
+        },
+        selectedCheckIds,
+      );
       message.success('Reporte descargado');
     } catch (error: any) {
       message.error(error?.response?.data?.message || 'Error al descargar reporte');
@@ -147,7 +154,7 @@ function ChequesLiquidados() {
           <Button onClick={() => loadData()} loading={loading}>
             Recargar
           </Button>
-          <Button onClick={handleDownloadExcel}>
+          <Button onClick={handleDownloadExcel} disabled={!selectedRowKeys.length}>
             Descargar Excel
           </Button>
           <Button onClick={handleDownloadDocuments} disabled={!selectedRowKeys.length}>

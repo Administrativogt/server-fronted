@@ -241,25 +241,38 @@ export const downloadPendingLiquidationReport = async (userId?: number) =>
     'reporte_cheques_pendientes.xlsx',
   );
 
-export const downloadLiquidatedReport = async (filters?: {
-  invoice_number?: string;
-  invoice_serie?: string;
-  init_date?: string;
-  end_date?: string;
-  responsible_id?: number;
-}) =>
-  downloadBlob(
-    '/checks/reports/liquidated.xlsx',
-    filters,
-    'reporte_cheques_liquidados.xlsx',
-  );
+export const downloadLiquidatedReport = async (
+  filters?: {
+    invoice_number?: string;
+    invoice_serie?: string;
+    init_date?: string;
+    end_date?: string;
+    responsible_id?: number;
+  },
+  checkIds?: number[],
+) => {
+  const params: Record<string, unknown> = { ...filters };
+  if (checkIds && checkIds.length > 0) {
+    params.checks_data = btoa(JSON.stringify(checkIds));
+  }
+  return downloadBlob('/checks/reports/liquidated.xlsx', params, 'reporte_cheques_liquidados.xlsx');
+};
 
-export const downloadExpensesReport = async (requestId?: number) =>
-  downloadBlob(
+export const downloadExpensesReport = async (
+  requestId?: number,
+  expenseIds?: number[],
+) => {
+  const params: Record<string, unknown> = {};
+  if (requestId) params.request_id = requestId;
+  if (expenseIds && expenseIds.length > 0) {
+    params.expense_ids = btoa(JSON.stringify(expenseIds));
+  }
+  return downloadBlob(
     '/checks/reports/inmobiliario-expenses.xlsx',
-    requestId ? { request_id: requestId } : undefined,
+    Object.keys(params).length ? params : undefined,
     'reporte_gastos_inmobiliarios.xlsx',
   );
+};
 
 export const downloadLitigioExpensesReport = async (requestId?: number) =>
   downloadBlob(

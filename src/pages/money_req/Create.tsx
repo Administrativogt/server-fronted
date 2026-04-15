@@ -13,9 +13,8 @@ import {
 } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { getTeams, type Team } from '../../api/teams';
+import { getTeams, getPracticeAreas, type Team, type PracticeArea } from '../../api/teams';
 import { fetchUsers, type UserLite, fullName } from '../../api/users';
-import { getAreas, type Area } from '../../api/areas';
 import type { MoneyRequirement } from '../../api/moneyRequirements';
 import { createMoneyRequirement, sendAuthorizationEmail } from '../../api/moneyRequirements';
 
@@ -44,14 +43,14 @@ interface FormValues {
 const CreateMoneyRequirement: React.FC = () => {
   const [form] = Form.useForm<FormValues>();
   const [teams, setTeams] = useState<Team[]>([]);
-  const [areas, setAreas] = useState<Area[]>([]);
+  const [areas, setAreas] = useState<PracticeArea[]>([]);
   const [users, setUsers] = useState<UserLite[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [t, a, u] = await Promise.all([getTeams(), getAreas(), fetchUsers()]);
+        const [t, a, u] = await Promise.all([getTeams(), getPracticeAreas(), fetchUsers()]);
         setTeams(t);
         setAreas(a);
         setUsers(u);

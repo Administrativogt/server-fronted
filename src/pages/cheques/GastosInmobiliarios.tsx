@@ -44,6 +44,7 @@ function GastosInmobiliarios() {
   const canViewAll = isSuperuser || [1, 2, 10].includes(tipoUsuario || 0);
 
   const [data, setData] = useState<InmobiliarioExpense[]>([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [users, setUsers] = useState<UserLite[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -311,7 +312,19 @@ function GastosInmobiliarios() {
           <Button onClick={() => loadData()} loading={loading}>
             Recargar
           </Button>
-          <Button onClick={() => downloadExpensesReport(filters.request_id)}>
+          <Button
+            onClick={() => {
+              if (!selectedRowKeys.length) {
+                message.info('Seleccione al menos un registro');
+                return;
+              }
+              const selectedIds = data
+                .filter((row) => selectedRowKeys.includes(row.id))
+                .map((row) => row.id);
+              downloadExpensesReport(filters.request_id, selectedIds);
+            }}
+            disabled={!selectedRowKeys.length}
+          >
             Descargar reporte
           </Button>
           <Button type="primary" onClick={openCreate}>
@@ -357,6 +370,10 @@ function GastosInmobiliarios() {
         loading={loading}
         dataSource={data}
         scroll={{ x: 'max-content', y: 480 }}
+        rowSelection={{
+          selectedRowKeys,
+          onChange: setSelectedRowKeys,
+        }}
         pagination={{
           current: pagination.page,
           pageSize: pagination.per_page,

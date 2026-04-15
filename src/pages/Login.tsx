@@ -29,6 +29,8 @@ function Login() {
   const [forceChangeForm] = Form.useForm();
   const setToken = useAuthStore((state) => state.setToken);
   const setUsername = useAuthStore((state) => state.setUsername);
+  const setFirstName = useAuthStore((state) => state.setFirstName);
+  const setLastName = useAuthStore((state) => state.setLastName);
   const setUserId = useAuthStore((state) => state.setUserId);
   const setRefreshToken = useAuthStore((state) => state.setRefreshToken);
   const setTipoUsuario = useAuthStore((state) => state.setTipoUsuario);
@@ -68,6 +70,8 @@ function Login() {
       setToken(access_token);
       setRefreshToken('');
       setUsername(decoded.username || transformedValues.username);
+      setFirstName(user?.first_name || '');
+      setLastName(user?.last_name || '');
       setUserId(decoded.sub);
       setTipoUsuario(user?.tipo_usuario ?? null);
       useAuthStore.getState().setAreaId(user?.area?.id ?? null);

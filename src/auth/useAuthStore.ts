@@ -10,6 +10,8 @@ const SESSION_WARN_COOLDOWN_MS = 3000;
 interface AuthState {
   token: string | null;
   username: string;
+  firstName: string;
+  lastName: string;
   userId: number | null;
   refreshToken: string | null;
   tipo_usuario: number | null;
@@ -20,6 +22,8 @@ interface AuthState {
   setAreaId: (id: number | null) => void;
   setToken: (token: string) => void;
   setUsername: (username: string) => void;
+  setFirstName: (name: string) => void;
+  setLastName: (name: string) => void;
   setUserId: (id: number) => void;
   setRefreshToken: (token: string) => void;
   setTipoUsuario: (tipo: number | null) => void;
@@ -33,6 +37,8 @@ interface AuthState {
 const useAuthStore = create<AuthState>((set) => {
   const rawToken = sessionStorage.getItem('token');
   const rawUsername = sessionStorage.getItem('username') || '';
+  const rawFirstName = sessionStorage.getItem('firstName') || '';
+  const rawLastName = sessionStorage.getItem('lastName') || '';
   const rawUserId = Number(sessionStorage.getItem('userId'));
   const rawRefresh = sessionStorage.getItem('refreshToken');
   const rawTipoUsuario = sessionStorage.getItem('tipo_usuario');
@@ -51,6 +57,8 @@ const useAuthStore = create<AuthState>((set) => {
   if (expiredOrInvalid) {
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('username');
+    sessionStorage.removeItem('firstName');
+    sessionStorage.removeItem('lastName');
     sessionStorage.removeItem('userId');
     sessionStorage.removeItem('refreshToken');
     sessionStorage.removeItem('tipo_usuario');
@@ -63,6 +71,8 @@ const useAuthStore = create<AuthState>((set) => {
   return {
     token: expiredOrInvalid ? null : rawToken,
     username: expiredOrInvalid ? '' : rawUsername,
+    firstName: expiredOrInvalid ? '' : rawFirstName,
+    lastName: expiredOrInvalid ? '' : rawLastName,
     userId: expiredOrInvalid ? null : rawUserId,
     refreshToken: expiredOrInvalid ? null : rawRefresh,
     tipo_usuario: expiredOrInvalid ? null : parsedTipoUsuario,
@@ -83,6 +93,16 @@ const useAuthStore = create<AuthState>((set) => {
     setUsername: (username) => {
       sessionStorage.setItem('username', username);
       set({ username });
+    },
+
+    setFirstName: (name) => {
+      sessionStorage.setItem('firstName', name);
+      set({ firstName: name });
+    },
+
+    setLastName: (name) => {
+      sessionStorage.setItem('lastName', name);
+      set({ lastName: name });
     },
 
     setUserId: (id) => {
@@ -134,6 +154,8 @@ const useAuthStore = create<AuthState>((set) => {
       const hadToken = !!sessionStorage.getItem('token');
       sessionStorage.removeItem('token');
       sessionStorage.removeItem('username');
+      sessionStorage.removeItem('firstName');
+      sessionStorage.removeItem('lastName');
       sessionStorage.removeItem('userId');
       sessionStorage.removeItem('refreshToken');
       sessionStorage.removeItem('tipo_usuario');
@@ -144,6 +166,8 @@ const useAuthStore = create<AuthState>((set) => {
       set({
         token: null,
         username: '',
+        firstName: '',
+        lastName: '',
         userId: null,
         refreshToken: null,
         tipo_usuario: null,

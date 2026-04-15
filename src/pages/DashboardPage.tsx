@@ -246,6 +246,8 @@ function DashboardPage() {
   const navigate = useNavigate();
   const userId = useAuthStore((s) => s.userId);
   const username = useAuthStore((s) => s.username);
+  const firstName = useAuthStore((s) => s.firstName);
+  const lastName = useAuthStore((s) => s.lastName);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadDashboard = useCallback(async (isRefresh = false) => {
@@ -404,7 +406,7 @@ function DashboardPage() {
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 28 }}>
         <div>
           <Title level={2} style={{ marginBottom: 2, fontWeight: 700, letterSpacing: "-0.5px" }}>
-            Bienvenido, {username || "Usuario"} 👋
+            Bienvenido, {firstName ? `${firstName} ${lastName}`.trim() : username || "Usuario"} 👋
           </Title>
           <Text type="secondary" style={{ fontSize: 14 }}>
             {new Date().toLocaleDateString("es-ES", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
