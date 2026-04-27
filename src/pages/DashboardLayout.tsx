@@ -27,6 +27,7 @@ import {
   MoonOutlined,
   UploadOutlined,
   BankOutlined,
+  ReadOutlined,
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import useAuthStore from '../auth/useAuthStore';
@@ -483,6 +484,32 @@ const DashboardLayout: React.FC = () => {
             icon: <PlusCircleOutlined />,
             label: "Crear procuracion",
             onClick: () => navigate('/dashboard/procuration/create')
+          }
+        ]
+      },
+      // ✨ NUEVO - Módulo de Jurisprudencia
+      {
+        key: "jurisprudencia",
+        icon: <ReadOutlined />,
+        label: "Jurisprudencia",
+        children: [
+          {
+            key: "/dashboard/jurisprudencia/panel",
+            icon: <AuditOutlined />,
+            label: "Panel & métricas",
+            onClick: () => navigate('/dashboard/jurisprudencia/panel')
+          },
+          {
+            key: "/dashboard/jurisprudencia",
+            icon: <FileSearchOutlined />,
+            label: "Archivo de sentencias",
+            onClick: () => navigate('/dashboard/jurisprudencia')
+          },
+          {
+            key: "/dashboard/jurisprudencia/crear",
+            icon: <FileAddOutlined />,
+            label: "Registrar sentencia",
+            onClick: () => navigate('/dashboard/jurisprudencia/crear')
           }
         ]
       },

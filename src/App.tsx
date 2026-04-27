@@ -97,6 +97,12 @@ import SchedulerCalendar from './pages/agendador/SchedulerCalendar';
 import SchedulerHolidaysList from './pages/agendador/SchedulerHolidaysList';
 import SchedulerHolidayForm from './pages/agendador/SchedulerHolidayForm';
 
+// Módulo de Jurisprudencia
+import JurisprudenceListPage from './pages/jurisprudence/JurisprudenceListPage';
+import JurisprudenceDashboardPage from './pages/jurisprudence/JurisprudenceDashboardPage';
+import SentenceDetailPage from './pages/jurisprudence/SentenceDetailPage';
+import SentenceFormPage from './pages/jurisprudence/SentenceFormPage';
+
 // Módulo de Contabilidad
 import ContrasenaList from './pages/contabilidad/ContrasenaList';
 import ContrasenaCreate from './pages/contabilidad/ContrasenaCreate';
@@ -267,6 +273,13 @@ function AppInner() {
                 <Route path="/dashboard/casos/solicitud/:id" element={<CaseDetailPage />} />
                 <Route path="/dashboard/casos/solicitud/editar/:id" element={<EditCasePage />} />
               </Route>
+
+              {/* Módulo de Jurisprudencia */}
+              <Route path="/dashboard/jurisprudencia" element={<JurisprudenceListPage />} />
+              <Route path="/dashboard/jurisprudencia/panel" element={<JurisprudenceDashboardPage />} />
+              <Route path="/dashboard/jurisprudencia/crear" element={<SentenceFormPage />} />
+              <Route path="/dashboard/jurisprudencia/:id" element={<SentenceDetailPage />} />
+              <Route path="/dashboard/jurisprudencia/:id/editar" element={<SentenceFormPage />} />
 
               {/* Módulo de Contabilidad */}
               <Route element={<ModuleRoute moduleKey="contabilidad" />}>
