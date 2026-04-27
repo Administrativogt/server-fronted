@@ -178,3 +178,12 @@ export async function fetchUsers(): Promise<User[]> {
   const { data } = await api.get("/users");
   return data;
 }
+
+//
+// Obtener lista de usuarios elegibles para "Recibido por" en documentos
+// (mensajeros + Wendy, Amalia, Mara Ortiz, Pedro Luis Toribio)
+//
+export async function fetchDocumentReceivers(): Promise<User[]> {
+  const { data } = await api.get("/users/document-receivers");
+  return data;
+}

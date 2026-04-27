@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Form, Input, Select, Checkbox, Button, message, Row, Col, InputNumber } from "antd";
-import { fetchUsers, createDocument } from "../../api/documents";
+import { fetchUsers, fetchDocumentReceivers, createDocument } from "../../api/documents";
 import { fetchPlaces, type PlaceDto } from "../../api/notifications";
 import { fetchDocumentFilterValues } from "../../api/documents";
 import type { User } from "../../types/user.types";
@@ -8,6 +8,7 @@ import type { User } from "../../types/user.types";
 const CreateDocumentForm: React.FC = () => {
   const [form] = Form.useForm();
   const [users, setUsers] = useState<User[]>([]);
+  const [receivers, setReceivers] = useState<User[]>([]);
   const [places, setPlaces] = useState<PlaceDto[]>([]);
   const [documentTypeSuggestions, setDocumentTypeSuggestions] = useState<string[]>([]);
   const [otroEntregadoPor, setOtroEntregadoPor] = useState(false);
@@ -17,6 +18,10 @@ const CreateDocumentForm: React.FC = () => {
     fetchUsers()
       .then(setUsers)
       .catch(() => message.error("Error cargando usuarios"));
+
+    fetchDocumentReceivers()
+      .then(setReceivers)
+      .catch(() => message.error("Error cargando receptores"));
 
     fetchPlaces()
       .then(setPlaces)
@@ -164,7 +169,7 @@ const CreateDocumentForm: React.FC = () => {
               placeholder="Escribe para buscar..."
               showSearch
               optionFilterProp="label"
-              options={users.map((u) => ({
+              options={receivers.map((u) => ({
                 value: u.id,
                 label: `${u.first_name} ${u.last_name}`,
               }))}
