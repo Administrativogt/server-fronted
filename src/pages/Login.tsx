@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Row, Col, Form, Input, Button, Typography, message, Checkbox, ConfigProvider, Modal, theme as antdTheme } from 'antd';
 import api from '../api/axios';
 import useAuthStore from '../auth/useAuthStore';
@@ -21,6 +21,13 @@ const textMuted = '#9ca3af';
 
 function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Si el usuario llegó desde una URL protegida (ej. /dashboard/mis-cheques desde el correo),
+  // PrivateRoute la guardó en location.state.from; si no, vamos al dashboard.
+  const redirectTo =
+    typeof (location.state as any)?.from === 'string'
+      ? (location.state as any).from
+      : '/dashboard';
   const [forgotOpen, setForgotOpen] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotForm] = Form.useForm();
@@ -91,7 +98,7 @@ function Login() {
       }
 
       message.success('Inicio de sesión exitoso');
-      navigate('/dashboard');
+      navigate(redirectTo, { replace: true });
     } catch (error: any) {
       console.error('❌ Error en login:', error);
       const errorMsg = error.response?.data?.message || 'Credenciales inválidas';
@@ -126,7 +133,7 @@ function Login() {
       message.success('Contraseña actualizada. Bienvenido.');
       setForceChangeOpen(false);
       forceChangeForm.resetFields();
-      navigate('/dashboard');
+      navigate(redirectTo, { replace: true });
     } catch (error: any) {
       const errorMsg = error.response?.data?.message || 'No se pudo cambiar la contraseña';
       message.error(errorMsg);
