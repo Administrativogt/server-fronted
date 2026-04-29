@@ -24,6 +24,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css';
 import AutorizacionCheque from './pages/cheques/AutorizacionCheque';
 import CargarCheques from './pages/autorizacion-cheques/CargarCheques';
 import ListaCheques from './pages/autorizacion-cheques/ListaCheques';
+import MisCheques from './pages/autorizacion-cheques/MisCheques';
 import AutorizacionParcial from './pages/cheques/AutorizacionParcial';
 import LiquidacionCheque from './pages/cheques/LiquidacionCheque';
 import ChequesLiquidados from './pages/cheques/ChequesLiquidados';
@@ -104,12 +105,6 @@ import SentenceDetailPage from './pages/jurisprudence/SentenceDetailPage';
 import SentenceFormPage from './pages/jurisprudence/SentenceFormPage';
 
 // Módulo de Contabilidad
-import ContrasenaList from './pages/contabilidad/ContrasenaList';
-import ContrasenaCreate from './pages/contabilidad/ContrasenaCreate';
-import ContrasenasPendientes from './pages/contabilidad/ContrasenasPendientes';
-import ProveedoresList from './pages/contabilidad/ProveedoresList';
-import LiquidacionCheques from './pages/contabilidad/LiquidacionCheques';
-import LiquidacionList from './pages/contabilidad/LiquidacionList';
 
 dayjs.locale('es');
 
@@ -158,6 +153,7 @@ function AppInner() {
               <Route element={<ModuleRoute moduleKeys={['cheques', 'autorizacion_cheques']} />}>
                 <Route path="/dashboard/autorizacion-cheques/cargar" element={<CargarCheques />} />
                 <Route path="/dashboard/autorizacion-cheques/lista" element={<ListaCheques />} />
+                <Route path="/dashboard/mis-cheques" element={<MisCheques />} />
               </Route>
 
               {/* Gestión de cheques */}
@@ -280,16 +276,6 @@ function AppInner() {
               <Route path="/dashboard/jurisprudencia/crear" element={<SentenceFormPage />} />
               <Route path="/dashboard/jurisprudencia/:id" element={<SentenceDetailPage />} />
               <Route path="/dashboard/jurisprudencia/:id/editar" element={<SentenceFormPage />} />
-
-              {/* Módulo de Contabilidad */}
-              <Route element={<ModuleRoute moduleKey="contabilidad" />}>
-                <Route path="/dashboard/contabilidad/contrasenas" element={<ContrasenaList />} />
-                <Route path="/dashboard/contabilidad/contrasenas/crear" element={<ContrasenaCreate />} />
-                <Route path="/dashboard/contabilidad/contrasenas/pendientes" element={<ContrasenasPendientes />} />
-                <Route path="/dashboard/contabilidad/proveedores" element={<ProveedoresList />} />
-                <Route path="/dashboard/contabilidad/cheques/cargar" element={<LiquidacionCheques />} />
-                <Route path="/dashboard/contabilidad/cheques/lista" element={<LiquidacionList />} />
-              </Route>
 
               {/* Fallback dentro del layout */}
               <Route path="*" element={<Navigate to="/dashboard" replace />} />

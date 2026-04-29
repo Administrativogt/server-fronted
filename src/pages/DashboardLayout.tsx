@@ -96,6 +96,12 @@ const DashboardLayout: React.FC = () => {
         onClick: () => navigate('/dashboard')
       },
       {
+        key: "/dashboard/mis-cheques",
+        icon: <DollarOutlined />,
+        label: "Mis cheques",
+        onClick: () => navigate('/dashboard/mis-cheques'),
+      },
+      {
         key: "agendador",
         icon: <ScheduleOutlined />,
         label: "Agendador",
@@ -129,8 +135,8 @@ const DashboardLayout: React.FC = () => {
       },
       {
         key: "autorizacion-cheques",
-        icon: <FileDoneOutlined />,
-        label: "Autorización de cheques",
+        icon: <BankOutlined />,
+        label: "Contabilidad",
         children: [
           {
             key: "/dashboard/autorizacion-cheques/cargar",
@@ -188,43 +194,6 @@ const DashboardLayout: React.FC = () => {
             onClick: () => navigate('/dashboard/cheques/pendientes')
           }
         ]
-      },
-      {
-        key: "contabilidad",
-        icon: <BankOutlined />,
-        label: "Contabilidad",
-        children: [
-          {
-            key: "/dashboard/contabilidad/contrasenas",
-            icon: <FileTextOutlined />,
-            label: "Contraseñas de pago",
-            onClick: () => navigate('/dashboard/contabilidad/contrasenas'),
-          },
-          {
-            key: "/dashboard/contabilidad/contrasenas/pendientes",
-            icon: <PushpinOutlined />,
-            label: "Pendientes",
-            onClick: () => navigate('/dashboard/contabilidad/contrasenas/pendientes'),
-          },
-          {
-            key: "/dashboard/contabilidad/proveedores",
-            icon: <UnorderedListOutlined />,
-            label: "Proveedores",
-            onClick: () => navigate('/dashboard/contabilidad/proveedores'),
-          },
-          {
-            key: "/dashboard/contabilidad/cheques/cargar",
-            icon: <UploadOutlined />,
-            label: "Cargar cheques",
-            onClick: () => navigate('/dashboard/contabilidad/cheques/cargar'),
-          },
-          {
-            key: "/dashboard/contabilidad/cheques/lista",
-            icon: <DollarOutlined />,
-            label: "Lista de cheques",
-            onClick: () => navigate('/dashboard/contabilidad/cheques/lista'),
-          },
-        ],
       },
       {
         key: "casos",
@@ -552,8 +521,8 @@ const DashboardLayout: React.FC = () => {
           return hasModule('procuracion');
         case 'cheques':
           return hasModule('cheques') || hasModule('autorizacion_cheques');
-        case 'contabilidad':
-          return hasModule('contabilidad');
+        case 'autorizacion-cheques':
+          return hasModule('contabilidad') || hasModule('autorizacion_cheques');
         case 'cargability':
           return hasModule('cargabilidad');
         case 'admin':
@@ -566,7 +535,14 @@ const DashboardLayout: React.FC = () => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider trigger={null} collapsible collapsed={collapsed} theme={isDark ? 'dark' : 'light'}>
+      <Sider
+        trigger={null}
+        collapsible
+        collapsed={collapsed}
+        theme={isDark ? 'dark' : 'light'}
+        width={250}
+        collapsedWidth={80}
+      >
         <div style={{ height: 64, margin: '16px', textAlign: 'center' }}>
           <img
             src={isDark ? logoDark : logoLight}

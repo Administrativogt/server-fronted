@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Card, Upload, Button, message, Typography, Alert, Table, Tag } from 'antd';
-import { UploadOutlined, FileExcelOutlined, WarningOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { Card, Upload, Button, message, Typography, Alert, Table, Tag, Divider } from 'antd';
+import { UploadOutlined, FileExcelOutlined, WarningOutlined, CheckCircleOutlined, MessageOutlined } from '@ant-design/icons';
 import type { RcFile } from 'antd/es/upload/interface';
-import { uploadLiquidationChecks } from '../../api/accounting-checks';
+import { uploadLiquidationChecks, uploadCheckComments } from '../../api/accounting-checks';
+import type { UploadCommentsResult } from '../../types/accounting-checks.types';
 
 const { Title, Text } = Typography;
 
@@ -16,6 +17,10 @@ const CargarCheques: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [unmatchedUsers, setUnmatchedUsers] = useState<UnmatchedUser[]>([]);
   const [uploadDone, setUploadDone] = useState(false);
+
+  const [commentsFile, setCommentsFile] = useState<File | null>(null);
+  const [uploadingComments, setUploadingComments] = useState(false);
+  const [commentsResult, setCommentsResult] = useState<UploadCommentsResult | null>(null);
 
   const handleUpload = async () => {
     if (!selectedFile) {
@@ -54,6 +59,44 @@ const CargarCheques: React.FC = () => {
   const beforeUpload = (file: RcFile) => {
     setSelectedFile(file);
     return false;
+  };
+
+  const beforeUploadComments = (file: RcFile) => {
+    setCommentsFile(file);
+    return false;
+  };
+
+  const handleUploadComments = async () => {
+    if (!commentsFile) {
+      message.warning('Seleccioná un archivo Excel de comentarios');
+      return;
+    }
+    const ext = commentsFile.name.substring(commentsFile.name.lastIndexOf('.')).toLowerCase();
+    if (ext !== '.xlsx') {
+      message.error('Solo se permiten archivos Excel (.xlsx)');
+      return;
+    }
+    setUploadingComments(true);
+    setCommentsResult(null);
+    try {
+      const res = await uploadCheckComments(commentsFile);
+      setCommentsResult(res.data);
+      const { matched, unmatched, skipped_empty } = res.data;
+      if (matched > 0 && unmatched.length === 0) {
+        message.success(`Se aplicaron ${matched} comentario(s).`);
+      } else if (matched > 0) {
+        message.warning(`Se aplicaron ${matched}. ${unmatched.length} cheque(s) no encontrados.`);
+      } else if (skipped_empty > 0 && matched === 0) {
+        message.info('No se aplicó ningún comentario (todas las celdas están vacías).');
+      } else {
+        message.warning('No se aplicaron comentarios.');
+      }
+      setCommentsFile(null);
+    } catch (error: any) {
+      message.error(error.response?.data?.message || 'Error al cargar los comentarios.');
+    } finally {
+      setUploadingComments(false);
+    }
   };
 
   return (
@@ -157,6 +200,102 @@ const CargarCheques: React.FC = () => {
           />
         </Card>
       )}
+
+      <Divider style={{ marginTop: 32 }} />
+
+      <Card
+        style={{ maxWidth: 600 }}
+        title={
+          <span>
+            <MessageOutlined style={{ color: '#1565C0', marginRight: 8 }} />
+            Cargar comentarios desde Excel (opcional)
+          </span>
+        }
+      >
+        <Alert
+          message="¿Para qué sirve?"
+          description={
+            <ul style={{ marginBottom: 0, paddingLeft: 20 }}>
+              <li>Si un responsable devuelve sus comentarios en un Excel, aquí los podés importar masivamente.</li>
+              <li>El archivo debe tener dos columnas: <b>NUMERO</b> (No. de cheque) y <b>COMENTARIO</b>.</li>
+              <li>Solo se aplican comentarios <b>no vacíos</b>, los existentes no se borran.</li>
+              <li>Este archivo es <b>independiente</b> del Excel de integración de saldos.</li>
+            </ul>
+          }
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+
+        <Upload
+          beforeUpload={beforeUploadComments}
+          onRemove={() => setCommentsFile(null)}
+          accept=".xlsx"
+          maxCount={1}
+          fileList={
+            commentsFile
+              ? [{ uid: '-c', name: commentsFile.name, status: 'done' }]
+              : []
+          }
+        >
+          <Button icon={<UploadOutlined />} block size="large">
+            Seleccionar Excel de comentarios
+          </Button>
+        </Upload>
+
+        {commentsFile && (
+          <div style={{ marginTop: 16, padding: 12, background: '#f5f5f5', borderRadius: 4 }}>
+            <FileExcelOutlined style={{ color: '#52c41a', marginRight: 8 }} />
+            <Text>{commentsFile.name}</Text>
+          </div>
+        )}
+
+        <Button
+          type="primary"
+          onClick={handleUploadComments}
+          loading={uploadingComments}
+          disabled={!commentsFile}
+          block
+          size="large"
+          style={{ marginTop: 16 }}
+        >
+          {uploadingComments ? 'Procesando...' : 'Aplicar comentarios'}
+        </Button>
+
+        {commentsResult && (
+          <div style={{ marginTop: 16 }}>
+            <Alert
+              type={commentsResult.matched > 0 ? 'success' : 'info'}
+              showIcon
+              message={
+                <>
+                  Aplicados: <b>{commentsResult.matched}</b>
+                  {' · '}Sin coincidencia: <b>{commentsResult.unmatched.length}</b>
+                  {' · '}Filas vacías: <b>{commentsResult.skipped_empty}</b>
+                </>
+              }
+            />
+            {commentsResult.unmatched.length > 0 && (
+              <Table
+                style={{ marginTop: 12 }}
+                dataSource={commentsResult.unmatched}
+                rowKey="check_number"
+                size="small"
+                pagination={{ pageSize: 5 }}
+                columns={[
+                  {
+                    title: 'No. Cheque',
+                    dataIndex: 'check_number',
+                    width: 120,
+                    render: (v: number) => <Tag color="orange">{v}</Tag>,
+                  },
+                  { title: 'Comentario', dataIndex: 'comment', ellipsis: true },
+                ]}
+              />
+            )}
+          </div>
+        )}
+      </Card>
     </div>
   );
 };
