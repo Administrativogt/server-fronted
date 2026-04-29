@@ -1,20 +1,49 @@
-import React, { useEffect, useState } from 'react';
-import { Table, Button, Space, message, Modal, Checkbox, Typography, Tag } from 'antd';
-import { EyeOutlined, MailOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Table, Button, Space, message, Modal, Checkbox, Typography, Tag,
+  Input, Segmented, Card, Row, Col,
+} from 'antd';
+import {
+  EyeOutlined, MailOutlined, CheckCircleOutlined, CloseCircleOutlined,
+  SearchOutlined, ReloadOutlined,
+} from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { cargabilityApi } from '../../api/cargability';
 import type { CargabilityUser } from '../../types/cargability.types';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 const { confirm } = Modal;
+
+type EmailStatusFilter = 'all' | 'pending' | 'sent';
 
 const CargabilityUsersList: React.FC = () => {
   const [users, setUsers] = useState<CargabilityUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [searchUser, setSearchUser] = useState('');
+  const [searchEmail, setSearchEmail] = useState('');
+  const [statusFilter, setStatusFilter] = useState<EmailStatusFilter>('all');
 
   const navigate = useNavigate();
+
+  const filteredUsers = useMemo(() => {
+    const userTerm  = searchUser.trim().toLowerCase();
+    const emailTerm = searchEmail.trim().toLowerCase();
+    return users.filter((u) => {
+      if (statusFilter === 'pending' && u.emailSended) return false;
+      if (statusFilter === 'sent'    && !u.emailSended) return false;
+      if (userTerm) {
+        const haystack = `${u.username ?? ''} ${u.fullName ?? ''}`.toLowerCase();
+        if (!haystack.includes(userTerm)) return false;
+      }
+      if (emailTerm && !(u.email ?? '').toLowerCase().includes(emailTerm)) return false;
+      return true;
+    });
+  }, [users, searchUser, searchEmail, statusFilter]);
+
+  const pendingCount = users.filter((u) => !u.emailSended).length;
+  const sentCount    = users.length - pendingCount;
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -198,9 +227,56 @@ const CargabilityUsersList: React.FC = () => {
 
   return (
     <div style={{ padding: '24px' }}>
-      <Title level={2}>Lista de Usuarios - Cargabilidad</Title>
+      <Title level={2} style={{ marginBottom: 4 }}>Lista de Usuarios - Cargabilidad</Title>
+      <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+        Total: <Text strong>{users.length}</Text> · Pendientes: <Text strong>{pendingCount}</Text> · Enviados: <Text strong>{sentCount}</Text>
+      </Text>
 
-      <Space style={{ marginBottom: 16 }}>
+      {/* Filtros */}
+      <Card size="small" style={{ marginBottom: 16, borderRadius: 12 }} bordered={false}>
+        <Row gutter={[12, 12]} align="middle">
+          <Col xs={24} sm={12} md={8}>
+            <Input
+              placeholder="Buscar por usuario o nombre..."
+              value={searchUser}
+              onChange={(e) => setSearchUser(e.target.value)}
+              prefix={<SearchOutlined />}
+              allowClear
+            />
+          </Col>
+          <Col xs={24} sm={12} md={8}>
+            <Input
+              placeholder="Buscar por email..."
+              value={searchEmail}
+              onChange={(e) => setSearchEmail(e.target.value)}
+              prefix={<SearchOutlined />}
+              allowClear
+            />
+          </Col>
+          <Col xs={24} md={8}>
+            <Space wrap style={{ width: '100%', justifyContent: 'flex-end' }}>
+              <Segmented
+                options={[
+                  { label: 'Todos',      value: 'all'      },
+                  { label: 'Pendientes', value: 'pending'  },
+                  { label: 'Enviados',   value: 'sent'     },
+                ]}
+                value={statusFilter}
+                onChange={(v) => setStatusFilter(v as EmailStatusFilter)}
+              />
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={fetchUsers}
+                loading={loading}
+                title="Recargar"
+              />
+            </Space>
+          </Col>
+        </Row>
+      </Card>
+
+      {/* Acciones masivas */}
+      <Space style={{ marginBottom: 16 }} wrap>
         <Button
           type="primary"
           icon={<MailOutlined />}
@@ -218,17 +294,22 @@ const CargabilityUsersList: React.FC = () => {
         >
           Enviar a seleccionados ({selectedUsers.length})
         </Button>
-        <Button onClick={() => setSelectedUsers([])}>
+        <Button onClick={() => setSelectedUsers([])} disabled={selectedUsers.length === 0}>
           Limpiar selección
         </Button>
       </Space>
 
       <Table
-        dataSource={users}
+        dataSource={filteredUsers}
         columns={columns}
         rowKey="username"
         loading={loading}
-        pagination={{ pageSize: 10 }}
+        pagination={{
+          defaultPageSize: 10,
+          pageSizeOptions: ['10', '20', '50', '100'],
+          showSizeChanger: true,
+          showTotal: (total, range) => `${range[0]}-${range[1]} de ${total} usuarios`,
+        }}
       />
     </div>
   );

@@ -1,12 +1,12 @@
 import api from './axios';
-import type { CargabilityUser, CargabilityReport, SendEmailResponse } from '../types/cargability.types';
+import type { CargabilityUser, CargabilityReport, SendEmailResponse, CargabilityUploadResponse } from '../types/cargability.types';
 
 export const cargabilityApi = {
   // ✅ AGREGAR /api/ al inicio
   uploadExcel: (file: File) => {
     const formData = new FormData();
     formData.append('file_data', file);
-    return api.post('/api/cargability/calculate-hours', formData, {
+    return api.post<CargabilityUploadResponse>('/api/cargability/calculate-hours', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },

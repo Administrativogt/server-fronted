@@ -6,6 +6,21 @@ export interface CargabilityUser {
   userType?: number;
 }
 
+export interface IgnoredCargabilityUser {
+  name: string;
+  minutes: number;
+  hours: number;
+}
+
+export interface CargabilityUploadResponse {
+  message: string;
+  success: boolean;
+  processed: number;
+  ignored: number;
+  inactiveUsers: IgnoredCargabilityUser[];
+  notFoundUsers: IgnoredCargabilityUser[];
+}
+
 export interface HourData {
   total: number;
 }
