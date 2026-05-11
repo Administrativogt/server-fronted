@@ -117,10 +117,14 @@ function AppInner() {
   useEffect(() => {
     // Rutas públicas que no requieren autenticación
     if (location.pathname === '/autorizacion-parcial') return;
+    if (location.pathname === '/login') return;
     if (!isAuthenticated()) {
       clearToken();
       logout(false);
-      navigate('/login', { replace: true });
+      navigate('/login', {
+        replace: true,
+        state: { from: `${location.pathname}${location.search}${location.hash}` },
+      });
     }
   }, [isAuthenticated, clearToken, logout, navigate, location.pathname]);
 
