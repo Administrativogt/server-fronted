@@ -70,6 +70,7 @@ import CargabilityReportView from './pages/cargability/CargabilityReportView';
 import CourtCasesPage from './pages/court-cases/CourtCasesPage';
 import CreateCourtCase from './pages/court-cases/CreateCourtCase';
 import HumanResourcesPage from './pages/human-resources/HumanResourcesPage';
+import VacacionesPage from './pages/human-resources/VacacionesPage';
 
 // ✨ NUEVO - Módulo de Appointments
 import AppointmentsList from './pages/appointments/AppointmentsList';
@@ -231,6 +232,7 @@ function AppInner() {
               {/* Recursos humanos */}
               <Route element={<ModuleRoute moduleKey="recursos_humanos" />}>
                 <Route path="/dashboard/recursos-humanos" element={<HumanResourcesPage />} />
+                <Route path="/dashboard/recursos-humanos/vacaciones" element={<VacacionesPage />} />
               </Route>
 
               {/* ✨ NUEVO - Módulo Appointments (Actas de Nombramiento) */}

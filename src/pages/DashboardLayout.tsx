@@ -28,6 +28,7 @@ import {
   UploadOutlined,
   BankOutlined,
   ReadOutlined,
+  CalendarOutlined,
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import useAuthStore from '../auth/useAuthStore';
@@ -215,10 +216,23 @@ const DashboardLayout: React.FC = () => {
         ],
       },
       {
-        key: "/dashboard/recursos-humanos",
+        key: "recursos-humanos",
         icon: <SolutionOutlined />,
-        label: "Recursos humanos",
-        onClick: () => navigate('/dashboard/recursos-humanos')
+        label: "Recursos Humanos",
+        children: [
+          {
+            key: "/dashboard/recursos-humanos",
+            icon: <SolutionOutlined />,
+            label: "General",
+            onClick: () => navigate('/dashboard/recursos-humanos'),
+          },
+          {
+            key: "/dashboard/recursos-humanos/vacaciones",
+            icon: <CalendarOutlined />,
+            label: "Vacaciones",
+            onClick: () => navigate('/dashboard/recursos-humanos/vacaciones'),
+          },
+        ],
       },
       {
         key: "mensajeria",
@@ -527,6 +541,8 @@ const DashboardLayout: React.FC = () => {
           return hasModule('cargabilidad');
         case 'admin':
           return canAccessUserAdmin && hasModule('usuarios');
+        case 'recursos-humanos':
+          return hasModule('recursos_humanos');
         default:
           return true;
       }

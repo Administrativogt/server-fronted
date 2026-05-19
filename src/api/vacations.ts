@@ -1,0 +1,141 @@
+import api from './axios';
+
+const BASE = '/human-resources/vacations';
+
+// ============================================
+// INTERFACES
+// ============================================
+
+export type VacationStatus = 'PENDIENTE' | 'APROBADA' | 'RECHAZADA' | 'CANCELADA';
+
+export interface VacationUser {
+  id: number;
+  first_name: string;
+  last_name: string;
+  username?: string;
+}
+
+export interface VacationRequest {
+  id: number;
+  fecha_inicio: string;
+  fecha_fin: string;
+  dias_solicitados: number;
+  estado: VacationStatus;
+  comentarios?: string;
+  motivo_cancelacion?: string;
+  created_at: string;
+  user?: VacationUser;
+}
+
+export interface VacationBalance {
+  id: number;
+  user: VacationUser;
+  fecha_ingreso: string | null;
+  saldo_dias: number;
+}
+
+export interface MyVacationsResponse {
+  saldo_dias: number;
+  fecha_ingreso: string | null;
+  solicitudes: VacationRequest[];
+}
+
+export type BalanceLogType = 'DESCUENTO' | 'DEVOLUCION' | 'ANIVERSARIO' | 'AJUSTE_MANUAL';
+
+export interface VacationBalanceLogEntry {
+  id: number;
+  tipo: BalanceLogType;
+  dias: number;
+  saldo_anterior: number;
+  saldo_nuevo: number;
+  created_at: string;
+  solicitud?: { id: number } | null;
+}
+
+// ============================================
+// API - Mis Vacaciones (todos los usuarios)
+// ============================================
+
+export async function fetchMyVacations(): Promise<MyVacationsResponse> {
+  const { data } = await api.get(`${BASE}/my`);
+  return data;
+}
+
+export async function createVacationRequest(payload: {
+  fecha_inicio: string;
+  fecha_fin: string;
+  comentarios?: string;
+}): Promise<VacationRequest> {
+  const { data } = await api.post(BASE, payload);
+  return data;
+}
+
+export async function cancelVacationRequest(id: number): Promise<VacationRequest> {
+  const { data } = await api.patch(`${BASE}/${id}/cancel`);
+  return data;
+}
+
+// ============================================
+// API - Gestión (solo RRHH)
+// ============================================
+
+export async function fetchAllVacationRequests(): Promise<VacationRequest[]> {
+  const { data } = await api.get(BASE);
+  return data;
+}
+
+export async function approveVacationRequest(id: number): Promise<VacationRequest> {
+  const { data } = await api.patch(`${BASE}/${id}/approve`);
+  return data;
+}
+
+export async function rejectVacationRequest(
+  id: number,
+  motivo_cancelacion?: string,
+): Promise<VacationRequest> {
+  const { data } = await api.patch(`${BASE}/${id}/reject`, { motivo_cancelacion });
+  return data;
+}
+
+export async function fetchVacationBalances(): Promise<VacationBalance[]> {
+  const { data } = await api.get(`${BASE}/balances`);
+  return data;
+}
+
+export async function setVacationBalance(
+  userId: number,
+  payload: { fecha_ingreso: string; saldo_dias: number },
+): Promise<VacationBalance> {
+  const { data } = await api.post(`${BASE}/balances/${userId}`, payload);
+  return data;
+}
+
+export async function fetchMyBalanceLog(): Promise<VacationBalanceLogEntry[]> {
+  const { data } = await api.get(`${BASE}/my-balance-log`);
+  return data;
+}
+
+export async function fetchCalendar(year: number, month: number): Promise<VacationRequest[]> {
+  const { data } = await api.get(`${BASE}/calendar`, { params: { year, month } });
+  return data;
+}
+
+export async function downloadVacationRequestsExcel(): Promise<void> {
+  const response = await api.get(`${BASE}/export/requests`, { responseType: 'blob' });
+  const url = URL.createObjectURL(new Blob([response.data]));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'solicitudes-vacaciones.xlsx';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadVacationBalancesExcel(): Promise<void> {
+  const response = await api.get(`${BASE}/export/balances`, { responseType: 'blob' });
+  const url = URL.createObjectURL(new Blob([response.data]));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'saldos-vacaciones.xlsx';
+  a.click();
+  URL.revokeObjectURL(url);
+}
