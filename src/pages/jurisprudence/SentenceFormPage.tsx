@@ -39,6 +39,7 @@ import JurisprudenceHero from './JurisprudenceHero';
 import './jurisprudence.css';
 
 interface FormShape {
+  is_intern?: boolean;
   expedient?: string;
   signers?: string;
   client?: string;
@@ -54,7 +55,7 @@ interface FormShape {
   jurisprudential_criterion?: string;
   jurisprudential_line?: string;
   sentence_link?: string;
-  is_intern?: boolean;
+  link?: string;
   failure_type?: number;
   tribunal?: number;
   sense_of_failure?: number;
@@ -97,6 +98,7 @@ const SentenceFormPage: React.FC = () => {
       .then((s) => {
         if (!mounted) return;
         form.setFieldsValue({
+          is_intern: s.is_intern,
           expedient: s.expedient,
           signers: s.signers,
           client: s.client,
@@ -112,7 +114,7 @@ const SentenceFormPage: React.FC = () => {
           jurisprudential_criterion: s.jurisprudential_criterion,
           jurisprudential_line: s.jurisprudential_line,
           sentence_link: s.sentence_link,
-          is_intern: s.is_intern,
+          link: s.link,
           failure_type: s.failure_type?.id,
           tribunal: s.tribunal?.id,
           sense_of_failure: s.sense_of_failure?.id,
@@ -142,6 +144,7 @@ const SentenceFormPage: React.FC = () => {
     setSubmitting(true);
     try {
       const payload: SentenceFormPayload = {
+        is_intern: values.is_intern,
         expedient: values.expedient,
         signers: values.signers,
         client: values.client,
@@ -157,7 +160,7 @@ const SentenceFormPage: React.FC = () => {
         jurisprudential_criterion: values.jurisprudential_criterion,
         jurisprudential_line: values.jurisprudential_line,
         sentence_link: values.sentence_link,
-        is_intern: values.is_intern,
+        link: values.link,
         failure_type: values.failure_type!,
         tribunal: values.tribunal!,
         sense_of_failure: values.sense_of_failure!,
@@ -283,8 +286,8 @@ const SentenceFormPage: React.FC = () => {
                 </Form.Item>
               </Col>
               <Col xs={24} md={8}>
-                <Form.Item label="Interno" name="is_intern" valuePropName="checked">
-                  <Switch checkedChildren="Sí" unCheckedChildren="No" />
+                <Form.Item label="Cliente interno o externo" name="is_intern" valuePropName="checked">
+                  <Switch checkedChildren="Interno" unCheckedChildren="Externo" />
                 </Form.Item>
               </Col>
             </Row>
@@ -300,17 +303,7 @@ const SentenceFormPage: React.FC = () => {
               </Col>
               <Col xs={24} md={12}>
                 <Form.Item label="Cliente" name="client">
-                  <Input />
-                </Form.Item>
-              </Col>
-              <Col xs={24}>
-                <Form.Item label="Firmantes" name="signers">
-                  <Input.TextArea rows={2} />
-                </Form.Item>
-              </Col>
-              <Col xs={12} md={6}>
-                <Form.Item label="Fecha inicio" name="init_date">
-                  <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+                  <Input placeholder="Ej. Empresa Guatemala S.A." />
                 </Form.Item>
               </Col>
               <Col xs={12} md={6}>
@@ -319,13 +312,8 @@ const SentenceFormPage: React.FC = () => {
                 </Form.Item>
               </Col>
               <Col xs={24} md={12}>
-                <Form.Item label="Tema específico" name="specific_theme">
-                  <Input />
-                </Form.Item>
-              </Col>
-              <Col xs={24}>
-                <Form.Item label="Subtemas" name="sub_theme">
-                  <Input.TextArea rows={3} />
+                <Form.Item label="Tema específico (crédito fiscal, gastos deducibles, etc.)" name="specific_theme">
+                  <Input placeholder="Ej. Crédito fiscal, prescripción tributaria, gastos deducibles" />
                 </Form.Item>
               </Col>
             </Row>
@@ -336,32 +324,23 @@ const SentenceFormPage: React.FC = () => {
             <Row gutter={[16, 0]}>
               <Col xs={24} md={8}>
                 <Form.Item label="Ley" name="law">
-                  <Input />
+                  <Input placeholder="Ej. Ley del IVA, Código Tributario" />
                 </Form.Item>
               </Col>
               <Col xs={12} md={4}>
                 <Form.Item label="Artículo" name="article">
-                  <Input />
+                  <Input placeholder="Ej. 16" />
                 </Form.Item>
               </Col>
               <Col xs={12} md={6}>
                 <Form.Item label="Inciso/Numeral" name="subsection">
-                  <Input />
+                  <Input placeholder="Ej. a), numeral 1" />
                 </Form.Item>
               </Col>
-              <Col xs={12} md={6}>
-                <Form.Item label="Crédito fiscal" name="tax_credit_refund">
-                  <Input />
-                </Form.Item>
-              </Col>
+
               <Col xs={24} md={12}>
                 <Form.Item label="Periodo fiscal" name="tax_period">
-                  <Input />
-                </Form.Item>
-              </Col>
-              <Col xs={24} md={12}>
-                <Form.Item label="Enlace externo" name="sentence_link">
-                  <Input placeholder="https://..." />
+                  <Input placeholder="Ej. 2021, Enero-Diciembre 2022" />
                 </Form.Item>
               </Col>
             </Row>
@@ -369,11 +348,11 @@ const SentenceFormPage: React.FC = () => {
 
           <div className="juris-form-section">
             <h3>Análisis jurisprudencial</h3>
-            <Form.Item label="Criterio jurisprudencial" name="jurisprudential_criterion">
-              <Input.TextArea rows={4} />
+            <Form.Item label="Resumen de lo resuelto relacionado con el tema específico" name="jurisprudential_criterion">
+              <Input.TextArea rows={4} placeholder="Describe brevemente lo que resolvió el tribunal respecto al tema específico. Ej.: El tribunal determinó que el contribuyente tiene derecho a la devolución del crédito fiscal cuando…" />
             </Form.Item>
-            <Form.Item label="Línea jurisprudencial" name="jurisprudential_line">
-              <Input.TextArea rows={4} />
+            <Form.Item label="Cita jurisprudencial relevante (transcripción general de lo que se dijo en la sentencia)" name="jurisprudential_line">
+              <Input.TextArea rows={4} placeholder="Transcribe el fragmento más relevante de la sentencia. Ej.: '…esta Sala considera que conforme al artículo 16 de la Ley del IVA, el contribuyente tiene derecho a…'" />
             </Form.Item>
           </div>
 
@@ -391,6 +370,10 @@ const SentenceFormPage: React.FC = () => {
                 placeholder="Buscar por expediente o tema"
                 options={sentenceOptions}
               />
+            </Form.Item>
+
+            <Form.Item label="Link" name="link">
+              <Input placeholder="https://..." />
             </Form.Item>
 
             <Form.Item label="Archivo PDF de la sentencia">

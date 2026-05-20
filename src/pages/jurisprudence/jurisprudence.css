@@ -87,6 +87,172 @@
   max-width: 480px;
 }
 
+/* ── Filter card container ── */
+.juris-filter-card {
+  background: #ffffff;
+  border: 1px solid #e8edf5;
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 4px rgba(30, 58, 138, 0.05);
+}
+
+[data-juris-theme="dark"] .juris-filter-card {
+  background: #1d1f2b;
+  border-color: #2c2f40;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+
+.juris-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.juris-filter-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+/* ── Filter chip button ── */
+.juris-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1.5px solid #dde3ee;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+  max-width: 190px;
+  overflow: hidden;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgba(30,58,138,0.04);
+  outline: none;
+}
+
+.juris-chip:hover {
+  border-color: #93a8d4;
+  background: #f0f4fb;
+  color: #1E3A8A;
+  box-shadow: 0 2px 6px rgba(30,58,138,0.10);
+  transform: translateY(-1px);
+}
+
+.juris-chip:focus-visible {
+  outline: 2px solid #1E3A8A;
+  outline-offset: 2px;
+}
+
+.juris-chip.active {
+  background: #1E3A8A;
+  border-color: #1E3A8A;
+  color: #ffffff;
+  box-shadow: 0 3px 10px rgba(30,58,138,0.30);
+}
+
+.juris-chip.active:hover {
+  background: #1e40af;
+  border-color: #1e40af;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+[data-juris-theme="dark"] .juris-chip {
+  background: #252838;
+  border-color: #343749;
+  color: #a0a4b3;
+}
+
+[data-juris-theme="dark"] .juris-chip:hover {
+  background: #2c3050;
+  border-color: #5b7ac2;
+  color: #818cf8;
+}
+
+[data-juris-theme="dark"] .juris-chip.active {
+  background: #3b4fd4;
+  border-color: #3b4fd4;
+  color: #ffffff;
+}
+
+.juris-chip-icon {
+  flex-shrink: 0;
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.juris-chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.juris-chip-arrow {
+  flex-shrink: 0;
+  font-size: 9px;
+  opacity: 0.5;
+  margin-left: 1px;
+  transition: transform 0.18s;
+}
+
+.juris-chip.active .juris-chip-icon,
+.juris-chip.active .juris-chip-arrow {
+  opacity: 0.85;
+}
+
+/* ── Active filter tags ── */
+.juris-active-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
+}
+
+[data-juris-theme="dark"] .juris-active-tags {
+  border-top-color: #2c2f40;
+}
+
+.juris-active-label {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* ── Popover inner ── */
+.juris-popover-content {
+  width: 270px;
+}
+
+.juris-popover-hint {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.juris-popover-clear {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+}
+
 /* ============================================================
    Card grid — premium sentence cards
    ============================================================ */

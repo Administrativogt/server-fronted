@@ -8,6 +8,18 @@ const BASE = '/human-resources/vacations';
 
 export type VacationStatus = 'PENDIENTE' | 'APROBADA' | 'RECHAZADA' | 'CANCELADA';
 
+export type VacationRequestTypeValue =
+  | 'full_day' | '0.5' | '1' | '1.5' | '2' | '2.5' | '3' | '3.5' | '4';
+
+export type TimeOffTypeValue =
+  | 'vacaciones'
+  | 'dias_ausencia_sp'
+  | 'licencia_sin_goce'
+  | 'licencia_con_goce'
+  | 'permiso'
+  | 'cita_igss_medica'
+  | 'enfermedad';
+
 export interface VacationUser {
   id: number;
   first_name: string;
@@ -21,6 +33,9 @@ export interface VacationRequest {
   fecha_fin: string;
   dias_solicitados: number;
   estado: VacationStatus;
+  request_type: VacationRequestTypeValue;
+  time_off_type: TimeOffTypeValue;
+  hora_inicio?: string | null;
   comentarios?: string;
   motivo_cancelacion?: string;
   created_at: string;
@@ -30,13 +45,32 @@ export interface VacationRequest {
 export interface VacationBalance {
   id: number;
   user: VacationUser;
+  time_off_type: string;
+  time_off_label?: string;
   fecha_ingreso: string | null;
+  saldo_dias: number;
+  earned_this_year: number;
+  used_this_year: number;
+  previous_year: number;
+  available: number;
+}
+
+export interface BalanceBreakdown {
+  id: number;
+  time_off_type: string;
+  time_off_label: string;
+  fecha_ingreso: string | null;
+  earned_this_year: number;
+  used_this_year: number;
+  previous_year: number;
+  available: number;
   saldo_dias: number;
 }
 
 export interface MyVacationsResponse {
-  saldo_dias: number;
+  saldo_dias: number | null;
   fecha_ingreso: string | null;
+  balances: BalanceBreakdown[];
   solicitudes: VacationRequest[];
 }
 
@@ -63,7 +97,10 @@ export async function fetchMyVacations(): Promise<MyVacationsResponse> {
 
 export async function createVacationRequest(payload: {
   fecha_inicio: string;
-  fecha_fin: string;
+  fecha_fin?: string;
+  request_type?: VacationRequestTypeValue;
+  time_off_type?: TimeOffTypeValue;
+  hora_inicio?: string;
   comentarios?: string;
 }): Promise<VacationRequest> {
   const { data } = await api.post(BASE, payload);
@@ -104,10 +141,48 @@ export async function fetchVacationBalances(): Promise<VacationBalance[]> {
 
 export async function setVacationBalance(
   userId: number,
-  payload: { fecha_ingreso: string; saldo_dias: number },
+  payload: {
+    fecha_ingreso: string;
+    time_off_type?: string;
+    earned_this_year?: number;
+    used_this_year?: number;
+    previous_year?: number;
+    saldo_dias?: number;
+  },
 ): Promise<VacationBalance> {
   const { data } = await api.post(`${BASE}/balances/${userId}`, payload);
   return data;
+}
+
+export async function importBalancesExcel(
+  file: File,
+): Promise<{ imported: number; skipped: string[] }> {
+  const form = new FormData();
+  form.append('file', file);
+  const { data } = await api.post(`${BASE}/import/balances`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+}
+
+export async function rolloverYear(): Promise<{ updated: number }> {
+  const { data } = await api.post(`${BASE}/rollover`);
+  return data;
+}
+
+export async function creditAnniversaryDays(userId: number): Promise<VacationBalance> {
+  const { data } = await api.post(`${BASE}/balances/${userId}/anniversary`);
+  return data;
+}
+
+export async function downloadVacationIcs(id: number): Promise<void> {
+  const response = await api.get(`${BASE}/${id}/ics`, { responseType: 'blob' });
+  const url = URL.createObjectURL(new Blob([response.data], { type: 'text/calendar' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `vacaciones-${id}.ics`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export async function fetchMyBalanceLog(): Promise<VacationBalanceLogEntry[]> {

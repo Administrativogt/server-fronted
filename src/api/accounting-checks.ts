@@ -54,3 +54,36 @@ export const uploadCheckComments = async (file: File) => {
     { headers: { 'Content-Type': 'multipart/form-data' } },
   );
 };
+
+export interface CommentsSummary {
+  total: number;
+  users: number;
+  last_updated_at: string | null;
+  by_user: Array<{
+    user_code: string;
+    user_name: string;
+    count: number;
+    last_comment_at: string | null;
+  }>;
+}
+
+export const getCommentsSummary = async (): Promise<CommentsSummary> => {
+  const { data } = await api.get<CommentsSummary>(
+    '/checks/liquidation-checks/comments-summary',
+  );
+  return data;
+};
+
+export const sendCommentsDigest = async (
+  windowHours?: number,
+): Promise<{ matched: number; users: number; sent: boolean }> => {
+  const { data } = await api.post<{
+    matched: number;
+    users: number;
+    sent: boolean;
+  }>(
+    '/checks/liquidation-checks/send-comments-digest',
+    typeof windowHours === 'number' ? { windowHours } : {},
+  );
+  return data;
+};

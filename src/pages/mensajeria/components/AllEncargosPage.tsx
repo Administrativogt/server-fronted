@@ -230,7 +230,7 @@ const AllEncargosPage: React.FC = () => {
       let filename = 'Reporte-Mensajeria.xlsx';
       
       if (contentDisposition) {
-        const match = contentDisposition.match(/filename="?(.+)"?/);
+        const match = contentDisposition.match(/filename="?([^";]+)"?/);
         if (match) filename = match[1];
       }
       

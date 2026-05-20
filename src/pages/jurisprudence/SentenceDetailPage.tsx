@@ -13,6 +13,7 @@ import {
   ArrowLeftOutlined,
   BankOutlined,
   CalendarOutlined,
+  CopyOutlined,
   EditOutlined,
   FilePdfOutlined,
   LinkOutlined,
@@ -182,27 +183,58 @@ const SentenceDetailPage: React.FC = () => {
           <section className="juris-form-section">
             <h3>Análisis jurisprudencial</h3>
             <div style={{ marginBottom: 12 }}>
-              <Text strong>Criterio:</Text>
-              <Paragraph style={{ whiteSpace: 'pre-wrap', marginTop: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <Text strong>Resumen de lo resuelto relacionado con el tema específico:</Text>
+                {sentence.jurisprudential_criterion && (
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<CopyOutlined />}
+                    style={{ color: '#64748b', padding: '0 4px' }}
+                    onClick={() => {
+                      navigator.clipboard.writeText(sentence.jurisprudential_criterion).then(
+                        () => message.success('Criterio copiado al portapapeles'),
+                        () => message.error('No se pudo copiar'),
+                      );
+                    }}
+                  >
+                    Copiar
+                  </Button>
+                )}
+              </div>
+              <Paragraph style={{ whiteSpace: 'pre-wrap', marginTop: 0 }}>
                 {sentence.jurisprudential_criterion || '—'}
               </Paragraph>
             </div>
             <div>
-              <Text strong>Línea jurisprudencial:</Text>
+              <Text strong>Cita jurisprudencial relevante (transcripción general de lo que se dijo en la sentencia):</Text>
               <Paragraph style={{ whiteSpace: 'pre-wrap', marginTop: 4 }}>
                 {sentence.jurisprudential_line || '—'}
               </Paragraph>
             </div>
           </section>
 
-          {sentence.sentence_link && (
+          {(sentence.sentence_link || sentence.link) && (
             <section className="juris-form-section">
               <h3>
-                <LinkOutlined /> Enlace externo
+                <LinkOutlined /> Enlaces
               </h3>
-              <AntLink href={sentence.sentence_link} target="_blank">
-                {sentence.sentence_link}
-              </AntLink>
+              <Descriptions column={1} bordered size="small">
+                {sentence.link && (
+                  <Descriptions.Item label="Link">
+                    <AntLink href={sentence.link} target="_blank" rel="noreferrer">
+                      {sentence.link}
+                    </AntLink>
+                  </Descriptions.Item>
+                )}
+                {sentence.sentence_link && (
+                  <Descriptions.Item label="Enlace sentencia">
+                    <AntLink href={sentence.sentence_link} target="_blank" rel="noreferrer">
+                      {sentence.sentence_link}
+                    </AntLink>
+                  </Descriptions.Item>
+                )}
+              </Descriptions>
             </section>
           )}
         </div>

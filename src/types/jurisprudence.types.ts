@@ -30,6 +30,7 @@ export interface Sentence {
   jurisprudential_criterion: string;
   jurisprudential_line: string;
   sentence_link: string;
+  link: string;
   sentence_file: string | null;
   failure_type: FailureType;
   tribunal: Tribunal;
@@ -79,6 +80,7 @@ export interface SentenceFormPayload {
   jurisprudential_criterion?: string;
   jurisprudential_line?: string;
   sentence_link?: string;
+  link?: string;
   failure_type: number;
   tribunal: number;
   sense_of_failure: number;
@@ -121,6 +123,7 @@ export interface BucketCount {
 }
 
 export interface SentenceFilter {
+  is_intern?: boolean;
   expedient?: string;
   signers?: string;
   client?: string;
@@ -138,6 +141,7 @@ export interface SentenceFilter {
   tribunal?: number;
   sense_of_failure?: number;
   general_theme?: number;
+  state?: number;
   page?: number;
   page_size?: number;
 }

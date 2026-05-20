@@ -59,6 +59,7 @@ const PendingEncargosPage: React.FC = () => {
   const [exportModal, setExportModal] = useState(false);
   const [selectedMensajero, setSelectedMensajero] = useState<number | null>(null);
   const [mensajeros, setMensajeros] = useState<Usuario[]>([]);
+  const [filterMensajero, setFilterMensajero] = useState<number | null>(null);
   const navigate = useNavigate();
   
   // ✅ Obtener usuario actual para filtrar si es mensajero
@@ -99,14 +100,18 @@ const PendingEncargosPage: React.FC = () => {
     }
   };
 
+  const filteredEncargos = filterMensajero
+    ? encargos.filter((e) => e.mensajero?.id === filterMensajero)
+    : encargos;
+
   const downloadExcel = async (mensajeroId: number) => {
     try {
-      const encargoIds = encargos.map((e) => e.id);
+      const encargoIds = filteredEncargos.map((e) => e.id);
       const response = await downloadEncargosExcel({ mensajeroId, encargoIds });
       const contentDisposition = response.headers['content-disposition'];
       let filename = 'Ruta-Pendientes.xlsx';
       if (contentDisposition) {
-        const match = contentDisposition.match(/filename="?(.+)"?/);
+        const match = contentDisposition.match(/filename="?([^";]+)"?/);
         if (match) filename = match[1];
       }
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -325,19 +330,51 @@ const PendingEncargosPage: React.FC = () => {
               Crear Envío
             </Button>
           )}
-          <Button type="default" onClick={handleExportExcel} disabled={!encargos.length}>
+          <Button type="default" onClick={handleExportExcel} disabled={!filteredEncargos.length}>
             Exportar Excel
           </Button>
         </Space>
       </div>
 
+      {!isMensajero && (
+        <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 500 }}>Filtrar por mensajero:</span>
+          <Select
+            style={{ minWidth: 280 }}
+            placeholder="Todos los mensajeros"
+            value={filterMensajero}
+            onChange={(value) => setFilterMensajero(value)}
+            allowClear
+            showSearch
+            optionFilterProp="children"
+            filterOption={(input, option) =>
+              String(option?.children || '').toLowerCase().includes(input.toLowerCase())
+            }
+          >
+            {mensajeros.map((m) => (
+              <Option key={m.id} value={m.id}>
+                {m.first_name} {m.last_name}
+              </Option>
+            ))}
+          </Select>
+          <span style={{ color: '#888' }}>
+            {filteredEncargos.length} envío{filteredEncargos.length === 1 ? '' : 's'}
+          </span>
+        </div>
+      )}
+
       <Table
-        dataSource={encargos}
+        dataSource={filteredEncargos}
         columns={columns}
         rowKey="id"
         loading={loading}
-        pagination={{ pageSize: 10 }}
-        scroll={{ x: 1200, y: 500 }}
+        pagination={{
+          defaultPageSize: 10,
+          pageSizeOptions: ['10', '20', '50', '100'],
+          showSizeChanger: true,
+          showTotal: (total, range) => `${range[0]}-${range[1]} de ${total} envíos`,
+        }}
+        scroll={{ x: 1200 }}
         bordered
         rowClassName={(record: Encargo) =>
           record.observaciones ? 'encargo-row-with-observations' : ''

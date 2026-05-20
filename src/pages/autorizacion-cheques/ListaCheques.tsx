@@ -10,6 +10,7 @@ import {
   TeamOutlined, FileTextOutlined, AlertOutlined,
   ReloadOutlined, FilterOutlined, ClockCircleOutlined,
   MessageOutlined, EditOutlined, CheckOutlined, CloseOutlined,
+  SendOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { AccountingCheck } from '../../types/accounting-checks.types';
@@ -17,6 +18,9 @@ import {
   listLiquidationChecks,
   sendEmailLiquidationChecks,
   updateLiquidationCheckComment,
+  getCommentsSummary,
+  sendCommentsDigest,
+  type CommentsSummary,
 } from '../../api/accounting-checks';
 import useThemeStore from '../../hooks/useThemeStore';
 
@@ -49,6 +53,8 @@ const ListaCheques: React.FC = () => {
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
   const [savingComment, setSavingComment] = useState(false);
+  const [commentsSummary, setCommentsSummary] = useState<CommentsSummary | null>(null);
+  const [sendingDigest, setSendingDigest] = useState(false);
   const isDark = useThemeStore((s) => s.mode === 'dark');
 
   const palette = isDark
@@ -80,7 +86,50 @@ const ListaCheques: React.FC = () => {
     }
   };
 
-  useEffect(() => { fetchChecks(); }, []);
+  const fetchCommentsSummary = async () => {
+    try {
+      const data = await getCommentsSummary();
+      setCommentsSummary(data);
+    } catch {
+      // Silencioso: si el usuario no es contabilidad/superuser obtendra 403,
+      // simplemente no mostramos el badge.
+      setCommentsSummary(null);
+    }
+  };
+
+  const handleSendDigest = () => {
+    confirm({
+      title: '¿Enviar resumen de comentarios?',
+      content:
+        'Se enviará un correo a contabilidad con todos los cheques que tienen comentario actualmente, agrupados por responsable.',
+      okText: 'Enviar',
+      cancelText: 'Cancelar',
+      onOk: async () => {
+        setSendingDigest(true);
+        try {
+          const res = await sendCommentsDigest();
+          if (res.sent) {
+            message.success(
+              `Resumen enviado: ${res.matched} cheque(s) de ${res.users} usuario(s)`,
+            );
+          } else {
+            message.info('No hay cheques con comentario para enviar');
+          }
+        } catch (error: any) {
+          message.error(
+            error?.response?.data?.message || 'Error al enviar el resumen',
+          );
+        } finally {
+          setSendingDigest(false);
+        }
+      },
+    });
+  };
+
+  useEffect(() => {
+    fetchChecks();
+    fetchCommentsSummary();
+  }, []);
 
   const userGroups = useMemo<UserGroup[]>(() => {
     const map = new Map<string, AccountingCheck[]>();
@@ -136,7 +185,7 @@ const ListaCheques: React.FC = () => {
 
   const criticalUsers = severityCounts.critical;
   const warningUsers  = severityCounts.warning;
-  const okUsers       = severityCounts.ok;
+  
 
   const handleSendEmail = (user: string, checkIds: number[]) => {
     confirm({
@@ -181,6 +230,7 @@ const ListaCheques: React.FC = () => {
       );
       message.success('Comentario guardado');
       closeCommentEditor();
+      fetchCommentsSummary();
     } catch (error: any) {
       message.error(error?.response?.data?.message || 'Error al guardar el comentario');
     } finally {
@@ -445,13 +495,120 @@ const ListaCheques: React.FC = () => {
     { key: 'ok',       label: 'Al día',   count: severityCounts.ok,       color: palette.ok.rail,       chipText: palette.ok.chipText       },
   ];
 
+  const renderCommentsSummaryPanel = () => {
+    if (!commentsSummary) return null;
+    if (commentsSummary.total === 0) {
+      return (
+        <div style={{ padding: 12, minWidth: 280 }}>
+          <Text style={{ color: palette.textMuted, fontSize: 13 }}>
+            No hay cheques con comentario activo.
+          </Text>
+        </div>
+      );
+    }
+    return (
+      <div style={{ minWidth: 320, maxWidth: 380, padding: 4 }}>
+        <div style={{ marginBottom: 10 }}>
+          <Text strong style={{ color: palette.textPrimary, fontSize: 13 }}>
+            Comentarios por responsable
+          </Text>
+          <div style={{ color: palette.textMuted, fontSize: 12 }}>
+            {commentsSummary.total} cheque(s) · {commentsSummary.users} usuario(s)
+          </div>
+        </div>
+        <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+          {commentsSummary.by_user.map((u) => (
+            <div
+              key={u.user_code}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '6px 0',
+                borderTop: `1px solid ${palette.cardBorder}`,
+              }}
+            >
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ color: palette.textPrimary, fontSize: 12, fontWeight: 600 }}>
+                  {u.user_code}
+                </div>
+                <div
+                  style={{
+                    color: palette.textMuted,
+                    fontSize: 11,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {u.user_name}
+                </div>
+              </div>
+              <Tag color="blue" style={{ margin: 0 }}>
+                {u.count} {u.count === 1 ? 'cheque' : 'cheques'}
+              </Tag>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={{ padding: 24, maxWidth: 1400, margin: '0 auto' }}>
-      <div style={{ marginBottom: 24 }}>
-        <Title level={2} style={{ margin: 0, color: palette.textPrimary }}>Lista de cheques</Title>
-        <Text style={{ color: palette.textMuted, fontSize: 14 }}>
-          Cheques pendientes de liquidación agrupados por responsable.
-        </Text>
+      <div
+        style={{
+          marginBottom: 24,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 16,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div>
+          <Title level={2} style={{ margin: 0, color: palette.textPrimary }}>Lista de cheques</Title>
+          <Text style={{ color: palette.textMuted, fontSize: 14 }}>
+            Cheques pendientes de liquidación agrupados por responsable.
+          </Text>
+        </div>
+        {commentsSummary && (
+          <Space wrap>
+            <Popover
+              trigger="click"
+              placement="bottomRight"
+              content={renderCommentsSummaryPanel()}
+            >
+              <Button
+                icon={<MessageOutlined />}
+                style={{
+                  borderColor: commentsSummary.total > 0 ? '#1e40af' : palette.cardBorder,
+                  color: commentsSummary.total > 0 ? '#1e40af' : palette.textPrimary,
+                  fontWeight: 600,
+                }}
+              >
+                Comentarios de usuarios
+                <Tag
+                  color={commentsSummary.total > 0 ? 'blue' : 'default'}
+                  style={{ marginLeft: 8, marginRight: 0 }}
+                >
+                  {commentsSummary.total}
+                </Tag>
+              </Button>
+            </Popover>
+            <Tooltip title="Envía a contabilidad un correo con todos los comentarios actuales agrupados por responsable.">
+              <Button
+                type="primary"
+                icon={<SendOutlined />}
+                loading={sendingDigest}
+                disabled={commentsSummary.total === 0}
+                onClick={handleSendDigest}
+              >
+                Enviar resumen a contabilidad
+              </Button>
+            </Tooltip>
+          </Space>
+        )}
       </div>
 
       {/* Stats */}

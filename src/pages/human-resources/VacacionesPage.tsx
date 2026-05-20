@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
-  Badge,
+  Avatar,
   Button,
   Calendar,
   Card,
@@ -12,6 +12,7 @@ import {
   InputNumber,
   Modal,
   Popconfirm,
+  Progress,
   Row,
   Select,
   Space,
@@ -19,8 +20,11 @@ import {
   Table,
   Tabs,
   Tag,
+  Timeline,
+  TimePicker,
   Tooltip,
   Typography,
+  Upload,
   message,
 } from 'antd';
 import {
@@ -28,10 +32,13 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   DownloadOutlined,
+  GiftOutlined,
+  HistoryOutlined,
   PlusOutlined,
   ReloadOutlined,
   StopOutlined,
   TeamOutlined,
+  UploadOutlined,
   UserOutlined,
   UserAddOutlined,
   WalletOutlined,
@@ -41,10 +48,13 @@ import useAuthStore from '../../auth/useAuthStore';
 import { fetchUsers } from '../../api/notifications';
 import {
   type BalanceLogType,
+  type BalanceBreakdown,
   type MyVacationsResponse,
+  type TimeOffTypeValue,
   type VacationBalance,
   type VacationBalanceLogEntry,
   type VacationRequest,
+  type VacationRequestTypeValue,
   type VacationStatus,
   approveVacationRequest,
   cancelVacationRequest,
@@ -52,19 +62,228 @@ import {
   downloadVacationBalancesExcel,
   downloadVacationRequestsExcel,
   fetchAllVacationRequests,
+  creditAnniversaryDays,
+  downloadVacationIcs,
   fetchCalendar,
   fetchMyBalanceLog,
   fetchMyVacations,
   fetchVacationBalances,
+  importBalancesExcel,
   rejectVacationRequest,
+  rolloverYear,
   setVacationBalance,
 } from '../../api/vacations';
 
 const MIN_ADVANCE_DAYS = 3;
 const MAX_DAYS_REQUEST = 15;
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { RangePicker } = DatePicker;
+
+// ============================================
+// STYLES
+// ============================================
+
+const VAC_STYLES = `
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
+
+  .vac-page { font-family: 'DM Sans', sans-serif; }
+
+  .vac-header {
+    background: linear-gradient(135deg, #0C1D3E 0%, #162D5C 55%, #1D3D7A 100%);
+    border-radius: 16px;
+    padding: 36px 48px;
+    margin-bottom: 28px;
+    position: relative;
+    overflow: hidden;
+  }
+  .vac-header::before {
+    content: '';
+    position: absolute;
+    top: -80px; right: -80px;
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(201,168,76,0.18) 0%, transparent 65%);
+    pointer-events: none;
+  }
+  .vac-header::after {
+    content: '';
+    position: absolute;
+    bottom: -100px; left: -60px;
+    width: 280px; height: 280px;
+    background: radial-gradient(circle, rgba(29,61,122,0.6) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .vac-header-deco {
+    position: absolute; right: 48px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 148px; opacity: 0.06; color: #fff;
+    line-height: 1; pointer-events: none; user-select: none;
+  }
+  .vac-header-eyebrow {
+    color: #C9A84C;
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 3px; text-transform: uppercase;
+    margin-bottom: 10px; opacity: 0.9;
+  }
+  .vac-header-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 34px; font-weight: 700;
+    color: #FFFFFF; margin: 0 0 8px 0;
+    line-height: 1.15; letter-spacing: -0.3px;
+  }
+  .vac-header-sub {
+    color: rgba(255,255,255,0.52);
+    font-size: 13px; font-weight: 300; letter-spacing: 0.3px;
+  }
+
+  .vac-hero-card {
+    border: 1.5px solid rgba(201,168,76,0.22) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 4px 20px rgba(12,29,62,0.1) !important;
+    text-align: center; overflow: hidden;
+  }
+  .vac-hero-label {
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: #8895B8; margin-bottom: 4px;
+  }
+  .vac-hero-number {
+    font-family: 'Playfair Display', serif;
+    font-size: 76px; font-weight: 700;
+    color: #0C1D3E; line-height: 1; margin: 8px 0 2px;
+  }
+  .vac-hero-number--low { color: #DC2626; }
+  .vac-hero-unit {
+    font-size: 15px; color: #8895B8; font-weight: 400;
+    display: block; margin-bottom: 20px;
+  }
+  .vac-hero-entry-date {
+    font-size: 12px; color: #8895B8; margin-top: 10px;
+  }
+  .vac-hero-entry-date strong { color: #0C1D3E; font-weight: 600; }
+
+  .vac-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 12px; font-weight: 600; letter-spacing: 0.2px;
+    white-space: nowrap;
+  }
+  .vac-badge-dot {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  }
+  .vac-badge--PENDIENTE  { background: #FEF3C7; color: #92400E; }
+  .vac-badge--PENDIENTE  .vac-badge-dot { background: #D97706; box-shadow: 0 0 0 2px rgba(217,119,6,.22); }
+  .vac-badge--APROBADA   { background: #D1FAE5; color: #065F46; }
+  .vac-badge--APROBADA   .vac-badge-dot { background: #059669; box-shadow: 0 0 0 2px rgba(5,150,105,.22); }
+  .vac-badge--RECHAZADA  { background: #FEE2E2; color: #991B1B; }
+  .vac-badge--RECHAZADA  .vac-badge-dot { background: #DC2626; box-shadow: 0 0 0 2px rgba(220,38,38,.18); }
+  .vac-badge--CANCELADA  { background: #F3F4F6; color: #6B7280; }
+  .vac-badge--CANCELADA  .vac-badge-dot { background: #9CA3AF; }
+
+  .vac-stat-card {
+    border-radius: 14px !important; border: none !important;
+    box-shadow: 0 2px 12px rgba(12,29,62,0.08) !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .vac-stat-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(12,29,62,0.13) !important; }
+  .vac-stat-card--pending  { background: linear-gradient(135deg, #FEF9EC, #FEF3C7); }
+  .vac-stat-card--approved { background: linear-gradient(135deg, #ECFDF5, #D1FAE5); }
+  .vac-stat-card--rejected { background: linear-gradient(135deg, #FFF5F5, #FEE2E2); }
+  .vac-stat-card--total    { background: linear-gradient(135deg, #EEF2FF, #E0E7FF); }
+
+  .vac-section-card {
+    border-radius: 14px !important;
+    border: 1px solid rgba(12,29,62,0.08) !important;
+    box-shadow: 0 2px 12px rgba(12,29,62,0.07) !important;
+    margin-bottom: 24px;
+  }
+  .vac-section-card .ant-card-head {
+    border-bottom: 1px solid rgba(12,29,62,0.06);
+    min-height: 52px;
+  }
+  .vac-section-card .ant-card-head-title {
+    font-weight: 600; color: #0C1D3E; font-size: 14px;
+  }
+
+  .vac-form-card {
+    border-left: 3px solid #C9A84C !important;
+    border-radius: 14px !important;
+    border-top: 1px solid rgba(12,29,62,0.08) !important;
+    border-right: 1px solid rgba(12,29,62,0.08) !important;
+    border-bottom: 1px solid rgba(12,29,62,0.08) !important;
+    box-shadow: 0 2px 12px rgba(12,29,62,0.07) !important;
+    margin-bottom: 24px;
+  }
+
+  .vac-timeline-entry {
+    padding: 10px 14px; border-radius: 10px;
+    background: #F9FAFB; border: 1px solid #F0F0F0;
+  }
+  .vac-timeline-date {
+    font-size: 11px; color: #9CA3AF; margin-bottom: 5px; font-weight: 500;
+  }
+  .vac-timeline-row {
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .vac-timeline-delta-pos { color: #059669; font-weight: 700; font-size: 17px; font-family: 'DM Sans', sans-serif; }
+  .vac-timeline-delta-neg { color: #DC2626; font-weight: 700; font-size: 17px; font-family: 'DM Sans', sans-serif; }
+  .vac-timeline-flow { font-size: 12px; color: #6B7280; margin-top: 3px; }
+  .vac-timeline-flow strong { color: #1F2937; }
+
+  .vac-emp-cell { display: flex; align-items: center; gap: 8px; }
+  .vac-emp-name { font-size: 13px; font-weight: 500; color: #1F2937; line-height: 1.2; }
+
+  .vac-cal-chip {
+    border-radius: 4px; padding: 1px 5px;
+    font-size: 11px; font-weight: 500; display: block;
+    margin-bottom: 2px; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+
+  .vac-page .ant-tabs-tab { font-family: 'DM Sans', sans-serif; font-weight: 500; }
+  .vac-page .ant-tabs-tab-active .ant-tabs-tab-btn { color: #0C1D3E !important; font-weight: 600; }
+  .vac-page .ant-tabs-ink-bar { background: #0C1D3E !important; }
+  .vac-page .ant-tabs-nav { margin-bottom: 24px !important; }
+
+  .vac-page .ant-table-thead > tr > th {
+    background: #F5F7FC !important;
+    color: #4B5563 !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.5px !important;
+    text-transform: uppercase !important;
+  }
+  .vac-page .ant-table-tbody > tr:hover > td { background: #F0F4FF !important; }
+
+  .vac-primary-btn {
+    background: linear-gradient(135deg, #0C1D3E, #1D3D7A) !important;
+    border: none !important;
+    border-radius: 8px !important;
+    height: 40px !important;
+    font-weight: 600 !important;
+    padding: 0 24px !important;
+  }
+`;
+
+// ============================================
+// DESIGN CONSTANTS
+// ============================================
+
+const AVATAR_COLORS = [
+  '#0C1D3E', '#1E3E80', '#0D5C63', '#5C4A1E',
+  '#4A1E5C', '#1E4A3A', '#5C1E1E', '#2D4A1E',
+];
+
+const CALENDAR_COLORS = [
+  { bg: '#DBEAFE', color: '#1E40AF' },
+  { bg: '#D1FAE5', color: '#065F46' },
+  { bg: '#FCE7F3', color: '#9D174D' },
+  { bg: '#FEF3C7', color: '#92400E' },
+  { bg: '#EDE9FE', color: '#5B21B6' },
+  { bg: '#FEE2E2', color: '#991B1B' },
+  { bg: '#ECFDF5', color: '#064E3B' },
+  { bg: '#FFF7ED', color: '#9A3412' },
+];
 
 // ============================================
 // HELPERS
@@ -72,9 +291,9 @@ const { RangePicker } = DatePicker;
 
 const STATUS_CONFIG: Record<VacationStatus, { label: string; color: string }> = {
   PENDIENTE: { label: 'Pendiente', color: 'orange' },
-  APROBADA: { label: 'Aprobada', color: 'green' },
-  RECHAZADA: { label: 'Rechazada', color: 'red' },
-  CANCELADA: { label: 'Cancelada', color: 'default' },
+  APROBADA:  { label: 'Aprobada',  color: 'green'  },
+  RECHAZADA: { label: 'Rechazada', color: 'red'    },
+  CANCELADA: { label: 'Cancelada', color: 'default'},
 };
 
 const getStatusTag = (estado: VacationStatus) => {
@@ -82,8 +301,68 @@ const getStatusTag = (estado: VacationStatus) => {
   return <Tag color={cfg.color}>{cfg.label}</Tag>;
 };
 
+const getStatusBadge = (estado: VacationStatus) => {
+  const labels: Record<VacationStatus, string> = {
+    PENDIENTE: 'Pendiente',
+    APROBADA:  'Aprobada',
+    RECHAZADA: 'Rechazada',
+    CANCELADA: 'Cancelada',
+  };
+  return (
+    <span className={`vac-badge vac-badge--${estado}`}>
+      <span className="vac-badge-dot" />
+      {labels[estado] ?? estado}
+    </span>
+  );
+};
+
 const getUserName = (user?: { first_name: string; last_name: string } | null) =>
   user ? `${user.first_name} ${user.last_name}`.trim() : '-';
+
+const getAvatarColor = (name: string): string => {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+};
+
+const getInitials = (user?: { first_name: string; last_name: string } | null): string => {
+  if (!user) return '?';
+  return `${user.first_name?.[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase();
+};
+
+// ============================================
+// VACATION FIELD CONSTANTS
+// ============================================
+
+const TIME_OFF_OPTIONS: { value: TimeOffTypeValue; label: string }[] = [
+  { value: 'vacaciones',        label: 'Vacaciones' },
+  { value: 'dias_ausencia_sp',  label: 'Días de Ausencia - Servicios Profesionales' },
+  { value: 'licencia_sin_goce', label: 'Licencia sin goce de salario' },
+  { value: 'licencia_con_goce', label: 'Licencia con goce de salario' },
+  { value: 'permiso',           label: 'Permiso' },
+  { value: 'cita_igss_medica',  label: 'Cita IGSS / Cita Médica' },
+  { value: 'enfermedad',        label: 'Enfermedad' },
+];
+
+const TIME_OFF_LABELS: Record<TimeOffTypeValue, string> = Object.fromEntries(
+  TIME_OFF_OPTIONS.map((o) => [o.value, o.label]),
+) as Record<TimeOffTypeValue, string>;
+
+const REQUEST_TYPE_OPTIONS: { value: VacationRequestTypeValue; label: string }[] = [
+  { value: 'full_day', label: 'Día completo' },
+  { value: '0.5',  label: '0.5 horas' },
+  { value: '1',    label: '1 hora' },
+  { value: '1.5',  label: '1.5 horas' },
+  { value: '2',    label: '2 horas' },
+  { value: '2.5',  label: '2.5 horas' },
+  { value: '3',    label: '3 horas' },
+  { value: '3.5',  label: '3.5 horas' },
+  { value: '4',    label: '4 horas' },
+];
+
+const REQUEST_TYPE_LABELS: Record<VacationRequestTypeValue, string> = Object.fromEntries(
+  REQUEST_TYPE_OPTIONS.map((o) => [o.value, o.label]),
+) as Record<VacationRequestTypeValue, string>;
 
 // ============================================
 // COMPONENT
@@ -114,6 +393,7 @@ const VacacionesPage: React.FC = () => {
   // ---- Saldos (HR) ----
   const [balances, setBalances] = useState<VacationBalance[]>([]);
   const [balancesLoading, setBalancesLoading] = useState(false);
+  const [balanceSearch, setBalanceSearch] = useState('');
   const [editingBalance, setEditingBalance] = useState<number | null>(null);
   const [balanceForm] = Form.useForm();
   const [savingBalance, setSavingBalance] = useState(false);
@@ -127,9 +407,14 @@ const VacacionesPage: React.FC = () => {
   const [calendarRequests, setCalendarRequests] = useState<VacationRequest[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
 
-  // ---- Exportar Excel ----
+  // ---- Exportar / Importar Excel ----
   const [exportingRequests, setExportingRequests] = useState(false);
   const [exportingBalances, setExportingBalances] = useState(false);
+  const [importingBalances, setImportingBalances] = useState(false);
+  const [importResult, setImportResult] = useState<{ imported: number; skipped: string[] } | null>(null);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [rollingOver, setRollingOver] = useState(false);
+  const [creditingUserId, setCreditingUserId] = useState<number | null>(null);
 
   // ---- Registrar nuevo empleado ----
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -246,7 +531,10 @@ const VacacionesPage: React.FC = () => {
       setSavingAdd(true);
       await setVacationBalance(values.user_id, {
         fecha_ingreso: values.fecha_ingreso.format('YYYY-MM-DD'),
-        saldo_dias: values.saldo_dias,
+        time_off_type: values.time_off_type ?? 'vacaciones',
+        earned_this_year: values.earned_this_year ?? 0,
+        used_this_year: values.used_this_year ?? 0,
+        previous_year: values.previous_year ?? 0,
       });
       message.success('Saldo registrado correctamente');
       setAddModalOpen(false);
@@ -260,6 +548,55 @@ const VacacionesPage: React.FC = () => {
     }
   };
 
+  const handleImportBalances = async (file: File) => {
+    setImportingBalances(true);
+    try {
+      const result = await importBalancesExcel(file);
+      setImportResult(result);
+      setImportModalOpen(true);
+      loadBalances();
+    } catch {
+      message.error('Error al importar el Excel');
+    } finally {
+      setImportingBalances(false);
+    }
+    return false; // prevent antd default upload
+  };
+
+  const handleRollover = async () => {
+    setRollingOver(true);
+    try {
+      const result = await rolloverYear();
+      message.success(`Rollover completado: ${result.updated} registros actualizados`);
+      loadBalances();
+    } catch {
+      message.error('Error al hacer el rollover');
+    } finally {
+      setRollingOver(false);
+    }
+  };
+
+  const handleCreditAnniversary = (userId: number, employeeName: string) => {
+    Modal.confirm({
+      title: `Acreditar 15 días a ${employeeName}`,
+      content: 'Se sumarán 15 días a "Ganado este año" y al saldo disponible. ¿Continuar?',
+      okText: 'Sí, acreditar',
+      cancelText: 'Cancelar',
+      onOk: async () => {
+        setCreditingUserId(userId);
+        try {
+          await creditAnniversaryDays(userId);
+          message.success(`+15 días acreditados a ${employeeName}`);
+          loadBalances();
+        } catch {
+          message.error('Error al acreditar los días');
+        } finally {
+          setCreditingUserId(null);
+        }
+      },
+    });
+  };
+
   // ============================================
   // MIS VACACIONES - ACCIONES
   // ============================================
@@ -268,16 +605,30 @@ const VacacionesPage: React.FC = () => {
     setRequesting(true);
     try {
       const values = await requestForm.validateFields();
-      const [fechaInicio, fechaFin] = values.rango;
-      await createVacationRequest({
-        fecha_inicio: dayjs(fechaInicio).format('YYYY-MM-DD'),
-        fecha_fin: dayjs(fechaFin).format('YYYY-MM-DD'),
+      const requestType: VacationRequestTypeValue = values.request_type ?? 'full_day';
+      const isHourly = requestType !== 'full_day';
+
+      const payload: Parameters<typeof createVacationRequest>[0] = {
+        request_type: requestType,
+        time_off_type: values.time_off_type ?? 'vacaciones',
         comentarios: values.comentarios || undefined,
-      });
-      message.success('Solicitud de vacaciones enviada');
+      };
+
+      if (isHourly) {
+        payload.fecha_inicio = dayjs(values.fecha_inicio).format('YYYY-MM-DD');
+        payload.hora_inicio = dayjs(values.hora_inicio).format('HH:mm');
+      } else {
+        const [fechaInicio, fechaFin] = values.rango;
+        payload.fecha_inicio = dayjs(fechaInicio).format('YYYY-MM-DD');
+        payload.fecha_fin = dayjs(fechaFin).format('YYYY-MM-DD');
+      }
+
+      await createVacationRequest(payload);
+      message.success('Solicitud enviada');
       requestForm.resetFields();
       loadMyVacations();
-    } catch {
+    } catch (e: any) {
+      if (e?.errorFields) return;
       message.error('No se pudo enviar la solicitud');
     } finally {
       setRequesting(false);
@@ -346,7 +697,10 @@ const VacacionesPage: React.FC = () => {
     setEditingBalance(userId);
     balanceForm.setFieldsValue({
       fecha_ingreso: balance.fecha_ingreso ? dayjs(balance.fecha_ingreso) : null,
-      saldo_dias: balance.saldo_dias,
+      time_off_type: balance.time_off_type ?? 'vacaciones',
+      earned_this_year: Number(balance.earned_this_year ?? 0),
+      used_this_year: Number(balance.used_this_year ?? 0),
+      previous_year: Number(balance.previous_year ?? 0),
     });
   };
 
@@ -356,7 +710,10 @@ const VacacionesPage: React.FC = () => {
       const values = await balanceForm.validateFields();
       await setVacationBalance(userId, {
         fecha_ingreso: dayjs(values.fecha_ingreso).format('YYYY-MM-DD'),
-        saldo_dias: values.saldo_dias,
+        time_off_type: values.time_off_type ?? 'vacaciones',
+        earned_this_year: values.earned_this_year ?? 0,
+        used_this_year: values.used_this_year ?? 0,
+        previous_year: values.previous_year ?? 0,
       });
       message.success('Saldo actualizado');
       setEditingBalance(null);
@@ -370,31 +727,71 @@ const VacacionesPage: React.FC = () => {
   };
 
   // ============================================
+  // STATS (HR)
+  // ============================================
+
+  const hrStats = useMemo(() => ({
+    pending:  allRequests.filter((r) => r.estado === 'PENDIENTE').length,
+    approved: allRequests.filter((r) => r.estado === 'APROBADA').length,
+    rejected: allRequests.filter((r) => r.estado === 'RECHAZADA').length,
+    total:    allRequests.length,
+  }), [allRequests]);
+
+  // ============================================
   // COLUMNAS DE TABLAS
   // ============================================
 
   const myRequestColumns = useMemo(
     () => [
-      { title: '#', dataIndex: 'id', width: 60 },
+      { title: '#', dataIndex: 'id', width: 55 },
+      {
+        title: 'Tipo',
+        dataIndex: 'time_off_type',
+        ellipsis: true,
+        render: (v: TimeOffTypeValue) => (
+          <Tag style={{ borderRadius: 6, fontSize: 11 }}>
+            {TIME_OFF_LABELS[v] ?? v ?? 'Vacaciones'}
+          </Tag>
+        ),
+      },
+      {
+        title: 'Duración',
+        dataIndex: 'request_type',
+        width: 110,
+        render: (v: VacationRequestTypeValue) => REQUEST_TYPE_LABELS[v] ?? v ?? 'Día completo',
+      },
       {
         title: 'Fecha inicio',
         dataIndex: 'fecha_inicio',
-        render: (v: string) => (v ? dayjs(v).format('DD/MM/YYYY') : '-'),
+        render: (v: string, r: VacationRequest) => (
+          <span>
+            {v ? dayjs(v).format('DD/MM/YYYY') : '-'}
+            {r.hora_inicio && (
+              <Text type="secondary" style={{ fontSize: 11, marginLeft: 4 }}>
+                {r.hora_inicio}
+              </Text>
+            )}
+          </span>
+        ),
       },
       {
         title: 'Fecha fin',
         dataIndex: 'fecha_fin',
-        render: (v: string) => (v ? dayjs(v).format('DD/MM/YYYY') : '-'),
+        render: (v: string, r: VacationRequest) =>
+          r.request_type !== 'full_day' ? null : (v ? dayjs(v).format('DD/MM/YYYY') : '-'),
       },
       {
-        title: 'Dias',
+        title: 'Días',
         dataIndex: 'dias_solicitados',
         width: 70,
+        render: (v: number) => (
+          <span style={{ fontWeight: 600, color: '#0C1D3E' }}>{v}</span>
+        ),
       },
       {
         title: 'Estado',
         dataIndex: 'estado',
-        render: (v: VacationStatus) => getStatusTag(v),
+        render: (v: VacationStatus) => getStatusBadge(v),
       },
       {
         title: 'Solicitado',
@@ -405,31 +802,45 @@ const VacacionesPage: React.FC = () => {
         title: 'Comentarios',
         dataIndex: 'comentarios',
         ellipsis: true,
-        render: (v: string) => v || <Text type="secondary">-</Text>,
+        render: (v: string) => v || <Text type="secondary">—</Text>,
       },
       {
         title: 'Acciones',
-        width: 120,
-        render: (_: unknown, record: VacationRequest) =>
-          record.estado === 'PENDIENTE' ? (
-            <Popconfirm
-              title="Cancelar solicitud"
-              description="Esta accion no se puede deshacer"
-              onConfirm={() => handleCancel(record.id)}
-              okText="Si, cancelar"
-              cancelText="No"
-              okButtonProps={{ danger: true }}
-            >
-              <Button
-                size="small"
-                danger
-                icon={<StopOutlined />}
-                loading={cancelingId === record.id}
+        width: 140,
+        render: (_: unknown, record: VacationRequest) => (
+          <Space size={6}>
+            {record.estado === 'PENDIENTE' && (
+              <Popconfirm
+                title="Cancelar solicitud"
+                description="Esta acción no se puede deshacer"
+                onConfirm={() => handleCancel(record.id)}
+                okText="Sí, cancelar"
+                cancelText="No"
+                okButtonProps={{ danger: true }}
               >
-                Cancelar
-              </Button>
-            </Popconfirm>
-          ) : null,
+                <Button
+                  size="small"
+                  danger
+                  icon={<StopOutlined />}
+                  loading={cancelingId === record.id}
+                  style={{ borderRadius: 6 }}
+                >
+                  Cancelar
+                </Button>
+              </Popconfirm>
+            )}
+            {record.estado === 'APROBADA' && (
+              <Tooltip title="Agregar al calendario (.ics)">
+                <Button
+                  size="small"
+                  icon={<CalendarOutlined />}
+                  onClick={() => downloadVacationIcs(record.id)}
+                  style={{ borderRadius: 6 }}
+                />
+              </Tooltip>
+            )}
+          </Space>
+        ),
       },
     ],
     [cancelingId],
@@ -437,63 +848,125 @@ const VacacionesPage: React.FC = () => {
 
   const allRequestColumns = useMemo(
     () => [
-      { title: '#', dataIndex: 'id', width: 60 },
+      { title: '#', dataIndex: 'id', width: 55 },
       {
         title: 'Empleado',
         dataIndex: 'user',
-        render: (v: VacationRequest['user']) => getUserName(v),
+        render: (v: VacationRequest['user']) => {
+          const name = getUserName(v);
+          return (
+            <div className="vac-emp-cell">
+              <Avatar
+                size={30}
+                style={{
+                  background: getAvatarColor(name),
+                  fontSize: 12,
+                  fontWeight: 700,
+                  flexShrink: 0,
+                }}
+              >
+                {getInitials(v)}
+              </Avatar>
+              <span className="vac-emp-name">{name}</span>
+            </div>
+          );
+        },
+      },
+      {
+        title: 'Tipo',
+        dataIndex: 'time_off_type',
+        ellipsis: true,
+        render: (v: TimeOffTypeValue) => (
+          <Tag style={{ borderRadius: 6, fontSize: 11 }}>
+            {TIME_OFF_LABELS[v] ?? v ?? 'Vacaciones'}
+          </Tag>
+        ),
+      },
+      {
+        title: 'Duración',
+        dataIndex: 'request_type',
+        width: 110,
+        render: (v: VacationRequestTypeValue) => REQUEST_TYPE_LABELS[v] ?? v ?? 'Día completo',
       },
       {
         title: 'Fecha inicio',
         dataIndex: 'fecha_inicio',
-        render: (v: string) => (v ? dayjs(v).format('DD/MM/YYYY') : '-'),
+        render: (v: string, r: VacationRequest) => (
+          <span>
+            {v ? dayjs(v).format('DD/MM/YYYY') : '-'}
+            {r.hora_inicio && (
+              <Text type="secondary" style={{ fontSize: 11, marginLeft: 4 }}>
+                {r.hora_inicio}
+              </Text>
+            )}
+          </span>
+        ),
       },
       {
         title: 'Fecha fin',
         dataIndex: 'fecha_fin',
-        render: (v: string) => (v ? dayjs(v).format('DD/MM/YYYY') : '-'),
+        render: (v: string, r: VacationRequest) =>
+          r.request_type !== 'full_day' ? null : (v ? dayjs(v).format('DD/MM/YYYY') : '-'),
       },
       {
-        title: 'Dias',
+        title: 'Días',
         dataIndex: 'dias_solicitados',
-        width: 70,
+        width: 65,
+        render: (v: number) => (
+          <span style={{ fontWeight: 600, color: '#0C1D3E' }}>{v}</span>
+        ),
       },
       {
         title: 'Estado',
         dataIndex: 'estado',
-        render: (v: VacationStatus) => getStatusTag(v),
+        render: (v: VacationStatus) => getStatusBadge(v),
       },
       {
         title: 'Motivo rechazo',
         dataIndex: 'motivo_cancelacion',
         ellipsis: true,
-        render: (v: string) => v || <Text type="secondary">-</Text>,
+        render: (v: string) => v || <Text type="secondary">—</Text>,
       },
       {
         title: 'Acciones',
-        width: 180,
-        render: (_: unknown, record: VacationRequest) =>
-          record.estado === 'PENDIENTE' ? (
-            <Space>
-              <Button
-                size="small"
-                type="primary"
-                icon={<CheckCircleOutlined />}
-                loading={approvingId === record.id}
-                onClick={() => handleApprove(record.id)}
-              >
-                Aprobar
-              </Button>
-              <Button
-                size="small"
-                danger
-                icon={<CloseCircleOutlined />}
-                onClick={() => openRejectModal(record.id)}
-              >
-                Rechazar
-              </Button>
-            </Space>
-          ) : null,
+        width: 200,
+        render: (_: unknown, record: VacationRequest) => (
+          <Space size={6}>
+            {record.estado === 'PENDIENTE' && (
+              <>
+                <Button
+                  size="small"
+                  type="primary"
+                  icon={<CheckCircleOutlined />}
+                  loading={approvingId === record.id}
+                  onClick={() => handleApprove(record.id)}
+                  style={{ borderRadius: 6, background: '#059669', border: 'none', fontWeight: 600 }}
+                >
+                  Aprobar
+                </Button>
+                <Button
+                  size="small"
+                  danger
+                  icon={<CloseCircleOutlined />}
+                  onClick={() => openRejectModal(record.id)}
+                  style={{ borderRadius: 6, fontWeight: 600 }}
+                >
+                  Rechazar
+                </Button>
+              </>
+            )}
+            {record.estado === 'APROBADA' && (
+              <Tooltip title="Agregar al calendario (.ics)">
+                <Button
+                  size="small"
+                  icon={<CalendarOutlined />}
+                  onClick={() => downloadVacationIcs(record.id)}
+                  style={{ borderRadius: 6 }}
+                />
+              </Tooltip>
+            )}
+          </Space>
+        ),
       },
     ],
     [approvingId],
@@ -504,217 +977,453 @@ const VacacionesPage: React.FC = () => {
       {
         title: 'Empleado',
         dataIndex: 'user',
-        render: (v: VacationBalance['user']) => getUserName(v),
+        render: (v: VacationBalance['user']) => {
+          const name = getUserName(v);
+          return (
+            <div className="vac-emp-cell">
+              <Avatar size={30} style={{ background: getAvatarColor(name), fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                {getInitials(v)}
+              </Avatar>
+              <span className="vac-emp-name">{name}</span>
+            </div>
+          );
+        },
+      },
+      {
+        title: 'Tipo',
+        dataIndex: 'time_off_label',
+        width: 200,
+        render: (v: string, r: VacationBalance) => (
+          <Tag style={{ borderRadius: 6, fontSize: 11 }}>{v ?? r.time_off_type}</Tag>
+        ),
+      },
+      {
+        title: 'Año anterior',
+        dataIndex: 'previous_year',
+        width: 110,
+        render: (v: number) => (
+          <span style={{ fontWeight: 600, color: Number(v) < 0 ? '#DC2626' : '#3B82F6' }}>
+            {Number(v)}
+          </span>
+        ),
+      },
+      {
+        title: 'Ganado',
+        dataIndex: 'earned_this_year',
+        width: 90,
+        render: (v: number) => (
+          <span style={{ fontWeight: 600, color: '#059669' }}>{Number(v)}</span>
+        ),
+      },
+      {
+        title: 'Usado',
+        dataIndex: 'used_this_year',
+        width: 80,
+        render: (v: number) => (
+          <span style={{ fontWeight: 600, color: '#DC2626' }}>{Number(v)}</span>
+        ),
+      },
+      {
+        title: 'Disponible',
+        dataIndex: 'available',
+        width: 110,
+        render: (v: number) => {
+          const val = Number(v);
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{
+                fontFamily: "'Playfair Display', serif",
+                fontWeight: 700, fontSize: 17,
+                color: val < 0 ? '#DC2626' : val < 5 ? '#D97706' : '#0C1D3E',
+              }}>
+                {val}
+              </span>
+              <Text type="secondary" style={{ fontSize: 11 }}>días</Text>
+            </div>
+          );
+        },
       },
       {
         title: 'Fecha ingreso',
         dataIndex: 'fecha_ingreso',
-        render: (v: string | null) => (v ? dayjs(v).format('DD/MM/YYYY') : <Text type="secondary">Sin definir</Text>),
+        width: 120,
+        render: (v: string | null) =>
+          v ? <Text style={{ fontWeight: 500, fontSize: 12 }}>{dayjs(v).format('DD/MM/YYYY')}</Text>
+            : <Text type="secondary" style={{ fontSize: 12 }}>—</Text>,
       },
       {
-        title: 'Saldo dias',
-        dataIndex: 'saldo_dias',
-        width: 110,
-        render: (v: number) => <Tag color="blue">{v} dias</Tag>,
-      },
-      {
-        title: 'Acciones',
-        width: 100,
+        title: '',
+        width: 140,
         render: (_: unknown, record: VacationBalance) => (
-          <Button
-            size="small"
-            onClick={() => record.user && handleEditBalance(record.user.id, record)}
-          >
-            Editar
-          </Button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <Button
+              size="small"
+              onClick={() => record.user && handleEditBalance(record.user.id, record)}
+              style={{ borderRadius: 6, fontWeight: 500 }}
+            >
+              Editar
+            </Button>
+            {record.time_off_type === 'vacaciones' && (
+              <Tooltip title="Acreditar 15 días anuales">
+                <Button
+                  size="small"
+                  icon={<GiftOutlined />}
+                  loading={creditingUserId === record.user?.id}
+                  onClick={() => record.user && handleCreditAnniversary(record.user.id, getUserName(record.user))}
+                  style={{ borderRadius: 6, color: '#059669', borderColor: '#059669' }}
+                />
+              </Tooltip>
+            )}
+          </div>
         ),
       },
     ],
-    [],
+    [creditingUserId],
   );
 
   // ============================================
   // RENDER - TAB MIS VACACIONES
   // ============================================
 
-  const renderMyVacationsTab = () => (
-    <div>
-      {/* Balance card */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={12} md={8}>
-          <Card>
-            <Statistic
-              title="Saldo de dias disponibles"
-              value={myData?.saldo_dias ?? '-'}
-              prefix={<WalletOutlined />}
-              suffix="dias"
-              valueStyle={{ color: (myData?.saldo_dias ?? 0) > 0 ? '#3f8600' : '#cf1322' }}
-            />
-            {myData?.fecha_ingreso && (
-              <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
-                <CalendarOutlined style={{ marginRight: 4 }} />
-                Fecha de ingreso: {dayjs(myData.fecha_ingreso).format('DD/MM/YYYY')}
-              </Text>
-            )}
-            {!myData?.fecha_ingreso && (
-              <Alert
-                message="Sin fecha de ingreso registrada"
-                type="warning"
-                showIcon
-                style={{ marginTop: 8 }}
-                banner
+  const renderMyVacationsTab = () => {
+    const vacBalance = myData?.balances?.find((b) => b.time_off_type === 'vacaciones');
+    const saldo = vacBalance?.available ?? myData?.saldo_dias ?? 0;
+    const progressPercent = Math.min(100, Math.round((saldo / 15) * 100));
+    const isLow = saldo < 5;
+    const otherBalances = myData?.balances?.filter((b) => b.time_off_type !== 'vacaciones') ?? [];
+
+    return (
+      <div>
+        {/* Hero balance cards */}
+        <Row gutter={[24, 24]} style={{ marginBottom: 28 }}>
+          {/* Vacaciones */}
+          <Col xs={24} sm={16} md={10} lg={8}>
+            <Card className="vac-hero-card" styles={{ body: { padding: '28px 32px' } }}>
+              <div className="vac-hero-label">Saldo disponible · Vacaciones</div>
+              <div className={`vac-hero-number${isLow ? ' vac-hero-number--low' : ''}`}>
+                {myData !== null ? saldo : '—'}
+              </div>
+              <span className="vac-hero-unit">días disponibles</span>
+              <Progress
+                percent={progressPercent}
+                showInfo={false}
+                strokeColor={isLow ? '#DC2626' : { '0%': '#C9A84C', '100%': '#0C1D3E' }}
+                trailColor="#EEF2FF"
+                strokeWidth={7}
+                style={{ marginBottom: 10 }}
               />
-            )}
-          </Card>
-        </Col>
-      </Row>
+              {/* Desglose */}
+              {vacBalance && (
+                <div style={{
+                  display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
+                  gap: '8px', marginBottom: 12,
+                  padding: '10px 0', borderTop: '1px solid rgba(12,29,62,0.07)',
+                }}>
+                  {[
+                    { label: 'Año anterior', value: vacBalance.previous_year, color: '#3B82F6' },
+                    { label: 'Ganado', value: vacBalance.earned_this_year, color: '#059669' },
+                    { label: 'Usado', value: vacBalance.used_this_year, color: '#DC2626' },
+                  ].map((item) => (
+                    <div key={item.label} style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: item.color, fontFamily: "'Playfair Display', serif" }}>
+                        {Number(item.value)}
+                      </div>
+                      <div style={{ fontSize: 10, color: '#8895B8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        {item.label}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {myData?.fecha_ingreso ? (
+                <div className="vac-hero-entry-date">
+                  <CalendarOutlined style={{ marginRight: 5, color: '#C9A84C' }} />
+                  Ingreso: <strong>{dayjs(myData.fecha_ingreso).format('DD/MM/YYYY')}</strong>
+                </div>
+              ) : (
+                <Alert
+                  message="Sin fecha de ingreso registrada"
+                  type="warning"
+                  showIcon
+                  style={{ marginTop: 12, borderRadius: 8, fontSize: 12 }}
+                  banner
+                />
+              )}
+            </Card>
+          </Col>
 
-      {/* Formulario de solicitud */}
-      <Card
-        title={
-          <Space>
-            <PlusOutlined />
-            <span>Solicitar vacaciones</span>
-          </Space>
-        }
-        style={{ marginBottom: 24 }}
-      >
-        <Form form={requestForm} layout="vertical" style={{ maxWidth: 600 }}>
-          <Form.Item
-            name="rango"
-            label="Rango de fechas"
-            rules={[{ required: true, message: 'Selecciona las fechas' }]}
-            extra={
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                Mínimo {MIN_ADVANCE_DAYS} días de anticipación · Máximo {MAX_DAYS_REQUEST} días hábiles por solicitud
-              </Text>
-            }
+          {/* Otros tipos de saldo */}
+          {otherBalances.map((b) => (
+            <Col xs={24} sm={10} md={7} lg={6} key={b.id}>
+              <Card
+                styles={{ body: { padding: '20px 24px' } }}
+                style={{
+                  borderRadius: 16,
+                  border: '1.5px solid rgba(59,130,246,0.18)',
+                  boxShadow: '0 4px 16px rgba(12,29,62,0.07)',
+                }}
+              >
+                <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#8895B8', marginBottom: 6 }}>
+                  {b.time_off_label}
+                </div>
+                <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 40, fontWeight: 700, color: b.available < 0 ? '#DC2626' : '#0C1D3E', lineHeight: 1 }}>
+                  {Number(b.available)}
+                </div>
+                <div style={{ fontSize: 12, color: '#8895B8', marginBottom: 10 }}>días disponibles</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                  {[
+                    { label: 'Anterior', value: b.previous_year, color: '#3B82F6' },
+                    { label: 'Ganado', value: b.earned_this_year, color: '#059669' },
+                    { label: 'Usado', value: b.used_this_year, color: '#DC2626' },
+                  ].map((item) => (
+                    <div key={item.label} style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: item.color }}>{Number(item.value)}</div>
+                      <div style={{ fontSize: 10, color: '#B0BAD3', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{item.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+
+        {/* Formulario de solicitud */}
+        <Card
+          className="vac-form-card"
+          title={
+            <Space>
+              <span style={{
+                background: 'linear-gradient(135deg, #C9A84C, #E8CF82)',
+                borderRadius: '50%',
+                width: 26, height: 26,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <PlusOutlined style={{ color: '#fff', fontSize: 12 }} />
+              </span>
+              <span>Nueva solicitud</span>
+            </Space>
+          }
+        >
+          <Form
+            form={requestForm}
+            layout="vertical"
+            style={{ maxWidth: 540 }}
+            initialValues={{ request_type: 'full_day', time_off_type: 'vacaciones' }}
           >
-            <RangePicker
-              style={{ width: '100%' }}
-              format="DD/MM/YYYY"
-              disabledDate={(current) =>
-                current && current < dayjs().add(MIN_ADVANCE_DAYS, 'day').startOf('day')
-              }
-              placeholder={['Fecha inicio', 'Fecha fin']}
-            />
-          </Form.Item>
-          <Form.Item name="comentarios" label="Comentarios (opcional)">
-            <Input.TextArea
-              rows={3}
-              placeholder="Agrega un comentario o motivo..."
-              maxLength={500}
-              showCount
-            />
-          </Form.Item>
-          <Form.Item>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              loading={requesting}
-              onClick={handleSubmitRequest}
+            {/* Tipo de ausencia */}
+            <Form.Item
+              name="time_off_type"
+              label={<span style={{ fontWeight: 600, color: '#374151' }}>Tipo de solicitud</span>}
+              rules={[{ required: true, message: 'Selecciona el tipo' }]}
             >
-              Enviar solicitud
+              <Select
+                options={TIME_OFF_OPTIONS}
+                style={{ borderRadius: 8 }}
+                placeholder="Selecciona el tipo de ausencia"
+              />
+            </Form.Item>
+
+            {/* Duración */}
+            <Form.Item
+              name="request_type"
+              label={<span style={{ fontWeight: 600, color: '#374151' }}>Duración</span>}
+              rules={[{ required: true, message: 'Selecciona la duración' }]}
+            >
+              <Select options={REQUEST_TYPE_OPTIONS} style={{ borderRadius: 8 }} />
+            </Form.Item>
+
+            {/* Fechas — condicional según request_type */}
+            <Form.Item noStyle shouldUpdate={(prev, curr) => prev.request_type !== curr.request_type}>
+              {({ getFieldValue }) => {
+                const rqType: VacationRequestTypeValue = getFieldValue('request_type') ?? 'full_day';
+                const isHourly = rqType !== 'full_day';
+                return isHourly ? (
+                  <Row gutter={12}>
+                    <Col span={12}>
+                      <Form.Item
+                        name="fecha_inicio"
+                        label={<span style={{ fontWeight: 600, color: '#374151' }}>Fecha</span>}
+                        rules={[{ required: true, message: 'Selecciona la fecha' }]}
+                      >
+                        <DatePicker
+                          style={{ width: '100%', borderRadius: 8 }}
+                          format="DD/MM/YYYY"
+                          placeholder="Seleccionar fecha"
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item
+                        name="hora_inicio"
+                        label={<span style={{ fontWeight: 600, color: '#374151' }}>Hora de inicio</span>}
+                        rules={[{ required: true, message: 'Selecciona la hora' }]}
+                      >
+                        <TimePicker
+                          style={{ width: '100%', borderRadius: 8 }}
+                          format="HH:mm"
+                          minuteStep={15}
+                          placeholder="HH:MM"
+                        />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                ) : (
+                  <Form.Item
+                    name="rango"
+                    label={<span style={{ fontWeight: 600, color: '#374151' }}>Rango de fechas</span>}
+                    rules={[{ required: true, message: 'Selecciona las fechas' }]}
+                    extra={
+                      <Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
+                        Máximo {MAX_DAYS_REQUEST} días hábiles por solicitud
+                      </Text>
+                    }
+                  >
+                    <RangePicker
+                      style={{ width: '100%', borderRadius: 8 }}
+                      format="DD/MM/YYYY"
+                      placeholder={['Fecha de inicio', 'Fecha de regreso']}
+                    />
+                  </Form.Item>
+                );
+              }}
+            </Form.Item>
+
+            <Form.Item
+              name="comentarios"
+              label={
+                <span style={{ fontWeight: 600, color: '#374151' }}>
+                  Comentarios <Text type="secondary" style={{ fontWeight: 400 }}>(opcional)</Text>
+                </span>
+              }
+            >
+              <Input.TextArea
+                rows={3}
+                placeholder="Agrega un comentario o motivo..."
+                maxLength={500}
+                showCount
+                style={{ borderRadius: 8 }}
+              />
+            </Form.Item>
+            <Form.Item style={{ marginBottom: 0 }}>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                loading={requesting}
+                onClick={handleSubmitRequest}
+                className="vac-primary-btn"
+              >
+                Enviar solicitud
+              </Button>
+            </Form.Item>
+          </Form>
+        </Card>
+
+        {/* Mis solicitudes */}
+        <Card
+          className="vac-section-card"
+          title={
+            <Space>
+              <UserOutlined style={{ color: '#C9A84C' }} />
+              <span>Mis solicitudes</span>
+            </Space>
+          }
+          extra={
+            <Button icon={<ReloadOutlined />} onClick={loadMyVacations} size="small" style={{ borderRadius: 6 }}>
+              Actualizar
             </Button>
-          </Form.Item>
-        </Form>
-      </Card>
+          }
+        >
+          <Table
+            rowKey="id"
+            loading={myLoading}
+            dataSource={myData?.solicitudes ?? []}
+            columns={myRequestColumns as any}
+            pagination={{ pageSize: 10, size: 'small' }}
+            size="middle"
+            scroll={{ x: 900 }}
+            locale={{ emptyText: 'No tienes solicitudes de vacaciones' }}
+          />
+        </Card>
 
-      {/* Tabla de mis solicitudes */}
-      <Card
-        title={
-          <Space>
-            <UserOutlined />
-            <span>Mis solicitudes</span>
-          </Space>
-        }
-        extra={
-          <Button icon={<ReloadOutlined />} onClick={loadMyVacations}>
-            Recargar
-          </Button>
-        }
-      >
-        <Table
-          rowKey="id"
-          loading={myLoading}
-          dataSource={myData?.solicitudes ?? []}
-          columns={myRequestColumns as any}
-          pagination={{ pageSize: 10 }}
-          size="middle"
-          scroll={{ x: 900 }}
-          locale={{ emptyText: 'No tienes solicitudes de vacaciones' }}
-        />
-      </Card>
-
-      {/* Historial de saldo */}
-      <Card
-        title={<Space><WalletOutlined /><span>Historial de mi saldo</span></Space>}
-        extra={<Button icon={<ReloadOutlined />} onClick={loadBalanceLog}>Recargar</Button>}
-        style={{ marginTop: 24 }}
-      >
-        <Table
-          rowKey="id"
-          loading={balanceLogLoading}
-          dataSource={balanceLog}
-          size="small"
-          pagination={{ pageSize: 10 }}
-          scroll={{ x: 700 }}
-          locale={{ emptyText: 'Sin movimientos registrados' }}
-          columns={[
-            {
-              title: 'Fecha',
-              dataIndex: 'created_at',
-              width: 160,
-              render: (v: string) => v ? dayjs(v).format('DD/MM/YYYY HH:mm') : '-',
-            },
-            {
-              title: 'Tipo',
-              dataIndex: 'tipo',
-              width: 140,
-              render: (v: BalanceLogType) => {
-                const cfg: Record<BalanceLogType, { label: string; color: string }> = {
-                  DESCUENTO: { label: 'Descuento', color: 'red' },
-                  DEVOLUCION: { label: 'Devolución', color: 'green' },
-                  ANIVERSARIO: { label: 'Aniversario 🎉', color: 'gold' },
-                  AJUSTE_MANUAL: { label: 'Ajuste manual', color: 'blue' },
+        {/* Historial de saldo – Timeline */}
+        <Card
+          className="vac-section-card"
+          title={
+            <Space>
+              <HistoryOutlined style={{ color: '#C9A84C' }} />
+              <span>Historial de mi saldo</span>
+            </Space>
+          }
+          extra={
+            <Button icon={<ReloadOutlined />} onClick={loadBalanceLog} size="small" style={{ borderRadius: 6 }}>
+              Actualizar
+            </Button>
+          }
+        >
+          {balanceLogLoading ? (
+            <div style={{ textAlign: 'center', padding: 40, color: '#B0BAD3' }}>Cargando historial...</div>
+          ) : balanceLog.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40, color: '#B0BAD3', fontSize: 14 }}>
+              Sin movimientos registrados
+            </div>
+          ) : (
+            <Timeline
+              items={balanceLog.map((entry) => {
+                const LOG_CONFIG: Record<BalanceLogType, { color: string; label: string }> = {
+                  DESCUENTO:     { color: '#DC2626', label: 'Descuento'    },
+                  DEVOLUCION:    { color: '#059669', label: 'Devolución'   },
+                  ANIVERSARIO:   { color: '#C9A84C', label: 'Aniversario'  },
+                  AJUSTE_MANUAL: { color: '#3B82F6', label: 'Ajuste manual'},
                 };
-                const c = cfg[v] ?? { label: v, color: 'default' };
-                return <Tag color={c.color}>{c.label}</Tag>;
-              },
-            },
-            {
-              title: 'Días',
-              dataIndex: 'dias',
-              width: 80,
-              render: (v: number) => (
-                <Text style={{ color: Number(v) >= 0 ? '#16a34a' : '#dc2626', fontWeight: 600 }}>
-                  {Number(v) >= 0 ? '+' : ''}{Number(v)}
-                </Text>
-              ),
-            },
-            {
-              title: 'Saldo anterior',
-              dataIndex: 'saldo_anterior',
-              width: 120,
-              render: (v: number) => `${Number(v)} días`,
-            },
-            {
-              title: 'Saldo nuevo',
-              dataIndex: 'saldo_nuevo',
-              width: 110,
-              render: (v: number) => <Tag color="blue">{Number(v)} días</Tag>,
-            },
-            {
-              title: 'Solicitud',
-              dataIndex: 'solicitud',
-              width: 90,
-              render: (v: { id: number } | null) => v ? `#${v.id}` : <Text type="secondary">-</Text>,
-            },
-          ]}
-        />
-      </Card>
-    </div>
-  );
+                const cfg = LOG_CONFIG[entry.tipo] ?? { color: '#6B7280', label: entry.tipo };
+                const isPositive = Number(entry.dias) >= 0;
+                return {
+                  color: cfg.color,
+                  children: (
+                    <div className="vac-timeline-entry">
+                      <div className="vac-timeline-date">
+                        {entry.created_at ? dayjs(entry.created_at).format('DD/MM/YYYY HH:mm') : '—'}
+                        {entry.solicitud && (
+                          <span style={{
+                            marginLeft: 8,
+                            background: '#EEF2FF',
+                            borderRadius: 4,
+                            padding: '1px 7px',
+                            fontSize: 11,
+                            color: '#3730A3',
+                            fontWeight: 500,
+                          }}>
+                            Solicitud #{entry.solicitud.id}
+                          </span>
+                        )}
+                      </div>
+                      <div className="vac-timeline-row">
+                        <Tag
+                          color={cfg.color}
+                          style={{ borderRadius: 6, fontSize: 11, fontWeight: 600, border: 'none', margin: 0 }}
+                        >
+                          {cfg.label}
+                        </Tag>
+                        <span className={isPositive ? 'vac-timeline-delta-pos' : 'vac-timeline-delta-neg'}>
+                          {isPositive ? '+' : ''}{Number(entry.dias)}
+                        </span>
+                      </div>
+                      <div className="vac-timeline-flow">
+                        Saldo: {Number(entry.saldo_anterior)} → <strong>{Number(entry.saldo_nuevo)} días</strong>
+                      </div>
+                    </div>
+                  ),
+                };
+              })}
+            />
+          )}
+        </Card>
+      </div>
+    );
+  };
 
   // ============================================
   // RENDER - TAB GESTION (HR)
@@ -722,11 +1431,40 @@ const VacacionesPage: React.FC = () => {
 
   const renderGestionTab = () => (
     <div>
-      {/* Tabla de todas las solicitudes */}
+      {/* Stats cards */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 28 }}>
+        {[
+          { label: 'Pendientes',       value: hrStats.pending,  cls: 'pending',  color: '#D97706', icon: <CalendarOutlined /> },
+          { label: 'Aprobadas',        value: hrStats.approved, cls: 'approved', color: '#059669', icon: <CheckCircleOutlined /> },
+          { label: 'Rechazadas',       value: hrStats.rejected, cls: 'rejected', color: '#DC2626', icon: <CloseCircleOutlined /> },
+          { label: 'Total solicitudes',value: hrStats.total,    cls: 'total',    color: '#3730A3', icon: <TeamOutlined /> },
+        ].map((s) => (
+          <Col xs={12} md={6} key={s.label}>
+            <Card className={`vac-stat-card vac-stat-card--${s.cls}`} size="small">
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontSize: 11, color: s.color, fontWeight: 600, letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 4, opacity: 0.75 }}>
+                    {s.label}
+                  </div>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 38, fontWeight: 700, color: s.color, lineHeight: 1 }}>
+                    {s.value}
+                  </div>
+                </div>
+                <div style={{ color: s.color, opacity: 0.2, fontSize: 34, marginTop: 2 }}>
+                  {s.icon}
+                </div>
+              </div>
+            </Card>
+          </Col>
+        ))}
+      </Row>
+
+      {/* Solicitudes de empleados */}
       <Card
+        className="vac-section-card"
         title={
           <Space>
-            <TeamOutlined />
+            <TeamOutlined style={{ color: '#C9A84C' }} />
             <span>Solicitudes de empleados</span>
           </Space>
         }
@@ -736,54 +1474,84 @@ const VacacionesPage: React.FC = () => {
               icon={<DownloadOutlined />}
               loading={exportingRequests}
               onClick={handleExportRequests}
+              size="small"
+              style={{ borderRadius: 6 }}
             >
               Exportar Excel
             </Button>
-            <Button icon={<ReloadOutlined />} onClick={loadAllRequests}>
-              Recargar
+            <Button icon={<ReloadOutlined />} onClick={loadAllRequests} size="small" style={{ borderRadius: 6 }}>
+              Actualizar
             </Button>
           </Space>
         }
-        style={{ marginBottom: 24 }}
       >
         <Table
           rowKey="id"
           loading={allLoading}
           dataSource={allRequests}
           columns={allRequestColumns as any}
-          pagination={{ pageSize: 15 }}
+          pagination={{ pageSize: 15, size: 'small' }}
           size="middle"
           scroll={{ x: 1000 }}
           locale={{ emptyText: 'No hay solicitudes' }}
         />
       </Card>
 
-      {/* Seccion de saldos */}
+      {/* Saldos de vacaciones */}
       <Card
+        className="vac-section-card"
         title={
           <Space>
-            <WalletOutlined />
+            <WalletOutlined style={{ color: '#C9A84C' }} />
             <span>Saldos de vacaciones</span>
           </Space>
         }
         extra={
-          <Space>
+          <Space wrap>
             <Button
               type="primary"
               icon={<UserAddOutlined />}
               onClick={() => setAddModalOpen(true)}
+              size="small"
+              style={{ borderRadius: 6, background: 'linear-gradient(135deg, #0C1D3E, #1D3D7A)', border: 'none', fontWeight: 600 }}
             >
-              Registrar empleado
+              Registrar
             </Button>
+            <Upload
+              accept=".xlsx,.xls"
+              showUploadList={false}
+              beforeUpload={(file) => { handleImportBalances(file as unknown as File); return false; }}
+            >
+              <Button
+                icon={<UploadOutlined />}
+                loading={importingBalances}
+                size="small"
+                style={{ borderRadius: 6, fontWeight: 500 }}
+              >
+                Importar Excel
+              </Button>
+            </Upload>
             <Button
               icon={<DownloadOutlined />}
               loading={exportingBalances}
               onClick={handleExportBalances}
+              size="small"
+              style={{ borderRadius: 6 }}
             >
-              Exportar Excel
+              Exportar
             </Button>
-            <Button icon={<ReloadOutlined />} onClick={loadBalances}>
-              Recargar
+            <Tooltip title="Inicio de año: mueve saldo → año anterior, resetea ganado/usado">
+              <Button
+                loading={rollingOver}
+                onClick={handleRollover}
+                size="small"
+                style={{ borderRadius: 6, color: '#D97706', borderColor: '#D97706' }}
+              >
+                Rollover año
+              </Button>
+            </Tooltip>
+            <Button icon={<ReloadOutlined />} onClick={loadBalances} size="small" style={{ borderRadius: 6 }}>
+              Actualizar
             </Button>
           </Space>
         }
@@ -791,40 +1559,32 @@ const VacacionesPage: React.FC = () => {
         {editingBalance !== null && (
           <Card
             size="small"
-            style={{ marginBottom: 16, background: 'transparent' }}
-            variant="borderless"
-            title="Editar saldo"
+            style={{ marginBottom: 16, background: '#F9FAFB', borderRadius: 10, border: '1px solid #E5E7EB' }}
+            title={<span style={{ fontSize: 13, fontWeight: 600, color: '#0C1D3E' }}>Editar saldo</span>}
           >
-            <Form form={balanceForm} layout="inline">
-              <Form.Item
-                name="fecha_ingreso"
-                label="Fecha ingreso"
-                rules={[{ required: true, message: 'Requerido' }]}
-              >
-                <DatePicker format="DD/MM/YYYY" placeholder="Seleccionar fecha" />
+            <Form form={balanceForm} layout="inline" style={{ flexWrap: 'wrap', gap: 8 }}>
+              <Form.Item name="fecha_ingreso" label="Fecha ingreso" rules={[{ required: true, message: 'Requerido' }]}>
+                <DatePicker format="DD/MM/YYYY" placeholder="Seleccionar" style={{ borderRadius: 8 }} />
               </Form.Item>
-              <Form.Item
-                name="saldo_dias"
-                label="Saldo dias"
-                rules={[{ required: true, message: 'Requerido' }]}
-              >
-                <InputNumber min={0} placeholder="0" style={{ width: 100 }} />
+              <Form.Item name="time_off_type" label="Tipo" rules={[{ required: true }]}>
+                <Select style={{ width: 180, borderRadius: 8 }} options={TIME_OFF_OPTIONS} />
+              </Form.Item>
+              <Form.Item name="previous_year" label="Año anterior">
+                <InputNumber placeholder="0" style={{ width: 90, borderRadius: 8 }} />
+              </Form.Item>
+              <Form.Item name="earned_this_year" label="Ganado">
+                <InputNumber placeholder="0" min={0} style={{ width: 90, borderRadius: 8 }} />
+              </Form.Item>
+              <Form.Item name="used_this_year" label="Usado">
+                <InputNumber placeholder="0" min={0} style={{ width: 90, borderRadius: 8 }} />
               </Form.Item>
               <Form.Item>
                 <Space>
-                  <Button
-                    type="primary"
-                    loading={savingBalance}
-                    onClick={() => handleSaveBalance(editingBalance)}
-                  >
+                  <Button type="primary" loading={savingBalance} onClick={() => handleSaveBalance(editingBalance)}
+                    style={{ borderRadius: 6, background: '#0C1D3E', border: 'none', fontWeight: 600 }}>
                     Guardar
                   </Button>
-                  <Button
-                    onClick={() => {
-                      setEditingBalance(null);
-                      balanceForm.resetFields();
-                    }}
-                  >
+                  <Button onClick={() => { setEditingBalance(null); balanceForm.resetFields(); }} style={{ borderRadius: 6 }}>
                     Cancelar
                   </Button>
                 </Space>
@@ -832,13 +1592,24 @@ const VacacionesPage: React.FC = () => {
             </Form>
           </Card>
         )}
-
+        <Input.Search
+          placeholder="Buscar empleado..."
+          allowClear
+          value={balanceSearch}
+          onChange={(e) => setBalanceSearch(e.target.value)}
+          style={{ marginBottom: 14, maxWidth: 320, borderRadius: 8 }}
+        />
         <Table
           rowKey="id"
           loading={balancesLoading}
-          dataSource={balances}
+          dataSource={balances.filter((b) => {
+            if (!balanceSearch) return true;
+            const q = balanceSearch.toLowerCase();
+            const name = `${b.user?.first_name ?? ''} ${b.user?.last_name ?? ''}`.toLowerCase();
+            return name.includes(q);
+          })}
           columns={balanceColumns as any}
-          pagination={{ pageSize: 15 }}
+          pagination={{ pageSize: 15, size: 'small' }}
           size="middle"
           scroll={{ x: 700 }}
           locale={{ emptyText: 'No hay saldos registrados' }}
@@ -847,7 +1618,12 @@ const VacacionesPage: React.FC = () => {
 
       {/* Modal: Registrar nuevo empleado */}
       <Modal
-        title={<Space><UserAddOutlined /> Registrar empleado en vacaciones</Space>}
+        title={
+          <Space>
+            <UserAddOutlined style={{ color: '#C9A84C' }} />
+            <span style={{ fontWeight: 600 }}>Registrar empleado en vacaciones</span>
+          </Space>
+        }
         open={addModalOpen}
         onOk={handleAddEmployee}
         onCancel={() => { setAddModalOpen(false); addForm.resetFields(); }}
@@ -855,39 +1631,46 @@ const VacacionesPage: React.FC = () => {
         okText="Registrar"
         cancelText="Cancelar"
         destroyOnClose
+        okButtonProps={{ style: { background: '#0C1D3E', border: 'none', borderRadius: 6, fontWeight: 600 } }}
+        cancelButtonProps={{ style: { borderRadius: 6 } }}
       >
-        <Form form={addForm} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item
-            name="user_id"
-            label="Empleado"
-            rules={[{ required: true, message: 'Selecciona un empleado' }]}
-          >
+        <Form form={addForm} layout="vertical" style={{ marginTop: 16 }}
+          initialValues={{ time_off_type: 'vacaciones', earned_this_year: 0, used_this_year: 0, previous_year: 0 }}>
+          <Form.Item name="user_id" label="Empleado" rules={[{ required: true, message: 'Selecciona un empleado' }]}>
             <Select
-              showSearch
-              placeholder="Buscar empleado..."
-              optionFilterProp="label"
-              options={allUsers
-                .filter((u) => !balances.some((b) => b.user?.id === u.id))
-                .map((u) => ({
-                  value: u.id,
-                  label: `${u.first_name} ${u.last_name}`.trim(),
-                }))}
+              showSearch placeholder="Buscar empleado..."
+              optionFilterProp="label" style={{ borderRadius: 8 }}
+              options={allUsers.map((u) => ({ value: u.id, label: `${u.first_name} ${u.last_name}`.trim() }))}
             />
           </Form.Item>
-          <Form.Item
-            name="fecha_ingreso"
-            label="Fecha de ingreso"
-            rules={[{ required: true, message: 'Requerido' }]}
-          >
-            <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} placeholder="Seleccionar fecha" />
+          <Form.Item name="fecha_ingreso" label="Fecha de ingreso" rules={[{ required: true, message: 'Requerido' }]}>
+            <DatePicker format="DD/MM/YYYY" style={{ width: '100%', borderRadius: 8 }} placeholder="Seleccionar fecha" />
           </Form.Item>
-          <Form.Item
-            name="saldo_dias"
-            label="Saldo inicial de días"
-            rules={[{ required: true, message: 'Requerido' }]}
-          >
-            <InputNumber min={0} style={{ width: '100%' }} placeholder="Ej: 15" />
+          <Form.Item name="time_off_type" label="Tipo de ausencia" rules={[{ required: true }]}>
+            <Select options={TIME_OFF_OPTIONS} style={{ borderRadius: 8 }} />
           </Form.Item>
+          <Row gutter={12}>
+            <Col span={8}>
+              <Form.Item name="previous_year" label="Año anterior">
+                <InputNumber style={{ width: '100%', borderRadius: 8 }} placeholder="0" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="earned_this_year" label="Ganado este año">
+                <InputNumber min={0} style={{ width: '100%', borderRadius: 8 }} placeholder="0" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="used_this_year" label="Usado este año">
+                <InputNumber min={0} style={{ width: '100%', borderRadius: 8 }} placeholder="0" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Alert
+            message="El saldo disponible se calcula automáticamente: Año anterior + Ganado − Usado"
+            type="info" showIcon
+            style={{ borderRadius: 8, fontSize: 12 }}
+          />
         </Form>
       </Modal>
     </div>
@@ -915,8 +1698,14 @@ const VacacionesPage: React.FC = () => {
 
   const renderCalendarTab = () => (
     <Card
+      className="vac-section-card"
       loading={calendarLoading}
-      title={<Space><CalendarOutlined /><span>Vacaciones aprobadas del equipo</span></Space>}
+      title={
+        <Space>
+          <CalendarOutlined style={{ color: '#C9A84C' }} />
+          <span>Vacaciones aprobadas del equipo</span>
+        </Space>
+      }
     >
       <Calendar
         value={calendarDate}
@@ -930,19 +1719,26 @@ const VacacionesPage: React.FC = () => {
           if (!people?.length) return null;
           return (
             <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-              {people.slice(0, 3).map((p) => (
-                <Tooltip key={p.id} title={p.name}>
-                  <li>
-                    <Badge
-                      color="#1565C0"
-                      text={<Text style={{ fontSize: 11 }}>{p.name.split(' ')[0]}</Text>}
-                    />
-                  </li>
-                </Tooltip>
-              ))}
+              {people.slice(0, 3).map((p, idx) => {
+                const chipColor = CALENDAR_COLORS[p.id % CALENDAR_COLORS.length];
+                return (
+                  <Tooltip key={`${p.id}-${idx}`} title={p.name}>
+                    <li>
+                      <span
+                        className="vac-cal-chip"
+                        style={{ background: chipColor.bg, color: chipColor.color }}
+                      >
+                        {p.name.split(' ')[0]}
+                      </span>
+                    </li>
+                  </Tooltip>
+                );
+              })}
               {people.length > 3 && (
                 <li>
-                  <Text type="secondary" style={{ fontSize: 11 }}>+{people.length - 3} más</Text>
+                  <span className="vac-cal-chip" style={{ background: '#F3F4F6', color: '#6B7280' }}>
+                    +{people.length - 3} más
+                  </span>
                 </li>
               )}
             </ul>
@@ -960,9 +1756,10 @@ const VacacionesPage: React.FC = () => {
     {
       key: 'mis-vacaciones',
       label: (
-        <span>
-          <CalendarOutlined /> Mis Vacaciones
-        </span>
+        <Space size={6}>
+          <CalendarOutlined />
+          <span>Mis Vacaciones</span>
+        </Space>
       ),
       children: renderMyVacationsTab(),
     },
@@ -971,18 +1768,20 @@ const VacacionesPage: React.FC = () => {
           {
             key: 'gestion',
             label: (
-              <span>
-                <TeamOutlined /> Gestion
-              </span>
+              <Space size={6}>
+                <TeamOutlined />
+                <span>Gestión</span>
+              </Space>
             ),
             children: renderGestionTab(),
           },
           {
             key: 'calendario',
             label: (
-              <span>
-                <CalendarOutlined /> Calendario
-              </span>
+              <Space size={6}>
+                <CalendarOutlined />
+                <span>Calendario</span>
+              </Space>
             ),
             children: renderCalendarTab(),
           },
@@ -991,13 +1790,56 @@ const VacacionesPage: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: '0 8px' }}>
-      <Title level={3} style={{ marginBottom: 24 }}>
-        <CalendarOutlined style={{ marginRight: 8 }} />
-        Vacaciones
-      </Title>
+    <div className="vac-page" style={{ padding: '0 8px' }}>
+      <style>{VAC_STYLES}</style>
 
-      <Tabs type="card" items={tabItems} />
+      {/* Page header */}
+      <div className="vac-header">
+        <div className="vac-header-deco">
+          <CalendarOutlined />
+        </div>
+        <div className="vac-header-eyebrow">Recursos Humanos</div>
+        <h1 className="vac-header-title">Gestión de Vacaciones</h1>
+        <div className="vac-header-sub">Consortium Legal · Administra y controla el tiempo de tu equipo</div>
+      </div>
+
+      <Tabs items={tabItems} />
+
+      {/* Modal - Resultado import Excel */}
+      <Modal
+        open={importModalOpen}
+        onOk={() => setImportModalOpen(false)}
+        onCancel={() => setImportModalOpen(false)}
+        cancelButtonProps={{ style: { display: 'none' } }}
+        okText="Cerrar"
+        okButtonProps={{ style: { borderRadius: 6, background: '#0C1D3E', border: 'none', fontWeight: 600 } }}
+        title={
+          <Space>
+            <UploadOutlined style={{ color: '#059669' }} />
+            <span style={{ fontWeight: 600 }}>Resultado del import</span>
+          </Space>
+        }
+      >
+        {importResult && (
+          <div style={{ marginTop: 8 }}>
+            <Alert
+              message={`${importResult.imported} registro(s) importados correctamente`}
+              type="success" showIcon style={{ borderRadius: 8, marginBottom: 12 }}
+            />
+            {importResult.skipped.length > 0 && (
+              <>
+                <Alert
+                  message={`${importResult.skipped.length} fila(s) no se pudieron importar:`}
+                  type="warning" showIcon style={{ borderRadius: 8, marginBottom: 8 }}
+                />
+                <ul style={{ paddingLeft: 20, margin: 0, fontSize: 12, color: '#6B7280' }}>
+                  {importResult.skipped.map((s, i) => <li key={i}>{s}</li>)}
+                </ul>
+              </>
+            )}
+          </div>
+        )}
+      </Modal>
 
       {/* Modal - Rechazar solicitud */}
       <Modal
@@ -1009,22 +1851,24 @@ const VacacionesPage: React.FC = () => {
         }}
         onOk={handleReject}
         okText="Rechazar"
-        okButtonProps={{ danger: true }}
+        okButtonProps={{ danger: true, style: { borderRadius: 6, fontWeight: 600 } }}
+        cancelButtonProps={{ style: { borderRadius: 6 } }}
         confirmLoading={rejectingLoading}
         title={
           <Space>
-            <CloseCircleOutlined />
-            <span>Rechazar solicitud</span>
+            <CloseCircleOutlined style={{ color: '#DC2626' }} />
+            <span style={{ fontWeight: 600 }}>Rechazar solicitud</span>
           </Space>
         }
       >
-        <Form form={rejectForm} layout="vertical">
+        <Form form={rejectForm} layout="vertical" style={{ marginTop: 8 }}>
           <Form.Item name="motivo_cancelacion" label="Motivo de rechazo (opcional)">
             <Input.TextArea
               rows={4}
               placeholder="Indica el motivo del rechazo..."
               maxLength={500}
               showCount
+              style={{ borderRadius: 8 }}
             />
           </Form.Item>
         </Form>
