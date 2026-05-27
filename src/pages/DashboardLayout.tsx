@@ -29,6 +29,7 @@ import {
   BankOutlined,
   ReadOutlined,
   CalendarOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import useAuthStore from '../auth/useAuthStore';
@@ -349,6 +350,28 @@ const DashboardLayout: React.FC = () => {
         ]
       },
       {
+        key: "informe-socios",
+        icon: <BarChartOutlined />,
+        label: "Informe Socios",
+        children: [
+          {
+            key: "/dashboard/informe-socios",
+            label: "Generar reportes",
+            onClick: () => navigate('/dashboard/informe-socios')
+          },
+          {
+            key: "/dashboard/informe-socios/importar",
+            label: "Importar datos",
+            onClick: () => navigate('/dashboard/informe-socios/importar')
+          },
+          {
+            key: "/dashboard/informe-socios/socios",
+            label: "Gestión de socios",
+            onClick: () => navigate('/dashboard/informe-socios/socios')
+          }
+        ]
+      },
+      {
         key: "documentos",
         icon: <FileTextOutlined />,
         label: "Documentos",
@@ -539,6 +562,8 @@ const DashboardLayout: React.FC = () => {
           return hasModule('contabilidad') || hasModule('autorizacion_cheques');
         case 'cargability':
           return hasModule('cargabilidad');
+        case 'informe-socios':
+          return hasModule('informe_socios');
         case 'admin':
           return canAccessUserAdmin && hasModule('usuarios');
         case 'recursos-humanos':
@@ -621,6 +646,7 @@ const DashboardLayout: React.FC = () => {
             minHeight: 280,
             background: colorBgContainer,
             borderRadius: borderRadiusLG,
+            overflowX: 'auto',
           }}
         >
           <Outlet />

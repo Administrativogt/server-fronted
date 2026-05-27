@@ -31,9 +31,11 @@ import {
   CalendarOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
+  DeleteOutlined,
   DownloadOutlined,
   GiftOutlined,
   HistoryOutlined,
+  InfoCircleOutlined,
   PlusOutlined,
   ReloadOutlined,
   StopOutlined,
@@ -49,12 +51,14 @@ import { fetchUsers } from '../../api/notifications';
 import {
   type BalanceLogType,
   type BalanceBreakdown,
+  type DaysUsedStats,
   type MyVacationsResponse,
   type TimeOffTypeValue,
   type VacationBalance,
   type VacationBalanceLogEntry,
   type VacationRequest,
   type VacationRequestTypeValue,
+  type VacationSettingsData,
   type VacationStatus,
   approveVacationRequest,
   cancelVacationRequest,
@@ -65,14 +69,25 @@ import {
   creditAnniversaryDays,
   downloadVacationIcs,
   fetchCalendar,
+  fetchDaysUsedStats,
   fetchMyBalanceLog,
   fetchMyVacations,
   fetchVacationBalances,
+  fetchVacationSettings,
+  createVacationRequestForUser,
   importBalancesExcel,
   rejectVacationRequest,
   rolloverYear,
   setVacationBalance,
+  updateVacationSettings,
 } from '../../api/vacations';
+import { getEquipos } from '../../api/users';
+import {
+  type Holiday,
+  fetchHolidays,
+  createHoliday,
+  deleteHoliday,
+} from '../../api/holidays';
 
 const MIN_ADVANCE_DAYS = 3;
 const MAX_DAYS_REQUEST = 15;
@@ -369,10 +384,10 @@ const REQUEST_TYPE_LABELS: Record<VacationRequestTypeValue, string> = Object.fro
 // ============================================
 
 const VacacionesPage: React.FC = () => {
-  const tipoUsuario = useAuthStore((s) => s.tipo_usuario);
   const isSuperuser = useAuthStore((s) => s.is_superuser);
+  const username = useAuthStore((s) => s.username);
 
-  const isHR = isSuperuser || tipoUsuario === 2 || tipoUsuario === 10;
+  const isHR = isSuperuser || username === 'MEJ000';
 
   // ---- Mis Vacaciones ----
   const [myData, setMyData] = useState<MyVacationsResponse | null>(null);
@@ -389,6 +404,8 @@ const VacacionesPage: React.FC = () => {
   const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [rejectForm] = Form.useForm();
   const [rejectingLoading, setRejectingLoading] = useState(false);
+  const [hrRequestForm] = Form.useForm();
+  const [hrRequesting, setHrRequesting] = useState(false);
 
   // ---- Saldos (HR) ----
   const [balances, setBalances] = useState<VacationBalance[]>([]);
@@ -421,6 +438,25 @@ const VacacionesPage: React.FC = () => {
   const [addForm] = Form.useForm();
   const [savingAdd, setSavingAdd] = useState(false);
   const [allUsers, setAllUsers] = useState<{ id: number; first_name: string; last_name: string }[]>([]);
+
+  // ---- Asuetos ----
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [holidaysLoading, setHolidaysLoading] = useState(false);
+  const [holidayYear, setHolidayYear] = useState(new Date().getFullYear());
+  const [holidayForm] = Form.useForm();
+  const [addingHoliday, setAddingHoliday] = useState(false);
+
+  // ---- Configuración ----
+  const [vacSettings, setVacSettings] = useState<VacationSettingsData | null>(null);
+  const [settingsForm] = Form.useForm();
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  // ---- Métrica días gozados ----
+  const [daysUsedStats, setDaysUsedStats] = useState<DaysUsedStats | null>(null);
+  const [daysUsedLoading, setDaysUsedLoading] = useState(false);
+  const [daysUsedYear, setDaysUsedYear] = useState(new Date().getFullYear());
+  const [daysUsedEquipo, setDaysUsedEquipo] = useState<number | undefined>(undefined);
+  const [equipos, setEquipos] = useState<{ id: number; nombre: string }[]>([]);
 
   // ============================================
   // CARGA DE DATOS
@@ -494,14 +530,50 @@ const VacacionesPage: React.FC = () => {
     loadBalanceLog();
   }, [loadMyVacations, loadBalanceLog]);
 
+  const loadHolidays = useCallback(async (year: number) => {
+    if (!isHR) return;
+    setHolidaysLoading(true);
+    try {
+      const data = await fetchHolidays(year);
+      setHolidays(data);
+    } catch {
+      message.error('Error al cargar los asuetos');
+    } finally {
+      setHolidaysLoading(false);
+    }
+  }, [isHR]);
+
+  const loadDaysUsedStats = useCallback(async (year: number, equipoId?: number) => {
+    if (!isHR) return;
+    setDaysUsedLoading(true);
+    try {
+      const data = await fetchDaysUsedStats(year, equipoId);
+      setDaysUsedStats(data);
+    } catch {
+      message.error('Error al cargar estadísticas de días gozados');
+    } finally {
+      setDaysUsedLoading(false);
+    }
+  }, [isHR]);
+
   useEffect(() => {
     if (isHR) {
       loadAllRequests();
       loadBalances();
       loadCalendar(calendarDate);
       fetchUsers().then(setAllUsers).catch(() => {});
+      getEquipos().then((res) => setEquipos(res.data)).catch(() => {});
+      loadDaysUsedStats(daysUsedYear, daysUsedEquipo);
+      loadHolidays(holidayYear);
+      fetchVacationSettings().then((s) => {
+        setVacSettings(s);
+        settingsForm.setFieldsValue({
+          max_days_request: s.max_days_request,
+          min_advance_days: s.min_advance_days,
+        });
+      }).catch(() => {});
     }
-  }, [isHR, loadAllRequests, loadBalances, loadCalendar]);
+  }, [isHR, loadAllRequests, loadBalances, loadCalendar, loadDaysUsedStats]);
 
   const handleExportRequests = async () => {
     setExportingRequests(true);
@@ -652,6 +724,40 @@ const VacacionesPage: React.FC = () => {
   // GESTION (HR) - ACCIONES
   // ============================================
 
+  const handleHrSubmitRequest = async () => {
+    setHrRequesting(true);
+    try {
+      const values = await hrRequestForm.validateFields();
+      const requestType: VacationRequestTypeValue = values.request_type ?? 'full_day';
+      const isHourly = requestType !== 'full_day';
+
+      const payload: Parameters<typeof createVacationRequestForUser>[1] = {
+        request_type: requestType,
+        time_off_type: values.time_off_type ?? 'vacaciones',
+        comentarios: values.comentarios || undefined,
+      };
+
+      if (isHourly) {
+        payload.fecha_inicio = dayjs(values.fecha_inicio).format('YYYY-MM-DD');
+        payload.hora_inicio = dayjs(values.hora_inicio).format('HH:mm');
+      } else {
+        const [fechaInicio, fechaFin] = values.rango;
+        payload.fecha_inicio = dayjs(fechaInicio).format('YYYY-MM-DD');
+        payload.fecha_fin = dayjs(fechaFin).format('YYYY-MM-DD');
+      }
+
+      await createVacationRequestForUser(values.user_id, payload);
+      message.success('Solicitud creada exitosamente');
+      hrRequestForm.resetFields();
+      loadAllRequests();
+    } catch (e: any) {
+      if (e?.errorFields) return;
+      message.error('No se pudo crear la solicitud');
+    } finally {
+      setHrRequesting(false);
+    }
+  };
+
   const handleApprove = async (id: number) => {
     setApprovingId(id);
     try {
@@ -723,6 +829,54 @@ const VacacionesPage: React.FC = () => {
       message.error('No se pudo guardar el saldo');
     } finally {
       setSavingBalance(false);
+    }
+  };
+
+  const handleAddHoliday = async () => {
+    setAddingHoliday(true);
+    try {
+      const values = await holidayForm.validateFields();
+      const date: typeof dayjs.prototype = values.fecha;
+      const isRecurring: boolean = values.recurrente ?? false;
+      await createHoliday({
+        day: date.date(),
+        month: date.month() + 1,
+        name: values.name,
+        year: isRecurring ? 0 : date.year(),
+      });
+      message.success('Asueto agregado');
+      holidayForm.resetFields();
+      loadHolidays(holidayYear);
+    } catch (e: any) {
+      if (e?.errorFields) return;
+      message.error('Error al agregar el asueto');
+    } finally {
+      setAddingHoliday(false);
+    }
+  };
+
+  const handleDeleteHoliday = async (id: number) => {
+    try {
+      await deleteHoliday(id);
+      message.success('Asueto eliminado');
+      loadHolidays(holidayYear);
+    } catch {
+      message.error('Error al eliminar el asueto');
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    setSavingSettings(true);
+    try {
+      const values = await settingsForm.validateFields();
+      const updated = await updateVacationSettings(values);
+      setVacSettings(updated);
+      message.success('Configuración guardada');
+    } catch (e: any) {
+      if (e?.errorFields) return;
+      message.error('Error al guardar la configuración');
+    } finally {
+      setSavingSettings(false);
     }
   };
 
@@ -998,9 +1152,9 @@ const VacacionesPage: React.FC = () => {
         ),
       },
       {
-        title: 'Año anterior',
+        title: `Período ${new Date().getFullYear() - 1}`,
         dataIndex: 'previous_year',
-        width: 110,
+        width: 120,
         render: (v: number) => (
           <span style={{ fontWeight: 600, color: Number(v) < 0 ? '#DC2626' : '#3B82F6' }}>
             {Number(v)}
@@ -1008,9 +1162,9 @@ const VacacionesPage: React.FC = () => {
         ),
       },
       {
-        title: 'Ganado',
+        title: `Período ${new Date().getFullYear()}`,
         dataIndex: 'earned_this_year',
-        width: 90,
+        width: 120,
         render: (v: number) => (
           <span style={{ fontWeight: 600, color: '#059669' }}>{Number(v)}</span>
         ),
@@ -1087,10 +1241,13 @@ const VacacionesPage: React.FC = () => {
 
   const renderMyVacationsTab = () => {
     const vacBalance = myData?.balances?.find((b) => b.time_off_type === 'vacaciones');
-    const saldo = vacBalance?.available ?? myData?.saldo_dias ?? 0;
+    const saldo = vacBalance?.saldo_dias ?? myData?.saldo_dias ?? 0;
     const progressPercent = Math.min(100, Math.round((saldo / 15) * 100));
     const isLow = saldo < 5;
     const otherBalances = myData?.balances?.filter((b) => b.time_off_type !== 'vacaciones') ?? [];
+    const pendingDays = vacBalance
+      ? Math.max(0, (Number(vacBalance.previous_year) + Number(vacBalance.earned_this_year) - Number(vacBalance.used_this_year)) - Number(vacBalance.saldo_dias))
+      : 0;
 
     return (
       <div>
@@ -1112,6 +1269,18 @@ const VacacionesPage: React.FC = () => {
                 strokeWidth={7}
                 style={{ marginBottom: 10 }}
               />
+              {/* Días en solicitudes pendientes */}
+              {pendingDays > 0 && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  background: '#FEF3C7', borderRadius: 8, padding: '6px 10px',
+                  marginBottom: 10, fontSize: 12, color: '#92400E',
+                }}>
+                  <span style={{ fontWeight: 700 }}>⏳ {pendingDays} día{pendingDays !== 1 ? 's' : ''}</span>
+                  <span>reservado{pendingDays !== 1 ? 's' : ''} en solicitudes pendientes</span>
+                </div>
+              )}
+
               {/* Desglose */}
               {vacBalance && (
                 <div style={{
@@ -1120,8 +1289,8 @@ const VacacionesPage: React.FC = () => {
                   padding: '10px 0', borderTop: '1px solid rgba(12,29,62,0.07)',
                 }}>
                   {[
-                    { label: 'Año anterior', value: vacBalance.previous_year, color: '#3B82F6' },
-                    { label: 'Ganado', value: vacBalance.earned_this_year, color: '#059669' },
+                    { label: `Período ${vacBalance.previous_period ?? ''}`, value: vacBalance.previous_year, color: '#3B82F6' },
+                    { label: `Período ${vacBalance.current_period ?? ''}`, value: vacBalance.earned_this_year, color: '#059669' },
                     { label: 'Usado', value: vacBalance.used_this_year, color: '#DC2626' },
                   ].map((item) => (
                     <div key={item.label} style={{ textAlign: 'center' }}>
@@ -1172,8 +1341,8 @@ const VacacionesPage: React.FC = () => {
                 <div style={{ fontSize: 12, color: '#8895B8', marginBottom: 10 }}>días disponibles</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
                   {[
-                    { label: 'Anterior', value: b.previous_year, color: '#3B82F6' },
-                    { label: 'Ganado', value: b.earned_this_year, color: '#059669' },
+                    { label: b.previous_period ?? 'Anterior', value: b.previous_year, color: '#3B82F6' },
+                    { label: b.current_period ?? 'Actual', value: b.earned_this_year, color: '#059669' },
                     { label: 'Usado', value: b.used_this_year, color: '#DC2626' },
                   ].map((item) => (
                     <div key={item.label} style={{ textAlign: 'center' }}>
@@ -1459,6 +1628,207 @@ const VacacionesPage: React.FC = () => {
         ))}
       </Row>
 
+      {/* Métrica: días gozados en el año */}
+      <Card
+        className="vac-section-card"
+        title={
+          <Space>
+            <CalendarOutlined style={{ color: '#C9A84C' }} />
+            <span>Días de vacaciones gozados</span>
+          </Space>
+        }
+        extra={
+          <Space>
+            <Select
+              value={daysUsedYear}
+              onChange={(val) => {
+                setDaysUsedYear(val);
+                loadDaysUsedStats(val, daysUsedEquipo);
+              }}
+              style={{ width: 90 }}
+              options={Array.from({ length: 4 }, (_, i) => {
+                const y = new Date().getFullYear() - i;
+                return { value: y, label: String(y) };
+              })}
+            />
+            <Select
+              value={daysUsedEquipo ?? 'todos'}
+              onChange={(val) => {
+                const eq = val === 'todos' ? undefined : (val as number);
+                setDaysUsedEquipo(eq);
+                loadDaysUsedStats(daysUsedYear, eq);
+              }}
+              style={{ width: 180 }}
+              options={[
+                { value: 'todos', label: 'Todos los equipos' },
+                ...equipos.map((e) => ({ value: e.id, label: e.nombre })),
+              ]}
+            />
+            <Button
+              icon={<ReloadOutlined />}
+              size="small"
+              style={{ borderRadius: 6 }}
+              onClick={() => loadDaysUsedStats(daysUsedYear, daysUsedEquipo)}
+            />
+          </Space>
+        }
+      >
+        <div style={{ display: 'flex', gap: 32, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          {/* Total */}
+          <div style={{ textAlign: 'center', minWidth: 140 }}>
+            <div style={{ fontSize: 11, color: '#8895B8', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 4 }}>
+              Total días gozados
+            </div>
+            <div style={{
+              fontFamily: "'Playfair Display', serif",
+              fontSize: 64, fontWeight: 700, color: '#0C1D3E', lineHeight: 1,
+            }}>
+              {daysUsedLoading ? '—' : (daysUsedStats?.total_days ?? 0)}
+            </div>
+            <div style={{ fontSize: 13, color: '#8895B8' }}>días en {daysUsedYear}</div>
+          </div>
+
+          {/* Desglose por equipo */}
+          {(daysUsedStats?.by_team?.length ?? 0) > 0 && (
+            <div style={{ flex: 1, minWidth: 280 }}>
+              {daysUsedStats!.by_team.map((row) => {
+                const pct = daysUsedStats!.total_days > 0
+                  ? Math.round((row.total_days / daysUsedStats!.total_days) * 100)
+                  : 0;
+                return (
+                  <div key={row.equipo_id ?? 'sin-equipo'} style={{ marginBottom: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <Text style={{ fontSize: 13, fontWeight: 500, color: '#1F2937' }}>
+                        {row.equipo_nombre}
+                      </Text>
+                      <Space size={12}>
+                        <Text style={{ fontSize: 13, fontWeight: 700, color: '#0C1D3E' }}>
+                          {row.total_days} días
+                        </Text>
+                        <Text type="secondary" style={{ fontSize: 11 }}>
+                          {row.employee_count} emp. · {pct}%
+                        </Text>
+                      </Space>
+                    </div>
+                    <Progress
+                      percent={pct}
+                      showInfo={false}
+                      strokeColor={{ '0%': '#C9A84C', '100%': '#0C1D3E' }}
+                      trailColor="#EEF2FF"
+                      strokeWidth={6}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {!daysUsedLoading && (daysUsedStats?.by_team?.length ?? 0) === 0 && (
+            <Text type="secondary" style={{ fontSize: 13, alignSelf: 'center' }}>
+              Sin datos para el período seleccionado
+            </Text>
+          )}
+        </div>
+      </Card>
+
+      {/* Crear solicitud en nombre de un empleado */}
+      <Card
+        className="vac-form-card"
+        title={
+          <Space>
+            <span style={{
+              background: 'linear-gradient(135deg, #C9A84C, #E8CF82)',
+              borderRadius: '50%', width: 26, height: 26,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <PlusOutlined style={{ color: '#fff', fontSize: 12 }} />
+            </span>
+            <span>Crear solicitud para un empleado</span>
+          </Space>
+        }
+      >
+        <Form
+          form={hrRequestForm}
+          layout="vertical"
+          style={{ maxWidth: 560 }}
+          initialValues={{ request_type: 'full_day', time_off_type: 'vacaciones' }}
+        >
+          <Form.Item
+            name="user_id"
+            label={<span style={{ fontWeight: 600, color: '#374151' }}>Empleado</span>}
+            rules={[{ required: true, message: 'Selecciona un empleado' }]}
+          >
+            <Select
+              showSearch
+              placeholder="Buscar empleado..."
+              optionFilterProp="label"
+              style={{ borderRadius: 8 }}
+              options={allUsers.map((u) => ({
+                value: u.id,
+                label: `${u.first_name} ${u.last_name}`.trim(),
+              }))}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="time_off_type"
+            label={<span style={{ fontWeight: 600, color: '#374151' }}>Tipo de solicitud</span>}
+            rules={[{ required: true }]}
+          >
+            <Select options={TIME_OFF_OPTIONS} style={{ borderRadius: 8 }} />
+          </Form.Item>
+
+          <Form.Item
+            name="request_type"
+            label={<span style={{ fontWeight: 600, color: '#374151' }}>Duración</span>}
+            rules={[{ required: true }]}
+          >
+            <Select options={REQUEST_TYPE_OPTIONS} style={{ borderRadius: 8 }} />
+          </Form.Item>
+
+          <Form.Item noStyle shouldUpdate={(prev, curr) => prev.request_type !== curr.request_type}>
+            {({ getFieldValue }) => {
+              const rqType: VacationRequestTypeValue = getFieldValue('request_type') ?? 'full_day';
+              const isHourly = rqType !== 'full_day';
+              return isHourly ? (
+                <Row gutter={12}>
+                  <Col span={12}>
+                    <Form.Item name="fecha_inicio" label={<span style={{ fontWeight: 600 }}>Fecha</span>} rules={[{ required: true }]}>
+                      <DatePicker style={{ width: '100%', borderRadius: 8 }} format="DD/MM/YYYY" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item name="hora_inicio" label={<span style={{ fontWeight: 600 }}>Hora de inicio</span>} rules={[{ required: true }]}>
+                      <TimePicker style={{ width: '100%', borderRadius: 8 }} format="HH:mm" minuteStep={15} />
+                    </Form.Item>
+                  </Col>
+                </Row>
+              ) : (
+                <Form.Item name="rango" label={<span style={{ fontWeight: 600 }}>Rango de fechas</span>} rules={[{ required: true }]}>
+                  <RangePicker style={{ width: '100%', borderRadius: 8 }} format="DD/MM/YYYY" />
+                </Form.Item>
+              );
+            }}
+          </Form.Item>
+
+          <Form.Item name="comentarios" label={<span style={{ fontWeight: 600, color: '#374151' }}>Comentarios <Text type="secondary" style={{ fontWeight: 400 }}>(opcional)</Text></span>}>
+            <Input.TextArea rows={2} maxLength={500} showCount style={{ borderRadius: 8 }} />
+          </Form.Item>
+
+          <Form.Item style={{ marginBottom: 0 }}>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              loading={hrRequesting}
+              onClick={handleHrSubmitRequest}
+              className="vac-primary-btn"
+            >
+              Crear solicitud
+            </Button>
+          </Form.Item>
+        </Form>
+      </Card>
+
       {/* Solicitudes de empleados */}
       <Card
         className="vac-section-card"
@@ -1616,6 +1986,94 @@ const VacacionesPage: React.FC = () => {
         />
       </Card>
 
+      {/* Configuración del módulo */}
+      <Card
+        className="vac-section-card"
+        title={
+          <Space>
+            <span style={{ fontSize: 15 }}>⚙</span>
+            <span>Configuración de vacaciones</span>
+          </Space>
+        }
+        extra={
+          vacSettings && (
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              Última actualización: {dayjs(vacSettings.updated_at).format('DD/MM/YYYY HH:mm')}
+            </Text>
+          )
+        }
+      >
+        <Form
+          form={settingsForm}
+          layout="vertical"
+          style={{ maxWidth: 480 }}
+        >
+          <Row gutter={24}>
+            <Col span={12}>
+              <Form.Item
+                name="max_days_request"
+                label={
+                  <Space direction="vertical" size={0}>
+                    <span style={{ fontWeight: 600, color: '#374151' }}>Máximo días por solicitud</span>
+                    <Text type="secondary" style={{ fontSize: 11, fontWeight: 400 }}>
+                      Días hábiles que puede pedir un empleado en una sola solicitud
+                    </Text>
+                  </Space>
+                }
+                rules={[
+                  { required: true, message: 'Requerido' },
+                  { type: 'number', min: 1, max: 365, message: 'Entre 1 y 365' },
+                ]}
+              >
+                <InputNumber
+                  min={1}
+                  max={365}
+                  addonAfter="días"
+                  style={{ width: '100%', borderRadius: 8 }}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="min_advance_days"
+                label={
+                  <Space direction="vertical" size={0}>
+                    <span style={{ fontWeight: 600, color: '#374151' }}>Anticipación mínima</span>
+                    <Text type="secondary" style={{ fontSize: 11, fontWeight: 400 }}>
+                      Días de anticipación requeridos para solicitar vacaciones
+                    </Text>
+                  </Space>
+                }
+                rules={[
+                  { required: true, message: 'Requerido' },
+                  { type: 'number', min: 0, max: 60, message: 'Entre 0 y 60' },
+                ]}
+              >
+                <InputNumber
+                  min={0}
+                  max={60}
+                  addonAfter="días"
+                  style={{ width: '100%', borderRadius: 8 }}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item style={{ marginBottom: 0 }}>
+            <Button
+              type="primary"
+              loading={savingSettings}
+              onClick={handleSaveSettings}
+              style={{
+                background: 'linear-gradient(135deg, #0C1D3E, #1D3D7A)',
+                border: 'none', borderRadius: 8, fontWeight: 600, height: 38,
+              }}
+            >
+              Guardar configuración
+            </Button>
+          </Form.Item>
+        </Form>
+      </Card>
+
       {/* Modal: Registrar nuevo empleado */}
       <Modal
         title={
@@ -1749,6 +2207,168 @@ const VacacionesPage: React.FC = () => {
   );
 
   // ============================================
+  // RENDER - TAB ASUETOS (HR)
+  // ============================================
+
+  const renderAsuetosTab = () => {
+    const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+    const holidayColumns = [
+      {
+        title: 'Fecha',
+        key: 'fecha',
+        width: 120,
+        render: (_: unknown, r: Holiday) => (
+          <span style={{ fontWeight: 600, color: '#0C1D3E' }}>
+            {String(r.day).padStart(2, '0')} {MONTHS[r.month - 1]}
+            {r.year !== 0 && (
+              <Text type="secondary" style={{ fontWeight: 400, marginLeft: 4, fontSize: 12 }}>
+                {r.year}
+              </Text>
+            )}
+          </span>
+        ),
+      },
+      {
+        title: 'Nombre',
+        dataIndex: 'name',
+        render: (v: string) => <span style={{ color: '#374151' }}>{v}</span>,
+      },
+      {
+        title: 'Tipo',
+        key: 'tipo',
+        width: 160,
+        render: (_: unknown, r: Holiday) =>
+          r.year === 0 ? (
+            <Tag color="blue" style={{ borderRadius: 6, fontSize: 11 }}>Recurrente</Tag>
+          ) : (
+            <Tag color="orange" style={{ borderRadius: 6, fontSize: 11 }}>Solo {r.year}</Tag>
+          ),
+      },
+      {
+        title: '',
+        key: 'acciones',
+        width: 70,
+        render: (_: unknown, r: Holiday) => (
+          <Popconfirm
+            title="¿Eliminar este asueto?"
+            onConfirm={() => handleDeleteHoliday(r.id)}
+            okText="Sí"
+            cancelText="No"
+            okButtonProps={{ danger: true }}
+          >
+            <Button
+              size="small"
+              danger
+              icon={<DeleteOutlined />}
+              style={{ borderRadius: 6 }}
+            />
+          </Popconfirm>
+        ),
+      },
+    ];
+
+    return (
+      <div>
+        <Alert
+          message="Los asuetos listados aquí son descontados automáticamente del cálculo de días hábiles en las solicitudes de vacaciones."
+          type="info"
+          showIcon
+          style={{ borderRadius: 10, marginBottom: 20 }}
+        />
+
+        {/* Agregar asueto */}
+        <Card
+          className="vac-form-card"
+          title={
+            <Space>
+              <span style={{
+                background: 'linear-gradient(135deg, #C9A84C, #E8CF82)',
+                borderRadius: '50%', width: 26, height: 26,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <PlusOutlined style={{ color: '#fff', fontSize: 12 }} />
+              </span>
+              <span>Agregar asueto</span>
+            </Space>
+          }
+        >
+          <Form form={holidayForm} layout="inline" style={{ flexWrap: 'wrap', gap: 8 }}
+            initialValues={{ recurrente: false }}>
+            <Form.Item
+              name="fecha"
+              label={<span style={{ fontWeight: 600 }}>Fecha</span>}
+              rules={[{ required: true, message: 'Selecciona la fecha' }]}
+            >
+              <DatePicker format="DD/MM/YYYY" style={{ borderRadius: 8 }} placeholder="Seleccionar" />
+            </Form.Item>
+            <Form.Item
+              name="name"
+              label={<span style={{ fontWeight: 600 }}>Nombre</span>}
+              rules={[{ required: true, message: 'Escribe el nombre' }]}
+            >
+              <Input placeholder="ej. Día de la Independencia" style={{ width: 240, borderRadius: 8 }} maxLength={150} />
+            </Form.Item>
+            <Form.Item name="recurrente" valuePropName="checked">
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 500, color: '#374151' }}>
+                <input type="checkbox" style={{ width: 15, height: 15, accentColor: '#0C1D3E' }} />
+                Se repite cada año
+              </label>
+            </Form.Item>
+            <Form.Item>
+              <Button
+                type="primary"
+                loading={addingHoliday}
+                onClick={handleAddHoliday}
+                icon={<PlusOutlined />}
+                style={{ background: 'linear-gradient(135deg, #0C1D3E, #1D3D7A)', border: 'none', borderRadius: 8, fontWeight: 600 }}
+              >
+                Agregar
+              </Button>
+            </Form.Item>
+          </Form>
+        </Card>
+
+        {/* Lista de asuetos */}
+        <Card
+          className="vac-section-card"
+          title={
+            <Space>
+              <InfoCircleOutlined style={{ color: '#C9A84C' }} />
+              <span>Asuetos registrados</span>
+            </Space>
+          }
+          extra={
+            <Space>
+              <Select
+                value={holidayYear}
+                onChange={(val) => { setHolidayYear(val); loadHolidays(val); }}
+                style={{ width: 90 }}
+                options={Array.from({ length: 4 }, (_, i) => {
+                  const y = new Date().getFullYear() + 1 - i;
+                  return { value: y, label: String(y) };
+                })}
+              />
+              <Button icon={<ReloadOutlined />} size="small" style={{ borderRadius: 6 }}
+                onClick={() => loadHolidays(holidayYear)} />
+            </Space>
+          }
+        >
+          <Table
+            rowKey="id"
+            loading={holidaysLoading}
+            dataSource={holidays}
+            columns={holidayColumns as any}
+            pagination={false}
+            size="middle"
+            locale={{ emptyText: 'No hay asuetos registrados para este año' }}
+          />
+        </Card>
+      </div>
+    );
+  };
+
+  // ============================================
   // RENDER PRINCIPAL
   // ============================================
 
@@ -1784,6 +2404,16 @@ const VacacionesPage: React.FC = () => {
               </Space>
             ),
             children: renderCalendarTab(),
+          },
+          {
+            key: 'asuetos',
+            label: (
+              <Space size={6}>
+                <InfoCircleOutlined />
+                <span>Asuetos</span>
+              </Space>
+            ),
+            children: renderAsuetosTab(),
           },
         ]
       : []),

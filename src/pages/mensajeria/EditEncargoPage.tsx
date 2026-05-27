@@ -322,16 +322,14 @@ const EditEncargoPage: React.FC = () => {
             <Input placeholder="Inserta la dirección" />
           </Form.Item>
 
-          {/* ✅ NUEVO: Zona ahora es opcional */}
           <Form.Item
-            label="Zona (opcional)"
+            label="Zona"
             name="zona"
             style={{ flex: 1 }}
-            tooltip="Se obtendrá automáticamente del municipio si no se especifica"
+            rules={[{ required: true, message: 'Seleccione una zona' }]}
           >
-            <Select 
-              placeholder="Seleccione zona" 
-              allowClear
+            <Select
+              placeholder="Seleccione zona"
               showSearch
               filterOption={(input, option) =>
                 String(option?.children)?.includes(input)

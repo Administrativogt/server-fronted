@@ -136,8 +136,7 @@ const CreateEncargoPage: React.FC = () => {
         prioridad,
         prioridad_hora: tiene_hora ? prioridad_hora : 1,
         
-        // ✅ NUEVO: Solo enviar si tienen valor (campos opcionales)
-        ...(zona && { zona }),
+        zona,
         ...(fecha_realizacion && { fecha_realizacion }), // Se calcula automáticamente si no se envía
         ...(tiene_observaciones && observaciones_text && { observaciones: observaciones_text }),
         ...(tiene_hora && hora_minima && { hora_minima: `${hora_minima}:00` }),
@@ -287,16 +286,14 @@ const CreateEncargoPage: React.FC = () => {
             <Input placeholder="Inserta la dirección" />
           </Form.Item>
 
-          {/* ✅ NUEVO: Zona ahora es opcional */}
           <Form.Item
-            label="Zona (opcional)"
+            label="Zona"
             name="zona"
             style={{ flex: 1 }}
-            tooltip="Se obtendrá automáticamente del municipio si no se especifica"
+            rules={[{ required: true, message: 'Seleccione una zona' }]}
           >
-            <Select 
-              placeholder="Se obtendrá del municipio" 
-              allowClear
+            <Select
+              placeholder="Seleccione zona"
               showSearch
               filterOption={(input, option) =>
                 String(option?.children)?.includes(input)

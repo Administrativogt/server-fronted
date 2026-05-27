@@ -67,6 +67,9 @@ import AllEncargosPage from './pages/mensajeria/components/AllEncargosPage';
 import UploadCargabilityReport from './pages/cargability/UploadCargabilityReport';
 import CargabilityUsersList from './pages/cargability/CargabilityUsersList';
 import CargabilityReportView from './pages/cargability/CargabilityReportView';
+import GenerarReportesPage from './pages/informe-socios/GenerarReportesPage';
+import ImportarDatosPage from './pages/informe-socios/ImportarDatosPage';
+import GestionSociosPage from './pages/informe-socios/GestionSociosPage';
 import CourtCasesPage from './pages/court-cases/CourtCasesPage';
 import CreateCourtCase from './pages/court-cases/CreateCourtCase';
 import HumanResourcesPage from './pages/human-resources/HumanResourcesPage';
@@ -219,6 +222,13 @@ function AppInner() {
                 <Route path="/dashboard/cargability/upload" element={<UploadCargabilityReport />} />
                 <Route path="/dashboard/cargability/users" element={<CargabilityUsersList />} />
                 <Route path="/dashboard/cargability/report/:username" element={<CargabilityReportView />} />
+              </Route>
+
+              {/* Módulo Informe Socios */}
+              <Route element={<ModuleRoute moduleKey="informe_socios" />}>
+                <Route path="/dashboard/informe-socios" element={<GenerarReportesPage />} />
+                <Route path="/dashboard/informe-socios/importar" element={<ImportarDatosPage />} />
+                <Route path="/dashboard/informe-socios/socios" element={<GestionSociosPage />} />
               </Route>
 
               {/* Control de casos */}

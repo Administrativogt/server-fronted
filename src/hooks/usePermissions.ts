@@ -91,7 +91,7 @@ export const useUserAdminPermissions = () => {
   const is_superuser = useAuthStore(state => state.is_superuser);
   const username = useAuthStore(state => state.username);
 
-  const adminUsernames = ['TOR002', 'ESC002', 'BAR008'];
+  const adminUsernames = ['TOR002', 'ESC002', 'BAR008', 'MEJ000'];
   const sirvoCodeUsernames = ['MIR001'];
 
   const isFullAdmin = is_superuser || adminUsernames.includes(username);

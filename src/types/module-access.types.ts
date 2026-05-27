@@ -26,7 +26,8 @@ export type ModuleKey =
   | 'feriados'
   // Módulos con acceso especial
   | 'asignacion_mensajeria'
-  | 'cargabilidad';
+  | 'cargabilidad'
+  | 'informe_socios';
 
 export interface ModuleAccessItem {
   key: ModuleKey;

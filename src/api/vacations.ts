@@ -53,6 +53,8 @@ export interface VacationBalance {
   used_this_year: number;
   previous_year: number;
   available: number;
+  current_period?: string;
+  previous_period?: string;
 }
 
 export interface BalanceBreakdown {
@@ -65,6 +67,8 @@ export interface BalanceBreakdown {
   previous_year: number;
   available: number;
   saldo_dias: number;
+  current_period?: string;
+  previous_period?: string;
 }
 
 export interface MyVacationsResponse {
@@ -72,6 +76,19 @@ export interface MyVacationsResponse {
   fecha_ingreso: string | null;
   balances: BalanceBreakdown[];
   solicitudes: VacationRequest[];
+}
+
+export interface DaysUsedTeamRow {
+  equipo_id: number | null;
+  equipo_nombre: string;
+  total_days: number;
+  employee_count: number;
+}
+
+export interface DaysUsedStats {
+  year: number;
+  total_days: number;
+  by_team: DaysUsedTeamRow[];
 }
 
 export type BalanceLogType = 'DESCUENTO' | 'DEVOLUCION' | 'ANIVERSARIO' | 'AJUSTE_MANUAL';
@@ -213,4 +230,39 @@ export async function downloadVacationBalancesExcel(): Promise<void> {
   a.download = 'saldos-vacaciones.xlsx';
   a.click();
   URL.revokeObjectURL(url);
+}
+
+export interface VacationSettingsData {
+  id: number;
+  max_days_request: number;
+  min_advance_days: number;
+  updated_at: string;
+}
+
+export async function fetchVacationSettings(): Promise<VacationSettingsData> {
+  const res = await api.get(`${BASE}/settings`);
+  return res.data;
+}
+
+export async function updateVacationSettings(
+  dto: { max_days_request?: number; min_advance_days?: number },
+): Promise<VacationSettingsData> {
+  const res = await api.patch(`${BASE}/settings`, dto);
+  return res.data;
+}
+
+export async function createVacationRequestForUser(
+  userId: number,
+  dto: Parameters<typeof createVacationRequest>[0],
+): Promise<VacationRequest> {
+  const res = await api.post(`${BASE}/create-for/${userId}`, dto);
+  return res.data;
+}
+
+export async function fetchDaysUsedStats(year?: number, equipoId?: number): Promise<DaysUsedStats> {
+  const params = new URLSearchParams();
+  if (year) params.set('year', String(year));
+  if (equipoId) params.set('equipo_id', String(equipoId));
+  const res = await api.get(`${BASE}/stats/days-used?${params.toString()}`);
+  return res.data;
 }

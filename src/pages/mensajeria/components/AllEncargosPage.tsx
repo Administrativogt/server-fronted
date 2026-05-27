@@ -398,6 +398,13 @@ const AllEncargosPage: React.FC = () => {
               <Option key={key} value={parseInt(key)}>{value.label}</Option>
             ))}
           </Select>
+          <Input.Search
+            placeholder="Buscar por solicitante, empresa..."
+            allowClear
+            style={{ width: 240 }}
+            onSearch={(value) => handleFilterChange('search', value || null)}
+            onChange={(e) => { if (!e.target.value) handleFilterChange('search', null); }}
+          />
           <Button onClick={handleResetFilters}>Reset</Button>
         </Space>
       </div>
