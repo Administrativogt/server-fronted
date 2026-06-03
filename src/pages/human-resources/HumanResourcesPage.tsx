@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   Button,
   Card,
   Checkbox,
@@ -46,15 +45,11 @@ import {
   type ComplaintType,
   type MailboxType,
   type Observation,
-  type OrnamentTicket,
-  type OrnamentTicketIndex,
   type Suggestion,
   addComplaintObservation,
   addSuggestionObservation,
-  checkCanApplyOrnament,
   createCertificate,
   createComplaint,
-  createOrnamentTicket,
   createSuggestion,
   fetchAllCertificates,
   fetchCertificateTypes,
@@ -62,7 +57,6 @@ import {
   fetchComplaintTypes,
   fetchComplaints,
   fetchMailboxTypes,
-  fetchOrnamentTicketIndex,
   fetchPendingCertificates,
   fetchSuggestionObservations,
   fetchSuggestions,
@@ -71,7 +65,6 @@ import {
   requestIgssCertificate,
   requestWorkCertificate,
   updateCertificateState,
-  uploadOrnamentTicketFile,
   downloadIrtraDocument,
 } from '../../api/humanResources';
 import type { UploadFile } from 'antd/es/upload';
@@ -85,7 +78,6 @@ const certificateStates = [
 ];
 
 const HumanResourcesPage: React.FC = () => {
-  const username = useAuthStore((s) => s.username);
   const userId = useAuthStore((s) => s.userId);
   const tipoUsuario = useAuthStore((s) => s.tipo_usuario);
   const isSuperuser = useAuthStore((s) => s.is_superuser);
@@ -108,16 +100,6 @@ const HumanResourcesPage: React.FC = () => {
   const [igssForm] = Form.useForm();
   const [requestingWork, setRequestingWork] = useState(false);
   const [requestingIgss, setRequestingIgss] = useState(false);
-
-  // Boletos de ornato
-  const [ornamentIndex, setOrnamentIndex] = useState<OrnamentTicketIndex | null>(null);
-  const [ornamentLoading, setOrnamentLoading] = useState(false);
-  const [canApplyOrnament, setCanApplyOrnament] = useState(false);
-  const [uploadModalOpen, setUploadModalOpen] = useState(false);
-  const [uploadTicketId, setUploadTicketId] = useState<number | null>(null);
-  const [uploadFileList, setUploadFileList] = useState<UploadFile[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [requestingOrnament, setRequestingOrnament] = useState(false);
 
   // Sugerencias
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -184,22 +166,6 @@ const HumanResourcesPage: React.FC = () => {
     }
   }, [showAllCertificates]);
 
-  const loadOrnamentData = useCallback(async () => {
-    setOrnamentLoading(true);
-    try {
-      const [indexData, canApply] = await Promise.all([
-        fetchOrnamentTicketIndex(),
-        checkCanApplyOrnament(),
-      ]);
-      setOrnamentIndex(indexData);
-      setCanApplyOrnament(canApply);
-    } catch {
-      message.error('Error al cargar datos de boletos de ornato');
-    } finally {
-      setOrnamentLoading(false);
-    }
-  }, []);
-
   const loadSuggestions = useCallback(async () => {
     setSuggestionsLoading(true);
     try {
@@ -229,10 +195,9 @@ const HumanResourcesPage: React.FC = () => {
   }, [loadCertificates]);
 
   useEffect(() => {
-    loadOrnamentData();
     loadSuggestions();
     loadComplaints();
-  }, [loadOrnamentData, loadSuggestions, loadComplaints]);
+  }, [loadSuggestions, loadComplaints]);
 
   // ============================================
   // HELPERS
@@ -309,43 +274,6 @@ const HumanResourcesPage: React.FC = () => {
     }
   };
 
-  // ============================================
-  // BOLETOS DE ORNATO - ACCIONES
-  // ============================================
-
-  const handleRequestOrnament = async (ornamentOption?: number) => {
-    setRequestingOrnament(true);
-    try {
-      await createOrnamentTicket(ornamentOption);
-      message.success('Boleto de ornato solicitado. Se notificó a Recursos Humanos.');
-      loadOrnamentData();
-    } catch {
-      message.error('No se pudo solicitar el boleto de ornato');
-    } finally {
-      setRequestingOrnament(false);
-    }
-  };
-
-  const handleUploadOrnamentFile = async () => {
-    if (!uploadTicketId || uploadFileList.length === 0) {
-      message.warning('Selecciona un archivo para subir');
-      return;
-    }
-    setUploading(true);
-    try {
-      const file = uploadFileList[0].originFileObj as File;
-      await uploadOrnamentTicketFile(uploadTicketId, file);
-      message.success('Archivo subido exitosamente');
-      setUploadModalOpen(false);
-      setUploadFileList([]);
-      setUploadTicketId(null);
-      loadOrnamentData();
-    } catch {
-      message.error('No se pudo subir el archivo');
-    } finally {
-      setUploading(false);
-    }
-  };
 
   // ============================================
   // SUGERENCIAS - ACCIONES
@@ -559,73 +487,6 @@ const HumanResourcesPage: React.FC = () => {
     [isAdmin, showAllCertificates],
   );
 
-  const ornamentColumns = useMemo(
-    () => [
-      { title: '#', dataIndex: 'id', width: 60 },
-      {
-        title: 'Usuario',
-        dataIndex: 'user',
-        render: (value: { first_name: string; last_name: string } | null) =>
-          value && typeof value === 'object'
-            ? `${value.first_name || ''} ${value.last_name || ''}`.trim() || '-'
-            : '-',
-      },
-      {
-        title: 'Fecha solicitud',
-        dataIndex: 'upload',
-        render: (value: string) =>
-          value ? dayjs(value).format('DD/MM/YYYY HH:mm') : '-',
-      },
-      {
-        title: 'Fecha limite',
-        render: (_: unknown, record: OrnamentTicket) => {
-          const limitDate = record.limit_date || dayjs(record.upload).add(7, 'day').toISOString();
-          const isOverdue = dayjs().isAfter(dayjs(limitDate));
-          return (
-            <Text type={isOverdue ? 'danger' : undefined}>
-              {dayjs(limitDate).format('DD/MM/YYYY')}
-            </Text>
-          );
-        },
-      },
-      {
-        title: 'Archivo',
-        dataIndex: 'file',
-        render: (value: string | null) =>
-          value ? (
-            <Tag color="green" icon={<FileProtectOutlined />}>
-              Subido
-            </Tag>
-          ) : (
-            <Tag color="orange">Pendiente</Tag>
-          ),
-      },
-      ...(isAdmin
-        ? [
-            {
-              title: 'Acciones',
-              width: 120,
-              render: (_: unknown, record: OrnamentTicket) =>
-                !record.file ? (
-                  <Button
-                    size="small"
-                    type="primary"
-                    icon={<UploadOutlined />}
-                    onClick={() => {
-                      setUploadTicketId(record.id);
-                      setUploadModalOpen(true);
-                    }}
-                  >
-                    Subir
-                  </Button>
-                ) : null,
-            },
-          ]
-        : []),
-    ],
-    [isAdmin],
-  );
-
   const suggestionColumns = useMemo(
     () => [
       { title: '#', dataIndex: 'id', width: 60 },
@@ -723,7 +584,18 @@ const HumanResourcesPage: React.FC = () => {
       {
         title: 'Descripcion',
         dataIndex: 'description',
-        ellipsis: true,
+        width: 340,
+        render: (value: string) =>
+          value ? (
+            <Typography.Paragraph
+              style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}
+              ellipsis={{ rows: 2, expandable: true, symbol: 'ver más' }}
+            >
+              {value}
+            </Typography.Paragraph>
+          ) : (
+            <Text type="secondary">-</Text>
+          ),
       },
       {
         title: 'Archivo',
@@ -894,6 +766,34 @@ const HumanResourcesPage: React.FC = () => {
           </Space>
         }
       >
+        {/* Resumen de estados de solicitudes */}
+        <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+          <Col xs={12} sm={8} md={6}>
+            <Card size="small" style={{ textAlign: 'center', borderTop: '3px solid #fa8c16' }}>
+              <Title level={3} style={{ margin: 0, color: '#fa8c16' }}>
+                {certificates.filter((c) => c.state === 1).length}
+              </Title>
+              <Text type="secondary">Ingresadas</Text>
+            </Card>
+          </Col>
+          <Col xs={12} sm={8} md={6}>
+            <Card size="small" style={{ textAlign: 'center', borderTop: '3px solid #52c41a' }}>
+              <Title level={3} style={{ margin: 0, color: '#52c41a' }}>
+                {certificates.filter((c) => c.state === 2).length}
+              </Title>
+              <Text type="secondary">Entregadas</Text>
+            </Card>
+          </Col>
+          <Col xs={12} sm={8} md={6}>
+            <Card size="small" style={{ textAlign: 'center', borderTop: '3px solid #1677ff' }}>
+              <Title level={3} style={{ margin: 0, color: '#1677ff' }}>
+                {certificates.length}
+              </Title>
+              <Text type="secondary">Total</Text>
+            </Card>
+          </Col>
+        </Row>
+
         <Table
           rowKey="id"
           loading={certLoading}
@@ -902,112 +802,6 @@ const HumanResourcesPage: React.FC = () => {
           pagination={{ pageSize: 10 }}
           size="middle"
           scroll={{ x: 800 }}
-        />
-      </Card>
-    </div>
-  );
-
-  // ============================================
-  // RENDER - TAB BOLETOS DE ORNATO
-  // ============================================
-
-  const renderOrnamentTab = () => (
-    <div>
-      {/* Seccion de solicitud */}
-      <Card
-        title={
-          <Space>
-            <FileProtectOutlined />
-            <span>Solicitar boleto de ornato</span>
-          </Space>
-        }
-        style={{ marginBottom: 24 }}
-      >
-        {canApplyOrnament ? (
-          <Row gutter={[16, 16]}>
-            <Col xs={24} sm={12}>
-              <Card size="small" hoverable style={{ textAlign: 'center' }}>
-                <UserOutlined
-                  style={{ fontSize: 32, color: '#1677ff', marginBottom: 8 }}
-                />
-                <Title level={5} style={{ marginBottom: 8 }}>
-                  Solicitar para mi
-                </Title>
-                <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
-                  Solicita que Recursos Humanos gestione tu boleto de ornato para este ano.
-                </Text>
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  loading={requestingOrnament}
-                  onClick={() => handleRequestOrnament()}
-                  block
-                >
-                  Solicitar
-                </Button>
-              </Card>
-            </Col>
-
-            {ornamentIndex?.partner && (
-              <Col xs={24} sm={12}>
-                <Card size="small" hoverable style={{ textAlign: 'center' }}>
-                  <TeamOutlined
-                    style={{ fontSize: 32, color: '#722ed1', marginBottom: 8 }}
-                  />
-                  <Title level={5} style={{ marginBottom: 8 }}>
-                    Solicitar para{' '}
-                    {`${ornamentIndex.partner.first_name} ${ornamentIndex.partner.last_name}`.trim()}
-                  </Title>
-                  <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
-                    Solicita el boleto de ornato para tu colaborador.
-                  </Text>
-                  <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    loading={requestingOrnament}
-                    onClick={() => handleRequestOrnament(ornamentIndex.partner!.id)}
-                    block
-                    style={{ background: '#722ed1', borderColor: '#722ed1' }}
-                  >
-                    Solicitar
-                  </Button>
-                </Card>
-              </Col>
-            )}
-          </Row>
-        ) : (
-          <Alert
-            message="Ya solicitaste tu boleto de ornato para este ano"
-            description="No puedes solicitar otro boleto de ornato este ano. Si necesitas ayuda, contacta a Recursos Humanos."
-            type="info"
-            showIcon
-          />
-        )}
-      </Card>
-
-      {/* Tabla de boletos pendientes */}
-      <Card
-        title={
-          <Space>
-            <InboxOutlined />
-            <span>Boletos de ornato pendientes</span>
-          </Space>
-        }
-        extra={
-          <Button icon={<ReloadOutlined />} onClick={loadOrnamentData}>
-            Recargar
-          </Button>
-        }
-      >
-        <Table
-          rowKey="id"
-          loading={ornamentLoading}
-          dataSource={ornamentIndex?.ornament_tickets || []}
-          columns={ornamentColumns as any}
-          pagination={{ pageSize: 10 }}
-          size="middle"
-          scroll={{ x: 700 }}
-          locale={{ emptyText: 'No hay boletos pendientes' }}
         />
       </Card>
     </div>
@@ -1186,15 +980,6 @@ const HumanResourcesPage: React.FC = () => {
             children: renderCertificatesTab(),
           },
           {
-            key: 'ornament',
-            label: (
-              <span>
-                <FileProtectOutlined /> Boletos de Ornato
-              </span>
-            ),
-            children: renderOrnamentTab(),
-          },
-          {
             key: 'suggestions',
             label: (
               <span>
@@ -1290,39 +1075,6 @@ const HumanResourcesPage: React.FC = () => {
             />
           </Form.Item>
         </Form>
-      </Modal>
-
-      {/* Modal - Subir archivo de boleto de ornato */}
-      <Modal
-        open={uploadModalOpen}
-        onCancel={() => {
-          setUploadModalOpen(false);
-          setUploadFileList([]);
-          setUploadTicketId(null);
-        }}
-        onOk={handleUploadOrnamentFile}
-        okText="Subir archivo"
-        confirmLoading={uploading}
-        title={
-          <Space>
-            <UploadOutlined />
-            <span>Subir boleto de ornato</span>
-          </Space>
-        }
-      >
-        <Upload.Dragger
-          fileList={uploadFileList}
-          onChange={({ fileList }) => setUploadFileList(fileList.slice(-1))}
-          beforeUpload={() => false}
-          accept=".pdf,.jpg,.jpeg,.png"
-          maxCount={1}
-        >
-          <p className="ant-upload-drag-icon">
-            <InboxOutlined />
-          </p>
-          <p className="ant-upload-text">Haz clic o arrastra el archivo aqui</p>
-          <p className="ant-upload-hint">Solo archivos PDF o imagen. Maximo 1 archivo.</p>
-        </Upload.Dragger>
       </Modal>
 
       {/* Modal - Nueva sugerencia */}
