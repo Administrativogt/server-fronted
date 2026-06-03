@@ -151,6 +151,29 @@ export async function rejectVacationRequest(
   return data;
 }
 
+export async function hrUpdateVacationRequest(
+  id: number,
+  payload: {
+    fecha_inicio?: string;
+    fecha_fin?: string;
+    request_type?: VacationRequestTypeValue;
+    time_off_type?: TimeOffTypeValue;
+    hora_inicio?: string;
+    comentarios?: string;
+  },
+): Promise<VacationRequest> {
+  const { data } = await api.patch(`${BASE}/${id}/hr-update`, payload);
+  return data;
+}
+
+export async function hrCancelVacationRequest(
+  id: number,
+  motivo_cancelacion?: string,
+): Promise<VacationRequest> {
+  const { data } = await api.patch(`${BASE}/${id}/hr-cancel`, { motivo_cancelacion });
+  return data;
+}
+
 export async function fetchVacationBalances(): Promise<VacationBalance[]> {
   const { data } = await api.get(`${BASE}/balances`);
   return data;

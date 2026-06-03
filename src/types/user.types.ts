@@ -28,6 +28,8 @@ export interface CreateUserPayload {
   is_staff?: boolean;
   estado?: number;
   send_checks?: boolean;
+  /** Fecha de contratación (YYYY-MM-DD). Crea automáticamente el saldo de vacaciones. */
+  fecha_ingreso?: string;
 }
 
 export interface UpdateUserPayload {

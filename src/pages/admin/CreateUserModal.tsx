@@ -9,7 +9,9 @@ import {
   Row,
   Col,
   Divider,
+  DatePicker,
 } from 'antd';
+import dayjs from 'dayjs';
 import { createUser, getAreas, getEquipos, getGroups, getPermissions, getAllUsers } from '../../api/users';
 import { TIPOS_USUARIO } from '../../types/user.types';
 import type { CreateUserPayload, UserArea, UserEquipo, Group, Permission, User } from '../../types/user.types';
@@ -83,6 +85,9 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
         is_staff: values.is_staff || false,
         send_checks: values.send_checks || false,
         estado: 1, // Por defecto activo
+        fecha_ingreso: values.fecha_ingreso
+          ? values.fecha_ingreso.format('YYYY-MM-DD')
+          : undefined,
       };
 
       await createUser(payload);
@@ -203,6 +208,20 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
           <Col span={12}>
             <Form.Item name="codigo_directorio" label="Código de Directorio (Sirvo)">
               <Input placeholder="Ej. ABC123" />
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item
+              name="fecha_ingreso"
+              label="Fecha de Ingreso"
+              tooltip="Fecha de contratación. Crea automáticamente el saldo de vacaciones del empleado (0 días) y habilita la acreditación anual por aniversario."
+            >
+              <DatePicker
+                style={{ width: '100%' }}
+                format="DD/MM/YYYY"
+                placeholder="Seleccionar fecha"
+                disabledDate={(current) => current && current > dayjs().endOf('day')}
+              />
             </Form.Item>
           </Col>
         </Row>

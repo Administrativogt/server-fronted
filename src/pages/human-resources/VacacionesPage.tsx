@@ -32,6 +32,7 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   DeleteOutlined,
+  EditOutlined,
   DownloadOutlined,
   GiftOutlined,
   HistoryOutlined,
@@ -76,6 +77,8 @@ import {
   fetchVacationSettings,
   createVacationRequestForUser,
   importBalancesExcel,
+  hrUpdateVacationRequest,
+  hrCancelVacationRequest,
   rejectVacationRequest,
   rolloverYear,
   setVacationBalance,
@@ -404,6 +407,14 @@ const VacacionesPage: React.FC = () => {
   const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [rejectForm] = Form.useForm();
   const [rejectingLoading, setRejectingLoading] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingRequest, setEditingRequest] = useState<VacationRequest | null>(null);
+  const [editForm] = Form.useForm();
+  const [editingLoading, setEditingLoading] = useState(false);
+  const [hrCancelModalOpen, setHrCancelModalOpen] = useState(false);
+  const [hrCancelingId, setHrCancelingId] = useState<number | null>(null);
+  const [hrCancelForm] = Form.useForm();
+  const [hrCancelingLoading, setHrCancelingLoading] = useState(false);
   const [hrRequestForm] = Form.useForm();
   const [hrRequesting, setHrRequesting] = useState(false);
 
@@ -795,6 +806,91 @@ const VacacionesPage: React.FC = () => {
     }
   };
 
+  const openEditModal = (record: VacationRequest) => {
+    setEditingRequest(record);
+    const isHourly = record.request_type !== 'full_day';
+    editForm.setFieldsValue({
+      time_off_type: record.time_off_type,
+      request_type: record.request_type,
+      comentarios: record.comentarios ?? undefined,
+      ...(isHourly
+        ? {
+            fecha_inicio: dayjs(record.fecha_inicio),
+            hora_inicio: record.hora_inicio
+              ? dayjs()
+                  .hour(Number(record.hora_inicio.split(':')[0]))
+                  .minute(Number(record.hora_inicio.split(':')[1]))
+                  .second(0)
+              : undefined,
+          }
+        : { rango: [dayjs(record.fecha_inicio), dayjs(record.fecha_fin)] }),
+    });
+    setEditModalOpen(true);
+  };
+
+  const handleHrUpdate = async () => {
+    if (!editingRequest) return;
+    setEditingLoading(true);
+    try {
+      const values = await editForm.validateFields();
+      const requestType: VacationRequestTypeValue = values.request_type ?? 'full_day';
+      const isHourly = requestType !== 'full_day';
+
+      const payload: Parameters<typeof hrUpdateVacationRequest>[1] = {
+        request_type: requestType,
+        time_off_type: values.time_off_type,
+        comentarios: values.comentarios || undefined,
+      };
+
+      if (isHourly) {
+        payload.fecha_inicio = dayjs(values.fecha_inicio).format('YYYY-MM-DD');
+        payload.hora_inicio = dayjs(values.hora_inicio).format('HH:mm');
+      } else {
+        const [fechaInicio, fechaFin] = values.rango;
+        payload.fecha_inicio = dayjs(fechaInicio).format('YYYY-MM-DD');
+        payload.fecha_fin = dayjs(fechaFin).format('YYYY-MM-DD');
+      }
+
+      await hrUpdateVacationRequest(editingRequest.id, payload);
+      message.success('Solicitud actualizada y saldo reconciliado');
+      setEditModalOpen(false);
+      editForm.resetFields();
+      setEditingRequest(null);
+      loadAllRequests();
+      loadBalances();
+    } catch (e: any) {
+      if (e?.errorFields) return;
+      message.error(e?.response?.data?.message || 'No se pudo actualizar la solicitud');
+    } finally {
+      setEditingLoading(false);
+    }
+  };
+
+  const openHrCancelModal = (id: number) => {
+    setHrCancelingId(id);
+    hrCancelForm.resetFields();
+    setHrCancelModalOpen(true);
+  };
+
+  const handleHrCancel = async () => {
+    if (hrCancelingId === null) return;
+    setHrCancelingLoading(true);
+    try {
+      const values = hrCancelForm.getFieldsValue();
+      await hrCancelVacationRequest(hrCancelingId, values.motivo_cancelacion || undefined);
+      message.success('Solicitud anulada y días devueltos al saldo');
+      setHrCancelModalOpen(false);
+      hrCancelForm.resetFields();
+      setHrCancelingId(null);
+      loadAllRequests();
+      loadBalances();
+    } catch (e: any) {
+      message.error(e?.response?.data?.message || 'No se pudo anular la solicitud');
+    } finally {
+      setHrCancelingLoading(false);
+    }
+  };
+
   // ============================================
   // SALDOS (HR) - ACCIONES
   // ============================================
@@ -1118,6 +1214,27 @@ const VacacionesPage: React.FC = () => {
                   style={{ borderRadius: 6 }}
                 />
               </Tooltip>
+            )}
+            {(record.estado === 'PENDIENTE' || record.estado === 'APROBADA') && (
+              <>
+                <Tooltip title="Editar solicitud (recalcula y ajusta el saldo)">
+                  <Button
+                    size="small"
+                    icon={<EditOutlined />}
+                    onClick={() => openEditModal(record)}
+                    style={{ borderRadius: 6 }}
+                  />
+                </Tooltip>
+                <Tooltip title="Anular solicitud (devuelve los días al saldo)">
+                  <Button
+                    size="small"
+                    danger
+                    icon={<StopOutlined />}
+                    onClick={() => openHrCancelModal(record.id)}
+                    style={{ borderRadius: 6 }}
+                  />
+                </Tooltip>
+              </>
             )}
           </Space>
         ),
@@ -2496,6 +2613,118 @@ const VacacionesPage: React.FC = () => {
             <Input.TextArea
               rows={4}
               placeholder="Indica el motivo del rechazo..."
+              maxLength={500}
+              showCount
+              style={{ borderRadius: 8 }}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Modal - Editar solicitud (RR.HH.) */}
+      <Modal
+        open={editModalOpen}
+        onCancel={() => {
+          setEditModalOpen(false);
+          editForm.resetFields();
+          setEditingRequest(null);
+        }}
+        onOk={handleHrUpdate}
+        okText="Guardar cambios"
+        okButtonProps={{ style: { borderRadius: 6, fontWeight: 600 } }}
+        cancelButtonProps={{ style: { borderRadius: 6 } }}
+        confirmLoading={editingLoading}
+        title={
+          <Space>
+            <EditOutlined style={{ color: '#C9A84C' }} />
+            <span style={{ fontWeight: 600 }}>
+              Editar solicitud
+              {editingRequest?.user
+                ? ` — ${editingRequest.user.first_name} ${editingRequest.user.last_name}`
+                : ''}
+            </span>
+          </Space>
+        }
+      >
+        <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
+          Al guardar, los días se recalculan y el saldo del empleado se ajusta automáticamente.
+        </Text>
+        <Form form={editForm} layout="vertical" style={{ maxWidth: 560 }}>
+          <Form.Item
+            name="time_off_type"
+            label={<span style={{ fontWeight: 600, color: '#374151' }}>Tipo de solicitud</span>}
+            rules={[{ required: true }]}
+          >
+            <Select options={TIME_OFF_OPTIONS} style={{ borderRadius: 8 }} />
+          </Form.Item>
+
+          <Form.Item
+            name="request_type"
+            label={<span style={{ fontWeight: 600, color: '#374151' }}>Duración</span>}
+            rules={[{ required: true }]}
+          >
+            <Select options={REQUEST_TYPE_OPTIONS} style={{ borderRadius: 8 }} />
+          </Form.Item>
+
+          <Form.Item noStyle shouldUpdate={(prev, curr) => prev.request_type !== curr.request_type}>
+            {({ getFieldValue }) => {
+              const rqType: VacationRequestTypeValue = getFieldValue('request_type') ?? 'full_day';
+              const isHourly = rqType !== 'full_day';
+              return isHourly ? (
+                <Row gutter={12}>
+                  <Col span={12}>
+                    <Form.Item name="fecha_inicio" label={<span style={{ fontWeight: 600 }}>Fecha</span>} rules={[{ required: true }]}>
+                      <DatePicker style={{ width: '100%', borderRadius: 8 }} format="DD/MM/YYYY" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item name="hora_inicio" label={<span style={{ fontWeight: 600 }}>Hora de inicio</span>} rules={[{ required: true }]}>
+                      <TimePicker style={{ width: '100%', borderRadius: 8 }} format="HH:mm" minuteStep={15} />
+                    </Form.Item>
+                  </Col>
+                </Row>
+              ) : (
+                <Form.Item name="rango" label={<span style={{ fontWeight: 600 }}>Rango de fechas</span>} rules={[{ required: true }]}>
+                  <RangePicker style={{ width: '100%', borderRadius: 8 }} format="DD/MM/YYYY" />
+                </Form.Item>
+              );
+            }}
+          </Form.Item>
+
+          <Form.Item name="comentarios" label={<span style={{ fontWeight: 600, color: '#374151' }}>Comentarios <Text type="secondary" style={{ fontWeight: 400 }}>(opcional)</Text></span>}>
+            <Input.TextArea rows={2} maxLength={500} showCount style={{ borderRadius: 8 }} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Modal - Anular solicitud (RR.HH.) */}
+      <Modal
+        open={hrCancelModalOpen}
+        onCancel={() => {
+          setHrCancelModalOpen(false);
+          hrCancelForm.resetFields();
+          setHrCancelingId(null);
+        }}
+        onOk={handleHrCancel}
+        okText="Anular solicitud"
+        okButtonProps={{ danger: true, style: { borderRadius: 6, fontWeight: 600 } }}
+        cancelButtonProps={{ style: { borderRadius: 6 } }}
+        confirmLoading={hrCancelingLoading}
+        title={
+          <Space>
+            <StopOutlined style={{ color: '#DC2626' }} />
+            <span style={{ fontWeight: 600 }}>Anular solicitud</span>
+          </Space>
+        }
+      >
+        <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
+          Esto anula la solicitud (incluso si ya estaba aprobada) y devuelve los días al saldo del empleado.
+        </Text>
+        <Form form={hrCancelForm} layout="vertical" style={{ marginTop: 8 }}>
+          <Form.Item name="motivo_cancelacion" label="Motivo de anulación (opcional)">
+            <Input.TextArea
+              rows={4}
+              placeholder="Indica el motivo de la anulación..."
               maxLength={500}
               showCount
               style={{ borderRadius: 8 }}
