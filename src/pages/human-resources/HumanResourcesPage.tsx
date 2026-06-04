@@ -22,7 +22,6 @@ import {
 import {
   FileTextOutlined,
   SafetyCertificateOutlined,
-  MedicineBoxOutlined,
   UploadOutlined,
   PlusOutlined,
   ReloadOutlined,
@@ -32,7 +31,6 @@ import {
   InboxOutlined,
   TeamOutlined,
   UserOutlined,
-  FileProtectOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import useAuthStore from '../../auth/useAuthStore';
@@ -62,10 +60,8 @@ import {
   fetchSuggestions,
   filterComplaints,
   filterSuggestions,
-  requestIgssCertificate,
   requestWorkCertificate,
   updateCertificateState,
-  downloadIrtraDocument,
 } from '../../api/humanResources';
 import type { UploadFile } from 'antd/es/upload';
 
@@ -96,10 +92,7 @@ const HumanResourcesPage: React.FC = () => {
   const [showAllCertificates, setShowAllCertificates] = useState(false);
   const [certificateModalOpen, setCertificateModalOpen] = useState(false);
   const [certificateForm] = Form.useForm();
-  const [igssModalOpen, setIgssModalOpen] = useState(false);
-  const [igssForm] = Form.useForm();
   const [requestingWork, setRequestingWork] = useState(false);
-  const [requestingIgss, setRequestingIgss] = useState(false);
 
   // Sugerencias
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -232,24 +225,6 @@ const HumanResourcesPage: React.FC = () => {
     }
   };
 
-  const handleRequestIgssCertificate = async () => {
-    setRequestingIgss(true);
-    try {
-      const values = await igssForm.validateFields();
-      const requestDate = values.request_date
-        ? dayjs(values.request_date).format('YYYY-MM-DD')
-        : undefined;
-      await requestIgssCertificate(requestDate);
-      message.success('Constancia IGSS solicitada. Se notificó a Recursos Humanos.');
-      setIgssModalOpen(false);
-      igssForm.resetFields();
-      loadCertificates();
-    } catch {
-      message.error('No se pudo solicitar la constancia IGSS');
-    } finally {
-      setRequestingIgss(false);
-    }
-  };
 
   const submitCertificate = async () => {
     try {
@@ -674,64 +649,6 @@ const HumanResourcesPage: React.FC = () => {
               </Button>
             </Card>
           </Col>
-
-          <Col xs={24} sm={12} md={8}>
-            <Card
-              size="small"
-              hoverable
-              style={{ textAlign: 'center' }}
-            >
-              <MedicineBoxOutlined
-                style={{ fontSize: 32, color: '#52c41a', marginBottom: 8 }}
-              />
-              <Title level={5} style={{ marginBottom: 8 }}>
-                Constancia IGSS
-              </Title>
-              <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
-                Solicita tu constancia del IGSS. Puedes indicar una fecha especifica si lo
-                necesitas.
-              </Text>
-              <Button
-                type="primary"
-                icon={<MedicineBoxOutlined />}
-                onClick={() => setIgssModalOpen(true)}
-                block
-                style={{ background: '#52c41a', borderColor: '#52c41a' }}
-              >
-                Solicitar
-              </Button>
-            </Card>
-          </Col>
-
-          <Col xs={24} sm={12} md={8}>
-            <Card
-              size="small"
-              hoverable
-              style={{ textAlign: 'center' }}
-            >
-              <FileProtectOutlined
-                style={{ fontSize: 32, color: '#fa8c16', marginBottom: 8 }}
-              />
-              <Title level={5} style={{ marginBottom: 8 }}>
-                Solicitud carnet de IRTRA
-              </Title>
-              <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
-                <ul style={{ textAlign: 'left', paddingLeft: 16 }}>
-                  <li>El documento debe ser llenado en computadora</li>
-                  <li>El documento deberá ser entregado a Gloria Reyes</li>
-                  <li>El único día de recepción de solicitudes serán los lunes</li>
-                </ul>
-              </Text>
-              <Button
-                icon={<FileProtectOutlined />}
-                onClick={downloadIrtraDocument}
-                block
-                style={{ borderColor: '#fa8c16', color: '#fa8c16' }}
-              >
-                Solicitar
-              </Button>
-            </Card>
-          </Col>
         </Row>
       </Card>
 
@@ -999,34 +916,6 @@ const HumanResourcesPage: React.FC = () => {
           },
         ]}
       />
-
-      {/* Modal - Solicitar Constancia IGSS */}
-      <Modal
-        open={igssModalOpen}
-        onCancel={() => {
-          setIgssModalOpen(false);
-          igssForm.resetFields();
-        }}
-        onOk={handleRequestIgssCertificate}
-        okText="Solicitar"
-        confirmLoading={requestingIgss}
-        title={
-          <Space>
-            <MedicineBoxOutlined />
-            <span>Solicitar Constancia IGSS</span>
-          </Space>
-        }
-      >
-        <Form form={igssForm} layout="vertical">
-          <Form.Item
-            name="request_date"
-            label="Fecha de la constancia (opcional)"
-            help="Si no seleccionas fecha, se usara la fecha actual"
-          >
-            <DatePicker style={{ width: '100%' }} placeholder="Seleccionar fecha" />
-          </Form.Item>
-        </Form>
-      </Modal>
 
       {/* Modal - Crear certificado (admin) */}
       <Modal
