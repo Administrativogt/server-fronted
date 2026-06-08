@@ -1,15 +1,15 @@
 import React, { useEffect, useState, useCallback, Suspense, lazy } from "react";
 const ExchangeRateWidget = lazy(() => import("../components/ExchangeRateWidget"));
-import { Col, Row, Table, Tag } from "antd";
+const DashboardCharts = lazy(() => import("./dashboard/DashboardCharts"));
+import { Col, Row, Table, Tag, Skeleton } from "antd";
 import {
   MailOutlined, FileTextOutlined, CheckCircleOutlined, ClockCircleOutlined,
   CloseCircleOutlined, SendOutlined, ArrowRightOutlined, ReloadOutlined,
   TeamOutlined, CalendarOutlined, ThunderboltOutlined, PlusOutlined,
 } from "@ant-design/icons";
-import { ResponsivePie } from "@nivo/pie";
-import { ResponsiveBar } from "@nivo/bar";
 import { useNavigate } from "react-router-dom";
 import useAuthStore from "../auth/useAuthStore";
+import useThemeStore from "../hooks/useThemeStore";
 import { type NotificationDto, NOTIFICATION_STATES } from "../api/notifications";
 import { type DocumentDto, DOCUMENT_STATES } from "../api/documents";
 import {
@@ -19,95 +19,24 @@ import {
   type VacationSummary,
   type UpcomingItems,
 } from "../api/dashboard";
-
-/* ─── CSS ─────────────────────────────────────────────────────────────────── */
-const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-
-@keyframes fadeUp {
-  from { opacity:0; transform:translateY(14px); }
-  to   { opacity:1; transform:translateY(0); }
-}
-.f1{animation:fadeUp .38s cubic-bezier(.22,1,.36,1) .00s both}
-.f2{animation:fadeUp .38s cubic-bezier(.22,1,.36,1) .06s both}
-.f3{animation:fadeUp .38s cubic-bezier(.22,1,.36,1) .12s both}
-.f4{animation:fadeUp .38s cubic-bezier(.22,1,.36,1) .18s both}
-.f5{animation:fadeUp .38s cubic-bezier(.22,1,.36,1) .24s both}
-.f6{animation:fadeUp .38s cubic-bezier(.22,1,.36,1) .30s both}
-.f7{animation:fadeUp .38s cubic-bezier(.22,1,.36,1) .36s both}
-.f8{animation:fadeUp .38s cubic-bezier(.22,1,.36,1) .42s both}
-
-@keyframes pulsedot {
-  0%,100% { opacity:1; transform:scale(1); }
-  50%     { opacity:.5; transform:scale(.8); }
-}
-.pulsedot { animation: pulsedot 1.6s ease-in-out infinite; }
-
-.ta-card { transition: box-shadow .22s, transform .22s; }
-.ta-card:hover {
-  box-shadow: 0 8px 28px rgba(60,80,224,.13) !important;
-  transform: translateY(-3px);
-}
-
-.refresh-btn { transition: background .18s, color .18s, border-color .18s, transform .18s; }
-.refresh-btn:hover {
-  background: #3C50E0 !important;
-  color: #fff !important;
-  border-color: #3C50E0 !important;
-  transform: translateY(-1px);
-}
-
-.ta-table .ant-table {
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 13px;
-  background: transparent;
-}
-.ta-table .ant-table-thead > tr > th {
-  background: #F8FAFC !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  text-transform: uppercase !important;
-  letter-spacing: .07em !important;
-  color: #94A3B8 !important;
-  border-bottom: 1px solid #E2E8F0 !important;
-  padding: 10px 16px !important;
-}
-.ta-table .ant-table-tbody > tr > td {
-  border-bottom: 1px solid #F1F5F9 !important;
-  padding: 10px 16px !important;
-}
-.ta-table .ant-table-tbody > tr:hover > td { background: #F8FAFC !important; }
-.ta-table .ant-empty-description { color: #94A3B8 !important; font-size: 12px; }
-`;
-
-/* ─── tokens ─────────────────────────────────────────────────────────────── */
-const BG      = "#EFF4FB";
-const WHITE   = "#FFFFFF";
-const PRIMARY = "#3C50E0";
-const SUCCESS = "#10B981";
-const DANGER  = "#EF4444";
-const WARNING = "#F59E0B";
-const INFO    = "#06B6D4";
-const T1      = "#1C2434";
-const T2      = "#64748B";
-const T3      = "#94A3B8";
-const BORDER  = "1px solid #E2E8F0";
-const RADIUS  = 10;
-const SHADOW  = "0 1px 4px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04)";
-
-const wcard = (extra?: React.CSSProperties): React.CSSProperties => ({
-  background: WHITE, borderRadius: RADIUS, border: BORDER, boxShadow: SHADOW, ...extra,
-});
+import {
+  PRIMARY, SUCCESS, DANGER, WARNING, INFO, RADIUS,
+  type Tokens, makeTokens, wcard, makeCSS,
+} from "./dashboard/theme";
 
 /* ─── StatCard ────────────────────────────────────────────────────────────── */
 interface StatCardProps {
   label: string; value: number; icon: React.ReactNode; accent: string;
-  urgent?: boolean; cls?: string; onClick?: () => void;
+  tk: Tokens; urgent?: boolean; cls?: string; onClick?: () => void;
 }
-function StatCard({ label, value, icon, accent, urgent, cls, onClick }: StatCardProps) {
+function StatCard({ label, value, icon, accent, tk, urgent, cls, onClick }: StatCardProps) {
   return (
     <div className={`ta-card${cls ? " " + cls : ""}`} onClick={onClick}
-      style={{ ...wcard({ padding:"22px 24px 20px", cursor:"pointer", position:"relative", overflow:"hidden" }) }}>
+      role="button" tabIndex={0} aria-label={`${label}: ${value}`}
+      onKeyDown={(e) => {
+        if (onClick && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onClick(); }
+      }}
+      style={{ ...wcard(tk, { padding:"22px 24px 20px", cursor:"pointer", position:"relative", overflow:"hidden" }) }}>
 
       {/* top accent bar */}
       <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:accent,
@@ -126,11 +55,11 @@ function StatCard({ label, value, icon, accent, urgent, cls, onClick }: StatCard
       </div>
 
       <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:32, fontWeight:800,
-        color:T1, letterSpacing:"-.5px", lineHeight:1, marginBottom:7 }}>
+        color:tk.t1, letterSpacing:"-.5px", lineHeight:1, marginBottom:7 }}>
         {value.toLocaleString()}
       </div>
 
-      <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:13, fontWeight:500, color:T2 }}>
+      <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:13, fontWeight:500, color:tk.t2 }}>
         {label}
       </div>
     </div>
@@ -138,11 +67,11 @@ function StatCard({ label, value, icon, accent, urgent, cls, onClick }: StatCard
 }
 
 /* ─── MetricChip ──────────────────────────────────────────────────────────── */
-function MetricChip({ label, value, accent, icon }: {
-  label:string; value:number; accent:string; icon:React.ReactNode;
+function MetricChip({ label, value, accent, icon, tk }: {
+  label:string; value:number; accent:string; icon:React.ReactNode; tk:Tokens;
 }) {
   return (
-    <div className="ta-card" style={{ ...wcard({ padding:"14px 18px", display:"flex",
+    <div className="ta-card" style={{ ...wcard(tk, { padding:"14px 18px", display:"flex",
       alignItems:"center", gap:14, flex:"1 1 140px", minWidth:0 }) }}>
       <div style={{ width:36, height:36, borderRadius:8, background:accent+"1c",
         display:"flex", alignItems:"center", justifyContent:"center",
@@ -151,10 +80,10 @@ function MetricChip({ label, value, accent, icon }: {
       </div>
       <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", minWidth:0 }}>
         <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase",
-          letterSpacing:".08em", color:T3, marginBottom:4 }}>
+          letterSpacing:".08em", color:tk.t3, marginBottom:4 }}>
           {label}
         </div>
-        <div style={{ fontSize:22, fontWeight:800, color:T1, lineHeight:1 }}>
+        <div style={{ fontSize:22, fontWeight:800, color:tk.t1, lineHeight:1 }}>
           {value.toLocaleString()}
         </div>
       </div>
@@ -179,12 +108,12 @@ function InitialsAvatar({ name, size = 30 }: { name: string; size?: number }) {
 }
 
 /* ─── VacationWidget ──────────────────────────────────────────────────────── */
-function VacationWidget({ data, onNavigate }: { data: VacationSummary; onNavigate: () => void }) {
+function VacationWidget({ data, onNavigate, tk }: { data: VacationSummary; onNavigate: () => void; tk: Tokens }) {
   const fmt = (iso: string) =>
     new Date(iso + "T12:00:00").toLocaleDateString("es-ES", { day:"numeric", month:"short" });
 
   return (
-    <div style={{ ...wcard({ padding:"20px 22px", height:"100%", display:"flex", flexDirection:"column" }) }}>
+    <div style={{ ...wcard(tk, { padding:"20px 22px", height:"100%", display:"flex", flexDirection:"column" }) }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <div style={{ width:34, height:34, borderRadius:8, background:SUCCESS+"1c",
@@ -192,7 +121,7 @@ function VacationWidget({ data, onNavigate }: { data: VacationSummary; onNavigat
             fontSize:15, color:SUCCESS }}>
             <TeamOutlined />
           </div>
-          <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:14, fontWeight:700, color:T1 }}>
+          <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:14, fontWeight:700, color:tk.t1 }}>
             Vacaciones del equipo
           </div>
         </div>
@@ -210,12 +139,12 @@ function VacationWidget({ data, onNavigate }: { data: VacationSummary; onNavigat
       {/* on vacation today */}
       <div style={{ marginBottom:14 }}>
         <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase",
-          letterSpacing:".08em", color:T3, marginBottom:8,
+          letterSpacing:".08em", color:tk.t3, marginBottom:8,
           fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
           Hoy ausentes
         </div>
         {data.onVacation.length === 0 ? (
-          <div style={{ fontSize:12, color:T3, fontFamily:"'Plus Jakarta Sans',sans-serif",
+          <div style={{ fontSize:12, color:tk.t3, fontFamily:"'Plus Jakarta Sans',sans-serif",
             padding:"8px 0" }}>Sin ausencias hoy</div>
         ) : (
           <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
@@ -223,9 +152,9 @@ function VacationWidget({ data, onNavigate }: { data: VacationSummary; onNavigat
               <div key={i} style={{ display:"flex", alignItems:"center", gap:10 }}>
                 <InitialsAvatar name={v.name} size={28} />
                 <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:12, fontWeight:600, color:T1, overflow:"hidden",
+                  <div style={{ fontSize:12, fontWeight:600, color:tk.t1, overflow:"hidden",
                     textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{v.name}</div>
-                  <div style={{ fontSize:10, color:T2 }}>regresa {fmt(v.fechaFin)}</div>
+                  <div style={{ fontSize:10, color:tk.t2 }}>regresa {fmt(v.fechaFin)}</div>
                 </div>
               </div>
             ))}
@@ -235,10 +164,10 @@ function VacationWidget({ data, onNavigate }: { data: VacationSummary; onNavigat
 
       {data.upcoming.length > 0 && (
         <>
-          <div style={{ height:1, background:"#E2E8F0", marginBottom:14 }} />
+          <div style={{ height:1, background:tk.border, marginBottom:14 }} />
           <div>
             <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase",
-              letterSpacing:".08em", color:T3, marginBottom:8,
+              letterSpacing:".08em", color:tk.t3, marginBottom:8,
               fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
               Próxima semana
             </div>
@@ -247,9 +176,9 @@ function VacationWidget({ data, onNavigate }: { data: VacationSummary; onNavigat
                 <div key={i} style={{ display:"flex", alignItems:"center", gap:10 }}>
                   <InitialsAvatar name={v.name} size={28} />
                   <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:12, fontWeight:600, color:T1, overflow:"hidden",
+                    <div style={{ fontSize:12, fontWeight:600, color:tk.t1, overflow:"hidden",
                       textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{v.name}</div>
-                    <div style={{ fontSize:10, color:T2 }}>
+                    <div style={{ fontSize:10, color:tk.t2 }}>
                       desde {fmt(v.fechaInicio)} · {v.dias} día{v.dias !== 1 ? "s" : ""}
                     </div>
                   </div>
@@ -265,22 +194,22 @@ function VacationWidget({ data, onNavigate }: { data: VacationSummary; onNavigat
 
 /* ─── UpcomingEncargoWidget ───────────────────────────────────────────────── */
 const PRIORIDAD_COLOR: Record<number, string> = {
-  1: DANGER, 2: WARNING, 3: INFO, 4: T2,
+  1: DANGER, 2: WARNING, 3: INFO, 4: "#94A3B8",
 };
 const PRIORIDAD_LABEL: Record<number, string> = {
   1: "A", 2: "B", 3: "C", 4: "D",
 };
 
-function UpcomingWidget({ data, onNavigate }: { data: UpcomingItems; onNavigate: () => void }) {
+function UpcomingWidget({ data, onNavigate, tk }: { data: UpcomingItems; onNavigate: () => void; tk: Tokens }) {
   const fmtDate = (iso: string) =>
     new Date(iso + "T12:00:00").toLocaleDateString("es-ES", { day:"numeric", month:"short" });
   const fmtTime = (t: string | null) => (t ? t.slice(0, 5) : null);
 
   const EncargoRow = ({ e, showDate }: { e: UpcomingItems["today"][0]; showDate?: boolean }) => {
-    const color = PRIORIDAD_COLOR[e.prioridad] ?? T2;
+    const color = PRIORIDAD_COLOR[e.prioridad] ?? tk.t2;
     return (
       <div style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"9px 0",
-        borderBottom:"1px solid #F1F5F9" }}>
+        borderBottom:`1px solid ${tk.divider}` }}>
         <div style={{ width:22, height:22, borderRadius:5, flexShrink:0,
           background: color + "1c", display:"flex", alignItems:"center",
           justifyContent:"center", fontSize:10, fontWeight:800, color,
@@ -288,17 +217,17 @@ function UpcomingWidget({ data, onNavigate }: { data: UpcomingItems; onNavigate:
           {PRIORIDAD_LABEL[e.prioridad] ?? "?"}
         </div>
         <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontSize:12, fontWeight:600, color:T1, overflow:"hidden",
+          <div style={{ fontSize:12, fontWeight:600, color:tk.t1, overflow:"hidden",
             textOverflow:"ellipsis", whiteSpace:"nowrap",
             fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
             {e.destinatario}
-            <span style={{ color:T2, fontWeight:400 }}> · {e.empresa}</span>
+            <span style={{ color:tk.t2, fontWeight:400 }}> · {e.empresa}</span>
           </div>
-          <div style={{ fontSize:11, color:T2, fontFamily:"'Plus Jakarta Sans',sans-serif", marginTop:2 }}>
+          <div style={{ fontSize:11, color:tk.t2, fontFamily:"'Plus Jakarta Sans',sans-serif", marginTop:2 }}>
             {e.municipio}
             {showDate && <span style={{ color:PRIMARY, marginLeft:6 }}>{fmtDate(e.fecha_realizacion)}</span>}
             {fmtTime(e.hora_minima) && (
-              <span style={{ marginLeft:6, color:T3 }}>
+              <span style={{ marginLeft:6, color:tk.t3 }}>
                 {fmtTime(e.hora_minima)}{e.hora_maxima ? `–${fmtTime(e.hora_maxima)}` : ""}
               </span>
             )}
@@ -311,7 +240,7 @@ function UpcomingWidget({ data, onNavigate }: { data: UpcomingItems; onNavigate:
   const empty = data.today.length === 0 && data.nextDays.length === 0;
 
   return (
-    <div style={{ ...wcard({ padding:"20px 22px", height:"100%", display:"flex", flexDirection:"column" }) }}>
+    <div style={{ ...wcard(tk, { padding:"20px 22px", height:"100%", display:"flex", flexDirection:"column" }) }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <div style={{ width:34, height:34, borderRadius:8, background:WARNING+"1c",
@@ -319,7 +248,7 @@ function UpcomingWidget({ data, onNavigate }: { data: UpcomingItems; onNavigate:
             fontSize:15, color:WARNING }}>
             <CalendarOutlined />
           </div>
-          <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:14, fontWeight:700, color:T1 }}>
+          <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:14, fontWeight:700, color:tk.t1 }}>
             Encargos próximos
           </div>
         </div>
@@ -333,7 +262,7 @@ function UpcomingWidget({ data, onNavigate }: { data: UpcomingItems; onNavigate:
 
       {empty ? (
         <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center",
-          color:T3, fontSize:13, fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+          color:tk.t3, fontSize:13, fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
           Sin encargos próximos
         </div>
       ) : (
@@ -349,7 +278,7 @@ function UpcomingWidget({ data, onNavigate }: { data: UpcomingItems; onNavigate:
           {data.nextDays.length > 0 && (
             <div style={{ marginTop: data.today.length > 0 ? 12 : 0 }}>
               <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase",
-                letterSpacing:".08em", color:T3, marginBottom:4,
+                letterSpacing:".08em", color:tk.t3, marginBottom:4,
                 fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Próximos días</div>
               {data.nextDays.map((e) => <EncargoRow key={e.id} e={e} showDate />)}
             </div>
@@ -379,11 +308,15 @@ export default function DashboardPage() {
   const [vacations,     setVacations]     = useState<VacationSummary>({ pending:0, onVacation:[], upcoming:[] });
   const [upcoming,      setUpcoming]      = useState<UpcomingItems>({ today:[], nextDays:[] });
   const [refreshing,    setRefreshing]    = useState(false);
+  const [loading,       setLoading]       = useState(true);
+  const [error,         setError]         = useState(false);
 
   const navigate  = useNavigate();
   const username  = useAuthStore((s) => s.username);
   const firstName = useAuthStore((s) => s.firstName);
   const lastName  = useAuthStore((s) => s.lastName);
+  const isDark    = useThemeStore((s) => s.mode === "dark");
+  const tk        = makeTokens(isDark);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -404,8 +337,12 @@ export default function DashboardPage() {
       setRecentDocs(s.documents.recent);
       setVacations(vac);
       setUpcoming(up);
-    } catch { /* silent */ }
-    finally { setRefreshing(false); }
+      setError(false);
+    } catch (e) {
+      console.error("No se pudo cargar el panel:", e);
+      setError(true);
+    }
+    finally { setRefreshing(false); setLoading(false); }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -414,20 +351,19 @@ export default function DashboardPage() {
   const dateStr = new Date().toLocaleDateString("es-ES",
     { weekday:"long", year:"numeric", month:"long", day:"numeric" });
 
+  /* color por id para que NO se desfase al filtrar valores en 0 */
   const docsPieData = [
-    { id:"Entregados",  label:"Entregados",  value:stats.docsDelivered },
-    { id:"Finalizados", label:"Finalizados", value:stats.docsFinalized },
-    { id:"Pendientes",  label:"Pendientes",  value:stats.docsPending   },
-    { id:"Rechazados",  label:"Rechazados",  value:stats.docsRejected  },
+    { id:"Entregados",  label:"Entregados",  value:stats.docsDelivered, color:INFO    },
+    { id:"Finalizados", label:"Finalizados", value:stats.docsFinalized, color:SUCCESS },
+    { id:"Pendientes",  label:"Pendientes",  value:stats.docsPending,   color:WARNING },
+    { id:"Rechazados",  label:"Rechazados",  value:stats.docsRejected,  color:DANGER  },
   ].filter((d) => d.value > 0);
 
-  const chartTheme = {
-    axis:    { ticks: { text: { fill:T2, fontSize:11, fontFamily:"'Plus Jakarta Sans',sans-serif" } } },
-    grid:    { line: { stroke:"#F1F5F9" } },
-    tooltip: { container: { background:WHITE, color:T1, fontSize:12, fontFamily:"'Plus Jakarta Sans',sans-serif",
-      border:"1px solid #E2E8F0", borderRadius:8, boxShadow:"0 4px 20px rgba(0,0,0,.08)" } },
-    legends: { text: { fill:T2, fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:12 } },
-  };
+  const barData = [
+    { estado:"Pendientes",  N:stats.notifPending,   D:stats.docsPending   },
+    { estado:"Entregados",  N:stats.notifDelivered, D:stats.docsDelivered },
+    { estado:"Finalizados", N:stats.notifFinalized, D:stats.docsFinalized },
+  ];
 
   const pillTag = (color: string, text: string) => (
     <Tag color={color} style={{ borderRadius:20, fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:11, fontWeight:600 }}>
@@ -465,7 +401,7 @@ export default function DashboardPage() {
   /* section header */
   const sh = (title: string, cta?: { label:string; to:string }) => (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
-      <h3 style={{ margin:0, fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:16, fontWeight:700, color:T1 }}>
+      <h3 style={{ margin:0, fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:16, fontWeight:700, color:tk.t1 }}>
         {title}
       </h3>
       {cta && (
@@ -480,9 +416,9 @@ export default function DashboardPage() {
 
   return (
     <>
-      <style>{CSS}</style>
+      <style>{makeCSS(tk)}</style>
 
-      <div style={{ margin:-24, background:BG, minHeight:"calc(100vh - 112px)", padding:"28px 28px 48px",
+      <div style={{ margin:-24, background:tk.bg, minHeight:"calc(100vh - 112px)", padding:"28px 28px 48px",
         fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
 
         {/* ── HEADER ─────────────────────────────────────────────────────── */}
@@ -490,27 +426,47 @@ export default function DashboardPage() {
           marginBottom:28, flexWrap:"wrap", gap:12 }}>
           <div>
             <div style={{ fontSize:11, fontWeight:600, letterSpacing:".1em", textTransform:"uppercase",
-              color:T3, marginBottom:6 }}>
+              color:tk.t3, marginBottom:6 }}>
               Panel principal
             </div>
             <h2 style={{ margin:0, fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:24, fontWeight:800,
-              color:T1, letterSpacing:"-.3px" }}>
+              color:tk.t1, letterSpacing:"-.3px" }}>
               Bienvenido, {displayName}
             </h2>
-            <p style={{ margin:"5px 0 0", fontSize:13, color:T2, fontWeight:500, textTransform:"capitalize" }}>
+            <p style={{ margin:"5px 0 0", fontSize:13, color:tk.t2, fontWeight:500, textTransform:"capitalize" }}>
               {dateStr}
             </p>
           </div>
 
           <button className="refresh-btn" onClick={() => load(true)} disabled={refreshing}
             style={{ display:"flex", alignItems:"center", gap:8, padding:"9px 20px",
-              borderRadius:RADIUS, border:BORDER, background:WHITE, cursor:"pointer",
-              fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:13, fontWeight:600, color:T1,
-              boxShadow:SHADOW }}>
+              borderRadius:RADIUS, border:tk.borderCss, background:tk.surface, cursor:"pointer",
+              fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:13, fontWeight:600, color:tk.t1,
+              boxShadow:tk.shadow }}>
             <ReloadOutlined spin={refreshing} style={{ fontSize:13 }} />
             Actualizar
           </button>
         </div>
+
+        {/* ── ERROR BANNER ───────────────────────────────────────────────── */}
+        {error && (
+          <div className="f1" style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+            gap:12, flexWrap:"wrap", marginBottom:24, padding:"12px 18px", borderRadius:RADIUS,
+            background:DANGER+"14", border:`1px solid ${DANGER}44`,
+            fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, color:DANGER, fontSize:13, fontWeight:600 }}>
+              <CloseCircleOutlined />
+              No se pudieron cargar algunos datos del panel.
+            </div>
+            <button onClick={() => load(true)} disabled={refreshing}
+              style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", borderRadius:8,
+                border:`1px solid ${DANGER}66`, background:"transparent", cursor:"pointer",
+                fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:12, fontWeight:600, color:DANGER }}>
+              <ReloadOutlined spin={refreshing} style={{ fontSize:12 }} />
+              Reintentar
+            </button>
+          </div>
+        )}
 
         {/* ── QUICK ACTIONS ───────────────────────────────────────────────── */}
         <div className="f2" style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:24 }}>
@@ -559,9 +515,15 @@ export default function DashboardPage() {
               path:"/dashboard/documentos/entregados",  urgent:true },
           ].map((c) => (
             <Col key={c.label} xs={24} sm={12} lg={6}>
-              <StatCard label={c.label} value={c.value} icon={c.icon}
-                accent={c.accent} urgent={c.urgent}
-                onClick={() => navigate(c.path)} />
+              {loading ? (
+                <div style={{ ...wcard(tk, { padding:"22px 24px 20px" }) }}>
+                  <Skeleton active title={{ width:"60%" }} paragraph={{ rows:2 }} />
+                </div>
+              ) : (
+                <StatCard label={c.label} value={c.value} icon={c.icon}
+                  accent={c.accent} urgent={c.urgent} tk={tk}
+                  onClick={() => navigate(c.path)} />
+              )}
             </Col>
           ))}
         </Row>
@@ -575,81 +537,23 @@ export default function DashboardPage() {
             { label:"Docs. finalizados",  value:stats.docsFinalized,  accent:SUCCESS, icon:<CheckCircleOutlined /> },
             { label:"Docs. rechazados",   value:stats.docsRejected,   accent:DANGER,  icon:<CloseCircleOutlined /> },
           ].map((c) => (
-            <MetricChip key={c.label} label={c.label} value={c.value} accent={c.accent} icon={c.icon} />
+            <MetricChip key={c.label} label={c.label} value={c.value} accent={c.accent} icon={c.icon} tk={tk} />
           ))}
         </div>
 
         {/* ── ANÁLISIS VISUAL ─────────────────────────────────────────────── */}
         <div className="f5" style={{ marginBottom:28 }}>
           {sh("Análisis visual")}
-          <Row gutter={[16, 16]}>
-            <Col xs={24} lg={16}>
-              <div style={{ ...wcard({ padding:"20px 22px 14px" }) }}>
-                <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:14, fontWeight:700, color:T1, marginBottom:3 }}>
-                  Comparativa general
-                </div>
-                <div style={{ fontSize:12, color:T2, marginBottom:14, fontWeight:500 }}>
-                  Notificaciones vs Documentos por estado
-                </div>
-                <div style={{ height:230 }}>
-                  <ResponsiveBar
-                    data={[
-                      { estado:"Pendientes",  N:stats.notifPending,   D:stats.docsPending   },
-                      { estado:"Entregados",  N:stats.notifDelivered, D:stats.docsDelivered  },
-                      { estado:"Finalizados", N:stats.notifFinalized, D:stats.docsFinalized  },
-                    ]}
-                    keys={["N","D"]} indexBy="estado" groupMode="grouped"
-                    colors={[PRIMARY, INFO]}
-                    borderRadius={4} padding={0.32} innerPadding={3}
-                    axisBottom={{ tickSize:0, tickPadding:8 }}
-                    axisLeft={{ tickSize:0, tickPadding:8 }}
-                    enableGridY gridYValues={4} enableLabel={false}
-                    legends={[{
-                      dataFrom:"keys", anchor:"bottom", direction:"row", translateY:36,
-                      itemWidth:110, itemHeight:12, symbolSize:8, symbolShape:"square",
-                      data:[
-                        { id:"N", label:"Notificaciones", color:PRIMARY },
-                        { id:"D", label:"Documentos",     color:INFO    },
-                      ],
-                    }]}
-                    margin={{ top:8, right:14, bottom:46, left:38 }}
-                    theme={chartTheme}
-                  />
-                </div>
-              </div>
-            </Col>
-
-            <Col xs={24} lg={8}>
-              <div style={{ ...wcard({ padding:"20px 22px 14px" }) }}>
-                <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:14, fontWeight:700, color:T1, marginBottom:3 }}>
-                  Documentos por estado
-                </div>
-                <div style={{ fontSize:12, color:T2, marginBottom:14, fontWeight:500 }}>
-                  Distribución actual
-                </div>
-                {docsPieData.length > 0 ? (
-                  <div style={{ height:230 }}>
-                    <ResponsivePie
-                      data={docsPieData}
-                      innerRadius={0.65} padAngle={2} cornerRadius={4}
-                      colors={[INFO, SUCCESS, WARNING, DANGER]}
-                      arcLinkLabelsSkipAngle={10} arcLinkLabelsTextColor={T2}
-                      arcLinkLabelsThickness={1.5} arcLinkLabelsColor={{ from:"color" }}
-                      arcLabelsSkipAngle={10} arcLabelsTextColor="#fff"
-                      legends={[{ anchor:"bottom", direction:"row", translateY:36,
-                        itemWidth:82, itemHeight:12, symbolSize:8, symbolShape:"circle",
-                        itemTextColor:T2 as string }]}
-                      margin={{ top:10, right:10, bottom:46, left:10 }}
-                      theme={chartTheme}
-                    />
-                  </div>
-                ) : (
-                  <div style={{ height:230, display:"flex", alignItems:"center", justifyContent:"center",
-                    color:T3, fontSize:13 }}>Sin datos</div>
-                )}
-              </div>
-            </Col>
-          </Row>
+          <Suspense fallback={
+            <Row gutter={[16, 16]}>
+              <Col xs={24} lg={16}><div style={{ ...wcard(tk, { padding:"20px 22px", height:286 }) }}>
+                <Skeleton active paragraph={{ rows:6 }} /></div></Col>
+              <Col xs={24} lg={8}><div style={{ ...wcard(tk, { padding:"20px 22px", height:286 }) }}>
+                <Skeleton active paragraph={{ rows:6 }} /></div></Col>
+            </Row>
+          }>
+            <DashboardCharts bar={barData} pie={docsPieData} tk={tk} />
+          </Suspense>
         </div>
 
         {/* ── VACACIONES & ENCARGOS ───────────────────────────────────────── */}
@@ -658,13 +562,13 @@ export default function DashboardPage() {
           <Row gutter={[16, 16]}>
             <Col xs={24} lg={8}>
               <VacationWidget
-                data={vacations}
+                data={vacations} tk={tk}
                 onNavigate={() => navigate("/dashboard/recursos-humanos/vacaciones")}
               />
             </Col>
             <Col xs={24} lg={16}>
               <UpcomingWidget
-                data={upcoming}
+                data={upcoming} tk={tk}
                 onNavigate={() => navigate("/dashboard/mensajeria")}
               />
             </Col>
@@ -675,7 +579,7 @@ export default function DashboardPage() {
         <div className="f7" style={{ marginBottom:28 }}>
           {sh("Tipo de cambio")}
           <Suspense fallback={
-            <div style={{ height:340, borderRadius:RADIUS, background:"#1a2744", opacity:.4, border:BORDER }} />
+            <div style={{ height:340, borderRadius:RADIUS, background:tk.subtle, opacity:.6, border:tk.borderCss }} />
           }>
             <ExchangeRateWidget />
           </Suspense>
@@ -692,10 +596,10 @@ export default function DashboardPage() {
                 empty:"Sin documentos recientes", path:"/dashboard/documentos/entregados", cta:"Ver todos" },
             ].map((t) => (
               <Col key={t.title} xs={24} lg={12}>
-                <div style={{ ...wcard() }}>
+                <div style={{ ...wcard(tk) }}>
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
-                    padding:"16px 20px 12px", borderBottom:"1px solid #E2E8F0" }}>
-                    <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:14, fontWeight:700, color:T1 }}>
+                    padding:"16px 20px 12px", borderBottom:tk.borderCss }}>
+                    <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:14, fontWeight:700, color:tk.t1 }}>
                       {t.title}
                     </div>
                     <button onClick={() => navigate(t.path)}
@@ -705,9 +609,9 @@ export default function DashboardPage() {
                     </button>
                   </div>
                   <Table className="ta-table" rowKey="id" columns={t.cols} dataSource={t.data}
-                    pagination={false} size="small"
+                    pagination={false} size="small" loading={loading}
                     locale={{ emptyText:
-                      <span style={{ color:T3, fontSize:12, fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+                      <span style={{ color:tk.t3, fontSize:12, fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
                         {t.empty}
                       </span>
                     }} />

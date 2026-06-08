@@ -4,111 +4,129 @@ import { ConfigProvider, theme as antdTheme, App as AntdApp } from 'antd';
 import esES from 'antd/locale/es_ES';
 import dayjs from 'dayjs';
 import 'dayjs/locale/es';
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import useThemeStore from './hooks/useThemeStore';
+import Loader from './components/Loader';
 
 // Páginas públicas
 import Login from './pages/Login';
 
-// Layout / Guards
+// Layout / Guards (shell — se mantienen eager)
 import PrivateRoute from './routes/PrivateRoute';
 import ModuleRoute from './routes/ModuleRoute';
 import DashboardLayout from './pages/DashboardLayout';
 import DashboardPage from './pages/DashboardPage';
 
+import useAuthStore from './auth/useAuthStore';
+import { useToken } from './hooks/useToken';
+
 // Estilos de AG Grid
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 
+/* ─── Páginas con carga diferida (code-splitting por ruta) ──────────────────
+   Cada página se descarga solo al navegar a ella, sacando librerías pesadas
+   (Nivo, AG Grid, ExcelJS, docx, etc.) del bundle inicial. */
+
 // Módulo de cheques
-import AutorizacionCheque from './pages/cheques/AutorizacionCheque';
-import CargarCheques from './pages/autorizacion-cheques/CargarCheques';
-import ListaCheques from './pages/autorizacion-cheques/ListaCheques';
-import MisCheques from './pages/autorizacion-cheques/MisCheques';
-import AutorizacionParcial from './pages/cheques/AutorizacionParcial';
-import LiquidacionCheque from './pages/cheques/LiquidacionCheque';
-import ChequesLiquidados from './pages/cheques/ChequesLiquidados';
-import GastosInmobiliarios from './pages/cheques/GastosInmobiliarios';
-import GastosLitigio from './pages/cheques/GastosLitigio';
-import ChequesPendientes from './pages/cheques/ChequesPendientes';
+const AutorizacionCheque = lazy(() => import('./pages/cheques/AutorizacionCheque'));
+const CargarCheques = lazy(() => import('./pages/autorizacion-cheques/CargarCheques'));
+const ListaCheques = lazy(() => import('./pages/autorizacion-cheques/ListaCheques'));
+const MisCheques = lazy(() => import('./pages/autorizacion-cheques/MisCheques'));
+const AutorizacionParcial = lazy(() => import('./pages/cheques/AutorizacionParcial'));
+const LiquidacionCheque = lazy(() => import('./pages/cheques/LiquidacionCheque'));
+const ChequesLiquidados = lazy(() => import('./pages/cheques/ChequesLiquidados'));
+const GastosInmobiliarios = lazy(() => import('./pages/cheques/GastosInmobiliarios'));
+const GastosLitigio = lazy(() => import('./pages/cheques/GastosLitigio'));
+const ChequesPendientes = lazy(() => import('./pages/cheques/ChequesPendientes'));
 
 // Módulo de reservaciones
-import RoomReservation from './pages/reservaciones/RoomReservation';
-import RoomReservationForm from './pages/reservaciones/RoomReservationForm';
-import RoomReservationList from './pages/reservaciones/RoomReservationList';
+const RoomReservation = lazy(() => import('./pages/reservaciones/RoomReservation'));
+const RoomReservationForm = lazy(() => import('./pages/reservaciones/RoomReservationForm'));
+const RoomReservationList = lazy(() => import('./pages/reservaciones/RoomReservationList'));
 
 // Reporte exclusivo
-import ExclusiveMonthlyReport from './pages/reportes/ExclusiveMonthlyReport';
-import Notificaciones from './pages/notifications/Notificaciones';
+const ExclusiveMonthlyReport = lazy(() => import('./pages/reportes/ExclusiveMonthlyReport'));
+const Notificaciones = lazy(() => import('./pages/notifications/Notificaciones'));
 
 // Módulo de recibos de caja
-import RecibosCaja from './pages/recibos/RecibosCaja';
-import CrearRecibo from './pages/recibos/CrearRecibo';
-import EditarRecibo from './pages/recibos/EditarRecibo';
-import ListarRecibos from './pages/recibos/ListarRecibos';
+const RecibosCaja = lazy(() => import('./pages/recibos/RecibosCaja'));
+const CrearRecibo = lazy(() => import('./pages/recibos/CrearRecibo'));
+const EditarRecibo = lazy(() => import('./pages/recibos/EditarRecibo'));
+const ListarRecibos = lazy(() => import('./pages/recibos/ListarRecibos'));
 
 // Requerimientos de dinero
-import MoneyReqList from './pages/money_req/List';
-import CreateMoneyRequirement from './pages/money_req/Create';
+const MoneyReqList = lazy(() => import('./pages/money_req/List'));
+const CreateMoneyRequirement = lazy(() => import('./pages/money_req/Create'));
 
-import useAuthStore from './auth/useAuthStore';
-import { useToken } from './hooks/useToken';
-import CrearNotificacion from './pages/notifications/CrearNotificacion';
-import Entregadas from './pages/notifications/Entregadas';
-import Documentos from './pages/documents/Documentos';
-import CreateDocumentForm from './pages/documents/CreateDocumentForm';
-import DocumentFilters from './pages/documents/DocumentFilters';
-import CreateEncargoPage from './pages/mensajeria/CreateEncargoPage';
-import PendingEncargosPage from './pages/mensajeria/PendingEncargosPage';
-import EditEncargoPage from './pages/mensajeria/EditEncargoPage';
-import MensajeriaDashboardPage from './pages/mensajeria/MensajeriaDashboardPage';
-import AssignedEncargosPage from './pages/mensajeria/AssignedEncargosPage';
-import AllEncargosPage from './pages/mensajeria/components/AllEncargosPage';
-import UploadCargabilityReport from './pages/cargability/UploadCargabilityReport';
-import CargabilityUsersList from './pages/cargability/CargabilityUsersList';
-import CargabilityReportView from './pages/cargability/CargabilityReportView';
-import GenerarReportesPage from './pages/informe-socios/GenerarReportesPage';
-import ImportarDatosPage from './pages/informe-socios/ImportarDatosPage';
-import GestionSociosPage from './pages/informe-socios/GestionSociosPage';
-import CourtCasesPage from './pages/court-cases/CourtCasesPage';
-import CreateCourtCase from './pages/court-cases/CreateCourtCase';
-import HumanResourcesPage from './pages/human-resources/HumanResourcesPage';
-import VacacionesPage from './pages/human-resources/VacacionesPage';
+// Notificaciones / Documentos
+const CrearNotificacion = lazy(() => import('./pages/notifications/CrearNotificacion'));
+const Entregadas = lazy(() => import('./pages/notifications/Entregadas'));
+const Documentos = lazy(() => import('./pages/documents/Documentos'));
+const CreateDocumentForm = lazy(() => import('./pages/documents/CreateDocumentForm'));
+const DocumentFilters = lazy(() => import('./pages/documents/DocumentFilters'));
 
-// ✨ NUEVO - Módulo de Appointments
-import AppointmentsList from './pages/appointments/AppointmentsList';
-import CreateAppointment from './pages/appointments/CreateAppointment';
+// Mensajería
+const CreateEncargoPage = lazy(() => import('./pages/mensajeria/CreateEncargoPage'));
+const PendingEncargosPage = lazy(() => import('./pages/mensajeria/PendingEncargosPage'));
+const EditEncargoPage = lazy(() => import('./pages/mensajeria/EditEncargoPage'));
+const MensajeriaDashboardPage = lazy(() => import('./pages/mensajeria/MensajeriaDashboardPage'));
+const AssignedEncargosPage = lazy(() => import('./pages/mensajeria/AssignedEncargosPage'));
+const AllEncargosPage = lazy(() => import('./pages/mensajeria/components/AllEncargosPage'));
 
-// Módulo de Control de Procuraciones
-import ProcurationList from './pages/procuration/ProcurationList';
-import CreateProcuration from './pages/procuration/CreateProcuration';
-import ProcurationDetail from './pages/procuration/ProcurationDetail';
-import ClientsMasterDataPage from './pages/procuration/ClientsMasterDataPage';
-import ProcurationChartsPage from './pages/procuration/ProcurationChartsPage';
-import ClientCreationPage from './pages/client-creation/ClientCreationPage';
-import ClientListPage from './pages/client-creation/ClientListPage';
-import ClientDetailPage from './pages/client-creation/ClientDetailPage';
-import EditClientPage from './pages/client-creation/EditClientPage';
-import CaseCreationPage from './pages/client-creation/CaseCreationPage';
-import CaseListPage from './pages/client-creation/CaseListPage';
-import CaseDetailPage from './pages/client-creation/CaseDetailPage';
-import EditCasePage from './pages/client-creation/EditCasePage';
+// Cargabilidad
+const UploadCargabilityReport = lazy(() => import('./pages/cargability/UploadCargabilityReport'));
+const CargabilityUsersList = lazy(() => import('./pages/cargability/CargabilityUsersList'));
+const CargabilityReportView = lazy(() => import('./pages/cargability/CargabilityReportView'));
 
-// ✨ NUEVO - Módulo de Administración de Usuarios
-import UsersAdminPage from './pages/admin/UsersAdminPage';
-import SchedulerList from './pages/agendador/SchedulerList';
-import SchedulerForm from './pages/agendador/SchedulerForm';
-import SchedulerCalendar from './pages/agendador/SchedulerCalendar';
-import SchedulerHolidaysList from './pages/agendador/SchedulerHolidaysList';
-import SchedulerHolidayForm from './pages/agendador/SchedulerHolidayForm';
+// Informe socios
+const GenerarReportesPage = lazy(() => import('./pages/informe-socios/GenerarReportesPage'));
+const ImportarDatosPage = lazy(() => import('./pages/informe-socios/ImportarDatosPage'));
+const GestionSociosPage = lazy(() => import('./pages/informe-socios/GestionSociosPage'));
 
-// Módulo de Jurisprudencia
-import JurisprudenceListPage from './pages/jurisprudence/JurisprudenceListPage';
-import JurisprudenceDashboardPage from './pages/jurisprudence/JurisprudenceDashboardPage';
-import SentenceDetailPage from './pages/jurisprudence/SentenceDetailPage';
-import SentenceFormPage from './pages/jurisprudence/SentenceFormPage';
+// Control de casos
+const CourtCasesPage = lazy(() => import('./pages/court-cases/CourtCasesPage'));
+const CreateCourtCase = lazy(() => import('./pages/court-cases/CreateCourtCase'));
 
-// Módulo de Contabilidad
+// Recursos humanos
+const HumanResourcesPage = lazy(() => import('./pages/human-resources/HumanResourcesPage'));
+const VacacionesPage = lazy(() => import('./pages/human-resources/VacacionesPage'));
+
+// Appointments
+const AppointmentsList = lazy(() => import('./pages/appointments/AppointmentsList'));
+const CreateAppointment = lazy(() => import('./pages/appointments/CreateAppointment'));
+const AsambleasPage = lazy(() => import('./pages/appointments/asambleas/AsambleasPage'));
+
+// Control de Procuraciones
+const ProcurationList = lazy(() => import('./pages/procuration/ProcurationList'));
+const CreateProcuration = lazy(() => import('./pages/procuration/CreateProcuration'));
+const ProcurationDetail = lazy(() => import('./pages/procuration/ProcurationDetail'));
+const ClientsMasterDataPage = lazy(() => import('./pages/procuration/ClientsMasterDataPage'));
+const ProcurationChartsPage = lazy(() => import('./pages/procuration/ProcurationChartsPage'));
+
+// Clientes y casos
+const ClientCreationPage = lazy(() => import('./pages/client-creation/ClientCreationPage'));
+const ClientListPage = lazy(() => import('./pages/client-creation/ClientListPage'));
+const ClientDetailPage = lazy(() => import('./pages/client-creation/ClientDetailPage'));
+const EditClientPage = lazy(() => import('./pages/client-creation/EditClientPage'));
+const CaseCreationPage = lazy(() => import('./pages/client-creation/CaseCreationPage'));
+const CaseListPage = lazy(() => import('./pages/client-creation/CaseListPage'));
+const CaseDetailPage = lazy(() => import('./pages/client-creation/CaseDetailPage'));
+const EditCasePage = lazy(() => import('./pages/client-creation/EditCasePage'));
+
+// Administración de Usuarios / Agendador
+const UsersAdminPage = lazy(() => import('./pages/admin/UsersAdminPage'));
+const SchedulerList = lazy(() => import('./pages/agendador/SchedulerList'));
+const SchedulerForm = lazy(() => import('./pages/agendador/SchedulerForm'));
+const SchedulerCalendar = lazy(() => import('./pages/agendador/SchedulerCalendar'));
+const SchedulerHolidaysList = lazy(() => import('./pages/agendador/SchedulerHolidaysList'));
+const SchedulerHolidayForm = lazy(() => import('./pages/agendador/SchedulerHolidayForm'));
+
+// Jurisprudencia
+const JurisprudenceListPage = lazy(() => import('./pages/jurisprudence/JurisprudenceListPage'));
+const JurisprudenceDashboardPage = lazy(() => import('./pages/jurisprudence/JurisprudenceDashboardPage'));
+const SentenceDetailPage = lazy(() => import('./pages/jurisprudence/SentenceDetailPage'));
+const SentenceFormPage = lazy(() => import('./pages/jurisprudence/SentenceFormPage'));
 
 dayjs.locale('es');
 
@@ -146,6 +164,7 @@ function AppInner() {
       }}
     >
       <AntdApp>
+        <Suspense fallback={<Loader fullScreen label="Cargando…" />}>
         <Routes>
           {/* Ruta pública */}
           <Route path="/login" element={<Login />} />
@@ -249,6 +268,7 @@ function AppInner() {
               <Route element={<ModuleRoute moduleKey="actas" />}>
                 <Route path="/dashboard/appointments" element={<AppointmentsList />} />
                 <Route path="/dashboard/appointments/create" element={<CreateAppointment />} />
+                <Route path="/dashboard/appointments/asambleas" element={<AsambleasPage />} />
               </Route>
 
               {/* Agendador (control_de_plazos) */}
@@ -304,6 +324,7 @@ function AppInner() {
           {/* Fallback 404 */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
+        </Suspense>
       </AntdApp>
     </ConfigProvider>
   );

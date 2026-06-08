@@ -1,0 +1,40 @@
+/* ── Loader temático: Balanza de la Justicia ──────────────────────────────
+   La viga + platillos se mecen sobre el fulcro central, como una balanza
+   buscando el equilibrio. */
+
+.scales-loader {
+  overflow: visible;
+}
+
+.scales-loader .scales-beam {
+  transform-box: view-box;
+  transform-origin: 50px 30px;
+  animation: scales-rock 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+@keyframes scales-rock {
+  0%,
+  100% {
+    transform: rotate(-10deg);
+  }
+  50% {
+    transform: rotate(10deg);
+  }
+}
+
+/* Pulso sutil del fulcro al ritmo del balanceo */
+.scales-loader .scales-pivot {
+  transform-box: view-box;
+  transform-origin: 50px 30px;
+  animation: scales-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes scales-pulse {
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 1;
+  }
+}

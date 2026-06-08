@@ -1,6 +1,6 @@
 // src/pages/DashboardLayout.tsx
 import React, { useEffect, useState } from 'react';
-import { Layout, Menu, Button, Switch, theme as antdTheme } from 'antd';
+import { Layout, Menu, Button, Switch, Tooltip, Grid, theme as antdTheme } from 'antd';
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -51,6 +51,15 @@ const DashboardLayout: React.FC = () => {
   const themeMode = useThemeStore((s) => s.mode);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
   const isDark = themeMode === 'dark';
+
+  // Responsive: en pantallas < lg (992px) el sidebar se vuelve off-canvas
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.lg;
+
+  // Auto-colapsar al entrar a móvil; auto-expandir al volver a escritorio
+  useEffect(() => {
+    setCollapsed(isMobile);
+  }, [isMobile]);
 
   const {
     token: { colorBgContainer, borderRadiusLG, colorBgLayout },
@@ -470,6 +479,12 @@ const DashboardLayout: React.FC = () => {
             icon: <FileAddOutlined />,
             label: "Crear acta",
             onClick: () => navigate('/dashboard/appointments/create')
+          },
+          {
+            key: "/dashboard/appointments/asambleas",
+            icon: <BankOutlined />,
+            label: "Asambleas",
+            onClick: () => navigate('/dashboard/appointments/asambleas')
           }
         ]
       },
@@ -574,6 +589,33 @@ const DashboardLayout: React.FC = () => {
     });
   };
 
+  /* Mejora UX en modo colapsado:
+     - Tooltip con el nombre al pasar el mouse sobre el icono de un submenú.
+     - Al hacer click en un padre colapsado: expande la barra y abre ese submenú
+       (antes el click no hacía nada; AntD solo abría el flyout con hover). */
+  const decorateForCollapsed = (items: any[]): any[] =>
+    items.map((item) => {
+      if (item && item.children && item.children.length) {
+        return {
+          ...item,
+          icon: collapsed ? (
+            <Tooltip title={item.label} placement="right" mouseEnterDelay={0.15}>
+              <span style={{ display: 'inline-flex' }}>{item.icon}</span>
+            </Tooltip>
+          ) : (
+            item.icon
+          ),
+          onTitleClick: () => {
+            if (collapsed) {
+              setCollapsed(false);
+              setOpenKeys([item.key]);
+            }
+          },
+        };
+      }
+      return item; // hoja: AntD ya muestra tooltip y navega al click
+    });
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider
@@ -582,7 +624,16 @@ const DashboardLayout: React.FC = () => {
         collapsed={collapsed}
         theme={isDark ? 'dark' : 'light'}
         width={250}
-        collapsedWidth={80}
+        collapsedWidth={isMobile ? 0 : 80}
+        style={{
+          position: 'fixed',
+          insetInlineStart: 0,
+          top: 0,
+          bottom: 0,
+          height: '100vh',
+          overflow: 'auto',
+          zIndex: 100,
+        }}
       >
         <div style={{ height: 64, margin: '16px', textAlign: 'center' }}>
           <img
@@ -598,11 +649,31 @@ const DashboardLayout: React.FC = () => {
           selectedKeys={[location.pathname]}
           openKeys={collapsed ? [] : openKeys}
           onOpenChange={(keys) => setOpenKeys(keys.slice(-1))}
-          items={getMenuItems()}
+          onClick={() => { if (isMobile) setCollapsed(true); }}
+          items={decorateForCollapsed(getMenuItems())}
         />
       </Sider>
 
-      <Layout style={{ background: colorBgLayout }}>
+      {/* Overlay para cerrar el menú al tocar fuera (solo móvil con menú abierto) */}
+      {isMobile && !collapsed && (
+        <div
+          onClick={() => setCollapsed(true)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.45)',
+            zIndex: 90,
+          }}
+        />
+      )}
+
+      <Layout
+        style={{
+          background: colorBgLayout,
+          marginInlineStart: isMobile ? 0 : collapsed ? 80 : 250,
+          transition: 'margin-inline-start 0.2s',
+        }}
+      >
         <Header
           style={{
             padding: '0 16px',
@@ -610,6 +681,10 @@ const DashboardLayout: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
+            width: '100%',
           }}
         >
           <Button

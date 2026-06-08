@@ -6,6 +6,20 @@ export default defineConfig({
   optimizeDeps: {
     include: ['antd'],
   },
+  build: {
+    chunkSizeWarningLimit: 1500,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          antd: ['antd', '@ant-design/icons'],
+          charts: ['@nivo/pie', '@nivo/bar', '@nivo/core', 'chart.js', 'react-chartjs-2'],
+          grid: ['ag-grid-community', 'ag-grid-react'],
+          export: ['exceljs', 'xlsx', 'docx', 'file-saver'],
+        },
+      },
+    },
+  },
   server: {
     host: true,
     port: 5173,
