@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import {
   Card, Upload, Button, message, Typography, Alert,
-  Row, Col, Statistic, Table, Tag, Empty,
+  Row, Col, Statistic, Table, Tag, Empty, Modal,
 } from 'antd';
 import {
   UploadOutlined, FileExcelOutlined, CheckCircleOutlined,
-  UserDeleteOutlined, QuestionCircleOutlined,
+  UserDeleteOutlined, QuestionCircleOutlined, MailOutlined, StopOutlined,
 } from '@ant-design/icons';
 import type { RcFile } from 'antd/es/upload/interface';
 import type { ColumnsType } from 'antd/es/table';
@@ -13,6 +13,7 @@ import { cargabilityApi } from '../../api/cargability';
 import type {
   CargabilityUploadResponse,
   IgnoredCargabilityUser,
+  ProcessedCargabilityUser,
 } from '../../types/cargability.types';
 
 const { Title, Text, Paragraph } = Typography;
@@ -21,6 +22,7 @@ const UploadCargabilityReport: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<CargabilityUploadResponse | null>(null);
+  const [processedModalOpen, setProcessedModalOpen] = useState(false);
 
   const handleUpload = async () => {
     if (!selectedFile) {
@@ -100,6 +102,77 @@ const UploadCargabilityReport: React.FC = () => {
     () =>
       result?.notFoundUsers.reduce((acc, u) => acc + u.hours, 0) ?? 0,
     [result],
+  );
+
+  const processedUsers = result?.processedUsers ?? [];
+  const eligibleCount = useMemo(
+    () => processedUsers.filter((u) => u.emailEligible).length,
+    [processedUsers],
+  );
+  const notEligibleCount = processedUsers.length - eligibleCount;
+  const totalProcessedHours = useMemo(
+    () => processedUsers.reduce((acc, u) => acc + u.hours, 0),
+    [processedUsers],
+  );
+
+  const processedColumns: ColumnsType<ProcessedCargabilityUser> = useMemo(
+    () => [
+      {
+        title: 'Nombre',
+        dataIndex: 'fullName',
+        key: 'fullName',
+        ellipsis: true,
+        sorter: (a, b) => a.fullName.localeCompare(b.fullName),
+        render: (v: string) => <Text strong>{v}</Text>,
+      },
+      {
+        title: 'Correo',
+        dataIndex: 'email',
+        key: 'email',
+        ellipsis: true,
+        render: (v: string) => <Text type="secondary">{v}</Text>,
+      },
+      {
+        title: 'Tipo',
+        dataIndex: 'userType',
+        key: 'userType',
+        width: 70,
+        align: 'center',
+      },
+      {
+        title: 'Horas',
+        dataIndex: 'hours',
+        key: 'hours',
+        width: 110,
+        align: 'right',
+        sorter: (a, b) => a.hours - b.hours,
+        defaultSortOrder: 'descend',
+        render: (h: number) => <Text strong>{h.toFixed(2)} h</Text>,
+      },
+      {
+        title: 'Recibe correo',
+        dataIndex: 'emailEligible',
+        key: 'emailEligible',
+        width: 150,
+        align: 'center',
+        filters: [
+          { text: 'Sí recibe', value: true },
+          { text: 'No recibe', value: false },
+        ],
+        onFilter: (value, record) => record.emailEligible === value,
+        render: (eligible: boolean) =>
+          eligible ? (
+            <Tag color="success" icon={<MailOutlined />}>
+              Sí
+            </Tag>
+          ) : (
+            <Tag color="default" icon={<StopOutlined />}>
+              No (por tipo)
+            </Tag>
+          ),
+      },
+    ],
+    [],
   );
 
   return (
@@ -185,13 +258,30 @@ const UploadCargabilityReport: React.FC = () => {
         <>
           <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
             <Col xs={24} sm={8}>
-              <Card style={{ borderRadius: 12 }}>
+              <Card
+                hoverable={processedUsers.length > 0}
+                onClick={() =>
+                  processedUsers.length > 0 && setProcessedModalOpen(true)
+                }
+                style={{
+                  borderRadius: 12,
+                  cursor: processedUsers.length > 0 ? 'pointer' : 'default',
+                }}
+              >
                 <Statistic
                   title="Procesados correctamente"
                   value={result.processed}
                   prefix={<CheckCircleOutlined style={{ color: '#16a34a' }} />}
                   valueStyle={{ color: '#16a34a', fontWeight: 700 }}
                 />
+                {processedUsers.length > 0 && (
+                  <Text
+                    type="secondary"
+                    style={{ fontSize: 12, display: 'block', marginTop: 4 }}
+                  >
+                    Clic para ver quiénes son ({eligibleCount} reciben correo)
+                  </Text>
+                )}
               </Card>
             </Col>
             <Col xs={24} sm={8}>
@@ -342,6 +432,59 @@ const UploadCargabilityReport: React.FC = () => {
           {result.processed === 0 && (
             <Empty description="No se procesó ningún usuario" />
           )}
+
+          <Modal
+            open={processedModalOpen}
+            onCancel={() => setProcessedModalOpen(false)}
+            title={
+              <span>
+                <CheckCircleOutlined
+                  style={{ color: '#16a34a', marginRight: 8 }}
+                />
+                Usuarios procesados
+                <Tag color="success" style={{ marginLeft: 8 }}>
+                  {processedUsers.length}
+                </Tag>
+              </span>
+            }
+            footer={[
+              <Button
+                key="close"
+                onClick={() => setProcessedModalOpen(false)}
+              >
+                Cerrar
+              </Button>,
+            ]}
+            width={780}
+          >
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 12 }}
+              message={
+                <span>
+                  De los <Text strong>{processedUsers.length}</Text> procesados,{' '}
+                  <Text strong>{eligibleCount}</Text> reciben correo y{' '}
+                  <Text strong>{notEligibleCount}</Text> quedan fuera por su tipo
+                  de usuario (no están en los tipos habilitados para envío).{' '}
+                  Total de horas procesadas:{' '}
+                  <Text strong>{totalProcessedHours.toFixed(1)} h</Text>.
+                </span>
+              }
+            />
+            <Table<ProcessedCargabilityUser>
+              dataSource={processedUsers}
+              columns={processedColumns}
+              rowKey={(r) => r.username}
+              size="small"
+              pagination={{
+                defaultPageSize: 10,
+                pageSizeOptions: ['10', '20', '50', '100'],
+                showSizeChanger: true,
+                showTotal: (t, r) => `${r[0]}-${r[1]} de ${t}`,
+              }}
+            />
+          </Modal>
         </>
       )}
     </div>

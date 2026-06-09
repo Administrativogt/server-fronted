@@ -12,13 +12,26 @@ export interface IgnoredCargabilityUser {
   hours: number;
 }
 
+export interface ProcessedCargabilityUser {
+  username: string;
+  fullName: string;
+  email: string;
+  userType: number;
+  emailEligible: boolean; // tipo_usuario ∈ [3,4,11] → recibirá correo
+  minutes: number;
+  hours: number;
+}
+
 export interface CargabilityUploadResponse {
   message: string;
   success: boolean;
   processed: number;
+  savedRecords?: number;
+  totalInExcel?: number;
   ignored: number;
   inactiveUsers: IgnoredCargabilityUser[];
   notFoundUsers: IgnoredCargabilityUser[];
+  processedUsers: ProcessedCargabilityUser[];
 }
 
 export interface HourData {
