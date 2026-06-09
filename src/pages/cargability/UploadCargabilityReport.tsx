@@ -18,6 +18,13 @@ import type {
 
 const { Title, Text, Paragraph } = Typography;
 
+/** Normaliza un nombre a formato título: inicial mayúscula por palabra,
+ * resto en minúscula. Soporta acentos y la ñ. */
+const toTitleCase = (value: string): string =>
+  (value ?? '')
+    .toLowerCase()
+    .replace(/\p{L}+/gu, (word) => word.charAt(0).toUpperCase() + word.slice(1));
+
 const UploadCargabilityReport: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -123,7 +130,7 @@ const UploadCargabilityReport: React.FC = () => {
         key: 'fullName',
         ellipsis: true,
         sorter: (a, b) => a.fullName.localeCompare(b.fullName),
-        render: (v: string) => <Text strong>{v}</Text>,
+        render: (v: string) => <Text strong>{toTitleCase(v)}</Text>,
       },
       {
         title: 'Correo',
