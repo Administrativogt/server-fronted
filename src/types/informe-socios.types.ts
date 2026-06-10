@@ -44,3 +44,33 @@ export interface GenerarReporteResult {
 export interface ImportResult {
   importados: number;
 }
+
+export interface InformeCasoRow {
+  id: number;
+  directorio?: string;
+  nombre?: string;
+  caso?: number;
+  descripcion?: string;
+  encargado_cliente?: string;
+  encargado?: string;
+  coordinador?: string;
+  responsable?: string;
+  area?: string;
+  equipo?: string;
+  fecha?: string;
+  pacto?: string;
+}
+
+export interface InformeClienteRow {
+  id: number;
+  cliente?: string;
+  razon_social?: string;
+  pais?: string;
+  socio_encargado_cliente?: string;
+  fecha?: string;
+  sector_economico?: string;
+  origen_cliente?: string;
+  obs_origen_cliente?: string;
+  email?: string;
+  registro_creacion?: string;
+}

@@ -5,6 +5,8 @@ import type {
   PreviewReporte,
   GenerarReporteResult,
   ImportResult,
+  InformeCasoRow,
+  InformeClienteRow,
 } from '../types/informe-socios.types';
 
 export const informeSociosApi = {
@@ -19,6 +21,11 @@ export const informeSociosApi = {
 
   // Stats
   getStats: () => api.get<InformeStats>('/api/informe-socios/stats'),
+
+  // Datos importados
+  getCasos: () => api.get<InformeCasoRow[]>('/api/informe-socios/casos'),
+  getClientes: () =>
+    api.get<InformeClienteRow[]>('/api/informe-socios/clientes'),
 
   // Import
   importarCasos: (file: File) => {

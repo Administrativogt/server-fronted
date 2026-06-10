@@ -83,6 +83,7 @@ const CargabilityReportView = lazy(() => import('./pages/cargability/Cargability
 const GenerarReportesPage = lazy(() => import('./pages/informe-socios/GenerarReportesPage'));
 const ImportarDatosPage = lazy(() => import('./pages/informe-socios/ImportarDatosPage'));
 const GestionSociosPage = lazy(() => import('./pages/informe-socios/GestionSociosPage'));
+const DatosImportadosPage = lazy(() => import('./pages/informe-socios/DatosImportadosPage'));
 
 // Control de casos
 const CourtCasesPage = lazy(() => import('./pages/court-cases/CourtCasesPage'));
@@ -248,6 +249,7 @@ function AppInner() {
                 <Route path="/dashboard/informe-socios" element={<GenerarReportesPage />} />
                 <Route path="/dashboard/informe-socios/importar" element={<ImportarDatosPage />} />
                 <Route path="/dashboard/informe-socios/socios" element={<GestionSociosPage />} />
+                <Route path="/dashboard/informe-socios/datos" element={<DatosImportadosPage />} />
               </Route>
 
               {/* Control de casos */}

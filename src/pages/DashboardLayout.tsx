@@ -374,6 +374,11 @@ const DashboardLayout: React.FC = () => {
             onClick: () => navigate('/dashboard/informe-socios/importar')
           },
           {
+            key: "/dashboard/informe-socios/datos",
+            label: "Datos importados",
+            onClick: () => navigate('/dashboard/informe-socios/datos')
+          },
+          {
             key: "/dashboard/informe-socios/socios",
             label: "Gestión de socios",
             onClick: () => navigate('/dashboard/informe-socios/socios')
