@@ -1,18 +1,39 @@
 import React, { useEffect, useState } from "react";
-import { Form, Input, Select, Button, message, Row, Col, Modal, Checkbox } from "antd";
+import {
+  Form,
+  Input,
+  Select,
+  Button,
+  message,
+  Row,
+  Col,
+  Card,
+  Space,
+  Typography,
+  DatePicker,
+  Divider,
+} from "antd";
+import { ArrowLeftOutlined, PlusOutlined } from "@ant-design/icons";
+import { useNavigate } from "react-router-dom";
+import dayjs, { type Dayjs } from "dayjs";
 import {
   createNotification,
   fetchProveniences,
   fetchPlaces,
   fetchUsers,
+  fetchHalls,
   createProvenience,
   fetchHallsByProvenience,
 } from "../../api/notifications";
 import { type ProvenienceDto, type HallDto } from "../../api/notifications";
 import type { User } from "../../types/user.types";
 import useAuthStore from "../../auth/useAuthStore";
+import AddProvenienceModal from "./AddProvenienceModal";
 
-const { Option } = Select;
+const { Title } = Typography;
+
+/** Valor especial del select de entidad para ingresar texto libre */
+const OTHER_PROVENIENCE = -1;
 
 interface NotificationFormValues {
   creationPlace: number;
@@ -23,6 +44,7 @@ interface NotificationFormValues {
   expedientNum: string;
   directedTo: string;
   recepReceives: number;
+  receptionDatetime?: Dayjs;
 }
 
 const CrearNotificacion: React.FC = () => {
@@ -31,55 +53,69 @@ const CrearNotificacion: React.FC = () => {
   const [places, setPlaces] = useState<{ id: number; name: string }[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [halls, setHalls] = useState<HallDto[]>([]);
+  const [allHalls, setAllHalls] = useState<HallDto[]>([]);
   const [showOther, setShowOther] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
-  const [includeHallInNewProv, setIncludeHallInNewProv] = useState(false);
-  const [newProvName, setNewProvName] = useState("");
-  const [newHallName, setNewHallName] = useState("");
+  const [loadingCatalogs, setLoadingCatalogs] = useState(true);
+  const [loadingHalls, setLoadingHalls] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const userId = useAuthStore((s) => s.userId);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    fetchProveniences().then(setProveniences).catch(() => message.error("Error al cargar entidades"));
-    fetchPlaces().then(setPlaces).catch(() => message.error("Error al cargar lugares"));
-    fetchUsers().then(setUsers).catch(() => message.error("Error al cargar usuarios"));
+    Promise.allSettled([
+      fetchProveniences().then(setProveniences),
+      fetchPlaces().then(setPlaces),
+      fetchUsers().then(setUsers),
+      fetchHalls().then(setAllHalls),
+    ]).then((results) => {
+      if (results.some((r) => r.status === "rejected")) {
+        message.error("Error al cargar catálogos, recarga la página");
+      }
+      setLoadingCatalogs(false);
+    });
   }, []);
 
   const onProvenienceChange = (val: number) => {
+    form.setFieldsValue({ hall: undefined, otherProvenience: undefined });
+    if (val === OTHER_PROVENIENCE) {
+      setShowOther(true);
+      setHalls([]);
+      return;
+    }
     setShowOther(false);
-    form.setFieldsValue({ hall: undefined });
+    setLoadingHalls(true);
     fetchHallsByProvenience(val)
       .then(setHalls)
       .catch(() => {
         message.error("Error al cargar salas");
         setHalls([]);
-      });
+      })
+      .finally(() => setLoadingHalls(false));
   };
 
-  const handleCreateProvenience = async () => {
-    if (!newProvName.trim()) {
-      message.error("Debe ingresar nombre de entidad");
-      return;
-    }
+  const handleCreateProvenience = async (
+    name: string,
+    hallName?: string,
+    selectedHalls?: number[],
+  ) => {
     try {
       const prov = await createProvenience({
-        name: newProvName,
-        halls: includeHallInNewProv ? [] : undefined,
-        hallName: includeHallInNewProv ? newHallName : undefined,
+        name,
+        halls: selectedHalls,
+        hallName,
       });
       setProveniences((prev) => [...prev, prov]);
-      form.setFieldsValue({ provenience: prov.id });
+      setShowOther(false);
+      form.setFieldsValue({ provenience: prov.id, otherProvenience: undefined });
 
-      if (includeHallInNewProv && prov.halls?.length) {
-        setHalls(prov.halls);
-        form.setFieldsValue({ hall: prov.halls[0].id });
-      }
+      const provHalls = await fetchHallsByProvenience(prov.id).catch(() => prov.halls ?? []);
+      setHalls(provHalls);
+      form.setFieldsValue({ hall: provHalls.length === 1 ? provHalls[0].id : undefined });
 
       setModalVisible(false);
-      setShowOther(false);
-      setNewProvName("");
-      setNewHallName("");
-      setIncludeHallInNewProv(false);
+      message.success(`Entidad "${prov.name}" creada`);
     } catch {
       message.error("Error al crear entidad");
     }
@@ -101,234 +137,213 @@ const CrearNotificacion: React.FC = () => {
       expedientNum: values.expedientNum,
       directedTo: values.directedTo,
       recepReceives: values.recepReceives,
+      receptionDatetime: values.receptionDatetime?.toISOString(),
     };
 
+    setSubmitting(true);
     try {
       await createNotification(payload);
       message.success("Notificación creada exitosamente");
-      form.resetFields();
-      setHalls([]);
-      setShowOther(false);
+      navigate("/dashboard/notificaciones");
     } catch (err: unknown) {
       console.error("Error al crear notificación:", err);
       message.error("Error al crear notificación");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const filterOption = (input: string, option?: { children?: React.ReactNode }) => {
-    const label = option?.children;
-    return typeof label === "string" && label.toLowerCase().includes(input.toLowerCase());
-  };
+  const provenienceOptions = [
+    { value: OTHER_PROVENIENCE, label: "Otra entidad (escribir manualmente)" },
+    ...proveniences.map((p) => ({ value: p.id, label: p.name })),
+  ];
+
+  const hallPlaceholder = showOther
+    ? "No aplica para entidad manual"
+    : halls.length === 0
+      ? "Selecciona una entidad primero"
+      : "Selecciona sala";
 
   return (
-    <div>
-      <h2>Crear Nueva Notificación</h2>
-      <Form form={form} layout="vertical" onFinish={onFinish}>
-        <Row gutter={16}>
-          <Col span={12}>
-            <Form.Item
-              label="Entidad / Proveniencia"
-              name="provenience"
-              rules={[{ required: !showOther, message: "Selecciona entidad o crea una nueva" }]}
-            >
-              <Select
-                placeholder="Selecciona entidad"
-                onChange={onProvenienceChange}
-                showSearch
-                filterOption={filterOption}
-                disabled={showOther}
+    <div style={{ maxWidth: 1200 }}>
+      <Space style={{ marginBottom: 16 }} align="center">
+        <Button
+          icon={<ArrowLeftOutlined />}
+          onClick={() => navigate("/dashboard/notificaciones")}
+        >
+          Volver
+        </Button>
+        <Title level={3} style={{ margin: 0 }}>
+          Crear Nueva Notificación
+        </Title>
+      </Space>
+
+      <Card>
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={onFinish}
+          initialValues={{ receptionDatetime: dayjs() }}
+        >
+          <Row gutter={16}>
+            <Col xs={24} md={12} lg={8}>
+              <Form.Item
+                label="Entidad / Proveniencia"
+                name="provenience"
+                rules={[{ required: true, message: "Selecciona entidad o crea una nueva" }]}
               >
-                {proveniences.map((p) => (
-                  <Option key={p.id} value={p.id}>
-                    {`${p.name}`}
-                  </Option>
-                ))}
-              </Select>
-            </Form.Item>
-            <Button
-              type="link"
-              onClick={() => {
-                setModalVisible(true);
-                setShowOther(true);
-                form.setFieldsValue({ provenience: undefined, hall: undefined });
-                setHalls([]);
-              }}
-              style={{ paddingLeft: 0 }}
-            >
-              + Agregar nueva entidad
-            </Button>
-            {showOther && (
-              <Button
-                type="link"
-                onClick={() => {
-                  setShowOther(false);
-                  form.setFieldsValue({ otherProvenience: undefined });
-                }}
-                style={{ paddingLeft: 8 }}
+                <Select
+                  placeholder="Selecciona entidad"
+                  onChange={onProvenienceChange}
+                  showSearch
+                  optionFilterProp="label"
+                  options={provenienceOptions}
+                  loading={loadingCatalogs}
+                  popupRender={(menu) => (
+                    <>
+                      {menu}
+                      <Divider style={{ margin: "8px 0" }} />
+                      <Button
+                        type="text"
+                        icon={<PlusOutlined />}
+                        block
+                        style={{ textAlign: "left" }}
+                        onClick={() => setModalVisible(true)}
+                      >
+                        Agregar nueva entidad
+                      </Button>
+                    </>
+                  )}
+                />
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} md={12} lg={8}>
+              {showOther ? (
+                <Form.Item
+                  label="Nombre de la otra entidad"
+                  name="otherProvenience"
+                  rules={[{ required: true, message: "Ingresa el nombre de la entidad" }]}
+                >
+                  <Input placeholder="Nombre de la entidad" />
+                </Form.Item>
+              ) : (
+                <Form.Item
+                  label="Sala / Hall"
+                  name="hall"
+                  rules={[{ required: halls.length > 0, message: "Selecciona sala" }]}
+                >
+                  <Select
+                    placeholder={hallPlaceholder}
+                    disabled={halls.length === 0}
+                    showSearch
+                    optionFilterProp="label"
+                    loading={loadingHalls}
+                    options={halls.map((h) => ({ value: h.id, label: h.name }))}
+                  />
+                </Form.Item>
+              )}
+            </Col>
+
+            <Col xs={24} md={12} lg={8}>
+              <Form.Item
+                label="Lugar de recepción"
+                name="creationPlace"
+                rules={[{ required: true, message: "Selecciona lugar" }]}
               >
+                <Select
+                  placeholder="Selecciona lugar"
+                  showSearch
+                  optionFilterProp="label"
+                  loading={loadingCatalogs}
+                  options={places.map((pl) => ({ value: pl.id, label: pl.name }))}
+                />
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} md={12} lg={8}>
+              <Form.Item
+                label="Receptor (usuario)"
+                name="recepReceives"
+                rules={[{ required: true, message: "Selecciona receptor" }]}
+              >
+                <Select
+                  placeholder="Selecciona receptor"
+                  showSearch
+                  optionFilterProp="label"
+                  loading={loadingCatalogs}
+                  options={users.map((u) => ({
+                    value: u.id,
+                    label: `${u.first_name} ${u.last_name}`,
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} md={12} lg={8}>
+              <Form.Item
+                label="Fecha y hora de recepción"
+                name="receptionDatetime"
+                rules={[{ required: true, message: "Selecciona fecha y hora" }]}
+              >
+                <DatePicker
+                  showTime={{ format: "HH:mm" }}
+                  format="DD/MM/YYYY HH:mm"
+                  style={{ width: "100%" }}
+                />
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} md={12} lg={8}>
+              <Form.Item
+                label="Cédula"
+                name="cedule"
+                rules={[{ required: true, message: "Ingresa la cédula" }]}
+              >
+                <Input placeholder="Número cédula" />
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} md={12} lg={8}>
+              <Form.Item
+                label="No. Expediente"
+                name="expedientNum"
+                rules={[{ required: true, message: "Ingresa el número de expediente" }]}
+              >
+                <Input placeholder="Número expediente" />
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} md={12} lg={16}>
+              <Form.Item
+                label="Dirigida a"
+                name="directedTo"
+                rules={[{ required: true, message: "Ingresa a quién va dirigida" }]}
+              >
+                <Input placeholder="A quién va dirigido" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item style={{ marginBottom: 0 }}>
+            <Space>
+              <Button type="primary" htmlType="submit" loading={submitting}>
+                Crear Notificación
+              </Button>
+              <Button onClick={() => navigate("/dashboard/notificaciones")} disabled={submitting}>
                 Cancelar
               </Button>
-            )}
-          </Col>
-
-          <Col span={12}>
-            {showOther && (
-              <Form.Item
-                label="Otra entidad"
-                name="otherProvenience"
-                rules={[{ required: true, message: "Ingresa nombre de entidad" }]}
-              >
-                <Input placeholder="Nombre entidad" />
-              </Form.Item>
-            )}
-          </Col>
-        </Row>
-
-        <Row gutter={16}>
-          <Col span={12}>
-            <Form.Item
-              label="Sala / Hall"
-              name="hall"
-              rules={[
-                {
-                  required: halls.length > 0 && !showOther,
-                  message: "Selecciona sala",
-                },
-              ]}
-            >
-              <Select
-                placeholder="Selecciona sala"
-                disabled={halls.length === 0 || showOther}
-                showSearch
-                filterOption={filterOption}
-              >
-                {halls.map((h) => (
-                  <Option key={h.id} value={h.id}>
-                    {h.name}
-                  </Option>
-                ))}
-              </Select>
-            </Form.Item>
-          </Col>
-        </Row>
-
-        <Row gutter={16}>
-          <Col span={12}>
-            <Form.Item
-              label="Lugar de recepción"
-              name="creationPlace"
-              rules={[{ required: true, message: "Selecciona lugar" }]}
-            >
-              <Select placeholder="Selecciona lugar" showSearch filterOption={filterOption}>
-                {places.map((pl) => (
-                  <Option key={pl.id} value={pl.id}>
-                    {pl.name}
-                  </Option>
-                ))}
-              </Select>
-            </Form.Item>
-          </Col>
-
-          <Col span={12}>
-            <Form.Item
-              label="Receptor (usuario)"
-              name="recepReceives"
-              rules={[{ required: true, message: "Selecciona receptor" }]}
-            >
-              <Select placeholder="Selecciona receptor" showSearch filterOption={filterOption}>
-                {users.map((u) => (
-                  <Option key={u.id} value={u.id}>
-                    {`${u.first_name} ${u.last_name}`}
-                  </Option>
-                ))}
-              </Select>
-            </Form.Item>
-          </Col>
-        </Row>
-
-        <Row gutter={16}>
-          <Col span={12}>
-            <Form.Item
-              label="Cédula"
-              name="cedule"
-              rules={[{ required: true, message: "Ingresa cédula" }]}
-            >
-              <Input placeholder="Número cédula" />
-            </Form.Item>
-          </Col>
-          <Col span={12}>
-            <Form.Item
-              label="No. Expediente"
-              name="expedientNum"
-              rules={[{ required: true }]}
-            >
-              <Input placeholder="Número expediente" />
-            </Form.Item>
-          </Col>
-        </Row>
-
-        <Row gutter={16}>
-          <Col span={24}>
-            <Form.Item
-              label="Dirigida a"
-              name="directedTo"
-              rules={[{ required: true }]}
-            >
-              <Input placeholder="A quién va dirigido" />
-            </Form.Item>
-          </Col>
-        </Row>
-
-        <Form.Item>
-          <Button type="primary" htmlType="submit">
-            Crear Notificación
-          </Button>
-        </Form.Item>
-      </Form>
-
-      <Modal
-        title="Crear nueva entidad"
-        open={modalVisible}
-        onCancel={() => {
-          setModalVisible(false);
-          setShowOther(false);
-          setNewProvName("");
-          setNewHallName("");
-          setIncludeHallInNewProv(false);
-        }}
-        onOk={handleCreateProvenience}
-        okText="Crear"
-        cancelText="Cancelar"
-      >
-        <Form layout="vertical">
-          <Form.Item label="Nombre entidad">
-            <Input
-              value={newProvName}
-              onChange={(e) => setNewProvName(e.target.value)}
-              placeholder="Nombre entidad"
-            />
+            </Space>
           </Form.Item>
-
-          <Form.Item>
-            <Checkbox
-              checked={includeHallInNewProv}
-              onChange={(e) => setIncludeHallInNewProv(e.target.checked)}
-            >
-              Crear sala para esta entidad
-            </Checkbox>
-          </Form.Item>
-
-          {includeHallInNewProv && (
-            <Form.Item label="Nombre sala">
-              <Input
-                value={newHallName}
-                onChange={(e) => setNewHallName(e.target.value)}
-                placeholder="Nombre sala"
-              />
-            </Form.Item>
-          )}
         </Form>
-      </Modal>
+      </Card>
+
+      <AddProvenienceModal
+        open={modalVisible}
+        halls={allHalls}
+        onCancel={() => setModalVisible(false)}
+        onCreate={handleCreateProvenience}
+      />
     </div>
   );
 };
