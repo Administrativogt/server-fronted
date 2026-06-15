@@ -137,6 +137,9 @@ export default function RoomReservationForm() {
   const debounceRef = useRef<number | null>(null);
 
   const checkSeqRef = useRef(0);
+  // Guard síncrono contra doble envío (los setState son async y no bloquean
+  // a tiempo un doble-clic rápido).
+  const submittingRef = useRef(false);
   const NOTIF_KEY = "availability-check";
 
   const navigate = useNavigate();
@@ -415,8 +418,10 @@ export default function RoomReservationForm() {
   };
 
   const onFinish = async (values: FormValues) => {
-    const hasConflict = await checkForConflicts({ silent: false });
-    if (hasConflict) return;
+    // Evita doble/múltiple envío: si ya hay una creación en curso, ignora.
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setLoadingCreate(true);
 
     const { reservation_date, init_hour, end_hour } = values;
 
@@ -451,7 +456,9 @@ export default function RoomReservationForm() {
     };
 
     try {
-      setLoadingCreate(true);
+      const hasConflict = await checkForConflicts({ silent: false });
+      if (hasConflict) return;
+
       const response = await ReservationsAPI.create(payload);
 
       setCreated({
@@ -538,6 +545,7 @@ export default function RoomReservationForm() {
         }
       }
     } finally {
+      submittingRef.current = false;
       setLoadingCreate(false);
     }
   };
