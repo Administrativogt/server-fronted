@@ -1,6 +1,6 @@
 // src/pages/DashboardLayout.tsx
 import React, { useEffect, useState } from 'react';
-import { Layout, Menu, Button, Switch, Tooltip, Grid, theme as antdTheme } from 'antd';
+import { Layout, Menu, Button, Switch, Tooltip, Grid, Input, Empty, theme as antdTheme } from 'antd';
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -30,6 +30,9 @@ import {
   ReadOutlined,
   CalendarOutlined,
   BarChartOutlined,
+  StarOutlined,
+  StarFilled,
+  SearchOutlined,
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import useAuthStore from '../auth/useAuthStore';
@@ -47,6 +50,8 @@ const DashboardLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [openKeys, setOpenKeys] = useState<string[]>([]);
   const [canSeeReport, setCanSeeReport] = useState<boolean | null>(null);
+  const [search, setSearch] = useState('');
+  const [favorites, setFavorites] = useState<string[]>([]);
 
   const themeMode = useThemeStore((s) => s.mode);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
@@ -77,6 +82,31 @@ const DashboardLayout: React.FC = () => {
   const { canAccessUserAdmin } = useUserAdminPermissions(); // ✅ Permisos de administración
   const hasModule = (moduleKey: ModuleKey) =>
     modules.some((module) => module.key === moduleKey);
+
+  // ⭐ Favoritos: persistidos en localStorage por usuario
+  const favKey = `menu_favorites_${username ?? 'anon'}`;
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(favKey);
+      setFavorites(raw ? JSON.parse(raw) : []);
+    } catch {
+      setFavorites([]);
+    }
+  }, [favKey]);
+
+  const toggleFavorite = (key: string) => {
+    setFavorites((prev) => {
+      const next = prev.includes(key)
+        ? prev.filter((k) => k !== key)
+        : [...prev, key];
+      try {
+        localStorage.setItem(favKey, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -621,6 +651,126 @@ const DashboardLayout: React.FC = () => {
       return item; // hoja: AntD ya muestra tooltip y navega al click
     });
 
+  /* ⭐ Estrella de favorito en los módulos de primer nivel.
+     stopPropagation para que el click no expanda/colapse el submenú. */
+  const labelWithStar = (origKey: string, label: React.ReactNode) => {
+    if (collapsed) return label;
+    const isFav = favorites.includes(origKey);
+    return (
+      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {label}
+        </span>
+        <Tooltip title={isFav ? 'Quitar de favoritos' : 'Agregar a favoritos'} placement="right">
+          <span
+            className="menu-fav-star"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleFavorite(origKey);
+            }}
+            style={{
+              display: 'inline-flex',
+              padding: '0 2px',
+              cursor: 'pointer',
+              opacity: isFav ? 1 : 0.35,
+              transition: 'opacity 0.15s',
+            }}
+          >
+            {isFav ? <StarFilled style={{ color: '#faad14' }} /> : <StarOutlined />}
+          </span>
+        </Tooltip>
+      </span>
+    );
+  };
+
+  // Agrega la estrella al label de cada módulo de primer nivel.
+  const addStars = (items: any[], isFavGroup = false): any[] =>
+    items.map((it) => {
+      const origKey = isFavGroup ? String(it.key).replace(/^fav:/, '') : it.key;
+      return { ...it, label: labelWithStar(origKey, it.label) };
+    });
+
+  // Clona un módulo con keys prefijadas para usarlo en la sección de favoritos
+  // sin colisionar con las keys del listado completo.
+  const cloneForFav = (item: any): any => ({
+    ...item,
+    key: `fav:${item.key}`,
+    children: item.children?.map(cloneForFav),
+  });
+
+  const term = search.trim().toLowerCase();
+  const isSearching = term.length > 0;
+
+  const labelText = (item: any): string => {
+    if (typeof item.label === 'string') return item.label.toLowerCase();
+    return '';
+  };
+
+  const matchesSearch = (item: any): boolean => {
+    if (labelText(item).includes(term)) return true;
+    if (item.children) return item.children.some((c: any) => labelText(c).includes(term));
+    return false;
+  };
+
+  const rawItems = getMenuItems();
+
+  // Listado principal (filtrado por búsqueda si aplica)
+  const mainItems = isSearching ? rawItems.filter(matchesSearch) : rawItems;
+
+  // Parents que deben abrirse al buscar (los que tienen hijos coincidentes)
+  const searchOpenKeys = isSearching
+    ? mainItems.filter((i: any) => i.children).map((i: any) => i.key)
+    : [];
+
+  // Sección de favoritos (solo expandido y sin búsqueda activa)
+  const favItems = rawItems.filter((i: any) => favorites.includes(i.key));
+  const showFavorites = !collapsed && !isSearching && favItems.length > 0;
+
+  const groupHeader = (icon: React.ReactNode, text: string) => (
+    <span
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        fontSize: 11,
+        fontWeight: 700,
+        letterSpacing: 0.6,
+        textTransform: 'uppercase',
+        opacity: 0.65,
+      }}
+    >
+      {icon}
+      {text}
+    </span>
+  );
+
+  const finalItems: any[] = [];
+  if (showFavorites) {
+    finalItems.push({
+      type: 'group',
+      key: 'fav-group',
+      label: groupHeader(<StarFilled style={{ color: '#faad14' }} />, 'Favoritos'),
+      children: addStars(decorateForCollapsed(favItems.map(cloneForFav)), true),
+    });
+    finalItems.push({
+      type: 'divider',
+      key: 'fav-divider',
+      style: { margin: '10px 12px', borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)' },
+    });
+    finalItems.push({
+      type: 'group',
+      key: 'all-group',
+      label: groupHeader(<UnorderedListOutlined />, 'Todos los módulos'),
+      children: addStars(
+        decorateForCollapsed(mainItems.filter((i: any) => !favorites.includes(i.key))),
+      ),
+    });
+  } else {
+    finalItems.push(...addStars(decorateForCollapsed(mainItems)));
+  }
+
+  const effectiveOpenKeys = collapsed ? [] : isSearching ? searchOpenKeys : openKeys;
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider
@@ -648,15 +798,37 @@ const DashboardLayout: React.FC = () => {
           />
         </div>
 
-        <Menu
-          theme={isDark ? 'dark' : 'light'}
-          mode="inline"
-          selectedKeys={[location.pathname]}
-          openKeys={collapsed ? [] : openKeys}
-          onOpenChange={(keys) => setOpenKeys(keys.slice(-1))}
-          onClick={() => { if (isMobile) setCollapsed(true); }}
-          items={decorateForCollapsed(getMenuItems())}
-        />
+        {/* 🔍 Buscador de módulos (oculto cuando el sidebar está colapsado) */}
+        {!collapsed && (
+          <div style={{ padding: '0 12px 8px' }}>
+            <Input
+              allowClear
+              size="middle"
+              prefix={<SearchOutlined style={{ opacity: 0.5 }} />}
+              placeholder="Buscar módulo…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+        )}
+
+        {isSearching && mainItems.length === 0 ? (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description="Sin resultados"
+            style={{ marginTop: 24 }}
+          />
+        ) : (
+          <Menu
+            theme={isDark ? 'dark' : 'light'}
+            mode="inline"
+            selectedKeys={[location.pathname]}
+            openKeys={effectiveOpenKeys}
+            onOpenChange={(keys) => setOpenKeys(keys.slice(-1))}
+            onClick={() => { if (isMobile) setCollapsed(true); }}
+            items={finalItems}
+          />
+        )}
       </Sider>
 
       {/* Overlay para cerrar el menú al tocar fuera (solo móvil con menú abierto) */}
