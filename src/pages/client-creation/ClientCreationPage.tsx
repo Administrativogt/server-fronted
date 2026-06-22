@@ -10,7 +10,6 @@ import {
   Row,
   Col,
   Checkbox,
-  InputNumber,
   DatePicker,
   Steps,
   Radio,
@@ -40,6 +39,15 @@ const CONTACT_TYPE_OPTIONS = [
   { label: 'Representante Legal', value: 'representante_legal' },
 ];
 
+// Normaliza variantes de "consumidor final" (cf, c.f., c/f, c f…) a "CF".
+// Cualquier otro valor (un NIT real) se devuelve sin cambios, solo recortado.
+const normalizeNit = (raw?: string): string => {
+  const value = (raw ?? '').trim();
+  if (!value) return '';
+  const compact = value.replace(/[\s./\\-]/g, '').toUpperCase();
+  return compact === 'CF' ? 'CF' : value;
+};
+
 const ClientCreationPage: React.FC = () => {
   const navigate = useNavigate();
   const [form] = Form.useForm<CreateClientPayload>();
@@ -53,7 +61,24 @@ const ClientCreationPage: React.FC = () => {
   const [origins, setOrigins] = useState<OriginItem[]>([]);
 
   const taxpayerType = Form.useWatch('type_of_taxpayer', form) as 'Juridica' | 'Fisica' | undefined;
-  const isExemptIva = Form.useWatch('is_exempt_iva', form) as boolean | undefined;
+  const nationality = Form.useWatch('nationality', form) as 'nacional' | 'extranjero' | undefined;
+  const isExtranjero = nationality === 'extranjero';
+
+  // Extranjero: el NIT siempre es CF y no se edita. Nacional: queda en blanco para ingresarlo.
+  useEffect(() => {
+    if (isExtranjero) {
+      form.setFieldsValue({ nit: 'CF' });
+    } else if (nationality === 'nacional' && form.getFieldValue('nit') === 'CF') {
+      form.setFieldsValue({ nit: '' });
+    }
+  }, [isExtranjero, nationality, form]);
+
+  // Al salir del campo, normaliza variantes de "CF" (cf, c.f., c/f…) a "CF".
+  const handleNitBlur = () => {
+    const current = form.getFieldValue('nit');
+    const normalized = normalizeNit(current);
+    if (normalized !== current) form.setFieldsValue({ nit: normalized });
+  };
 
   useEffect(() => {
     const loadCatalogs = async () => {
@@ -82,7 +107,7 @@ const ClientCreationPage: React.FC = () => {
   const next = async () => {
     try {
       if (currentStep === 0) {
-        await form.validateFields(['internal_code', 'nationality', 'type_of_taxpayer']);
+        await form.validateFields(['nationality', 'type_of_taxpayer']);
       } else if (currentStep === 1) {
         const commonFields = [
           'full_name', 'country_of_origin_id', 'address',
@@ -112,7 +137,11 @@ const ClientCreationPage: React.FC = () => {
 
       const payload: CreateClientPayload = {
         ...values,
-        nit: values.nit || 'CF',
+        nit: isExtranjero ? 'CF' : (normalizeNit(values.nit) || 'CF'),
+        // Campos de IVA ya no se piden en el formulario; van fijos para que la
+        // ficha del correo muestre "Exención IVA: No" y porcentaje 0.
+        is_exempt_iva: false,
+        iva_percentage: 0,
         contacts,
       };
 
@@ -142,21 +171,12 @@ const ClientCreationPage: React.FC = () => {
         <Form
           form={form}
           layout="vertical"
-          initialValues={{ is_exempt_iva: false, type_of_taxpayer: 'Juridica', nationality: 'nacional' }}
+          initialValues={{ type_of_taxpayer: 'Juridica', nationality: 'nacional' }}
         >
           {/* ============ PASO 1: Clasificación ============ */}
           <div style={{ display: currentStep === 0 ? 'block' : 'none' }}>
             <Row gutter={16}>
-              <Col xs={24} sm={8}>
-                <Form.Item
-                  name="internal_code"
-                  label="Código interno del sistema"
-                  rules={[{ required: true, message: 'Ingrese el código interno' }]}
-                >
-                  <Input placeholder="Código interno" />
-                </Form.Item>
-              </Col>
-              <Col xs={24} sm={8}>
+              <Col xs={24} sm={12}>
                 <Form.Item name="nationality" label="Nacionalidad" rules={[{ required: true }]}>
                   <Select placeholder="Seleccione">
                     <Option value="nacional">Nacional</Option>
@@ -164,7 +184,7 @@ const ClientCreationPage: React.FC = () => {
                   </Select>
                 </Form.Item>
               </Col>
-              <Col xs={24} sm={8}>
+              <Col xs={24} sm={12}>
                 <Form.Item name="type_of_taxpayer" label="Tipo" rules={[{ required: true }]}>
                   <Select placeholder="Seleccione">
                     <Option value="Juridica">Persona Jurídica</Option>
@@ -224,18 +244,16 @@ const ClientCreationPage: React.FC = () => {
                   <Form.Item
                     name="nit"
                     label="Número de identificación tributaria"
-                    tooltip="Si se deja vacío se guardará como CF"
+                    tooltip={isExtranjero
+                      ? 'Cliente extranjero: se guarda automáticamente como CF.'
+                      : 'Si se deja vacío se guardará como CF'}
                   >
-                    <Input placeholder="Ej: 12345678 (vacío = CF)" />
+                    <Input
+                      placeholder={isExtranjero ? 'CF' : 'Ej: 12345678 (vacío = CF)'}
+                      disabled={isExtranjero}
+                      onBlur={handleNitBlur}
+                    />
                   </Form.Item>
-                  <Form.Item name="is_exempt_iva" valuePropName="checked" label="Exención de IVA">
-                    <Checkbox>¿Se encuentra exento de IVA?</Checkbox>
-                  </Form.Item>
-                  {!isExemptIva && (
-                    <Form.Item name="iva_percentage" label="Porcentaje IVA">
-                      <InputNumber min={0} max={100} style={{ width: '100%' }} addonAfter="%" />
-                    </Form.Item>
-                  )}
                   <Form.Item
                     name="country_of_origin_id"
                     label="País sede"
@@ -291,9 +309,15 @@ const ClientCreationPage: React.FC = () => {
                   <Form.Item
                     name="nit"
                     label="Número de identificación tributaria (NIT)"
-                    tooltip="Si se deja vacío se guardará como CF"
+                    tooltip={isExtranjero
+                      ? 'Cliente extranjero: se guarda automáticamente como CF.'
+                      : 'Si se deja vacío se guardará como CF'}
                   >
-                    <Input placeholder="Ej: 12345678 (vacío = CF)" />
+                    <Input
+                      placeholder={isExtranjero ? 'CF' : 'Ej: 12345678 (vacío = CF)'}
+                      disabled={isExtranjero}
+                      onBlur={handleNitBlur}
+                    />
                   </Form.Item>
                   <Form.Item name="email" label="Email" rules={[{ type: 'email' }]}>
                     <Input type="email" />

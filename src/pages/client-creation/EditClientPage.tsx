@@ -100,7 +100,6 @@ const EditClientPage: React.FC = () => {
             email: client.email,
             address: client.address,
             website: client.website,
-            internal_code: client.internal_code,
             is_exempt_iva: client.is_exempt_iva,
             iva_percentage: client.iva_percentage ? Number(client.iva_percentage) : undefined,
             country_of_origin_id: client.country_of_origin?.id,
@@ -253,9 +252,6 @@ const EditClientPage: React.FC = () => {
                 <Input />
               </Form.Item>
               <Form.Item name="website" label="Sitio web">
-                <Input />
-              </Form.Item>
-              <Form.Item name="internal_code" label="Código interno">
                 <Input />
               </Form.Item>
               <Form.Item name="responsible_partner_id" label="Socio responsable">
