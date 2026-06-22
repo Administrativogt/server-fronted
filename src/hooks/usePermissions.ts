@@ -58,9 +58,15 @@ export const usePermissions = () => {
   };
 };
 
+// Equipo de mensajería autorizado a fijar/modificar la fecha de realización.
+// Debe coincidir con el backend (encargos.service.ts MENSAJERIA_TEAM_IDS):
+// mensajeros (tipo_usuario=8) + IDs especiales Wendy, Amalia, Mara Ortiz,
+// Pedro Luis Toribio.
+export const MENSAJERIA_TEAM_IDS = [185, 159, 172, 203];
+
 // ✅ NUEVO: Hook mejorado para permisos de mensajería
 export const useMensajeriaPermissions = () => {
-  const { tipo_usuario, username } = useAuthStore();
+  const { tipo_usuario, username, userId } = useAuthStore();
 
   // Verificar si puede asignar mensajeros (solo coordinadores tipo 8 y 10, o admins específicos)
   const canAssignMensajero = tipo_usuario === 8 || tipo_usuario === 10;
@@ -71,6 +77,12 @@ export const useMensajeriaPermissions = () => {
   // Verificar si es coordinador
   const isCoordinador = tipo_usuario === 10;
 
+  // Equipo de mensajería: único autorizado a editar la fecha de realización
+  // (mensajeros + IDs especiales). NO incluye a todos los admins.
+  const isEquipoMensajeria =
+    tipo_usuario === 8 ||
+    (userId != null && MENSAJERIA_TEAM_IDS.includes(userId));
+
   // Usuarios admin específicos que pueden ver todos los envíos asignados
   const isAdminMensajeria = username === 'ESC002' || username === 'BAR008';
 
@@ -78,6 +90,7 @@ export const useMensajeriaPermissions = () => {
     canAssignMensajero,
     isMensajero,
     isCoordinador,
+    isEquipoMensajeria,
     isAdminMensajeria,
   };
 };

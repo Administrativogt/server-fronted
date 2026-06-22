@@ -1,6 +1,7 @@
 // src/pages/mensajeria/EditEncargoPage.tsx
 import React, { useEffect, useState } from 'react';
-import { Form, Input, Select, Checkbox, Button, message, Space, Card, Modal } from 'antd';
+import { Form, Input, Select, Checkbox, Button, message, Space, Card, Modal, DatePicker } from 'antd';
+import dayjs from 'dayjs';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getEncargoById, updateEncargo, getMensajeros, getUsuariosFormulario, getMunicipios, previewFechaRealizacion } from '../../api/encargos';
 import type { EncargoFormValues, Usuario, Municipio } from '../../types/encargo';
@@ -39,11 +40,13 @@ const EditEncargoPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const tipoUsuario = useAuthStore((state) => state.tipo_usuario);
-  const { canAssignMensajero, isCoordinador, isMensajero } = useMensajeriaPermissions(); // ✅ NUEVO
+  const { canAssignMensajero, isCoordinador, isEquipoMensajeria } =
+    useMensajeriaPermissions(); // ✅ NUEVO
 
-  // Solo coordinador (Mara) y mensajeros pueden modificar la fecha de realización.
-  // Para el resto se muestra en solo lectura (se calcula según prioridad + hora).
-  const canEditFecha = isCoordinador || isMensajero;
+  // Solo el equipo de mensajería (mensajeros + Wendy, Amalia, Mara, Pedro)
+  // puede modificar la fecha de realización. Para el resto es solo lectura
+  // (se calcula según prioridad + hora). Coincide con el backend.
+  const canEditFecha = isEquipoMensajeria;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [comentarioModal, setComentarioModal] = useState(false);
@@ -56,7 +59,11 @@ const EditEncargoPage: React.FC = () => {
   const sugerirFecha = async (prioridad: number, municipioId?: number) => {
     try {
       const { data } = await previewFechaRealizacion(prioridad, municipioId);
-      form.setFieldsValue({ fecha_realizacion: data.fecha_realizacion });
+      form.setFieldsValue({
+        fecha_realizacion: data.fecha_realizacion
+          ? dayjs(data.fecha_realizacion)
+          : undefined,
+      });
     } catch {
       // Si falla el cálculo, dejar la fecha actual sin cambios
     }
@@ -105,7 +112,9 @@ const EditEncargoPage: React.FC = () => {
           municipio_id: encargo.municipio?.id || encargo.municipio_id,
           mensajero_id: encargo.mensajero?.id || null,
           zona: encargo.zona || undefined,
-          fecha_realizacion: encargo.fecha_realizacion || undefined,
+          fecha_realizacion: encargo.fecha_realizacion
+            ? dayjs(encargo.fecha_realizacion)
+            : undefined,
           otros_mensajeria: esOtros ? encargo.mensajeria_enviada : undefined,
           tiene_hora: tieneHora,
           hora_minima: encargo.hora_minima?.slice(0, 5) || '',
@@ -161,9 +170,11 @@ const EditEncargoPage: React.FC = () => {
         payload.zona = null; // ✅ Enviar null para limpiar la zona
       }
 
-      // ✅ Fecha: enviar el valor o null si está vacío
+      // ✅ Fecha: convertir el dayjs del DatePicker a YYYY-MM-DD, o null si vacío
       if (values.fecha_realizacion) {
-        payload.fecha_realizacion = values.fecha_realizacion;
+        payload.fecha_realizacion = dayjs(values.fecha_realizacion).format(
+          'YYYY-MM-DD',
+        );
       } else {
         payload.fecha_realizacion = null; // ✅ Enviar null para limpiar la fecha
       }
@@ -411,7 +422,12 @@ const EditEncargoPage: React.FC = () => {
               : 'Se asigna automáticamente según la prioridad y la hora (corte 9 A.M.). Solo coordinación o mensajería pueden modificarla.'
           }
         >
-          <Input type="date" disabled={!canEditFecha} />
+          <DatePicker
+            style={{ width: '100%' }}
+            format="DD/MM/YYYY"
+            disabled={!canEditFecha}
+            placeholder="Seleccionar fecha"
+          />
         </Form.Item>
 
         <Form.Item name="tiene_hora" valuePropName="checked">
