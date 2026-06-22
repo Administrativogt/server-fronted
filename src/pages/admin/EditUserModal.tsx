@@ -10,9 +10,9 @@ import {
   Col,
   Divider,
 } from 'antd';
-import { updateUser, getAreas, getEquipos, getGroups, getPermissions, getAllUsers } from '../../api/users';
+import { updateUser, getAreas, getEquipos, getGroups, getAllUsers } from '../../api/users';
 import { TIPOS_USUARIO } from '../../types/user.types';
-import type { UpdateUserPayload, UserArea, UserEquipo, Group, Permission, User } from '../../types/user.types';
+import type { UpdateUserPayload, UserArea, UserEquipo, Group, User } from '../../types/user.types';
 
 const { Option } = Select;
 
@@ -31,7 +31,6 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ open, user, onClose, onSu
   const [areas, setAreas] = useState<UserArea[]>([]);
   const [equipos, setEquipos] = useState<UserEquipo[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
-  const [permissions, setPermissions] = useState<Permission[]>([]);
   const [usuarios, setUsuarios] = useState<User[]>([]);
 
   useEffect(() => {
@@ -43,18 +42,16 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ open, user, onClose, onSu
 
   const loadData = async () => {
     try {
-      const [areasRes, equiposRes, groupsRes, permsRes, usersRes] = await Promise.all([
+      const [areasRes, equiposRes, groupsRes, usersRes] = await Promise.all([
         getAreas(),
         getEquipos(),
         getGroups(),
-        getPermissions(),
         getAllUsers(),
       ]);
-      
+
       setAreas(areasRes.data.sort((a, b) => a.nombre.localeCompare(b.nombre)));
       setEquipos(equiposRes.data.sort((a, b) => a.nombre.localeCompare(b.nombre)));
       setGroups(groupsRes.data.sort((a, b) => a.name.localeCompare(b.name)));
-      setPermissions(permsRes.data.sort((a, b) => a.name.localeCompare(b.name)));
       setUsuarios(usersRes.data.sort((a, b) => a.first_name.localeCompare(b.first_name)));
     } catch (error) {
       message.error('Error al cargar datos del formulario');
@@ -67,7 +64,6 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ open, user, onClose, onSu
       first_name: user.first_name,
       last_name: user.last_name,
       email: user.email,
-      employee_code: user.employee_code,
       extension: user.extension,
       codigo_directorio: user.codigo_directorio,
       tipo_usuario: user.tipo_usuario,
@@ -75,7 +71,6 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ open, user, onClose, onSu
       area_id: user.area?.id,
       jefe_id: user.jefe?.id,
       groupIds: user.groups?.map(g => g.id) || [],
-      permissionIds: user.permissions?.map(p => p.id) || [],
       is_superuser: user.is_superuser,
       is_staff: user.is_staff,
       send_checks: user.send_checks,
@@ -91,7 +86,6 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ open, user, onClose, onSu
         first_name: values.first_name,
         last_name: values.last_name,
         email: values.email,
-        employee_code: values.employee_code,
         extension: values.extension,
         codigo_directorio: values.codigo_directorio || undefined,
         tipo_usuario: values.tipo_usuario,
@@ -99,7 +93,6 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ open, user, onClose, onSu
         area_id: values.area_id,
         jefe_id: values.jefe_id,
         groupIds: values.groupIds,
-        permissionIds: values.permissionIds,
         is_superuser: values.is_superuser,
         is_staff: values.is_staff,
         send_checks: values.send_checks,
@@ -163,7 +156,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ open, user, onClose, onSu
         </Row>
 
         <Row gutter={16}>
-          <Col span={12}>
+          <Col span={16}>
             <Form.Item
               name="email"
               label="Email"
@@ -175,12 +168,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ open, user, onClose, onSu
               <Input placeholder="usuario@example.com" />
             </Form.Item>
           </Col>
-          <Col span={6}>
-            <Form.Item name="employee_code" label="Código Empleado">
-              <Input placeholder="EMP001" />
-            </Form.Item>
-          </Col>
-          <Col span={6}>
+          <Col span={8}>
             <Form.Item name="extension" label="Extensión">
               <Input placeholder="1234" />
             </Form.Item>
@@ -279,7 +267,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ open, user, onClose, onSu
           </Col>
         </Row>
 
-        <Divider orientation="left">Grupos y Permisos</Divider>
+        <Divider orientation="left">Grupos (Roles)</Divider>
 
         <Form.Item name="groupIds" label="Grupos (Roles)">
           <Select
@@ -295,25 +283,6 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ open, user, onClose, onSu
             {groups.map((group) => (
               <Option key={group.id} value={group.id}>
                 {group.name}
-              </Option>
-            ))}
-          </Select>
-        </Form.Item>
-
-        <Form.Item name="permissionIds" label="Permisos Específicos">
-          <Select
-            mode="multiple"
-            placeholder="Seleccionar permisos"
-            allowClear
-            showSearch
-            optionFilterProp="children"
-            filterOption={(input, option) =>
-              String(option?.children || '').toLowerCase().includes(input.toLowerCase())
-            }
-          >
-            {permissions.map((perm) => (
-              <Option key={perm.id} value={perm.id}>
-                {perm.name}
               </Option>
             ))}
           </Select>

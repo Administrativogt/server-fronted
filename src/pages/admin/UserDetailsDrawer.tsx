@@ -17,7 +17,7 @@ import {
   CrownOutlined,
 } from '@ant-design/icons';
 import { getTipoUsuarioLabel, getTipoUsuarioColor } from '../../types/user.types';
-import type { User, UserArea, UserEquipo } from '../../types/user.types';
+import type { User } from '../../types/user.types';
 import dayjs from 'dayjs';
 
 interface UserDetailsDrawerProps {
@@ -46,9 +46,6 @@ const UserDetailsDrawer: React.FC<UserDetailsDrawerProps> = ({ open, user, onClo
         </Descriptions.Item>
         <Descriptions.Item label={<><MailOutlined /> Email</>}>
           {user.email}
-        </Descriptions.Item>
-        <Descriptions.Item label="Código de Empleado">
-          {user.employee_code || '-'}
         </Descriptions.Item>
         <Descriptions.Item label={<><PhoneOutlined /> Extensión</>}>
           {user.extension || '-'}
@@ -80,7 +77,7 @@ const UserDetailsDrawer: React.FC<UserDetailsDrawerProps> = ({ open, user, onClo
         </Descriptions.Item>
       </Descriptions>
 
-      <Divider orientation="left">Grupos y Permisos</Divider>
+      <Divider orientation="left">Grupos (Roles)</Divider>
 
       <Descriptions column={1} bordered>
         <Descriptions.Item label="Grupos">
@@ -88,15 +85,6 @@ const UserDetailsDrawer: React.FC<UserDetailsDrawerProps> = ({ open, user, onClo
             <Space wrap>
               {user.groups.map(group => (
                 <Tag key={group.id} color="blue">{group.name}</Tag>
-              ))}
-            </Space>
-          ) : '-'}
-        </Descriptions.Item>
-        <Descriptions.Item label="Permisos Específicos">
-          {user.permissions && user.permissions.length > 0 ? (
-            <Space wrap>
-              {user.permissions.map(perm => (
-                <Tag key={perm.id} color="cyan">{perm.name}</Tag>
               ))}
             </Space>
           ) : '-'}

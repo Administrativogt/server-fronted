@@ -12,9 +12,9 @@ import {
   DatePicker,
 } from 'antd';
 import dayjs from 'dayjs';
-import { createUser, getAreas, getEquipos, getGroups, getPermissions, getAllUsers } from '../../api/users';
+import { createUser, getAreas, getEquipos, getGroups, getAllUsers } from '../../api/users';
 import { TIPOS_USUARIO } from '../../types/user.types';
-import type { CreateUserPayload, UserArea, UserEquipo, Group, Permission, User } from '../../types/user.types';
+import type { CreateUserPayload, UserArea, UserEquipo, Group, User } from '../../types/user.types';
 
 const { Option } = Select;
 
@@ -32,7 +32,6 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
   const [areas, setAreas] = useState<UserArea[]>([]);
   const [equipos, setEquipos] = useState<UserEquipo[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
-  const [permissions, setPermissions] = useState<Permission[]>([]);
   const [usuarios, setUsuarios] = useState<User[]>([]);
 
   useEffect(() => {
@@ -43,18 +42,16 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
 
   const loadData = async () => {
     try {
-      const [areasRes, equiposRes, groupsRes, permsRes, usersRes] = await Promise.all([
+      const [areasRes, equiposRes, groupsRes, usersRes] = await Promise.all([
         getAreas(),
         getEquipos(),
         getGroups(),
-        getPermissions(),
         getAllUsers(),
       ]);
-      
+
       setAreas(areasRes.data.sort((a, b) => a.nombre.localeCompare(b.nombre)));
       setEquipos(equiposRes.data.sort((a, b) => a.nombre.localeCompare(b.nombre)));
       setGroups(groupsRes.data.sort((a, b) => a.name.localeCompare(b.name)));
-      setPermissions(permsRes.data.sort((a, b) => a.name.localeCompare(b.name)));
       setUsuarios(usersRes.data.sort((a, b) => a.first_name.localeCompare(b.first_name)));
     } catch (error) {
       message.error('Error al cargar datos del formulario');
@@ -72,7 +69,6 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
         first_name: values.first_name,
         last_name: values.last_name,
         email: values.email,
-        employee_code: values.employee_code,
         extension: values.extension,
         codigo_directorio: values.codigo_directorio || undefined,
         tipo_usuario: values.tipo_usuario,
@@ -80,7 +76,6 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
         area_id: values.area_id,
         jefe_id: values.jefe_id,
         groupIds: values.groupIds,
-        permissionIds: values.permissionIds,
         is_superuser: values.is_superuser || false,
         is_staff: values.is_staff || false,
         send_checks: values.send_checks || false,
@@ -180,7 +175,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
         </Row>
 
         <Row gutter={16}>
-          <Col span={12}>
+          <Col span={16}>
             <Form.Item
               name="email"
               label="Email"
@@ -192,12 +187,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
               <Input placeholder="usuario@example.com" />
             </Form.Item>
           </Col>
-          <Col span={6}>
-            <Form.Item name="employee_code" label="Código Empleado">
-              <Input placeholder="EMP001" />
-            </Form.Item>
-          </Col>
-          <Col span={6}>
+          <Col span={8}>
             <Form.Item name="extension" label="Extensión">
               <Input placeholder="1234" />
             </Form.Item>
@@ -310,7 +300,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
           </Col>
         </Row>
 
-        <Divider orientation="left">Grupos y Permisos</Divider>
+        <Divider orientation="left">Grupos (Roles)</Divider>
 
         <Form.Item name="groupIds" label="Grupos (Roles)">
           <Select
@@ -326,25 +316,6 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
             {groups.map((group) => (
               <Option key={group.id} value={group.id}>
                 {group.name}
-              </Option>
-            ))}
-          </Select>
-        </Form.Item>
-
-        <Form.Item name="permissionIds" label="Permisos Específicos">
-          <Select
-            mode="multiple"
-            placeholder="Seleccionar permisos"
-            allowClear
-            showSearch
-            optionFilterProp="children"
-            filterOption={(input, option) =>
-              String(option?.children || '').toLowerCase().includes(input.toLowerCase())
-            }
-          >
-            {permissions.map((perm) => (
-              <Option key={perm.id} value={perm.id}>
-                {perm.name}
               </Option>
             ))}
           </Select>
