@@ -352,6 +352,7 @@ function LiquidacionCheque() {
         loading={loading}
         dataSource={data}
         scroll={{ x: 'max-content', y: 480 }}
+        sticky
         pagination={{
           current: pagination.page,
           pageSize: pagination.per_page,
@@ -373,7 +374,7 @@ function LiquidacionCheque() {
                 : '—',
           },
           { title: 'Cliente', dataIndex: 'client', width: 110 },
-          { title: 'Descripción', dataIndex: 'description', ellipsis: true },
+          { title: 'Descripción', dataIndex: 'description', width: 260, ellipsis: true },
           {
             title: 'Monto',
             dataIndex: 'total_value',
@@ -393,7 +394,8 @@ function LiquidacionCheque() {
           },
           {
             title: 'Acciones',
-            width: 130,
+            width: 140,
+            fixed: 'right',
             render: (_: unknown, record: CheckRequest) => (
               <Button type="primary" onClick={() => openLiquidateModal(record)}>
                 Liquidar

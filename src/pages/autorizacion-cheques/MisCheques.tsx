@@ -13,6 +13,7 @@ import type { AccountingCheck } from '../../types/accounting-checks.types';
 import {
   listMyLiquidationChecks,
   updateLiquidationCheckComment,
+  getLiquidationReportDate,
 } from '../../api/accounting-checks';
 import useThemeStore from '../../hooks/useThemeStore';
 
@@ -25,19 +26,36 @@ const announcementTag = (months: number) => {
   return <Tag color="processing" icon={<ClockCircleOutlined />} style={{ margin: 0 }}>{months} mes</Tag>;
 };
 
+// La fecha del reporte llega en ISO 'YYYY-MM-DD'; se parsea por partes para
+// evitar el desfase de zona horaria al usar new Date(iso).
+const formatReportDate = (iso: string): string => {
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y || !m || !d) return iso;
+  return new Date(y, m - 1, d).toLocaleDateString('es-GT', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
+};
+
 const MisCheques: React.FC = () => {
   const [checks, setChecks] = useState<AccountingCheck[]>([]);
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
+  const [reportDate, setReportDate] = useState<string | null>(null);
   const isDark = useThemeStore((s) => s.mode === 'dark');
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const data = await listMyLiquidationChecks();
+      const [data, date] = await Promise.all([
+        listMyLiquidationChecks(),
+        getLiquidationReportDate().catch(() => null),
+      ]);
       setChecks(data);
+      setReportDate(date);
     } catch {
       message.error('Error al cargar tus cheques');
     } finally {
@@ -180,16 +198,29 @@ const MisCheques: React.FC = () => {
     <div style={{ padding: 24, maxWidth: 1400, margin: '0 auto' }}>
       <div style={{ marginBottom: 16 }}>
         <Title level={2} style={{ margin: 0 }}>Mis cheques pendientes</Title>
-        <Text type="secondary">
-          Cheques que tenés pendientes de liquidar. Podés agregar un comentario por cheque (ej. "factura entregada", "en revisión") y se guardará para futuros recordatorios.
+        <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
+          A continuación, se presenta el listado de los cheques pendientes de liquidación
+          correspondientes al último reporte enviado por Contabilidad
+          {reportDate ? <> el <Text strong>{formatReportDate(reportDate)}</Text></> : null}.
+        </Text>
+        <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
+          En cada registro, puede agregar comentarios para mantener informados a Contabilidad,
+          Coordinador de equipo y Administración sobre el estado actual de cada trámite.
         </Text>
       </div>
 
       <Alert
         type="info"
         showIcon
-        message="Tus comentarios persisten"
-        description="Cuando contabilidad cargue una nueva integración de saldos, tus comentarios siguen aquí. Solo se reemplazan si vos los editás."
+        message="Historial de comentarios"
+        description={
+          <>
+            Los comentarios registrados se conservarán en la plataforma. En aquellos registros
+            que mantengan el estatus <Text strong>"pendiente de liquidar"</Text> en próximos
+            reportes, sus comentarios anteriores continuarán visibles de forma automática, a menos
+            que sean editados o eliminados por el propio usuario.
+          </>
+        }
         style={{ marginBottom: 16 }}
       />
 

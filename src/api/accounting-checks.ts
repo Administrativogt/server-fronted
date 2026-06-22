@@ -23,6 +23,13 @@ export const listMyLiquidationChecks = async (): Promise<AccountingCheck[]> => {
   return data;
 };
 
+export const getLiquidationReportDate = async (): Promise<string | null> => {
+  const { data } = await api.get<{ email_date: string | null }>(
+    '/checks/liquidation-checks/report-date',
+  );
+  return data.email_date;
+};
+
 export const sendEmailLiquidationChecks = async (
   user: string,
   checkIds?: number[],

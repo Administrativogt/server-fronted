@@ -149,7 +149,10 @@ function AutorizacionParcial() {
                 SOLICITUD DE AUTORIZACIÓN DE CHEQUE(S)
               </Title>
               <Text type="secondary">
-                Marque cada cheque como Autorizar o Rechazar, luego presione Confirmar.
+                En la columna <Text strong>Acción</Text> (a la derecha de cada fila), marque cada
+                cheque como <Text strong style={{ color: '#16a34a' }}>Autorizar</Text> o{' '}
+                <Text strong style={{ color: '#dc2626' }}>Rechazar</Text>. Cuando haya decidido
+                todos, presione <Text strong>Confirmar</Text>.
               </Text>
             </div>
 
@@ -170,7 +173,8 @@ function AutorizacionParcial() {
                   rowKey="id"
                   dataSource={checks}
                   pagination={false}
-                  scroll={{ x: 900 }}
+                  scroll={{ x: 'max-content' }}
+                  sticky
                   columns={[
                     {
                       title: 'ID Cheque',
@@ -181,6 +185,7 @@ function AutorizacionParcial() {
                     {
                       title: 'Solicitante',
                       dataIndex: 'responsible',
+                      width: 180,
                       render: (r: CheckRequest['responsible']) =>
                         r ? `${r.first_name} ${r.last_name}`.trim() || r.username : '—',
                     },
@@ -191,7 +196,7 @@ function AutorizacionParcial() {
                       width: 110,
                       render: (v) => `Q ${Number(v).toFixed(2)}`,
                     },
-                    { title: 'Descripción', dataIndex: 'description', ellipsis: true },
+                    { title: 'Descripción', dataIndex: 'description', width: 240, ellipsis: true },
                     { title: 'Nota', dataIndex: 'work_note_number', width: 90 },
                     {
                       title: 'Fecha',
@@ -202,6 +207,7 @@ function AutorizacionParcial() {
                     {
                       title: 'Decisión',
                       width: 130,
+                      fixed: 'right',
                       render: (_, record) => {
                         const state = rowStates[record.id];
                         if (state === 'authorized') return <Tag icon={<CheckCircleOutlined />} color="success">Autorizar</Tag>;
@@ -212,6 +218,7 @@ function AutorizacionParcial() {
                     {
                       title: 'Acción',
                       width: 190,
+                      fixed: 'right',
                       render: (_, record) => (
                         <Space>
                           <Button

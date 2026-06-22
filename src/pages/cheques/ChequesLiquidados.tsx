@@ -195,6 +195,7 @@ function ChequesLiquidados() {
         loading={loading}
         dataSource={data}
         scroll={{ x: 'max-content', y: 480 }}
+        sticky
         rowSelection={{
           selectedRowKeys,
           onChange: setSelectedRowKeys,
@@ -210,8 +211,8 @@ function ChequesLiquidados() {
         columns={[
           { title: 'Request ID', dataIndex: 'request_id', width: 120 },
           { title: 'NT', dataIndex: 'work_note_number', width: 110 },
-          { title: 'Cliente', dataIndex: 'client' },
-          { title: 'Descripción', dataIndex: 'description', ellipsis: true },
+          { title: 'Cliente', dataIndex: 'client', width: 120 },
+          { title: 'Descripción', dataIndex: 'description', width: 260, ellipsis: true },
           {
             title: 'Monto',
             dataIndex: 'total_value',
@@ -220,7 +221,8 @@ function ChequesLiquidados() {
           },
           {
             title: 'Acciones',
-            width: 220,
+            width: 230,
+            fixed: 'right',
             render: (_: unknown, record: any) => (
               <Space>
                 {record.liquidation_id && (
