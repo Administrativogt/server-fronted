@@ -32,17 +32,20 @@ import {
 } from '../../api/jurisprudence';
 import type {
   AllCatalogs,
+  JurisprudenceCatalog,
   Sentence,
   SentenceFormPayload,
 } from '../../types/jurisprudence.types';
 import JurisprudenceHero from './JurisprudenceHero';
+import CatalogSelect from './CatalogSelect';
 import './jurisprudence.css';
 
 interface FormShape {
   is_intern?: boolean;
   expedient?: string;
-  signers?: string;
+  magistrates?: string[];
   client?: string;
+  opposing_party?: string;
   init_date?: Dayjs | null;
   end_date?: Dayjs | null;
   specific_theme?: string;
@@ -73,6 +76,7 @@ const SentenceFormPage: React.FC = () => {
   const [form] = Form.useForm<FormShape>();
 
   const [catalogs, setCatalogs] = useState<AllCatalogs | null>(null);
+  const [loadingCatalogs, setLoadingCatalogs] = useState(true);
   const [allSentences, setAllSentences] = useState<Sentence[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
@@ -85,7 +89,10 @@ const SentenceFormPage: React.FC = () => {
         setCatalogs(c);
         setAllSentences(list.results);
       })
-      .catch(() => message.error('No se pudieron cargar los catálogos'));
+      .catch(() => message.error('No se pudieron cargar los catálogos'))
+      .finally(() => {
+        if (mounted) setLoadingCatalogs(false);
+      });
     return () => {
       mounted = false;
     };
@@ -100,8 +107,14 @@ const SentenceFormPage: React.FC = () => {
         form.setFieldsValue({
           is_intern: s.is_intern,
           expedient: s.expedient,
-          signers: s.signers,
+          magistrates: s.signers
+            ? s.signers
+                .split(',')
+                .map((m) => m.trim())
+                .filter(Boolean)
+            : [],
           client: s.client,
+          opposing_party: s.opposing_party,
           init_date: s.init_date ? dayjs(s.init_date) : null,
           end_date: s.end_date ? dayjs(s.end_date) : null,
           specific_theme: s.specific_theme,
@@ -140,14 +153,31 @@ const SentenceFormPage: React.FC = () => {
     [allSentences, editing, id],
   );
 
+  const handleCatalogCreated = (
+    key: keyof AllCatalogs,
+    item: JurisprudenceCatalog,
+  ) => {
+    setCatalogs((prev) => {
+      if (!prev) return prev;
+      if (prev[key].some((it) => it.id === item.id)) return prev;
+      const merged = [...prev[key], item].sort((a, b) =>
+        a.name.localeCompare(b.name),
+      );
+      return { ...prev, [key]: merged };
+    });
+  };
+
   const onSubmit = async (values: FormShape) => {
     setSubmitting(true);
     try {
       const payload: SentenceFormPayload = {
         is_intern: values.is_intern,
         expedient: values.expedient,
-        signers: values.signers,
+        signers: values.magistrates?.length
+          ? values.magistrates.join(', ')
+          : '',
         client: values.client,
+        opposing_party: values.opposing_party,
         init_date: values.init_date ? values.init_date.format('YYYY-MM-DD') : null,
         end_date: values.end_date ? values.end_date.format('YYYY-MM-DD') : null,
         specific_theme: values.specific_theme,
@@ -214,11 +244,11 @@ const SentenceFormPage: React.FC = () => {
                   name="tribunal"
                   rules={[{ required: true, message: 'Selecciona un tribunal' }]}
                 >
-                  <Select
-                    showSearch
-                    optionFilterProp="children"
-                    placeholder="Selecciona"
-                    options={catalogs?.tribunals.map((t) => ({ value: t.id, label: t.name }))}
+                  <CatalogSelect
+                    kind="tribunals"
+                    loading={loadingCatalogs}
+                    items={catalogs?.tribunals ?? []}
+                    onCreated={(item) => handleCatalogCreated('tribunals', item)}
                   />
                 </Form.Item>
               </Col>
@@ -228,14 +258,13 @@ const SentenceFormPage: React.FC = () => {
                   name="general_theme"
                   rules={[{ required: true, message: 'Selecciona un tema' }]}
                 >
-                  <Select
-                    showSearch
-                    optionFilterProp="children"
-                    placeholder="Selecciona"
-                    options={catalogs?.general_themes.map((t) => ({
-                      value: t.id,
-                      label: t.name,
-                    }))}
+                  <CatalogSelect
+                    kind="general-themes"
+                    loading={loadingCatalogs}
+                    items={catalogs?.general_themes ?? []}
+                    onCreated={(item) =>
+                      handleCatalogCreated('general_themes', item)
+                    }
                   />
                 </Form.Item>
               </Col>
@@ -245,14 +274,13 @@ const SentenceFormPage: React.FC = () => {
                   name="failure_type"
                   rules={[{ required: true, message: 'Selecciona un tipo' }]}
                 >
-                  <Select
-                    showSearch
-                    optionFilterProp="children"
-                    placeholder="Selecciona"
-                    options={catalogs?.failure_types.map((t) => ({
-                      value: t.id,
-                      label: t.name,
-                    }))}
+                  <CatalogSelect
+                    kind="failure-types"
+                    loading={loadingCatalogs}
+                    items={catalogs?.failure_types ?? []}
+                    onCreated={(item) =>
+                      handleCatalogCreated('failure_types', item)
+                    }
                   />
                 </Form.Item>
               </Col>
@@ -262,14 +290,13 @@ const SentenceFormPage: React.FC = () => {
                   name="sense_of_failure"
                   rules={[{ required: true, message: 'Selecciona el sentido' }]}
                 >
-                  <Select
-                    showSearch
-                    optionFilterProp="children"
-                    placeholder="Selecciona"
-                    options={catalogs?.senses_of_failure.map((t) => ({
-                      value: t.id,
-                      label: t.name,
-                    }))}
+                  <CatalogSelect
+                    kind="senses-of-failure"
+                    loading={loadingCatalogs}
+                    items={catalogs?.senses_of_failure ?? []}
+                    onCreated={(item) =>
+                      handleCatalogCreated('senses_of_failure', item)
+                    }
                   />
                 </Form.Item>
               </Col>
@@ -279,9 +306,11 @@ const SentenceFormPage: React.FC = () => {
                   name="state"
                   rules={[{ required: true, message: 'Selecciona un estado' }]}
                 >
-                  <Select
-                    placeholder="Selecciona"
-                    options={catalogs?.states.map((t) => ({ value: t.id, label: t.name }))}
+                  <CatalogSelect
+                    kind="states"
+                    loading={loadingCatalogs}
+                    items={catalogs?.states ?? []}
+                    onCreated={(item) => handleCatalogCreated('states', item)}
                   />
                 </Form.Item>
               </Col>
@@ -302,8 +331,13 @@ const SentenceFormPage: React.FC = () => {
                 </Form.Item>
               </Col>
               <Col xs={24} md={12}>
-                <Form.Item label="Cliente" name="client">
+                <Form.Item label="Parte que lo promueve" name="client">
                   <Input placeholder="Ej. Empresa Guatemala S.A." />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item label="Parte contraria" name="opposing_party">
+                  <Input placeholder="Ej. Superintendencia de Administración Tributaria" />
                 </Form.Item>
               </Col>
               <Col xs={12} md={6}>
@@ -314,6 +348,21 @@ const SentenceFormPage: React.FC = () => {
               <Col xs={24} md={12}>
                 <Form.Item label="Tema específico (crédito fiscal, gastos deducibles, etc.)" name="specific_theme">
                   <Input placeholder="Ej. Crédito fiscal, prescripción tributaria, gastos deducibles" />
+                </Form.Item>
+              </Col>
+              <Col xs={24}>
+                <Form.Item
+                  label="Magistrados"
+                  name="magistrates"
+                  tooltip="Escribe el nombre de cada magistrado y presiona Enter para agregarlo"
+                >
+                  <Select
+                    mode="tags"
+                    open={false}
+                    tokenSeparators={[',']}
+                    placeholder="Ej. Jorge Rolando Rosales Mirón, María García López…"
+                    style={{ width: '100%' }}
+                  />
                 </Form.Item>
               </Col>
             </Row>
@@ -357,21 +406,31 @@ const SentenceFormPage: React.FC = () => {
           </div>
 
           <div className="juris-form-section">
-            <h3>Vinculación y archivo</h3>
+            <h3>Sentencias del mismo caso</h3>
+            <p className="juris-form-hint">
+              Vincula otras sentencias que pertenecen al mismo caso o expediente
+              (instancias, amparos, recursos relacionados). La vinculación es
+              mutua: aparecerá en ambas sentencias.
+            </p>
             <Form.Item
-              label="Expedientes relacionados"
+              label="Sentencias vinculadas"
               name="related_expedient"
-              tooltip="Vincula otras sentencias de este archivo"
+              tooltip="Busca por número de expediente o tema y selecciona las sentencias que forman parte del mismo caso"
             >
               <Select
                 mode="multiple"
                 showSearch
+                allowClear
                 optionFilterProp="label"
-                placeholder="Buscar por expediente o tema"
+                placeholder="Buscar por expediente o tema…"
                 options={sentenceOptions}
+                notFoundContent="No hay otras sentencias para vincular"
               />
             </Form.Item>
+          </div>
 
+          <div className="juris-form-section">
+            <h3>Vinculación y archivo</h3>
             <Form.Item label="Link" name="link">
               <Input placeholder="https://..." />
             </Form.Item>

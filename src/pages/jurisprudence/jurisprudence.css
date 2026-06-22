@@ -560,6 +560,20 @@
   color: var(--juris-card-fg);
 }
 
+.juris-card-creator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--juris-card-fg-muted);
+  position: relative;
+  z-index: 3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 [data-juris-theme='dark'] .juris-card {
   --juris-card-bg: rgba(30, 35, 56, 0.65);
   --juris-card-bg-soft: rgba(139, 92, 246, 0.08);
@@ -662,6 +676,17 @@
 [data-juris-theme='dark'] .juris-form-section h3 {
   color: #f0f0f5;
   border-bottom-color: #8a7dff;
+}
+
+.juris-form-hint {
+  margin: -4px 0 14px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #64748b;
+}
+
+[data-juris-theme='dark'] .juris-form-hint {
+  color: #94a3b8;
 }
 
 /* Empty state */

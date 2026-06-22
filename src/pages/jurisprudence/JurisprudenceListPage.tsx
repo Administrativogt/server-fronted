@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AutoComplete,
   Button,
   DatePicker,
   Input,
@@ -33,6 +34,7 @@ import {
   TagsOutlined,
   TeamOutlined,
   ThunderboltOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
 import { useLocation, useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -43,6 +45,7 @@ import {
   listSentences,
   searchSentences,
 } from '../../api/jurisprudence';
+import { fullName } from '../../api/users';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import type {
@@ -79,6 +82,7 @@ const FilterChip: React.FC<FilterChipProps> = ({
       trigger="click"
       placement="bottomLeft"
       arrow={false}
+      destroyOnHidden
       overlayInnerStyle={{ padding: '14px 16px', borderRadius: 10, boxShadow: '0 8px 30px rgba(30,58,138,0.12)' }}
       content={
         <div className="juris-popover-content">
@@ -130,12 +134,17 @@ const JurisprudenceListPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
 
   const initialFilter: SentenceFilter = (location.state as { filter?: SentenceFilter } | null)?.filter ?? {};
   const [mode, setMode] = useState<Mode>(Object.keys(initialFilter).length ? 'filter' : 'list');
   const [activeFilter, setActiveFilter] = useState<SentenceFilter>(initialFilter);
   const [catalogs, setCatalogs] = useState<AllCatalogs | null>(null);
   const [themeTags, setThemeTags] = useState<string[]>([]);
+  const [lawOptions, setLawOptions] = useState<string[]>([]);
+  const [expedientOptions, setExpedientOptions] = useState<string[]>([]);
+  const [clientOptions, setClientOptions] = useState<string[]>([]);
+  const [themeOptions, setThemeOptions] = useState<string[]>([]);
 
   const [exporting, setExporting] = useState(false);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
@@ -151,13 +160,42 @@ const JurisprudenceListPage: React.FC = () => {
     return () => { mounted = false; };
   }, []);
 
+  /* ── valores existentes para autocompletar Ley/Expediente (recientes) ── */
+  useEffect(() => {
+    let mounted = true;
+    listSentences(1, 500)
+      .then((res) => {
+        if (!mounted) return;
+        const collect = (
+          getter: (s: Sentence) => string | undefined,
+        ): string[] => {
+          const out: string[] = [];
+          const seen = new Set<string>();
+          res.results.forEach((s) => {
+            const v = (getter(s) ?? '').trim();
+            if (v && !seen.has(v.toLowerCase())) {
+              seen.add(v.toLowerCase());
+              out.push(v);
+            }
+          });
+          return out;
+        };
+        setLawOptions(collect((s) => s.law));
+        setExpedientOptions(collect((s) => s.expedient));
+        setClientOptions(collect((s) => s.client));
+        setThemeOptions(collect((s) => s.specific_theme));
+      })
+      .catch(() => { /* opcional: silencioso, el filtro sigue funcionando como texto */ });
+    return () => { mounted = false; };
+  }, []);
+
   const load = useMemo(
     () => async (currentPage: number, currentMode: Mode) => {
       setLoading(true);
       try {
         let res: PaginatedSentences;
         if (currentMode === 'search') {
-          res = await searchSentences(search.trim(), currentPage, PAGE_SIZE);
+          res = await searchSentences(appliedSearch.trim(), currentPage, PAGE_SIZE);
         } else if (currentMode === 'filter') {
           res = await filterSentences({ ...activeFilter, page: currentPage, page_size: PAGE_SIZE });
         } else {
@@ -170,10 +208,23 @@ const JurisprudenceListPage: React.FC = () => {
         setLoading(false);
       }
     },
-    [search, activeFilter],
+    [appliedSearch, activeFilter],
   );
 
   useEffect(() => { void load(page, mode); }, [page, mode, load]);
+
+  /* ── live search: aplica el término escrito con un pequeño debounce ── */
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      const term = search.trim();
+      setAppliedSearch(term);
+      setPage(1);
+      if (term) setMode('search');
+      else setMode(Object.keys(activeFilter).length ? 'filter' : 'list');
+    }, 250);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   /* ── filter helpers ── */
   const setField = (key: keyof SentenceFilter, value: unknown) => {
@@ -197,11 +248,15 @@ const JurisprudenceListPage: React.FC = () => {
     setMode('list');
     setPage(1);
     setSearch('');
+    setAppliedSearch('');
   };
 
   const onSearch = () => {
-    if (search.trim()) { setMode('search'); setPage(1); }
-    else { setMode('list'); setPage(1); }
+    const term = search.trim();
+    setAppliedSearch(term);
+    setPage(1);
+    if (term) setMode('search');
+    else setMode(Object.keys(activeFilter).length ? 'filter' : 'list');
   };
 
   const exportToExcel = async () => {
@@ -210,7 +265,7 @@ const JurisprudenceListPage: React.FC = () => {
       const res = await (mode === 'filter'
         ? filterSentences({ ...activeFilter, page: 1, page_size: 500 })
         : mode === 'search'
-          ? searchSentences(search.trim(), 1, 500)
+          ? searchSentences(appliedSearch.trim(), 1, 500)
           : listSentences(1, 500));
 
       const wb = new ExcelJS.Workbook();
@@ -218,7 +273,9 @@ const JurisprudenceListPage: React.FC = () => {
       ws.columns = [
         { header: 'ID', key: 'id', width: 6 },
         { header: 'Expediente', key: 'expedient', width: 18 },
-        { header: 'Cliente', key: 'client', width: 30 },
+        { header: 'Parte que lo promueve', key: 'client', width: 30 },
+        { header: 'Parte contraria', key: 'opposing_party', width: 30 },
+        { header: 'Magistrados', key: 'signers', width: 35 },
         { header: 'Tribunal', key: 'tribunal', width: 35 },
         { header: 'Tema específico', key: 'specific_theme', width: 35 },
         { header: 'Tipo de fallo', key: 'failure_type', width: 20 },
@@ -229,6 +286,7 @@ const JurisprudenceListPage: React.FC = () => {
         { header: 'Periodo fiscal', key: 'tax_period', width: 15 },
         { header: 'Resumen de lo resuelto', key: 'criterion', width: 50 },
         { header: 'Interno', key: 'is_intern', width: 10 },
+        { header: 'Creado por', key: 'creator', width: 24 },
       ];
       ws.getRow(1).font = { bold: true };
       ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
@@ -239,6 +297,8 @@ const JurisprudenceListPage: React.FC = () => {
           id: s.id,
           expedient: s.expedient,
           client: s.client,
+          opposing_party: s.opposing_party,
+          signers: s.signers,
           tribunal: s.tribunal?.name ?? '',
           specific_theme: s.specific_theme,
           failure_type: s.failure_type?.name ?? '',
@@ -249,6 +309,7 @@ const JurisprudenceListPage: React.FC = () => {
           tax_period: s.tax_period,
           criterion: s.jurisprudential_criterion,
           is_intern: s.is_intern ? 'Sí' : 'No',
+          creator: fullName(s.creator),
         });
       });
 
@@ -352,6 +413,8 @@ const JurisprudenceListPage: React.FC = () => {
             <Select
               allowClear
               showSearch
+              defaultOpen
+              autoFocus
               optionFilterProp="children"
               placeholder="Todos los tribunales"
               style={{ width: '100%' }}
@@ -374,6 +437,8 @@ const JurisprudenceListPage: React.FC = () => {
             <Select
               allowClear
               showSearch
+              defaultOpen
+              autoFocus
               optionFilterProp="children"
               placeholder="Todos"
               style={{ width: '100%' }}
@@ -396,6 +461,8 @@ const JurisprudenceListPage: React.FC = () => {
             <Select
               allowClear
               showSearch
+              defaultOpen
+              autoFocus
               optionFilterProp="children"
               placeholder="Todos los sentidos"
               style={{ width: '100%' }}
@@ -418,6 +485,8 @@ const JurisprudenceListPage: React.FC = () => {
             <Select
               allowClear
               showSearch
+              defaultOpen
+              autoFocus
               optionFilterProp="children"
               placeholder="Todas las materias"
               style={{ width: '100%' }}
@@ -431,19 +500,35 @@ const JurisprudenceListPage: React.FC = () => {
           </FilterChip>
 
           <FilterChip
-            label="Cliente"
+            label="Parte que lo promueve"
             icon={<TeamOutlined />}
             active={!!activeFilter.client}
             activeLabel={activeFilter.client}
             onClear={() => clearField('client')}
           >
-            <Input
+            <AutoComplete
               allowClear
+              defaultOpen
+              autoFocus
+              style={{ width: 280 }}
               placeholder="Nombre del cliente"
               defaultValue={activeFilter.client}
-              onChange={(e) => {
+              options={clientOptions.map((v) => ({ value: v }))}
+              filterOption={(input, option) =>
+                String(option?.value ?? '')
+                  .toLowerCase()
+                  .includes(input.toLowerCase())
+              }
+              onSelect={(val) => {
                 if (clientDebounce.current) clearTimeout(clientDebounce.current);
-                clientDebounce.current = setTimeout(() => setField('client', e.target.value), 400);
+                setField('client', val || undefined);
+              }}
+              onChange={(val) => {
+                if (clientDebounce.current) clearTimeout(clientDebounce.current);
+                clientDebounce.current = setTimeout(
+                  () => setField('client', val || undefined),
+                  400,
+                );
               }}
             />
           </FilterChip>
@@ -462,9 +547,12 @@ const JurisprudenceListPage: React.FC = () => {
               mode="tags"
               placeholder="prescripción, crédito fiscal…"
               tokenSeparators={[',']}
-              open={false}
+              defaultOpen
+              autoFocus
+              optionFilterProp="label"
               style={{ width: '100%' }}
               value={themeTags}
+              options={themeOptions.map((v) => ({ value: v, label: v }))}
               onChange={(tags) => {
                 setThemeTags(tags);
                 setField('specific_theme', tags.length ? tags.join(',') : undefined);
@@ -479,13 +567,29 @@ const JurisprudenceListPage: React.FC = () => {
             activeLabel={activeFilter.law}
             onClear={() => clearField('law')}
           >
-            <Input
+            <AutoComplete
               allowClear
+              defaultOpen
+              autoFocus
+              style={{ width: 280 }}
               placeholder="Ej. Ley del IVA, Código Tributario"
               defaultValue={activeFilter.law}
-              onChange={(e) => {
+              options={lawOptions.map((v) => ({ value: v }))}
+              filterOption={(input, option) =>
+                String(option?.value ?? '')
+                  .toLowerCase()
+                  .includes(input.toLowerCase())
+              }
+              onSelect={(val) => {
                 if (lawDebounce.current) clearTimeout(lawDebounce.current);
-                lawDebounce.current = setTimeout(() => setField('law', e.target.value), 400);
+                setField('law', val || undefined);
+              }}
+              onChange={(val) => {
+                if (lawDebounce.current) clearTimeout(lawDebounce.current);
+                lawDebounce.current = setTimeout(
+                  () => setField('law', val || undefined),
+                  400,
+                );
               }}
             />
           </FilterChip>
@@ -497,13 +601,29 @@ const JurisprudenceListPage: React.FC = () => {
             activeLabel={activeFilter.expedient}
             onClear={() => clearField('expedient')}
           >
-            <Input
+            <AutoComplete
               allowClear
+              defaultOpen
+              autoFocus
+              style={{ width: 280 }}
               placeholder="Ej. 1095-2022"
               defaultValue={activeFilter.expedient}
-              onChange={(e) => {
+              options={expedientOptions.map((v) => ({ value: v }))}
+              filterOption={(input, option) =>
+                String(option?.value ?? '')
+                  .toLowerCase()
+                  .includes(input.toLowerCase())
+              }
+              onSelect={(val) => {
                 if (expedientDebounce.current) clearTimeout(expedientDebounce.current);
-                expedientDebounce.current = setTimeout(() => setField('expedient', e.target.value), 400);
+                setField('expedient', val || undefined);
+              }}
+              onChange={(val) => {
+                if (expedientDebounce.current) clearTimeout(expedientDebounce.current);
+                expedientDebounce.current = setTimeout(
+                  () => setField('expedient', val || undefined),
+                  400,
+                );
               }}
             />
           </FilterChip>
@@ -517,6 +637,8 @@ const JurisprudenceListPage: React.FC = () => {
           >
             <Select
               allowClear
+              defaultOpen
+              autoFocus
               placeholder="Interno o externo"
               style={{ width: '100%' }}
               value={activeFilter.is_intern === undefined ? undefined : activeFilter.is_intern ? 'true' : 'false'}
@@ -742,6 +864,7 @@ const SentenceCard: React.FC<SentenceCardProps> = ({ sentence, onClick }) => {
 
   const variant = getSenseVariant(sentence.sense_of_failure?.name);
   const initials = tribunalInitials(sentence.tribunal?.name);
+  const creatorName = fullName(sentence.creator);
 
   return (
     <div
@@ -811,6 +934,12 @@ const SentenceCard: React.FC<SentenceCardProps> = ({ sentence, onClick }) => {
           {sentence.client || sentence.failure_type?.name || '—'}
         </span>
       </div>
+
+      {creatorName && (
+        <div className="juris-card-creator">
+          <UserOutlined /> Creado por {creatorName}
+        </div>
+      )}
     </div>
   );
 };

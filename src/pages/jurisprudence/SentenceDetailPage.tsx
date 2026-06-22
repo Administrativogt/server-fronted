@@ -138,10 +138,13 @@ const SentenceDetailPage: React.FC = () => {
               <Descriptions.Item label="Expediente">
                 {sentence.expedient || '—'}
               </Descriptions.Item>
-              <Descriptions.Item label="Cliente">
+              <Descriptions.Item label="Parte que lo promueve">
                 {sentence.client || '—'}
               </Descriptions.Item>
-              <Descriptions.Item label="Firmantes" span={2}>
+              <Descriptions.Item label="Parte contraria">
+                {sentence.opposing_party || '—'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Magistrados" span={2}>
                 {sentence.signers || '—'}
               </Descriptions.Item>
               <Descriptions.Item label="Inicio">

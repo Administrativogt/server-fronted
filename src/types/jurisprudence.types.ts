@@ -18,6 +18,7 @@ export interface Sentence {
   expedient: string;
   signers: string;
   client: string;
+  opposing_party: string;
   init_date: string | null;
   end_date: string | null;
   specific_theme: string;
@@ -68,6 +69,7 @@ export interface SentenceFormPayload {
   expedient?: string;
   signers?: string;
   client?: string;
+  opposing_party?: string;
   init_date?: string | null;
   end_date?: string | null;
   specific_theme?: string;
