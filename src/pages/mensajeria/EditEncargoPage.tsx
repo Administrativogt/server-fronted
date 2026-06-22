@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Form, Input, Select, Checkbox, Button, message, Space, Card, Modal } from 'antd';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getEncargoById, updateEncargo, getMensajeros, getUsuariosFormulario, getMunicipios } from '../../api/encargos';
+import { getEncargoById, updateEncargo, getMensajeros, getUsuariosFormulario, getMunicipios, previewFechaRealizacion } from '../../api/encargos';
 import type { EncargoFormValues, Usuario, Municipio } from '../../types/encargo';
 import useAuthStore from '../../auth/useAuthStore';
 import { useMensajeriaPermissions } from '../../hooks/usePermissions';
@@ -39,7 +39,11 @@ const EditEncargoPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const tipoUsuario = useAuthStore((state) => state.tipo_usuario);
-  const { canAssignMensajero, isCoordinador } = useMensajeriaPermissions(); // ✅ NUEVO
+  const { canAssignMensajero, isCoordinador, isMensajero } = useMensajeriaPermissions(); // ✅ NUEVO
+
+  // Solo coordinador (Mara) y mensajeros pueden modificar la fecha de realización.
+  // Para el resto se muestra en solo lectura (se calcula según prioridad + hora).
+  const canEditFecha = isCoordinador || isMensajero;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [comentarioModal, setComentarioModal] = useState(false);
@@ -47,6 +51,16 @@ const EditEncargoPage: React.FC = () => {
   const [mensajeros, setMensajeros] = useState<Usuario[]>([]);
   const [solicitantes, setSolicitantes] = useState<Usuario[]>([]); // ✅ Lista de solicitantes
   const [municipios, setMunicipios] = useState<Municipio[]>([]); // ✅ Lista de municipios
+
+  // Al cambiar prioridad/municipio sugiere la fecha calculada (editable: el usuario puede ajustarla)
+  const sugerirFecha = async (prioridad: number, municipioId?: number) => {
+    try {
+      const { data } = await previewFechaRealizacion(prioridad, municipioId);
+      form.setFieldsValue({ fecha_realizacion: data.fecha_realizacion });
+    } catch {
+      // Si falla el cálculo, dejar la fecha actual sin cambios
+    }
+  };
 
   // ✅ Cargar todo junto: listas Y encargo
   useEffect(() => {
@@ -350,10 +364,11 @@ const EditEncargoPage: React.FC = () => {
             style={{ flex: 1 }}
             rules={[{ required: true, message: 'Seleccione un municipio' }]}
           >
-            <Select 
+            <Select
               placeholder="Seleccione municipio"
               showSearch
               optionFilterProp="children"
+              onChange={(value: number) => sugerirFecha(form.getFieldValue('prioridad') ?? 1, value)}
               filterOption={(input, option) =>
                 String(option?.children || '').toLowerCase().includes(input.toLowerCase())
               }
@@ -374,6 +389,7 @@ const EditEncargoPage: React.FC = () => {
             <Select
               showSearch
               optionFilterProp="children"
+              onChange={(value: number) => sugerirFecha(value, form.getFieldValue('municipio_id'))}
               filterOption={(input, option) =>
                 String(option?.children || '').toLowerCase().includes(input.toLowerCase())
               }
@@ -385,13 +401,17 @@ const EditEncargoPage: React.FC = () => {
           </Form.Item>
         </div>
 
-        {/* ✅ NUEVO: Fecha ahora es editable */}
-        <Form.Item 
-          label="Fecha de realización (opcional)" 
+        {/* La fecha se calcula según prioridad + hora. Solo coordinador y mensajeros pueden ajustarla. */}
+        <Form.Item
+          label="Fecha de realización"
           name="fecha_realizacion"
-          tooltip="Se calculará automáticamente según la prioridad si se deja vacío"
+          tooltip={
+            canEditFecha
+              ? 'Se sugiere automáticamente según la prioridad y la hora. Podés ajustarla manualmente.'
+              : 'Se asigna automáticamente según la prioridad y la hora (corte 9 A.M.). Solo coordinación o mensajería pueden modificarla.'
+          }
         >
-          <Input type="date" />
+          <Input type="date" disabled={!canEditFecha} />
         </Form.Item>
 
         <Form.Item name="tiene_hora" valuePropName="checked">

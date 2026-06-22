@@ -1,6 +1,6 @@
 // src/pages/mensajeria/AllEncargosPage.tsx
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Space, Tag, message, Modal, DatePicker, Select, Input, Tooltip } from 'antd';
+import { Table, Button, Space, Tag, message, Modal, DatePicker, Select, Input, Tooltip, theme } from 'antd';
 import { InfoCircleOutlined, FlagFilled } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { downloadEncargosExcel, getAllEncargos, sendComplaint, getMensajeros, updateEncargo } from '../../../api/encargos';
@@ -51,7 +51,8 @@ const AllEncargosPage: React.FC = () => {
   const [mensajeros, setMensajeros] = useState<Usuario[]>([]);
   
   const navigate = useNavigate();
-  
+  const { token } = theme.useToken(); // ✅ Tokens del tema (claro/oscuro)
+
   // ✅ Obtener usuario actual para filtrar si es mensajero
   const userId = useAuthStore((state) => state.userId);
   const tipoUsuario = useAuthStore((state) => state.tipo_usuario); // ✅ CORREGIDO: acceso directo
@@ -379,7 +380,7 @@ const AllEncargosPage: React.FC = () => {
       </div>
 
       {/* Filtros */}
-      <div style={{ marginBottom: 16, padding: '16px', background: '#f5f5f5', borderRadius: 8 }}>
+      <div style={{ marginBottom: 16, padding: '16px', background: token.colorFillAlter, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8 }}>
         <Space wrap>
           <RangePicker onChange={handleDateChange} />
           <Select

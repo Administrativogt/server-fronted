@@ -15,6 +15,7 @@ import {
   type ChartData,
 } from '../../api/encargos';
 import useAuthStore from '../../auth/useAuthStore'; // ✅ Importar
+import useThemeStore from '../../hooks/useThemeStore'; // ✅ Tema claro/oscuro
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -51,6 +52,42 @@ const MensajeriaDashboardPage: React.FC = () => {
   const userId = useAuthStore((state) => state.userId);
   const tipoUsuario = useAuthStore((state) => state.tipo_usuario);
   const isMensajero = tipoUsuario === 8;
+
+  // ✅ Tema claro/oscuro para que las gráficas sean legibles en ambos modos
+  const themeMode = useThemeStore((state) => state.mode);
+  const isDark = themeMode === 'dark';
+
+  // Colores derivados del tema (texto de ejes, grilla, leyendas, tooltips)
+  const chartColors = {
+    text: isDark ? '#e6e6e6' : '#333333',
+    textMuted: isDark ? '#a6a6a6' : '#666666',
+    grid: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)',
+    tooltipBg: isDark ? '#1f1f1f' : '#ffffff',
+  };
+
+  // Tema Nivo: aplica el color de texto correcto a ejes, leyendas y tooltip
+  const nivoTheme = {
+    text: { fill: chartColors.text, fontSize: 12 },
+    axis: {
+      domain: { line: { stroke: chartColors.grid } },
+      ticks: {
+        line: { stroke: chartColors.grid },
+        text: { fill: chartColors.textMuted, fontSize: 11 },
+      },
+      legend: { text: { fill: chartColors.text, fontSize: 12, fontWeight: 600 } },
+    },
+    grid: { line: { stroke: chartColors.grid, strokeWidth: 1 } },
+    legends: { text: { fill: chartColors.text, fontSize: 12 } },
+    tooltip: {
+      container: {
+        background: chartColors.tooltipBg,
+        color: chartColors.text,
+        fontSize: 12,
+        borderRadius: 8,
+        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.35)',
+      },
+    },
+  };
 
   useEffect(() => {
     loadMensajeros();
@@ -206,6 +243,7 @@ const MensajeriaDashboardPage: React.FC = () => {
           {hasData ? (
             <ResponsivePie
               data={pieData}
+              theme={nivoTheme}
               margin={{ top: 20, right: 80, bottom: 80, left: 80 }}
               innerRadius={0.5}
               padAngle={0.7}
@@ -215,11 +253,11 @@ const MensajeriaDashboardPage: React.FC = () => {
               borderWidth={1}
               borderColor={{ from: 'color', modifiers: [['darker', 0.2]] }}
               arcLinkLabelsSkipAngle={10}
-              arcLinkLabelsTextColor="#333333"
+              arcLinkLabelsTextColor={chartColors.text}
               arcLinkLabelsThickness={2}
               arcLinkLabelsColor={{ from: 'color' }}
               arcLabelsSkipAngle={10}
-              arcLabelsTextColor={{ from: 'color', modifiers: [['darker', 2]] }}
+              arcLabelsTextColor="#1a1a1a"
               legends={[
                 {
                   anchor: 'bottom',
@@ -230,7 +268,7 @@ const MensajeriaDashboardPage: React.FC = () => {
                   itemsSpacing: 0,
                   itemWidth: 80,
                   itemHeight: 18,
-                  itemTextColor: '#999',
+                  itemTextColor: chartColors.text,
                   itemDirection: 'left-to-right',
                   itemOpacity: 1,
                   symbolSize: 12,
@@ -258,6 +296,7 @@ const MensajeriaDashboardPage: React.FC = () => {
           {hasData ? (
             <ResponsiveBar
               data={barData}
+              theme={nivoTheme}
               keys={['value']}
               indexBy="label"
               margin={{ top: 20, right: 20, bottom: 50, left: 50 }}
@@ -280,7 +319,7 @@ const MensajeriaDashboardPage: React.FC = () => {
               }}
               labelSkipWidth={12}
               labelSkipHeight={12}
-              labelTextColor={{ from: 'color', modifiers: [['darker', 1.6]] }}
+              labelTextColor="#ffffff"
               animate={true}
               motionConfig="gentle"
             />
@@ -399,6 +438,7 @@ const MensajeriaDashboardPage: React.FC = () => {
                         'A Tiempo': item.onTime,
                         'Fuera de Tiempo': item.offTime,
                       }))}
+                      theme={nivoTheme}
                       keys={['A Tiempo', 'Fuera de Tiempo']}
                       indexBy="mes"
                       margin={{ top: 20, right: 130, bottom: 50, left: 60 }}
@@ -421,7 +461,7 @@ const MensajeriaDashboardPage: React.FC = () => {
                       }}
                       labelSkipWidth={12}
                       labelSkipHeight={12}
-                      labelTextColor={{ from: 'color', modifiers: [['darker', 1.6]] }}
+                      labelTextColor="#ffffff"
                       legends={[
                         {
                           dataFrom: 'keys',
@@ -433,6 +473,7 @@ const MensajeriaDashboardPage: React.FC = () => {
                           itemsSpacing: 2,
                           itemWidth: 100,
                           itemHeight: 20,
+                          itemTextColor: chartColors.text,
                           itemDirection: 'left-to-right',
                           itemOpacity: 0.85,
                           symbolSize: 12,
@@ -468,6 +509,7 @@ const MensajeriaDashboardPage: React.FC = () => {
                           value: parseInt(item.total_solicitudes) || 0,
                           color: COLORS.zone[(item.zona - 1) % COLORS.zone.length],
                         }))}
+                        theme={nivoTheme}
                         margin={{ top: 20, right: 80, bottom: 80, left: 80 }}
                         innerRadius={0.5}
                         padAngle={0.7}
@@ -477,11 +519,11 @@ const MensajeriaDashboardPage: React.FC = () => {
                         borderWidth={1}
                         borderColor={{ from: 'color', modifiers: [['darker', 0.2]] }}
                         arcLinkLabelsSkipAngle={10}
-                        arcLinkLabelsTextColor="#333333"
+                        arcLinkLabelsTextColor={chartColors.text}
                         arcLinkLabelsThickness={2}
                         arcLinkLabelsColor={{ from: 'color' }}
                         arcLabelsSkipAngle={10}
-                        arcLabelsTextColor={{ from: 'color', modifiers: [['darker', 2]] }}
+                        arcLabelsTextColor="#1a1a1a"
                         legends={[
                           {
                             anchor: 'bottom',
@@ -492,7 +534,7 @@ const MensajeriaDashboardPage: React.FC = () => {
                             itemsSpacing: 0,
                             itemWidth: 70,
                             itemHeight: 18,
-                            itemTextColor: '#999',
+                            itemTextColor: chartColors.text,
                             itemDirection: 'left-to-right',
                             itemOpacity: 1,
                             symbolSize: 12,

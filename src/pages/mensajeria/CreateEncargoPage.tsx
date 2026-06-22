@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Form, Input, Select, Checkbox, Button, message, Space, Card, Alert } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { createEncargo, getUsuariosFormulario, getMunicipios, getMensajeros } from '../../api/encargos';
+import { createEncargo, getUsuariosFormulario, getMunicipios, getMensajeros, previewFechaRealizacion } from '../../api/encargos';
 import type { Usuario, Municipio, EncargoFormValues } from '../../types/encargo';
 import { useMensajeriaPermissions } from '../../hooks/usePermissions';
 import useAuthStore from '../../auth/useAuthStore'; // ✅ Importar
@@ -46,6 +46,22 @@ const CreateEncargoPage: React.FC = () => {
   const [showHora, setShowHora] = useState(false);
   const [showObservaciones, setShowObservaciones] = useState(false);
   const [showOtros, setShowOtros] = useState(false);
+  const [fechaCalculada, setFechaCalculada] = useState<string>('');
+  const [calculandoFecha, setCalculandoFecha] = useState(false);
+
+  // La fecha de realización se calcula automáticamente según prioridad + hora
+  // (corte 9 AM) en el backend. El usuario no la ingresa.
+  const recalcularFecha = async (prioridad: number, municipioId?: number) => {
+    setCalculandoFecha(true);
+    try {
+      const { data } = await previewFechaRealizacion(prioridad, municipioId);
+      setFechaCalculada(data.fecha_realizacion);
+    } catch {
+      setFechaCalculada('');
+    } finally {
+      setCalculandoFecha(false);
+    }
+  };
 
   // ✅ Bloquear acceso a mensajeros
   useEffect(() => {
@@ -85,9 +101,10 @@ const CreateEncargoPage: React.FC = () => {
       }
     };
     fetchData();
+    // Calcular la fecha inicial con la prioridad por defecto (A)
+    recalcularFecha(1);
   }, []);
 
-  const today = dayjs().format('YYYY-MM-DD');
   const showLateAlert = new Date().getHours() >= 9;
 
   const handleMensajeriaChange = (value: string) => {
@@ -121,7 +138,6 @@ const CreateEncargoPage: React.FC = () => {
         observaciones_text,
         otros_mensajeria,
         mensajero_id,
-        fecha_realizacion,
       } = values;
 
       // ✅ NUEVO: Construir payload optimizado para NestJS
@@ -135,9 +151,9 @@ const CreateEncargoPage: React.FC = () => {
         municipio_id,
         prioridad,
         prioridad_hora: tiene_hora ? prioridad_hora : 1,
-        
+
         zona,
-        ...(fecha_realizacion && { fecha_realizacion }), // Se calcula automáticamente si no se envía
+        // La fecha de realización la calcula el backend según prioridad + hora.
         ...(tiene_observaciones && observaciones_text && { observaciones: observaciones_text }),
         ...(tiene_hora && hora_minima && { hora_minima: `${hora_minima}:00` }),
         ...(tiene_hora && prioridad_hora === 4 && hora_maxima && { hora_maxima: `${hora_maxima}:00` }),
@@ -315,10 +331,11 @@ const CreateEncargoPage: React.FC = () => {
             style={{ flex: 1 }}
             rules={[{ required: true, message: 'Seleccione municipio' }]}
           >
-            <Select 
+            <Select
               placeholder="Seleccione municipio"
               showSearch
               optionFilterProp="children"
+              onChange={(value: number) => recalcularFecha(form.getFieldValue('prioridad') ?? 1, value)}
               filterOption={(input, option) =>
                 String(option?.children || '').toLowerCase().includes(input.toLowerCase())
               }
@@ -340,6 +357,7 @@ const CreateEncargoPage: React.FC = () => {
             <Select
               showSearch
               optionFilterProp="children"
+              onChange={(value: number) => recalcularFecha(value, form.getFieldValue('municipio_id'))}
               filterOption={(input, option) =>
                 String(option?.children || '').toLowerCase().includes(input.toLowerCase())
               }
@@ -353,15 +371,15 @@ const CreateEncargoPage: React.FC = () => {
           </Form.Item>
         </div>
 
-        {/* ✅ NUEVO: Fecha ahora es opcional y se puede editar */}
-        <Form.Item 
-          label="Fecha de realización (opcional)" 
-          name="fecha_realizacion"
-          tooltip="Se calculará automáticamente según la prioridad si no se especifica"
+        {/* La fecha se calcula automáticamente según prioridad + hora (corte 9 AM). El usuario no la ingresa. */}
+        <Form.Item
+          label="Fecha de realización"
+          tooltip="Se asigna automáticamente según la prioridad y la hora (antes/después de las 9 A.M.). No editable."
         >
-          <Input 
-            type="date" 
-            placeholder="Se calculará según prioridad"
+          <Input
+            value={fechaCalculada ? dayjs(fechaCalculada).format('DD/MM/YYYY') : ''}
+            disabled
+            placeholder={calculandoFecha ? 'Calculando...' : 'Se calcula según la prioridad'}
           />
         </Form.Item>
 

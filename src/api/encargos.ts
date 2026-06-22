@@ -16,6 +16,12 @@ export const getEncargos = (params?: Record<string, any>) =>
 export const getPendingEncargos = () =>
   axios.get<Encargo[]>('/api/encargos/pending');
 
+// Calcular (sin guardar) la fecha de realización según prioridad y municipio
+export const previewFechaRealizacion = (prioridad: number, municipioId?: number) =>
+  axios.get<{ fecha_realizacion: string }>('/api/encargos/calcular-fecha', {
+    params: { prioridad, municipio_id: municipioId },
+  });
+
 // Obtener un encargo por ID
 export const getEncargoById = (id: number) =>
   axios.get<Encargo>(`/api/encargos/${id}`);
