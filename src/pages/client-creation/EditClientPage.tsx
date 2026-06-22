@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Card,
@@ -10,9 +10,7 @@ import {
   message,
   Row,
   Col,
-  Alert,
   Checkbox,
-  InputNumber,
   DatePicker,
   Spin,
 } from 'antd';
@@ -23,7 +21,7 @@ import {
   getLanguages,
   getPartners,
   getOrigins,
-  getReferrals,
+  getReferrerOptions,
   updateClient,
   getClient,
 } from '../../api/clientCreation';
@@ -31,13 +29,18 @@ import type {
   CatalogItem,
   PartnerItem,
   OriginItem,
-  ReferralItem,
-  ReferralResponse,
   CreateClientPayload,
 } from '../../api/clientCreation';
 
 const { Option } = Select;
-const GUATEMALA_ID = 69;
+// Normaliza variantes de "consumidor final" (cf, c.f., c/f, c f…) a "CF".
+// Un NIT real (dígitos) se devuelve sin cambios, solo recortado.
+const normalizeNit = (raw?: string): string => {
+  const value = (raw ?? '').trim();
+  if (!value) return '';
+  const compact = value.replace(/[\s./\\-]/g, '').toUpperCase();
+  return compact === 'CF' ? 'CF' : value;
+};
 
 const EditClientPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -51,24 +54,47 @@ const EditClientPage: React.FC = () => {
   const [languages, setLanguages] = useState<CatalogItem[]>([]);
   const [partners, setPartners] = useState<PartnerItem[]>([]);
   const [origins, setOrigins] = useState<OriginItem[]>([]);
-  const [referrals, setReferrals] = useState<ReferralItem[]>([]);
-  const [referralsWarning, setReferralsWarning] = useState<string | undefined>();
+  const [referrerOptions, setReferrerOptions] = useState<CatalogItem[]>([]);
+  const [loadingReferrers, setLoadingReferrers] = useState(false);
 
-  const selectedOrigin = Form.useWatch('origin_id', form) as number | undefined;
-  const selectedPartner = Form.useWatch('responsible_partner_id', form) as number | undefined;
+  // El tipo de quien refiere fija el "Origen del cliente" al guardar.
+  const ORIGIN_BY_REFERRER_TYPE: Record<string, string> = {
+    socio: 'Referido socio',
+    asociado: 'Referido asociado',
+    oficina: 'Referido oficina Consortium',
+    otro: 'Referido asociado',
+  };
+  const referrerType = Form.useWatch('referrer_type', form) as string | undefined;
   const taxpayerType = Form.useWatch('type_of_taxpayer', form) as 'Juridica' | 'Fisica' | undefined;
-  const selectedCountry = Form.useWatch('country_of_origin_id', form) as number | undefined;
-  const isExemptIva = Form.useWatch('is_exempt_iva', form) as boolean | undefined;
+  const nationality = Form.useWatch('nationality', form) as string | undefined;
 
-  const isNitReadonly = useMemo(() => {
-    return selectedCountry !== undefined && selectedCountry !== GUATEMALA_ID;
-  }, [selectedCountry]);
+  // Extranjero: el NIT siempre es CF y no se edita. Nacional: queda en blanco
+  // para ingresarlo. Comparación case-insensitive por datos heredados.
+  const isExtranjero = String(nationality ?? '').toLowerCase() === 'extranjero';
 
   useEffect(() => {
-    if (isNitReadonly) {
-      form.setFieldValue('nit', 'CF');
+    if (isExtranjero) {
+      form.setFieldsValue({ nit: 'CF' });
+    } else if (
+      String(nationality ?? '').toLowerCase() === 'nacional' &&
+      form.getFieldValue('nit') === 'CF'
+    ) {
+      form.setFieldsValue({ nit: '' });
     }
-  }, [isNitReadonly, form]);
+  }, [isExtranjero, nationality, form]);
+
+  // Al salir del campo, normaliza variantes de "CF" (cf, c.f., c/f…) a "CF".
+  const handleNitBlur = () => {
+    const current = form.getFieldValue('nit');
+    const normalized = normalizeNit(current);
+    if (normalized !== current) form.setFieldsValue({ nit: normalized });
+  };
+
+  // "Nombre comercial" siempre se guarda igual a la razón social (full_name).
+  const fullNameWatch = Form.useWatch('full_name', form) as string | undefined;
+  useEffect(() => {
+    form.setFieldsValue({ commercial_name: fullNameWatch ?? '' });
+  }, [fullNameWatch, form]);
 
   useEffect(() => {
     const loadAll = async () => {
@@ -80,7 +106,14 @@ const EditClientPage: React.FC = () => {
           getPartners().catch(() => []),
           getOrigins().catch(() => []),
         ]);
-        setCountries(countriesRes || []);
+        // País sede: Guatemala primero, el resto en orden alfabético.
+        setCountries(
+          [...(countriesRes || [])].sort((a, b) => {
+            const ag = (a.name || '').toLowerCase() === 'guatemala' ? 0 : 1;
+            const bg = (b.name || '').toLowerCase() === 'guatemala' ? 0 : 1;
+            return ag - bg || (a.name || '').localeCompare(b.name || '', 'es');
+          }),
+        );
         setSectors(sectorsRes || []);
         setLanguages(languagesRes || []);
         setPartners(partnersRes || []);
@@ -91,22 +124,24 @@ const EditClientPage: React.FC = () => {
           form.setFieldsValue({
             full_name: client.full_name,
             type_of_taxpayer: client.type_of_taxpayer,
-            nationality: client.nationality,
+            nationality: (client.nationality || '').toLowerCase(),
             business_group: client.business_group,
             commercial_name: client.commercial_name,
             nit: client.nit,
-            tax_document_type: client.tax_document_type,
             phone: client.phone,
             email: client.email,
             address: client.address,
             website: client.website,
-            is_exempt_iva: client.is_exempt_iva,
-            iva_percentage: client.iva_percentage ? Number(client.iva_percentage) : undefined,
             country_of_origin_id: client.country_of_origin?.id,
             economic_sector_id: client.economic_sector?.id,
             language_id: client.language?.id,
             responsible_partner_id: client.responsible_partner?.id,
             origin_id: client.origin?.id,
+            referrer_type: ({
+              'referido socio': 'socio',
+              'referido asociado': 'asociado',
+              'referido oficina consortium': 'oficina',
+            } as Record<string, string>)[(client.origin?.name || '').toLowerCase()],
             referred_by: client.referred_by,
             contacts: client.contacts?.map(c => ({
               first_name: c.first_name,
@@ -132,23 +167,26 @@ const EditClientPage: React.FC = () => {
   }, [id, form]);
 
   useEffect(() => {
-    const fetchReferrals = async () => {
-      if (!selectedOrigin) {
-        setReferrals([]);
-        setReferralsWarning(undefined);
-        return;
-      }
-      try {
-        const res: ReferralResponse = await getReferrals(selectedOrigin, selectedPartner);
-        setReferrals(res.data || []);
-        setReferralsWarning(res.warning);
-      } catch {
-        setReferrals([]);
-        setReferralsWarning(undefined);
-      }
-    };
-    fetchReferrals();
-  }, [selectedOrigin, selectedPartner]);
+    if (!referrerType) {
+      setReferrerOptions([]);
+      return;
+    }
+    let mounted = true;
+    setLoadingReferrers(true);
+    getReferrerOptions(referrerType)
+      .then((opts) => {
+        if (!mounted) return;
+        setReferrerOptions(opts);
+        // Preserva el valor cargado si sigue siendo válido; si no, lo limpia.
+        const current = form.getFieldValue('referred_by');
+        if (current && !opts.some((o) => o.name === current)) {
+          form.setFieldsValue({ referred_by: undefined });
+        }
+      })
+      .catch(() => { if (mounted) setReferrerOptions([]); })
+      .finally(() => { if (mounted) setLoadingReferrers(false); });
+    return () => { mounted = false; };
+  }, [referrerType, form]);
 
   const handleSubmit = async () => {
     try {
@@ -159,11 +197,27 @@ const EditClientPage: React.FC = () => {
       }));
       const normalizedReferred =
         Array.isArray(values.referred_by) ? (values.referred_by[0] ?? undefined) : values.referred_by;
+      // El tipo de quien refiere fija el origen (Otro -> Referido asociado).
+      const referrerTypeVal = (values as any).referrer_type as string | undefined;
+      const mappedOriginId = referrerTypeVal
+        ? origins.find(o => o.name === ORIGIN_BY_REFERRER_TYPE[referrerTypeVal])?.id
+        : undefined;
       const payload: Partial<CreateClientPayload> = {
         ...values,
+        ...(mappedOriginId ? { origin_id: mappedOriginId } : {}),
+        // Nombre comercial siempre igual a la razón social (full_name).
+        commercial_name: values.full_name,
+        // Tipo de documento tributario ya no se pide; va fijo en NIT.
+        tax_document_type: 'NIT',
+        nit: isExtranjero ? 'CF' : (normalizeNit(values.nit) || 'CF'),
+        // IVA ya no se pide en el formulario; va fijo para que la ficha del
+        // correo muestre "Exención IVA: No" y porcentaje 0.
+        is_exempt_iva: false,
+        iva_percentage: 0,
         referred_by: normalizedReferred,
         contacts,
       };
+      delete (payload as any).referrer_type;
 
       setLoading(true);
       await updateClient(Number(id), payload);
@@ -182,9 +236,6 @@ const EditClientPage: React.FC = () => {
   return (
     <div style={{ padding: 16 }}>
       <Card title="Editar Cliente">
-        {referralsWarning && (
-          <Alert type="warning" showIcon message={referralsWarning} style={{ marginBottom: 16 }} />
-        )}
         <Form form={form} layout="vertical">
           <Row gutter={16}>
             <Col span={12}>
@@ -196,8 +247,8 @@ const EditClientPage: React.FC = () => {
               </Form.Item>
               <Form.Item name="nationality" label="Nacionalidad" rules={[{ required: true }]}>
                 <Select placeholder="Seleccione">
-                  <Option value="Nacional">Nacional</Option>
-                  <Option value="Extranjero">Extranjero</Option>
+                  <Option value="nacional">Nacional</Option>
+                  <Option value="extranjero">Extranjero</Option>
                 </Select>
               </Form.Item>
               <Form.Item name="full_name" label="Nombre completo" rules={[{ required: true }, { max: 150 }]}>
@@ -208,16 +259,27 @@ const EditClientPage: React.FC = () => {
                   <Form.Item name="business_group" label="Grupo empresarial">
                     <Input />
                   </Form.Item>
-                  <Form.Item name="commercial_name" label="Nombre comercial">
-                    <Input />
+                  <Form.Item
+                    name="commercial_name"
+                    label="Nombre comercial"
+                    tooltip="Se copia automáticamente de la razón social y se guarda igual."
+                  >
+                    <Input disabled placeholder="Se copia de la razón social" />
                   </Form.Item>
                 </>
               )}
-              <Form.Item name="nit" label="NIT">
-                <Input disabled={isNitReadonly} />
-              </Form.Item>
-              <Form.Item name="tax_document_type" label="Tipo de documento tributario">
-                <Input />
+              <Form.Item
+                name="nit"
+                label="NIT"
+                tooltip={isExtranjero
+                  ? 'Cliente extranjero: se guarda automáticamente como CF.'
+                  : 'Si se deja vacío se guardará como CF'}
+              >
+                <Input
+                  placeholder={isExtranjero ? 'CF' : 'Ej: 12345678 (vacío = CF)'}
+                  disabled={isExtranjero}
+                  onBlur={handleNitBlur}
+                />
               </Form.Item>
               <Form.Item name="phone" label="Teléfono" rules={[{ required: true }, { max: 120 }]}>
                 <Input />
@@ -262,37 +324,47 @@ const EditClientPage: React.FC = () => {
                 </Select>
               </Form.Item>
               <Form.Item name="origin_id" label="Origen">
-                <Select placeholder="Seleccione" allowClear>
+                <Select
+                  showSearch
+                  optionFilterProp="children"
+                  placeholder="Seleccione o escriba para filtrar"
+                  allowClear
+                >
                   {origins.map(o => (
                     <Option key={o.id} value={o.id}>{o.name}</Option>
                   ))}
                 </Select>
               </Form.Item>
-              <Form.Item name="referred_by" label="Referido por">
+              <Form.Item
+                name="referrer_type"
+                label="Tipo de quien refiere"
+                tooltip="Define la lista de nombres y fija el origen del cliente al guardar."
+              >
+                <Select placeholder="Seleccione el tipo" allowClear>
+                  <Option value="socio">Socio</Option>
+                  <Option value="asociado">Asociado</Option>
+                  <Option value="oficina">Oficina de Consortium</Option>
+                  <Option value="otro">Otro</Option>
+                </Select>
+              </Form.Item>
+              <Form.Item
+                name="referred_by"
+                label="Nombre de quien refiere (socio, asociado, colaborador en general, cliente, oficina de Consortium, etc)"
+                rules={referrerType ? [{ required: true, message: 'Seleccione quién refiere' }] : []}
+              >
                 <Select
                   showSearch
-                  placeholder="Seleccione o escriba"
                   optionFilterProp="children"
+                  placeholder={referrerType ? 'Seleccione o escriba para filtrar' : 'Primero elija el tipo'}
+                  disabled={!referrerType}
+                  loading={loadingReferrers}
                   allowClear
-                  mode="tags"
                 >
-                  {referrals.map(r => (
-                    <Option key={r.id} value={r.name}>{r.name}</Option>
+                  {referrerOptions.map(o => (
+                    <Option key={o.id} value={o.name}>{o.name}</Option>
                   ))}
                 </Select>
               </Form.Item>
-              <Form.Item name="is_exempt_iva" valuePropName="checked">
-                <Checkbox>Exento de IVA</Checkbox>
-              </Form.Item>
-              {!isExemptIva && (
-                <Form.Item
-                  name="iva_percentage"
-                  label="Porcentaje IVA"
-                  rules={[{ required: true, message: 'Ingrese porcentaje de IVA' }]}
-                >
-                  <InputNumber min={0} max={100} style={{ width: '100%' }} addonAfter="%" />
-                </Form.Item>
-              )}
             </Col>
           </Row>
 

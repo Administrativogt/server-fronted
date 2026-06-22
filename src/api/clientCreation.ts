@@ -174,6 +174,12 @@ export const getReferrals = (origin: number, partner_selected?: number) =>
       throw err;
     });
 
+// Opciones de "quien refiere" según el tipo (socio | asociado | oficina | otro)
+export const getReferrerOptions = (type: string) =>
+  api
+    .get(`${BASE}/referrer-options`, { params: { type } })
+    .then(r => unwrapArray<CatalogItem>(r.data));
+
 export const validateReferral = (payload: ReferralValidationPayload) =>
   api.post<ReferralValidationResponse>(`${BASE}/referral-validation`, payload).then(r => r.data);
 

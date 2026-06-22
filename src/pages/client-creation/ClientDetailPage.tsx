@@ -124,9 +124,6 @@ const ClientDetailPage: React.FC = () => {
           <Descriptions.Item label="Sitio web">
             <CopyableText value={client.website} />
           </Descriptions.Item>
-          <Descriptions.Item label="Código interno">
-            <CopyableText value={client.internal_code} />
-          </Descriptions.Item>
           <Descriptions.Item label="Nombre comercial">
             <CopyableText value={client.commercial_name} />
           </Descriptions.Item>

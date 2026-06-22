@@ -162,8 +162,15 @@ export const liquidateInmobiliarioExpense = async (
   return data;
 };
 
-export const getAuthorizationDetails = async (encodedIds: string): Promise<CheckRequest[]> => {
-  const { data } = await api.get(`/checks/authorization/details/${encodedIds}`);
+export const getAuthorizationDetails = async (
+  encodedIds: string,
+  authorizerId: number,
+  exp: string,
+  sig: string,
+): Promise<CheckRequest[]> => {
+  const { data } = await api.get(`/checks/authorization/details/${encodedIds}`, {
+    params: { authorizer_id: authorizerId, exp, sig },
+  });
   return Array.isArray(data) ? data : [];
 };
 
@@ -180,9 +187,15 @@ export const manageAuthorizationLink = async (
 export const batchDecision = async (
   decisions: { check_id: number; action: 'authorize' | 'deny' }[],
   authorizerId: number,
+  signed: { encodedIds: string; exp: string; sig: string },
 ): Promise<void> => {
   await api.post('/checks/manage/batch-decision', { decisions }, {
-    params: { authorizer_id: authorizerId },
+    params: {
+      authorizer_id: authorizerId,
+      ids: signed.encodedIds,
+      exp: signed.exp,
+      sig: signed.sig,
+    },
   });
 };
 

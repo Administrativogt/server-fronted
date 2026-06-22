@@ -18,6 +18,8 @@ function AutorizacionParcial() {
   const [searchParams] = useSearchParams();
   const encodedIds = searchParams.get('ids') ?? '';
   const authorizerId = Number(searchParams.get('authorizer_id') ?? '0');
+  const exp = searchParams.get('exp') ?? '';
+  const sig = searchParams.get('sig') ?? '';
 
   const [checks, setChecks] = useState<CheckRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,12 +29,12 @@ function AutorizacionParcial() {
   const [rowStates, setRowStates] = useState<Record<number, RowState>>({});
 
   useEffect(() => {
-    if (!encodedIds || !authorizerId) {
+    if (!encodedIds || !authorizerId || !exp || !sig) {
       setError('Enlace inválido. Faltan parámetros requeridos.');
       setLoading(false);
       return;
     }
-    getAuthorizationDetails(encodedIds)
+    getAuthorizationDetails(encodedIds, authorizerId, exp, sig)
       .then((data) => {
         setChecks(data);
         const initial: Record<number, RowState> = {};
@@ -43,7 +45,7 @@ function AutorizacionParcial() {
         setError(err?.response?.data?.message || 'No se pudieron cargar los cheques. El enlace puede haber expirado.');
       })
       .finally(() => setLoading(false));
-  }, [encodedIds, authorizerId]);
+  }, [encodedIds, authorizerId, exp, sig]);
 
   const handleRowAction = (checkId: number, action: 'authorized' | 'denied') => {
     setRowStates((prev) => ({ ...prev, [checkId]: action }));
@@ -60,7 +62,7 @@ function AutorizacionParcial() {
         check_id: c.id,
         action: (rowStates[c.id] === 'authorized' ? 'authorize' : 'deny') as 'authorize' | 'deny',
       }));
-      await batchDecision(decisions, authorizerId);
+      await batchDecision(decisions, authorizerId, { encodedIds, exp, sig });
       setResults(checks.map((c) => ({ check: c, action: rowStates[c.id] === 'authorized' ? 'authorize' : 'deny' })));
     } catch {
       alert('Error al procesar las decisiones. Intente nuevamente.');
