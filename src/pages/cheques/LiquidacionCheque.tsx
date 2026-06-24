@@ -137,7 +137,18 @@ function LiquidacionCheque() {
       message.success(`Sincronización completada: ${response.synced} de ${response.total_results}`);
       await loadData();
     } catch (error: any) {
-      message.error(error?.response?.data?.message || 'Error al sincronizar');
+      if (error?.code === 'ECONNABORTED') {
+        message.warning(
+          'La sincronización está tardando más de lo normal. Suele completarse sola en segundo plano; recargue en unos segundos.',
+        );
+      } else if (error?.response?.status === 409) {
+        message.info(
+          error?.response?.data?.message ||
+            'Ya hay una sincronización en curso. Intente de nuevo en unos segundos.',
+        );
+      } else {
+        message.error(error?.response?.data?.message || 'Error al sincronizar');
+      }
     } finally {
       setSyncLoading(false);
     }
@@ -351,8 +362,8 @@ function LiquidacionCheque() {
         rowKey="id"
         loading={loading}
         dataSource={data}
-        scroll={{ x: 'max-content', y: 480 }}
-        sticky
+        scroll={{ x: 'max-content' }}
+        sticky={{ offsetHeader: 64 }}
         pagination={{
           current: pagination.page,
           pageSize: pagination.per_page,

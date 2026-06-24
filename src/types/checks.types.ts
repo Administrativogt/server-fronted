@@ -37,6 +37,17 @@ export interface CheckRequest {
   invoice_nit?: string;
   sent_to_liquidation?: boolean;
   inmobiliario_expenses_amount?: number;
+  // Solo en el listado de liquidados (GET /checks/liquidated):
+  liquidation_id?: number | null;
+  liquidation_document?: string | null;
+  /** Monto con el que realmente se liquidó (puede ser parcial). */
+  liquidated_amount?: number;
+  /** Monto solicitado originalmente en el cheque. */
+  requested_amount?: number;
+  /** true si se liquidó menos de lo solicitado. */
+  is_partial_liquidation?: boolean;
+  /** Saldo pendiente de liquidar cuando la liquidación fue parcial. */
+  remaining_amount?: number;
 }
 
 export interface CheckListResponse {

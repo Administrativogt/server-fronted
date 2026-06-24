@@ -9,6 +9,8 @@ import {
   Modal,
   Space,
   Table,
+  Tag,
+  Tooltip,
   Typography,
 } from 'antd';
 import dayjs from 'dayjs';
@@ -194,8 +196,8 @@ function ChequesLiquidados() {
         rowKey="id"
         loading={loading}
         dataSource={data}
-        scroll={{ x: 'max-content', y: 480 }}
-        sticky
+        scroll={{ x: 'max-content' }}
+        sticky={{ offsetHeader: 64 }}
         rowSelection={{
           selectedRowKeys,
           onChange: setSelectedRowKeys,
@@ -214,10 +216,33 @@ function ChequesLiquidados() {
           { title: 'Cliente', dataIndex: 'client', width: 120 },
           { title: 'Descripción', dataIndex: 'description', width: 260, ellipsis: true },
           {
-            title: 'Monto',
-            dataIndex: 'total_value',
-            width: 120,
-            render: (value) => Number(value).toFixed(2),
+            title: 'Monto liquidado',
+            dataIndex: 'liquidated_amount',
+            width: 200,
+            render: (_: unknown, record: any) => {
+              const liquidated = Number(
+                record.liquidated_amount ?? record.total_value ?? 0,
+              );
+              if (!record.is_partial_liquidation) {
+                return liquidated.toFixed(2);
+              }
+              const requested = Number(
+                record.requested_amount ?? record.total_value ?? 0,
+              );
+              const remaining = Number(record.remaining_amount ?? 0);
+              return (
+                <Space direction="vertical" size={2}>
+                  <span>{liquidated.toFixed(2)}</span>
+                  <Tooltip
+                    title={`Monto solicitado: ${requested.toFixed(2)} · Pendiente de liquidar: ${remaining.toFixed(2)}`}
+                  >
+                    <Tag color="orange" style={{ marginInlineEnd: 0 }}>
+                      Parcial · resta {remaining.toFixed(2)}
+                    </Tag>
+                  </Tooltip>
+                </Space>
+              );
+            },
           },
           {
             title: 'Acciones',

@@ -5,6 +5,9 @@ import { isValidJwt, isTokenExpired } from '../utils/auth';
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
   headers: { 'Content-Type': 'application/json' },
+  // Sin timeout, una petición lenta/colgada (p.ej. sync con contención de locks)
+  // deja la UI girando para siempre. 120s es holgado para syncs y reportes.
+  timeout: 120_000,
 });
 
 api.interceptors.request.use(async (config) => {

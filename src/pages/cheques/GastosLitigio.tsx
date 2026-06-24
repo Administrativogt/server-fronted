@@ -358,7 +358,8 @@ function GastosLitigio() {
         rowKey="id"
         loading={loading}
         dataSource={data}
-        scroll={{ x: 'max-content', y: 480 }}
+        scroll={{ x: 'max-content' }}
+        sticky={{ offsetHeader: 64 }}
         pagination={{
           current: pagination.page,
           pageSize: pagination.per_page,

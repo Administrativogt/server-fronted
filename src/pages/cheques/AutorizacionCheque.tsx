@@ -258,7 +258,8 @@ function AutorizacionCheque() {
         rowKey="id"
         loading={loading}
         dataSource={data}
-        scroll={{ x: 'max-content', y: 480 }}
+        scroll={{ x: 'max-content' }}
+        sticky={{ offsetHeader: 64 }}
         rowSelection={{
           selectedRowKeys,
           onChange: setSelectedRowKeys,
