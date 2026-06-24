@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Button,
   Card,
-  Form,
   Input,
   InputNumber,
   message,
@@ -11,9 +11,11 @@ import {
   Space,
   Table,
   Tag,
+  theme,
   Tooltip,
   Typography,
 } from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
 import type { CheckRequest } from '../../types/checks.types';
 import {
   getPendingAuthorization,
@@ -25,7 +27,7 @@ import {
 import { fetchUsers, fullName, type UserLite } from '../../api/users';
 import useAuthStore from '../../auth/useAuthStore';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 const stateLabelMap: Record<number, string> = {
   1: 'Pendiente de autorización',
@@ -34,7 +36,88 @@ const stateLabelMap: Record<number, string> = {
   7: 'No disponible',
 };
 
+// Enlace de navegación estilo "pill" con flecha deslizante al hover.
+function NavPill({
+  label,
+  onClick,
+  accent,
+}: {
+  label: string;
+  onClick: () => void;
+  accent: 'amber' | 'green';
+}) {
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const active = hovered || focused;
+  const accentColor = accent === 'amber' ? '#fbbf24' : '#4ade80';
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={{
+        position: 'relative',
+        height: 34,
+        width: 138,
+        borderRadius: 10,
+        border: 'none',
+        background: '#ffffff',
+        color: '#000000',
+        fontSize: 13,
+        fontWeight: 600,
+        cursor: 'pointer',
+        overflow: 'hidden',
+        boxShadow: active
+          ? '0 3px 8px rgba(0,0,0,0.18)'
+          : '0 1px 3px rgba(0,0,0,0.12)',
+        transition: 'box-shadow 0.3s ease',
+        outline: focused ? '2px solid #1677ff' : 'none',
+        outlineOffset: 2,
+      }}
+    >
+      <span
+        style={{
+          position: 'absolute',
+          left: 3,
+          top: 3,
+          zIndex: 10,
+          height: 28,
+          width: active ? 132 : 28,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: 8,
+          background: accentColor,
+          transition: 'width 0.5s ease',
+        }}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 1024 1024"
+          height="16px"
+          width="16px"
+          style={{ transform: 'rotate(180deg)' }}
+          aria-hidden="true"
+        >
+          <path d="M224 480h640a32 32 0 1 1 0 64H224a32 32 0 0 1 0-64z" fill="#000000" />
+          <path
+            d="m237.248 512 265.408 265.344a32 32 0 0 1-45.312 45.312l-288-288a32 32 0 0 1 0-45.312l288-288a32 32 0 1 1 45.312 45.312L237.248 512z"
+            fill="#000000"
+          />
+        </svg>
+      </span>
+      <span style={{ display: 'inline-block', transform: 'translateX(12px)' }}>{label}</span>
+    </button>
+  );
+}
+
 function AutorizacionCheque() {
+  const navigate = useNavigate();
   const userId = useAuthStore((s) => s.userId);
   const tipoUsuario = useAuthStore((s) => s.tipo_usuario);
   const isSuperuser = useAuthStore((s) => s.is_superuser);
@@ -50,6 +133,7 @@ function AutorizacionCheque() {
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [authorizerId, setAuthorizerId] = useState<number | null>(null);
   const [filters, setFilters] = useState({
+    anio: undefined as number | undefined,
     request_id: undefined as number | undefined,
     client: '',
     responsible_id: canViewAll ? (undefined as number | undefined) : (userId ?? undefined),
@@ -57,7 +141,23 @@ function AutorizacionCheque() {
     per_page: 20,
   });
   const [pagination, setPagination] = useState({ total: 0, page: 1, per_page: 20 });
-  const [syncForm] = Form.useForm();
+  const { token } = theme.useToken();
+
+  const hasActiveFilters =
+    filters.anio !== undefined ||
+    filters.request_id !== undefined ||
+    filters.client.trim() !== '' ||
+    (canViewAll && filters.responsible_id !== undefined);
+
+  const clearFilters = () =>
+    setFilters((prev) => ({
+      ...prev,
+      anio: undefined,
+      request_id: undefined,
+      client: '',
+      responsible_id: canViewAll ? undefined : prev.responsible_id,
+      page: 1,
+    }));
 
   const selectedIds = selectedRowKeys.map((v) => Number(v));
 
@@ -70,12 +170,15 @@ function AutorizacionCheque() {
   const loadData = async () => {
     setLoading(true);
     try {
+      // El endpoint de listado no acepta "anio"; se filtra por rango de fechas del año.
+      const { anio, ...rest } = filters;
       const response = await getPendingAuthorization({
-        ...filters,
+        ...rest,
         include_authorized: true,
         request_id: filters.request_id || undefined,
-        client: filters.client || undefined,
+        client: filters.client.trim() || undefined,
         responsible_id: canViewAll ? filters.responsible_id || undefined : userId || undefined,
+        ...(anio ? { init_date: `${anio}-01-01`, end_date: `${anio}-12-31` } : {}),
       });
       setData(response.data);
       setPagination({
@@ -90,19 +193,33 @@ function AutorizacionCheque() {
     }
   };
 
+  // Búsqueda inmediata: filtra automáticamente al escribir/cambiar cualquier filtro
+  // (con un pequeño debounce para no saturar el servidor mientras se escribe).
   useEffect(() => {
-    loadData();
+    const handler = setTimeout(() => {
+      loadData();
+    }, 350);
+    return () => clearTimeout(handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.page, filters.per_page]);
+  }, [
+    filters.anio,
+    filters.request_id,
+    filters.client,
+    filters.responsible_id,
+    filters.page,
+    filters.per_page,
+  ]);
 
   useEffect(() => {
     fetchUsers().then(setUsers).catch(() => setUsers([]));
   }, []);
 
-  const handleSync = async (values: { anio?: number }) => {
+  const handleSync = async () => {
     setSyncLoading(true);
     try {
-      const response = await syncPendingAuthorization(values);
+      const response = await syncPendingAuthorization(
+        filters.anio ? { anio: filters.anio } : {},
+      );
       message.success(`Sincronización completada: ${response.synced} de ${response.total_results}`);
       await loadData();
     } catch (error: any) {
@@ -164,10 +281,10 @@ function AutorizacionCheque() {
         wrap
       >
         <Title level={4} style={{ margin: 0 }}>
-          Autorización de cheques
+          Pendientes de autorización
         </Title>
         <Space wrap>
-          <Button onClick={() => loadData()} loading={loading}>
+          <Button icon={<ReloadOutlined />} onClick={() => loadData()} loading={loading}>
             Recargar
           </Button>
           <Button
@@ -205,54 +322,126 @@ function AutorizacionCheque() {
         </Space>
       </Space>
 
-      <Form form={syncForm} layout="inline" onFinish={handleSync} style={{ marginBottom: 12 }}>
-        <Form.Item name="anio" label="Año">
-          <InputNumber min={2000} max={2100} placeholder="2026" />
-        </Form.Item>
-        <Form.Item>
-          <Button type="dashed" htmlType="submit" loading={syncLoading}>
-            Sincronizar desde Sirvo
-          </Button>
-        </Form.Item>
-      </Form>
-
-      <Space style={{ marginBottom: 12 }} wrap>
-        <InputNumber
-          placeholder="request_id"
-          value={filters.request_id}
-          onChange={(value) => setFilters((prev) => ({ ...prev, request_id: value || undefined }))}
-        />
-        <Input
-          placeholder="cliente"
-          value={filters.client}
-          onChange={(e) => setFilters((prev) => ({ ...prev, client: e.target.value }))}
-          style={{ width: 220 }}
-        />
-        {canViewAll ? (
-          <Select<number>
-            allowClear
-            showSearch
-            style={{ width: 280 }}
-            placeholder="responsable"
-            value={filters.responsible_id}
-            onChange={(value) => setFilters((prev) => ({ ...prev, responsible_id: value }))}
-            options={users.map((user) => ({
-              label: `${fullName(user)} (${user.username})`,
-              value: user.id,
-            }))}
-            optionFilterProp="label"
-          />
-        ) : null}
-        <Button
-          type="primary"
-          onClick={() => {
-            setFilters((prev) => ({ ...prev, page: 1 }));
-            loadData();
+      <div
+        style={{
+          background: token.colorFillQuaternary,
+          border: `1px solid ${token.colorBorderSecondary}`,
+          borderRadius: token.borderRadiusLG,
+          padding: 16,
+          marginBottom: 16,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 8,
+            marginBottom: 12,
           }}
         >
-          Buscar
-        </Button>
-      </Space>
+          <Space size={12} wrap align="center">
+            <Text strong>Filtros</Text>
+            <NavPill
+              label="Sin liquidar"
+              accent="amber"
+              onClick={() => navigate('/dashboard/cheques/liquidacion')}
+            />
+            <NavPill
+              label="Liquidados"
+              accent="green"
+              onClick={() => navigate('/dashboard/cheques/liquidados')}
+            />
+          </Space>
+          <Space size={4} wrap>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {loading
+                ? 'Buscando…'
+                : `${pagination.total} resultado${pagination.total === 1 ? '' : 's'}`}
+            </Text>
+            {hasActiveFilters && (
+              <Button type="link" size="small" style={{ padding: '0 4px' }} onClick={clearFilters}>
+                Limpiar filtros
+              </Button>
+            )}
+          </Space>
+        </div>
+
+        <Space wrap size={[16, 12]} align="end" style={{ width: '100%' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Año
+            </Text>
+            <InputNumber
+              min={2000}
+              max={2100}
+              placeholder="2026"
+              value={filters.anio}
+              onChange={(value) =>
+                setFilters((prev) => ({ ...prev, anio: value || undefined, page: 1 }))
+              }
+              style={{ width: 120 }}
+            />
+          </label>
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              ID solicitud
+            </Text>
+            <InputNumber
+              placeholder="Ej. 12345"
+              value={filters.request_id}
+              onChange={(value) =>
+                setFilters((prev) => ({ ...prev, request_id: value || undefined, page: 1 }))
+              }
+              style={{ width: 150 }}
+            />
+          </label>
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Cliente
+            </Text>
+            <Input
+              allowClear
+              placeholder="Nombre del cliente"
+              value={filters.client}
+              onChange={(e) =>
+                setFilters((prev) => ({ ...prev, client: e.target.value, page: 1 }))
+              }
+              style={{ width: 240 }}
+            />
+          </label>
+
+          {canViewAll ? (
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                Responsable
+              </Text>
+              <Select<number>
+                allowClear
+                showSearch
+                style={{ width: 280 }}
+                placeholder="Todos"
+                value={filters.responsible_id}
+                onChange={(value) =>
+                  setFilters((prev) => ({ ...prev, responsible_id: value, page: 1 }))
+                }
+                options={users.map((user) => ({
+                  label: `${fullName(user)} (${user.username})`,
+                  value: user.id,
+                }))}
+                optionFilterProp="label"
+              />
+            </label>
+          ) : null}
+
+          <Button type="dashed" onClick={handleSync} loading={syncLoading}>
+            Sincronizar desde Sirvo
+          </Button>
+        </Space>
+      </div>
 
       <Table<CheckRequest>
         rowKey="id"
