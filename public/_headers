@@ -1,0 +1,9 @@
+# Cache policy (Netlify)
+# HTML y rutas SPA: nunca cachear, siempre bajar la última versión.
+# Evita que un navegador/proxy quede pegado en una versión vieja del sistema.
+/*
+  Cache-Control: no-store
+# Assets con hash en el nombre (Vite): seguros de cachear a largo plazo.
+# El nombre cambia en cada build, así que nunca quedan obsoletos.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
