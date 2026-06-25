@@ -271,6 +271,11 @@ function Login() {
                 </Button>
               </Form.Item>
             </Form>
+
+            {/* TEMP: marcador de prueba de caché — quitar después */}
+            <div style={{ textAlign: 'center', marginTop: 12, color: textWhite, opacity: 0.55, fontSize: 12, letterSpacing: 0.5 }}>
+              prueba de caché · v1
+            </div>
           </div>
         </Col>
 
