@@ -48,6 +48,7 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import useAuthStore from '../../auth/useAuthStore';
+import useThemeStore from '../../hooks/useThemeStore';
 import { fetchUsers } from '../../api/notifications';
 import {
   type BalanceLogType,
@@ -92,7 +93,6 @@ import {
   deleteHoliday,
 } from '../../api/holidays';
 
-const MIN_ADVANCE_DAYS = 3;
 const MAX_DAYS_REQUEST = 15;
 
 const { Text } = Typography;
@@ -281,6 +281,29 @@ const VAC_STYLES = `
     font-weight: 600 !important;
     padding: 0 24px !important;
   }
+
+  /* ===== Overrides para modo oscuro ===== */
+  .vac-page[data-theme="dark"] .ant-table-thead > tr > th {
+    background: #1f1f1f !important;
+    color: #cfcfcf !important;
+  }
+  .vac-page[data-theme="dark"] .ant-table-tbody > tr:hover > td {
+    background: #262626 !important;
+  }
+  .vac-page[data-theme="dark"] .ant-tabs-tab-active .ant-tabs-tab-btn {
+    color: #91caff !important;
+  }
+  .vac-page[data-theme="dark"] .ant-tabs-ink-bar {
+    background: #91caff !important;
+  }
+  .vac-page[data-theme="dark"] .vac-timeline-entry {
+    background: #1f1f1f;
+    border-color: #303030;
+  }
+  .vac-page[data-theme="dark"] .vac-timeline-date { color: #8c8c8c; }
+  .vac-page[data-theme="dark"] .vac-timeline-flow { color: #9ca3af; }
+  .vac-page[data-theme="dark"] .vac-timeline-flow strong { color: #e5e7eb; }
+  .vac-page[data-theme="dark"] .vac-emp-name { color: #e5e7eb; }
 `;
 
 // ============================================
@@ -389,8 +412,10 @@ const REQUEST_TYPE_LABELS: Record<VacationRequestTypeValue, string> = Object.fro
 const VacacionesPage: React.FC = () => {
   const isSuperuser = useAuthStore((s) => s.is_superuser);
   const username = useAuthStore((s) => s.username);
+  const themeMode = useThemeStore((s) => s.mode);
 
-  const isHR = isSuperuser || username === 'MEJ000';
+  const isHR =
+    isSuperuser || ['MEJ000', 'TOR002', 'BAR000'].includes(username);
 
   // ---- Mis Vacaciones ----
   const [myData, setMyData] = useState<MyVacationsResponse | null>(null);
@@ -580,7 +605,6 @@ const VacacionesPage: React.FC = () => {
         setVacSettings(s);
         settingsForm.setFieldsValue({
           max_days_request: s.max_days_request,
-          min_advance_days: s.min_advance_days,
         });
       }).catch(() => {});
     }
@@ -2126,7 +2150,7 @@ const VacacionesPage: React.FC = () => {
           style={{ maxWidth: 480 }}
         >
           <Row gutter={24}>
-            <Col span={12}>
+            <Col span={24}>
               <Form.Item
                 name="max_days_request"
                 label={
@@ -2145,30 +2169,6 @@ const VacacionesPage: React.FC = () => {
                 <InputNumber
                   min={1}
                   max={365}
-                  addonAfter="días"
-                  style={{ width: '100%', borderRadius: 8 }}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="min_advance_days"
-                label={
-                  <Space direction="vertical" size={0}>
-                    <span style={{ fontWeight: 600, color: '#374151' }}>Anticipación mínima</span>
-                    <Text type="secondary" style={{ fontSize: 11, fontWeight: 400 }}>
-                      Días de anticipación requeridos para solicitar vacaciones
-                    </Text>
-                  </Space>
-                }
-                rules={[
-                  { required: true, message: 'Requerido' },
-                  { type: 'number', min: 0, max: 60, message: 'Entre 0 y 60' },
-                ]}
-              >
-                <InputNumber
-                  min={0}
-                  max={60}
                   addonAfter="días"
                   style={{ width: '100%', borderRadius: 8 }}
                 />
@@ -2537,7 +2537,7 @@ const VacacionesPage: React.FC = () => {
   ];
 
   return (
-    <div className="vac-page" style={{ padding: '0 8px' }}>
+    <div className="vac-page" data-theme={themeMode} style={{ padding: '0 8px' }}>
       <style>{VAC_STYLES}</style>
 
       {/* Page header */}

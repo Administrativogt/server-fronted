@@ -258,7 +258,6 @@ export async function downloadVacationBalancesExcel(): Promise<void> {
 export interface VacationSettingsData {
   id: number;
   max_days_request: number;
-  min_advance_days: number;
   updated_at: string;
 }
 
@@ -268,7 +267,7 @@ export async function fetchVacationSettings(): Promise<VacationSettingsData> {
 }
 
 export async function updateVacationSettings(
-  dto: { max_days_request?: number; min_advance_days?: number },
+  dto: { max_days_request?: number },
 ): Promise<VacationSettingsData> {
   const res = await api.patch(`${BASE}/settings`, dto);
   return res.data;
