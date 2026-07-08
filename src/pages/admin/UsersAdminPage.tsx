@@ -39,6 +39,7 @@ import ResetPasswordModal from './ResetPasswordModal';
 import UserDetailsDrawer from './UserDetailsDrawer';
 import EditSirvoCodeModal from './EditSirvoCodeModal';
 import BroadcastCredentialsButton from './BroadcastCredentialsButton';
+import BroadcastSociosButton from './BroadcastSociosButton';
 
 const { Search } = Input;
 const { Option } = Select;
@@ -334,6 +335,7 @@ const UsersAdminPage: React.FC = () => {
         extra={
           isFullAdmin && (
             <Space>
+              <BroadcastSociosButton />
               <BroadcastCredentialsButton />
               <Button
                 type="primary"

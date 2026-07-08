@@ -1,4 +1,4 @@
-# Cache policy (Netlify)
+# Cache policy (administrativogt)
 # HTML y rutas SPA: nunca cachear, siempre bajar la última versión.
 # Evita que un navegador/proxy quede pegado en una versión vieja del sistema.
 /*

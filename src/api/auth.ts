@@ -38,6 +38,37 @@ export async function broadcastCredentialsTest(): Promise<BroadcastTestResult> {
   return data;
 }
 
+export interface SociosBroadcastResult {
+  dryRun: boolean;
+  sharedPassword: string | null;
+  total: number;
+  sent: number;
+  skipped: number;
+  failed: number;
+  recipients: BroadcastRecipient[];
+}
+
+/** Asigna una clave por defecto compartida a todos los socios y se las envía. */
+export async function broadcastSociosPassword(dryRun: boolean): Promise<SociosBroadcastResult> {
+  const { data } = await api.post<SociosBroadcastResult>(
+    `/auth/broadcast-socios-password?dryRun=${dryRun ? 'true' : 'false'}`,
+  );
+  return data;
+}
+
+export interface SociosBroadcastTestResult {
+  sent: boolean;
+  username: string;
+  email: string;
+  samplePassword: string;
+}
+
+/** Envía el correo de socios solo a tu usuario (clave de ejemplo, sin cambiar nada). */
+export async function broadcastSociosPasswordTest(): Promise<SociosBroadcastTestResult> {
+  const { data } = await api.post<SociosBroadcastTestResult>('/auth/broadcast-socios-password/test');
+  return data;
+}
+
 export interface SetPasswordTokenParams {
   uid: string;
   subject_id: string;
