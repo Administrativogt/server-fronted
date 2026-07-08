@@ -10,6 +10,7 @@ import Loader from './components/Loader';
 
 // Páginas públicas
 import Login from './pages/Login';
+const CrearContrasena = lazy(() => import('./pages/CrearContrasena'));
 
 // Layout / Guards (shell — se mantienen eager)
 import PrivateRoute from './routes/PrivateRoute';
@@ -140,6 +141,7 @@ function AppInner() {
   useEffect(() => {
     // Rutas públicas que no requieren autenticación
     if (location.pathname === '/autorizacion-parcial') return;
+    if (location.pathname === '/crear-contrasena') return;
     if (location.pathname === '/login') return;
     if (!isAuthenticated()) {
       clearToken();
@@ -169,6 +171,7 @@ function AppInner() {
         <Routes>
           {/* Ruta pública */}
           <Route path="/login" element={<Login />} />
+          <Route path="/crear-contrasena" element={<CrearContrasena />} />
           <Route path="/autorizacion-parcial" element={<AutorizacionParcial />} />
 
           {/* Rutas privadas */}
@@ -189,8 +192,20 @@ function AppInner() {
                 <Route path="/dashboard/cheques/autorizacion" element={<AutorizacionCheque />} />
                 <Route path="/dashboard/cheques/liquidacion" element={<LiquidacionCheque />} />
                 <Route path="/dashboard/cheques/liquidados" element={<ChequesLiquidados />} />
+              </Route>
+
+              {/* Gastos inmobiliario — Django: superuser o secretaria equipo Inmobiliario */}
+              <Route element={<ModuleRoute moduleKey="cheques_inmobiliario" />}>
                 <Route path="/dashboard/cheques/inmobiliario" element={<GastosInmobiliarios />} />
+              </Route>
+
+              {/* Gastos litigio — espejo: superuser o secretaria equipo Litigio */}
+              <Route element={<ModuleRoute moduleKey="cheques_litigio" />}>
                 <Route path="/dashboard/cheques/litigio" element={<GastosLitigio />} />
+              </Route>
+
+              {/* Cheques antiguos pendientes — Django: superuser o is_staff */}
+              <Route element={<ModuleRoute moduleKey="cheques_antiguos" />}>
                 <Route path="/dashboard/cheques/pendientes" element={<ChequesPendientes />} />
               </Route>
 

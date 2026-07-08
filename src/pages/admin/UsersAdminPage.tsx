@@ -38,6 +38,7 @@ import EditUserModal from './EditUserModal';
 import ResetPasswordModal from './ResetPasswordModal';
 import UserDetailsDrawer from './UserDetailsDrawer';
 import EditSirvoCodeModal from './EditSirvoCodeModal';
+import BroadcastCredentialsButton from './BroadcastCredentialsButton';
 
 const { Search } = Input;
 const { Option } = Select;
@@ -332,13 +333,16 @@ const UsersAdminPage: React.FC = () => {
         title="Administración de Usuarios"
         extra={
           isFullAdmin && (
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => setCreateModalOpen(true)}
-            >
-              Crear Usuario
-            </Button>
+            <Space>
+              <BroadcastCredentialsButton />
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => setCreateModalOpen(true)}
+              >
+                Crear Usuario
+              </Button>
+            </Space>
           )
         }
       >
