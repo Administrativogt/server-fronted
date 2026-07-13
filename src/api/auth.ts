@@ -6,6 +6,8 @@ export interface BroadcastRecipient {
   username: string;
   email: string;
   status: string;
+  /** Solo en el envío a socios: qué recibió/recibirá cada uno. */
+  tipo?: 'default' | 'personalizada';
 }
 
 export interface BroadcastResult {
@@ -48,24 +50,43 @@ export interface SociosBroadcastResult {
   recipients: BroadcastRecipient[];
 }
 
-/** Asigna una clave por defecto compartida a todos los socios y se las envía. */
-export async function broadcastSociosPassword(dryRun: boolean): Promise<SociosBroadcastResult> {
+/**
+ * Envía credenciales a los socios activos. Los IDs en `customPasswordUserIds`
+ * reciben el enlace para crear su PROPIA contraseña (form); el resto recibe la
+ * clave por defecto compartida.
+ */
+export async function broadcastSociosPassword(
+  dryRun: boolean,
+  customPasswordUserIds: number[] = [],
+): Promise<SociosBroadcastResult> {
   const { data } = await api.post<SociosBroadcastResult>(
     `/auth/broadcast-socios-password?dryRun=${dryRun ? 'true' : 'false'}`,
+    { customPasswordUserIds },
   );
   return data;
 }
 
 export interface SociosBroadcastTestResult {
   sent: boolean;
+  variant: 'default' | 'personalizada';
   username: string;
   email: string;
-  samplePassword: string;
+  /** Solo variante 'default'. */
+  samplePassword?: string;
+  /** Solo variante 'personalizada'. */
+  setPasswordLink?: string;
 }
 
-/** Envía el correo de socios solo a tu usuario (clave de ejemplo, sin cambiar nada). */
-export async function broadcastSociosPasswordTest(): Promise<SociosBroadcastTestResult> {
-  const { data } = await api.post<SociosBroadcastTestResult>('/auth/broadcast-socios-password/test');
+/**
+ * Envía el correo de socios solo a tu usuario, sin cambiar nada.
+ * `custom=true` prueba la variante personalizada (correo con enlace-form).
+ */
+export async function broadcastSociosPasswordTest(
+  custom = false,
+): Promise<SociosBroadcastTestResult> {
+  const { data } = await api.post<SociosBroadcastTestResult>(
+    `/auth/broadcast-socios-password/test${custom ? '?custom=true' : ''}`,
+  );
   return data;
 }
 

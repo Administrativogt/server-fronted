@@ -1,5 +1,5 @@
 // src/pages/admin/BroadcastSociosButton.tsx
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Button,
   Modal,
@@ -11,8 +11,9 @@ import {
   Popconfirm,
   message,
 } from 'antd';
-import { TeamOutlined } from '@ant-design/icons';
+import { TeamOutlined, LinkOutlined, KeyOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
+import type { TableRowSelection } from 'antd/es/table/interface';
 import useAuthStore from '../../auth/useAuthStore';
 import {
   broadcastSociosPassword,
@@ -31,8 +32,9 @@ const statusColor: Record<string, string> = {
 };
 
 /**
- * Asigna una MISMA clave por defecto (generada, segura) a todos los socios y se
- * las envía por correo para que entren directo. Solo lo ve un superusuario.
+ * Envía credenciales a los socios activos. Por defecto una MISMA clave
+ * compartida; los socios marcados como "personalizada" reciben en su lugar un
+ * enlace para crear su propia contraseña. Solo lo ve un superusuario.
  */
 const BroadcastSociosButton: React.FC = () => {
   const isSuperuser = useAuthStore((s) => s.is_superuser);
@@ -40,15 +42,23 @@ const BroadcastSociosButton: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SociosBroadcastResult | null>(null);
+  // IDs de socios que recibirán el enlace personalizado (en vez de la clave fija).
+  const [customIds, setCustomIds] = useState<number[]>([]);
 
   if (!isSuperuser) return null;
+
+  const customCount = customIds.length;
 
   const runDryRun = async () => {
     setLoading(true);
     try {
-      const data = await broadcastSociosPassword(true);
+      const data = await broadcastSociosPassword(true, customIds);
       setResult(data);
-      message.info(`Simulación: la clave se enviaría a ${data.total} socio(s).`);
+      message.info(
+        `Simulación: ${data.total} socio(s). ${customCount} con clave personalizada, ${
+          data.total - customCount
+        } con clave por defecto.`,
+      );
     } catch (e: any) {
       message.error(e?.response?.data?.message || 'Error al simular el envío');
     } finally {
@@ -59,7 +69,7 @@ const BroadcastSociosButton: React.FC = () => {
   const runSend = async () => {
     setLoading(true);
     try {
-      const data = await broadcastSociosPassword(false);
+      const data = await broadcastSociosPassword(false, customIds);
       setResult(data);
       message.success(
         `Envío completado: ${data.sent} enviados, ${data.failed} fallidos, ${data.skipped} omitidos.`,
@@ -71,27 +81,41 @@ const BroadcastSociosButton: React.FC = () => {
     }
   };
 
-  const runTestToSelf = async () => {
+  const runTestToSelf = async (custom: boolean) => {
     setLoading(true);
     try {
-      const data = await broadcastSociosPasswordTest();
+      const data = await broadcastSociosPasswordTest(custom);
       message.success(`Correo de prueba enviado a ${data.email}`);
       Modal.info({
         title: 'Prueba enviada (no cambió ninguna contraseña)',
         width: 560,
-        content: (
-          <div>
-            <Paragraph>
-              Se envió el correo de socios a <Text strong>{data.email}</Text> con la
-              contraseña que recibirán los socios. <Text strong>No</Text> se cambió
-              ninguna contraseña en esta prueba.
-            </Paragraph>
-            <Paragraph type="secondary">Contraseña de los socios:</Paragraph>
-            <Paragraph copyable strong>
-              {data.samplePassword}
-            </Paragraph>
-          </div>
-        ),
+        content:
+          data.variant === 'personalizada' ? (
+            <div>
+              <Paragraph>
+                Se envió a <Text strong>{data.email}</Text> el correo con el{' '}
+                <Text strong>enlace para crear la propia contraseña</Text>, igual
+                que recibiría un socio marcado como personalizado.{' '}
+                <Text strong>No</Text> se cambió ninguna contraseña.
+              </Paragraph>
+              <Paragraph type="secondary">Enlace generado:</Paragraph>
+              <Paragraph copyable={{ text: data.setPasswordLink }} strong>
+                {data.setPasswordLink}
+              </Paragraph>
+            </div>
+          ) : (
+            <div>
+              <Paragraph>
+                Se envió el correo de socios a <Text strong>{data.email}</Text> con
+                la contraseña que recibirán los socios. <Text strong>No</Text> se
+                cambió ninguna contraseña en esta prueba.
+              </Paragraph>
+              <Paragraph type="secondary">Contraseña de los socios:</Paragraph>
+              <Paragraph copyable strong>
+                {data.samplePassword}
+              </Paragraph>
+            </div>
+          ),
       });
     } catch (e: any) {
       message.error(e?.response?.data?.message || 'Error al enviar la prueba');
@@ -100,9 +124,34 @@ const BroadcastSociosButton: React.FC = () => {
     }
   };
 
+  // Se puede seleccionar personalizada solo tras cargar la lista (Simular).
+  const rowSelection: TableRowSelection<BroadcastRecipient> = {
+    selectedRowKeys: customIds,
+    onChange: (keys) => setCustomIds(keys as number[]),
+    getCheckboxProps: (r) => ({
+      disabled: !r.email, // sin correo no se le puede enviar nada
+    }),
+    columnTitle: 'Personalizada',
+    columnWidth: 130,
+  };
+
   const columns: ColumnsType<BroadcastRecipient> = [
     { title: 'Usuario', dataIndex: 'username', key: 'username' },
     { title: 'Correo', dataIndex: 'email', key: 'email' },
+    {
+      title: 'Recibirá',
+      key: 'tipo',
+      render: (_: unknown, r: BroadcastRecipient) =>
+        customIds.includes(r.id) ? (
+          <Tag icon={<LinkOutlined />} color="purple">
+            Personalizada (enlace)
+          </Tag>
+        ) : (
+          <Tag icon={<KeyOutlined />} color="blue">
+            Clave por defecto
+          </Tag>
+        ),
+    },
     {
       title: 'Estado',
       dataIndex: 'status',
@@ -111,6 +160,14 @@ const BroadcastSociosButton: React.FC = () => {
     },
   ];
 
+  const sendDescription = useMemo(
+    () =>
+      customCount > 0
+        ? `Se enviará el enlace para crear contraseña a ${customCount} socio(s) marcado(s) (no se les cambia la clave), y la clave compartida al resto (a esos sí se les cambia). ¿Continuar?`
+        : 'Se cambiará la contraseña de todos los socios a la nueva clave compartida y se les enviará por correo. ¿Continuar?',
+    [customCount],
+  );
+
   return (
     <>
       <Button icon={<TeamOutlined />} onClick={() => setOpen(true)}>
@@ -118,10 +175,10 @@ const BroadcastSociosButton: React.FC = () => {
       </Button>
 
       <Modal
-        title="Clave por defecto para socios"
+        title="Credenciales para socios"
         open={open}
         onCancel={() => setOpen(false)}
-        width={760}
+        width={820}
         footer={null}
       >
         <Alert
@@ -131,10 +188,11 @@ const BroadcastSociosButton: React.FC = () => {
           message="Cómo funciona"
           description={
             <span>
-              Se genera <b>una misma clave segura</b> y se le asigna a <b>todos los
-              socios activos</b>. A cada uno le llega su usuario y esa clave para
-              entrar directo a la plataforma (la clave queda fija; podrán cambiarla
-              luego desde su perfil). Prueba primero con <b>Simular</b>.
+              Por defecto se genera <b>una misma clave segura</b> y se le asigna a
+              todos los socios activos (entran directo). Si algún socio quiere{' '}
+              <b>su propia contraseña</b>, primero pulsa <b>Simular</b> para cargar
+              la lista, márcalo con la casilla <b>Personalizada</b> y recibirá en su
+              lugar un <b>enlace para crearla</b> (a esos no se les cambia la clave).
             </span>
           }
         />
@@ -143,18 +201,25 @@ const BroadcastSociosButton: React.FC = () => {
           <Button onClick={runDryRun} loading={loading}>
             Simular (ver socios)
           </Button>
-          <Button onClick={runTestToSelf} loading={loading}>
-            Enviarme prueba a mí
+          <Button onClick={() => runTestToSelf(false)} loading={loading}>
+            Probar clave por defecto a mí
+          </Button>
+          <Button
+            icon={<LinkOutlined />}
+            onClick={() => runTestToSelf(true)}
+            loading={loading}
+          >
+            Probar personalizada a mí
           </Button>
           <Popconfirm
-            title="Asignar clave y enviar a todos los socios"
-            description="Se cambiará la contraseña de todos los socios a la nueva clave compartida y se les enviará por correo. ¿Continuar?"
-            okText="Sí, asignar y enviar"
+            title="Enviar credenciales a los socios"
+            description={sendDescription}
+            okText="Sí, enviar"
             cancelText="Cancelar"
             onConfirm={runSend}
           >
             <Button type="primary" danger loading={loading}>
-              Asignar y enviar a socios
+              Enviar a socios
             </Button>
           </Popconfirm>
         </Space>
@@ -164,7 +229,7 @@ const BroadcastSociosButton: React.FC = () => {
             type="success"
             showIcon
             style={{ marginBottom: 16 }}
-            message="Clave asignada a todos los socios (guárdala)"
+            message="Clave compartida asignada a los socios por defecto (guárdala)"
             description={
               <Paragraph copyable strong style={{ fontSize: 18, margin: 0 }}>
                 {result.sharedPassword}
@@ -177,8 +242,10 @@ const BroadcastSociosButton: React.FC = () => {
           <>
             <Space wrap style={{ marginBottom: 12 }}>
               <Tag>Total: {result.total}</Tag>
+              <Tag color="purple">Personalizada: {customCount}</Tag>
               <Tag color={result.dryRun ? 'blue' : 'green'}>
-                {result.dryRun ? 'Simulados' : 'Enviados'}: {result.dryRun ? result.total : result.sent}
+                {result.dryRun ? 'Simulados' : 'Enviados'}:{' '}
+                {result.dryRun ? result.total : result.sent}
               </Tag>
               {!result.dryRun && <Tag color="red">Fallidos: {result.failed}</Tag>}
               <Tag color="orange">Omitidos: {result.skipped}</Tag>
@@ -186,6 +253,7 @@ const BroadcastSociosButton: React.FC = () => {
             <Table
               rowKey="id"
               size="small"
+              rowSelection={rowSelection}
               columns={columns}
               dataSource={result.recipients}
               pagination={{ pageSize: 8 }}
