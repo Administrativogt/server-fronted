@@ -51,7 +51,7 @@ export const informeSociosApi = {
   generarReportes: (body: {
     fecha_inicio: string;
     fecha_fin: string;
-    email_admin?: string;
+    emails_admin?: string[];
     enviar_email?: boolean;
   }) => api.post<GenerarReporteResult>('/api/informe-socios/generar-reportes', body),
 };

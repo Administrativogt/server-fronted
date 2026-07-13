@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Card, Button, DatePicker, Form, Input, Switch, message, Typography,
+  Card, Button, DatePicker, Form, Select, Switch, message, Typography,
   Alert, Row, Col, Statistic, Table, Tag, Collapse, Divider, Space, Badge,
 } from 'antd';
 import {
@@ -21,6 +21,15 @@ import type {
 const { Title, Paragraph, Text } = Typography;
 const { RangePicker } = DatePicker;
 
+/**
+ * Destinatarios por defecto del reporte general (administrador): Oma y Fernando.
+ * Se precargan en el campo pero se pueden quitar o agregar más antes de generar.
+ */
+const DEFAULT_ADMIN_EMAILS: string[] = [
+  'omelendez@consortiumlegal.com',
+  'fguerra@consortiumlegal.com',
+];
+
 const GenerarReportesPage: React.FC = () => {
   const [stats, setStats] = useState<InformeStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
@@ -29,7 +38,7 @@ const GenerarReportesPage: React.FC = () => {
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<GenerarReporteResult | null>(null);
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
-  const [emailAdmin, setEmailAdmin] = useState('');
+  const [emailsAdmin, setEmailsAdmin] = useState<string[]>(DEFAULT_ADMIN_EMAILS);
   const [enviarEmail, setEnviarEmail] = useState(true);
 
   const fetchStats = async () => {
@@ -74,7 +83,7 @@ const GenerarReportesPage: React.FC = () => {
       const { data } = await informeSociosApi.generarReportes({
         fecha_inicio: ini.format('YYYY-MM-DD'),
         fecha_fin: fin.format('YYYY-MM-DD'),
-        email_admin: emailAdmin || undefined,
+        emails_admin: emailsAdmin.length ? emailsAdmin : undefined,
         enviar_email: enviarEmail,
       });
       setResult(data);
@@ -259,14 +268,18 @@ const GenerarReportesPage: React.FC = () => {
             </Col>
             <Col xs={24} md={10}>
               <Form.Item
-                label="Email administrador (opcional)"
-                extra="Si se indica, recibirá el reporte con todos los casos/clientes"
+                label="Correos administrador (opcional)"
+                extra="Si se indican, cada uno recibe el reporte general con todos los casos/clientes. Escribe un correo y presiona Enter para agregarlo."
               >
-                <Input
-                  placeholder="admin@consortiumlegal.com"
-                  value={emailAdmin}
-                  onChange={(e) => setEmailAdmin(e.target.value)}
-                  prefix={<UserOutlined />}
+                <Select
+                  mode="tags"
+                  value={emailsAdmin}
+                  onChange={(vals) => setEmailsAdmin(vals as string[])}
+                  placeholder="oma@consortiumlegal.com, fernando@consortiumlegal.com"
+                  tokenSeparators={[',', ';', ' ']}
+                  suffixIcon={<UserOutlined />}
+                  style={{ width: '100%' }}
+                  open={false}
                 />
               </Form.Item>
             </Col>
