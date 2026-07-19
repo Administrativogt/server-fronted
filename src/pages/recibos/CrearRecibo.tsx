@@ -111,7 +111,7 @@ const CrearRecibo: React.FC = () => {
         return;
       }
 
-      const payload: Record<string, unknown> = {
+      const payload: CashReceipt = {
         date: values.date.format('YYYY-MM-DD'),
         received_from: values.received_from,
         concept: values.concept,
@@ -235,7 +235,7 @@ const CrearRecibo: React.FC = () => {
 
           <Form.Item label="">
             <InputNumber
-              value={checks.reduce((sum, c) => sum + Number(c.value), 0)}
+              value={checks.reduce<number>((sum, c) => sum + Number(c.value), 0)}
               disabled
               style={{ width: '100%' }}
               addonBefore={currencySymbol}

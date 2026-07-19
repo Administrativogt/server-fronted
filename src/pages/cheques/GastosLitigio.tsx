@@ -44,6 +44,7 @@ function GastosLitigio() {
   const canViewAll = isSuperuser || [1, 2, 10].includes(tipoUsuario || 0);
 
   const [data, setData] = useState<LitigioExpense[]>([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [users, setUsers] = useState<UserLite[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -151,8 +152,8 @@ function GastosLitigio() {
       const check = await getCheckByRequestId(requestId);
       setSelectedCheck(check);
       setCheckBalance(
-        typeof check.inmobiliario_expenses_amount === 'number'
-          ? Number(check.inmobiliario_expenses_amount)
+        typeof check.litigio_expenses_amount === 'number'
+          ? Number(check.litigio_expenses_amount)
           : null,
       );
       form.setFieldsValue({
@@ -250,8 +251,8 @@ function GastosLitigio() {
     });
     setSelectedCheck(expense.request_id ?? null);
     setCheckBalance(
-      expense.request_id?.inmobiliario_expenses_amount !== undefined
-        ? Number(expense.request_id?.inmobiliario_expenses_amount)
+      expense.request_id?.litigio_expenses_amount !== undefined
+        ? Number(expense.request_id?.litigio_expenses_amount)
         : null,
     );
     setParentWarning(null);
@@ -313,7 +314,19 @@ function GastosLitigio() {
           <Button onClick={() => loadData()} loading={loading}>
             Recargar
           </Button>
-          <Button onClick={() => downloadLitigioExpensesReport(filters.request_id)}>
+          <Button
+            onClick={() => {
+              if (!selectedRowKeys.length) {
+                message.info('Seleccione al menos un registro');
+                return;
+              }
+              const selectedIds = data
+                .filter((row) => selectedRowKeys.includes(row.id))
+                .map((row) => row.id);
+              downloadLitigioExpensesReport(filters.request_id, selectedIds);
+            }}
+            disabled={!selectedRowKeys.length}
+          >
             Descargar reporte
           </Button>
           <Button type="primary" onClick={openCreate}>
@@ -360,6 +373,10 @@ function GastosLitigio() {
         dataSource={data}
         scroll={{ x: 'max-content' }}
         sticky={{ offsetHeader: 64 }}
+        rowSelection={{
+          selectedRowKeys,
+          onChange: setSelectedRowKeys,
+        }}
         pagination={{
           current: pagination.page,
           pageSize: pagination.per_page,
@@ -369,12 +386,24 @@ function GastosLitigio() {
           },
         }}
         columns={[
-          { title: 'Request ID', render: (_, row) => row.request_id?.request_id ?? '—', width: 120 },
-          { title: 'Nota', dataIndex: 'note_number', width: 110 },
+          { title: 'ID', render: (_, row) => row.request_id?.request_id ?? '—', width: 90 },
+          { title: 'Fecha', dataIndex: 'date', width: 120 },
+          { title: 'NT', dataIndex: 'note_number', width: 90 },
           { title: 'Cliente', dataIndex: 'client' },
-          { title: 'Recibo', dataIndex: 'receipt_number' },
-          { title: 'Serie', dataIndex: 'receipt_serie', width: 90 },
+          { title: 'Documentos', dataIndex: 'documents' },
+          { title: 'No. de comprobante', dataIndex: 'receipt_number_reference', width: 170 },
+          { title: 'Comprobante a ingresar', dataIndex: 'receipt_number', width: 190 },
           { title: 'Valor', dataIndex: 'receipt_value', render: (v) => Number(v).toFixed(2), width: 120 },
+          { title: 'Comentario', dataIndex: 'comment' },
+          {
+            title: 'Entrega',
+            width: 170,
+            render: (_, row) =>
+              row.delivered_by
+                ? `${row.delivered_by.first_name} ${row.delivered_by.last_name}`.trim() ||
+                  row.delivered_by.username
+                : '—',
+          },
           {
             title: 'Estado',
             dataIndex: 'state',

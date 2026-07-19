@@ -41,9 +41,9 @@ import type {
   Client,
   Entity,
   Recurrence,
-  User,
   DocumentBreakdown,
 } from '../../types/procuration.types';
+import type { User } from '../../types/user.types';
 import { PRIORITY_LABELS, PRIORITY_COLORS } from '../../types/procuration.types';
 import useAuthStore from '../../auth/useAuthStore';
 

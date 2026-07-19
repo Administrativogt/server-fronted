@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Modal,
   Form,
@@ -11,10 +11,11 @@ import {
   Divider,
   DatePicker,
 } from 'antd';
-import dayjs from 'dayjs';
-import { createUser, getAreas, getEquipos, getGroups, getAllUsers } from '../../api/users';
+import dayjs, { type Dayjs } from 'dayjs';
+import { createUser } from '../../api/users';
+import { useReferenceData, invalidateReferenceData } from '../../hooks/useReferenceData';
 import { TIPOS_USUARIO } from '../../types/user.types';
-import type { CreateUserPayload, UserArea, UserEquipo, Group, User } from '../../types/user.types';
+import type { CreateUserPayload } from '../../types/user.types';
 
 const { Option } = Select;
 
@@ -24,42 +25,35 @@ interface CreateUserModalProps {
   onSuccess: () => void;
 }
 
+/** Valores crudos del formulario (antes de mapear al payload de la API). */
+interface CreateUserFormValues {
+  username: string;
+  password: string;
+  confirmPassword: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  extension?: string;
+  codigo_directorio?: string;
+  tipo_usuario?: number;
+  equipo_id?: number;
+  area_id?: number;
+  jefe_id?: number;
+  groupIds?: number[];
+  is_superuser?: boolean;
+  is_staff?: boolean;
+  send_checks?: boolean;
+  fecha_ingreso?: Dayjs;
+}
+
 const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSuccess }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
 
-  // Listas para selects
-  const [areas, setAreas] = useState<UserArea[]>([]);
-  const [equipos, setEquipos] = useState<UserEquipo[]>([]);
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [usuarios, setUsuarios] = useState<User[]>([]);
+  // Datos de referencia compartidos y cacheados (áreas, equipos, grupos, jefes).
+  const { areas, equipos, groups, usuarios } = useReferenceData(open);
 
-  useEffect(() => {
-    if (open) {
-      loadData();
-    }
-  }, [open]);
-
-  const loadData = async () => {
-    try {
-      const [areasRes, equiposRes, groupsRes, usersRes] = await Promise.all([
-        getAreas(),
-        getEquipos(),
-        getGroups(),
-        getAllUsers(),
-      ]);
-
-      setAreas(areasRes.data.sort((a, b) => a.nombre.localeCompare(b.nombre)));
-      setEquipos(equiposRes.data.sort((a, b) => a.nombre.localeCompare(b.nombre)));
-      setGroups(groupsRes.data.sort((a, b) => a.name.localeCompare(b.name)));
-      setUsuarios(usersRes.data.sort((a, b) => a.first_name.localeCompare(b.first_name)));
-    } catch (error) {
-      message.error('Error al cargar datos del formulario');
-      console.error(error);
-    }
-  };
-
-  const handleSubmit = async (values: any) => {
+  const handleSubmit = async (values: CreateUserFormValues) => {
     try {
       setLoading(true);
 
@@ -87,6 +81,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
 
       await createUser(payload);
       message.success('Usuario creado exitosamente');
+      invalidateReferenceData(); // el nuevo usuario ya puede figurar como "Jefe"
       form.resetFields();
       onSuccess();
     } catch (error: any) {
@@ -127,7 +122,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
         <Divider orientation="left">Información Básica</Divider>
         
         <Row gutter={16}>
-          <Col span={12}>
+          <Col xs={24} md={12}>
             <Form.Item
               name="username"
               label="Username"
@@ -139,7 +134,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
               <Input placeholder="usuario123" />
             </Form.Item>
           </Col>
-          <Col span={12}>
+          <Col xs={24} md={12}>
             <Form.Item
               name="password"
               label="Contraseña"
@@ -154,7 +149,30 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
         </Row>
 
         <Row gutter={16}>
-          <Col span={12}>
+          <Col xs={24} md={{ span: 12, offset: 12 }}>
+            <Form.Item
+              name="confirmPassword"
+              label="Confirmar Contraseña"
+              dependencies={['password']}
+              rules={[
+                { required: true, message: 'Por favor confirma la contraseña' },
+                ({ getFieldValue }) => ({
+                  validator(_, value) {
+                    if (!value || getFieldValue('password') === value) {
+                      return Promise.resolve();
+                    }
+                    return Promise.reject(new Error('Las contraseñas no coinciden'));
+                  },
+                }),
+              ]}
+            >
+              <Input.Password placeholder="Repite la contraseña" />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Row gutter={16}>
+          <Col xs={24} md={12}>
             <Form.Item
               name="first_name"
               label="Nombre"
@@ -163,7 +181,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
               <Input placeholder="Juan" />
             </Form.Item>
           </Col>
-          <Col span={12}>
+          <Col xs={24} md={12}>
             <Form.Item
               name="last_name"
               label="Apellido"
@@ -175,7 +193,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
         </Row>
 
         <Row gutter={16}>
-          <Col span={16}>
+          <Col xs={24} md={16}>
             <Form.Item
               name="email"
               label="Email"
@@ -187,7 +205,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
               <Input placeholder="usuario@example.com" />
             </Form.Item>
           </Col>
-          <Col span={8}>
+          <Col xs={12} md={8}>
             <Form.Item name="extension" label="Extensión">
               <Input placeholder="1234" />
             </Form.Item>
@@ -195,12 +213,12 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
         </Row>
 
         <Row gutter={16}>
-          <Col span={12}>
+          <Col xs={24} md={12}>
             <Form.Item name="codigo_directorio" label="Código de Directorio (Sirvo)">
               <Input placeholder="Ej. ABC123" />
             </Form.Item>
           </Col>
-          <Col span={12}>
+          <Col xs={24} md={12}>
             <Form.Item
               name="fecha_ingreso"
               label="Fecha de Ingreso"
@@ -219,7 +237,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
         <Divider orientation="left">Asignaciones</Divider>
 
         <Row gutter={16}>
-          <Col span={12}>
+          <Col xs={24} md={12}>
             <Form.Item name="tipo_usuario" label="Tipo de Usuario">
               <Select
                 placeholder="Seleccionar tipo"
@@ -238,7 +256,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
               </Select>
             </Form.Item>
           </Col>
-          <Col span={12}>
+          <Col xs={24} md={12}>
             <Form.Item name="equipo_id" label="Equipo">
               <Select
                 placeholder="Seleccionar equipo"
@@ -260,7 +278,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
         </Row>
 
         <Row gutter={16}>
-          <Col span={12}>
+          <Col xs={24} md={12}>
             <Form.Item name="area_id" label="Área">
               <Select
                 placeholder="Seleccionar área"
@@ -279,7 +297,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
               </Select>
             </Form.Item>
           </Col>
-          <Col span={12}>
+          <Col xs={24} md={12}>
             <Form.Item name="jefe_id" label="Jefe Directo">
               <Select
                 placeholder="Seleccionar jefe"
@@ -324,17 +342,17 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
         <Divider orientation="left">Permisos Especiales</Divider>
 
         <Row gutter={16}>
-          <Col span={8}>
+          <Col xs={12} md={8}>
             <Form.Item name="is_superuser" valuePropName="checked">
               <Checkbox>Superadmin</Checkbox>
             </Form.Item>
           </Col>
-          <Col span={8}>
+          <Col xs={12} md={8}>
             <Form.Item name="is_staff" valuePropName="checked">
               <Checkbox>Staff</Checkbox>
             </Form.Item>
           </Col>
-          <Col span={8}>
+          <Col xs={12} md={8}>
             <Form.Item name="send_checks" valuePropName="checked">
               <Checkbox>Enviar Cheques</Checkbox>
             </Form.Item>

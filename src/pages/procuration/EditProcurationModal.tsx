@@ -41,7 +41,6 @@ const EditProcurationModal: React.FC<EditProcurationModalProps> = ({
   procuration,
   clients,
   entities,
-  recurrences,
   onClose,
   onSuccess,
 }) => {

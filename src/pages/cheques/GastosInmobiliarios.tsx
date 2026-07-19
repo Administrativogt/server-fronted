@@ -384,12 +384,24 @@ function GastosInmobiliarios() {
           },
         }}
         columns={[
-          { title: 'Request ID', render: (_, row) => row.request_id?.request_id ?? '—', width: 120 },
-          { title: 'Nota', dataIndex: 'note_number', width: 110 },
+          { title: 'ID', render: (_, row) => row.request_id?.request_id ?? '—', width: 90 },
+          { title: 'Fecha', dataIndex: 'date', width: 120 },
+          { title: 'NT', dataIndex: 'note_number', width: 90 },
           { title: 'Cliente', dataIndex: 'client' },
-          { title: 'Recibo', dataIndex: 'receipt_number' },
-          { title: 'Serie', dataIndex: 'receipt_serie', width: 90 },
+          { title: 'Documentos', dataIndex: 'documents' },
+          { title: 'No. de comprobante', dataIndex: 'receipt_number_reference', width: 170 },
+          { title: 'Comprobante a ingresar', dataIndex: 'receipt_number', width: 190 },
           { title: 'Valor', dataIndex: 'receipt_value', render: (v) => Number(v).toFixed(2), width: 120 },
+          { title: 'Comentario', dataIndex: 'comment' },
+          {
+            title: 'Entrega',
+            width: 170,
+            render: (_, row) =>
+              row.delivered_by
+                ? `${row.delivered_by.first_name} ${row.delivered_by.last_name}`.trim() ||
+                  row.delivered_by.username
+                : '—',
+          },
           {
             title: 'Estado',
             dataIndex: 'state',

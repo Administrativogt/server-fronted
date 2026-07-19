@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Card,
@@ -11,6 +11,7 @@ import {
   message,
   Popconfirm,
   Tooltip,
+  Skeleton,
 } from 'antd';
 import {
   PlusOutlined,
@@ -20,18 +21,16 @@ import {
   KeyOutlined,
   CheckCircleOutlined,
   StopOutlined,
-  DownloadOutlined,
   IdcardOutlined,
+  WarningOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { useUserAdminPermissions } from '../../hooks/usePermissions';
-import {
-  getAllUsersIncludingInactive,
-  deactivateUser,
-  getAreas,
-  getEquipos,
-} from '../../api/users';
-import { TIPOS_USUARIO, getTipoUsuarioLabel, getTipoUsuarioColor } from '../../types/user.types';
+import { getAllUsersIncludingInactive, deactivateUser } from '../../api/users';
+import { useReferenceData } from '../../hooks/useReferenceData';
+import useThemeStore from '../../hooks/useThemeStore';
+import { TIPOS_USUARIO, getTipoUsuarioLabel } from '../../types/user.types';
+import { WARNING, makeTokens, makeCSS } from '../dashboard/theme';
 import type { User, UserFilters, UserArea, UserEquipo } from '../../types/user.types';
 import CreateUserModal from './CreateUserModal';
 import EditUserModal from './EditUserModal';
@@ -48,14 +47,17 @@ const UsersAdminPage: React.FC = () => {
   const navigate = useNavigate();
   const { canAccessUserAdmin, isFullAdmin, isSirvoCodeUser } = useUserAdminPermissions();
 
+  // Tokens de tema (misma superficie/tabla que el resto de la app).
+  const isDark = useThemeStore((s) => s.mode === 'dark');
+  const tk = makeTokens(isDark);
+
   // Estados principales
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState<UserFilters>({ estado: 1 });
-  
-  // Listas para filtros
-  const [areas, setAreas] = useState<UserArea[]>([]);
-  const [equipos, setEquipos] = useState<UserEquipo[]>([]);
+
+  // Áreas/equipos para los filtros — cacheados y compartidos con los modales.
+  const { areas, equipos } = useReferenceData(isFullAdmin);
 
   // Modales
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -82,8 +84,7 @@ const UsersAdminPage: React.FC = () => {
 
   useEffect(() => {
     loadUsers();
-    if (isFullAdmin) loadFilters();
-  }, [isFullAdmin]);
+  }, []);
 
   const loadUsers = async () => {
     try {
@@ -98,24 +99,11 @@ const UsersAdminPage: React.FC = () => {
     }
   };
 
-  const loadFilters = async () => {
-    try {
-      const [areasRes, equiposRes] = await Promise.all([
-        getAreas(),
-        getEquipos(),
-      ]);
-      setAreas(areasRes.data);
-      setEquipos(equiposRes.data);
-    } catch (error) {
-      console.error('Error al cargar filtros:', error);
-    }
-  };
-
   // ============================================
   // FILTRADO
   // ============================================
 
-  const filteredUsers = users.filter((user) => {
+  const filteredUsers = useMemo(() => users.filter((user) => {
     let matches = true;
 
     // Búsqueda por texto (username, nombre, email)
@@ -150,7 +138,7 @@ const UsersAdminPage: React.FC = () => {
     }
 
     return matches;
-  });
+  }), [users, filters]);
 
   // ============================================
   // ACCIONES
@@ -205,11 +193,7 @@ const UsersAdminPage: React.FC = () => {
       title: 'Tipo',
       dataIndex: 'tipo_usuario',
       key: 'tipo_usuario',
-      render: (tipo) => (
-        <Tag color={getTipoUsuarioColor(tipo)}>
-          {getTipoUsuarioLabel(tipo)}
-        </Tag>
-      ),
+      render: (tipo) => <Tag>{getTipoUsuarioLabel(tipo)}</Tag>,
       filters: TIPOS_USUARIO.map(t => ({ text: t.label, value: t.value })),
       onFilter: (value, record) => record.tipo_usuario === value,
     },
@@ -251,6 +235,7 @@ const UsersAdminPage: React.FC = () => {
           <Tooltip title="Ver detalles">
             <Button
               type="text"
+              aria-label={`Ver detalles de ${record.username}`}
               icon={<EyeOutlined />}
               size="small"
               onClick={() => {
@@ -260,13 +245,26 @@ const UsersAdminPage: React.FC = () => {
             />
           </Tooltip>
 
-          {/* Botón de código Sirvo — visible para todos los que acceden al panel */}
-          <Tooltip title="Editar Código de Directorio (Sirvo)">
+          {/* Botón de código Sirvo — visible para todos los que acceden al panel.
+              El estado "pendiente" no se señala solo con color: el tooltip, el
+              aria-label y el ícono ⚠ lo comunican también (WCAG 1.4.1). */}
+          <Tooltip
+            title={
+              record.codigo_directorio
+                ? 'Editar Código de Directorio (Sirvo)'
+                : 'Asignar Código de Directorio (Sirvo) — pendiente'
+            }
+          >
             <Button
               type="text"
-              icon={<IdcardOutlined />}
+              aria-label={
+                record.codigo_directorio
+                  ? `Editar código Sirvo de ${record.username}`
+                  : `Asignar código Sirvo de ${record.username} (pendiente)`
+              }
+              icon={record.codigo_directorio ? <IdcardOutlined /> : <WarningOutlined />}
               size="small"
-              style={{ color: record.codigo_directorio ? undefined : '#faad14' }}
+              style={{ color: record.codigo_directorio ? undefined : WARNING }}
               onClick={() => {
                 setSelectedUser(record);
                 setSirvoCodeModalOpen(true);
@@ -280,6 +278,7 @@ const UsersAdminPage: React.FC = () => {
               <Tooltip title="Editar">
                 <Button
                   type="text"
+                  aria-label={`Editar a ${record.username}`}
                   icon={<EditOutlined />}
                   size="small"
                   onClick={() => {
@@ -291,6 +290,7 @@ const UsersAdminPage: React.FC = () => {
               <Tooltip title="Resetear contraseña">
                 <Button
                   type="text"
+                  aria-label={`Resetear contraseña de ${record.username}`}
                   icon={<KeyOutlined />}
                   size="small"
                   onClick={() => {
@@ -311,6 +311,7 @@ const UsersAdminPage: React.FC = () => {
                     <Button
                       type="text"
                       danger
+                      aria-label={`Desactivar a ${record.username}`}
                       icon={<DeleteOutlined />}
                       size="small"
                     />
@@ -330,6 +331,7 @@ const UsersAdminPage: React.FC = () => {
 
   return (
     <div style={{ padding: '24px' }}>
+      <style>{makeCSS(tk)}</style>
       <Card
         title="Administración de Usuarios"
         extra={
@@ -425,19 +427,24 @@ const UsersAdminPage: React.FC = () => {
           </Space>
         </Space>
 
-        {/* TABLA */}
-        <Table
-          columns={columns}
-          dataSource={filteredUsers}
-          rowKey="id"
-          loading={loading}
-          pagination={{
-            pageSize: 20,
-            showSizeChanger: true,
-            showTotal: (total) => `Total: ${total} usuarios`,
-          }}
-          scroll={{ x: 1200 }}
-        />
+        {/* TABLA — skeleton en la primera carga, spinner sutil en refrescos */}
+        {loading && users.length === 0 ? (
+          <Skeleton active paragraph={{ rows: 8 }} />
+        ) : (
+          <Table
+            className="ta-table"
+            columns={columns}
+            dataSource={filteredUsers}
+            rowKey="id"
+            loading={loading}
+            pagination={{
+              pageSize: 20,
+              showSizeChanger: true,
+              showTotal: (total) => `Total: ${total} usuarios`,
+            }}
+            scroll={{ x: 1200 }}
+          />
+        )}
       </Card>
 
       {/* MODALES */}

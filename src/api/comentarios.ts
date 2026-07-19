@@ -1,18 +1,8 @@
 // src/api/comentarios.ts
 import axios from './axios';
+import type { Comentario } from '../types/comentario';
 
-export interface Comentario {
-  id: number;
-  encargo_id: number;
-  user_id: number;
-  text: string;
-  created_at: string;
-  updated_at: string;
-  // Opcional: si el backend devuelve nombre del usuario
-  user_nombre?: string;
-}
-
-
+export type { Comentario };
 
 export const createComentario = (encargo_id: number, text: string) =>
   axios.post<Comentario>('/api/comentarios', { encargo_id, text });

@@ -1,21 +1,25 @@
 // src/types/procuration.types.ts
 
 // Estados de Procuración
-export enum ProcurationState {
-  SOLICITADO = 1,
-  EN_PROCESO = 2,
-  RECHAZADO = 3,
-  FINALIZADO = 4,
-  EN_SUSPENSO = 5,
-  FUERA_DE_TIEMPO = 6,
-}
+// (objeto `as const` + type en vez de enum: compatible con `erasableSyntaxOnly`,
+//  conserva el uso como valor `ProcurationState.SOLICITADO` y como tipo.)
+export const ProcurationState = {
+  SOLICITADO: 1,
+  EN_PROCESO: 2,
+  RECHAZADO: 3,
+  FINALIZADO: 4,
+  EN_SUSPENSO: 5,
+  FUERA_DE_TIEMPO: 6,
+} as const;
+export type ProcurationState = (typeof ProcurationState)[keyof typeof ProcurationState];
 
 // Prioridades
-export enum ProcurationPriority {
-  A = 1, // Alta/Urgente
-  B = 2, // Media
-  C = 3, // Baja
-}
+export const ProcurationPriority = {
+  A: 1, // Alta/Urgente
+  B: 2, // Media
+  C: 3, // Baja
+} as const;
+export type ProcurationPriority = (typeof ProcurationPriority)[keyof typeof ProcurationPriority];
 
 // Labels para mostrar en UI
 export const STATE_LABELS: Record<number, string> = {

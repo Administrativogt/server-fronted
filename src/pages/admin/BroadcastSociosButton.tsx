@@ -45,8 +45,6 @@ const BroadcastSociosButton: React.FC = () => {
   // IDs de socios que recibirán el enlace personalizado (en vez de la clave fija).
   const [customIds, setCustomIds] = useState<number[]>([]);
 
-  if (!isSuperuser) return null;
-
   const customCount = customIds.length;
 
   const runDryRun = async () => {
@@ -167,6 +165,10 @@ const BroadcastSociosButton: React.FC = () => {
         : 'Se cambiará la contraseña de todos los socios a la nueva clave compartida y se les enviará por correo. ¿Continuar?',
     [customCount],
   );
+
+  // Sólo lo ve un superusuario. El early-return va DESPUÉS de todos los hooks
+  // (useState/useMemo) para no romper las reglas de hooks de React.
+  if (!isSuperuser) return null;
 
   return (
     <>

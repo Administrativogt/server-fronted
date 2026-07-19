@@ -13,6 +13,7 @@ import {
   Space,
   Table,
   Tag,
+  Tooltip,
   Typography,
   Upload,
 } from 'antd';
@@ -362,8 +363,7 @@ function LiquidacionCheque() {
         rowKey="id"
         loading={loading}
         dataSource={data}
-        scroll={{ x: 'max-content' }}
-        sticky={{ offsetHeader: 64 }}
+        scroll={{ x: 'max-content', y: 'calc(100vh - 360px)' }}
         pagination={{
           current: pagination.page,
           pageSize: pagination.per_page,
@@ -373,6 +373,13 @@ function LiquidacionCheque() {
           },
         }}
         columns={[
+          {
+            title: 'Fecha',
+            dataIndex: 'date',
+            width: 108,
+            render: (value: string) =>
+              value ? new Date(value).toLocaleDateString('es-GT') : '—',
+          },
           { title: 'Request ID', dataIndex: 'request_id', width: 120 },
           { title: 'NT', dataIndex: 'work_note_number', width: 110 },
           {
@@ -385,7 +392,31 @@ function LiquidacionCheque() {
                 : '—',
           },
           { title: 'Cliente', dataIndex: 'client', width: 110 },
-          { title: 'Descripción', dataIndex: 'description', width: 260, ellipsis: true },
+          {
+            title: 'Descripción',
+            dataIndex: 'description',
+            width: 200,
+            render: (desc: string) =>
+              desc ? (
+                <Tooltip placement="topLeft" title={desc}>
+                  <span
+                    style={{
+                      display: '-webkit-box',
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      whiteSpace: 'normal',
+                      wordBreak: 'break-word',
+                      cursor: 'default',
+                    }}
+                  >
+                    {desc}
+                  </span>
+                </Tooltip>
+              ) : (
+                '—'
+              ),
+          },
           {
             title: 'Monto',
             dataIndex: 'total_value',
@@ -400,8 +431,20 @@ function LiquidacionCheque() {
           },
           {
             title: 'Estado',
-            width: 160,
-            render: () => <Tag color="orange">Pendiente liquidación</Tag>,
+            width: 120,
+            render: () => (
+              <Tag
+                color="orange"
+                style={{
+                  whiteSpace: 'normal',
+                  wordBreak: 'break-word',
+                  maxWidth: '100%',
+                  marginInlineEnd: 0,
+                }}
+              >
+                Pendiente liquidación
+              </Tag>
+            ),
           },
           {
             title: 'Acciones',

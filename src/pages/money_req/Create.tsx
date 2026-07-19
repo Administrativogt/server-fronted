@@ -148,7 +148,7 @@ const CreateMoneyRequirement: React.FC = () => {
           rules={[{ required: true, message: 'Ingrese un monto válido' }]}
           extra="Formato sugerido: coma para miles y punto para decimales. Ejemplo: 1,000.00"
         >
-          <InputNumber
+          <InputNumber<number>
             style={{ width: '100%' }}
             min={0}
             step={0.01}

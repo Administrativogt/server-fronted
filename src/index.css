@@ -1,9 +1,29 @@
 /* al inicio de index.css o App.css */
 html, body {
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   margin: 0;
   padding: 0;
   transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* ── Trigger del menú de usuario (header) ── */
+.user-trigger {
+  transition: background-color 0.15s ease;
+}
+.user-trigger:hover {
+  background-color: rgba(128, 128, 128, 0.14);
+}
+
+/* ── Reduced motion: desactiva el shimmer de los skeletons de AntD ── */
+@media (prefers-reduced-motion: reduce) {
+  .ant-skeleton-active .ant-skeleton-title,
+  .ant-skeleton-active .ant-skeleton-paragraph > li,
+  .ant-skeleton-active .ant-skeleton-avatar,
+  .ant-skeleton-active .ant-skeleton-image,
+  .ant-skeleton-active .ant-skeleton-button,
+  .ant-skeleton-active .ant-skeleton-input {
+    animation: none !important;
+  }
 }
 
 /* ── Pulse animation for urgent indicators ── */

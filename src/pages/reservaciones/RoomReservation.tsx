@@ -102,7 +102,9 @@ function RoomReservation() {
     if (value.isBefore(minMonth, 'day') || value.isAfter(maxMonth, 'day')) {
       return [];
     }
-    const dateStr = dayjs.utc(value).format('YYYY-MM-DD');
+    // La celda del calendario es una fecha local; convertirla a UTC corre el día
+    // cuando son >18:00 en UTC-6. Formatear directo, sin conversión.
+    const dateStr = value.format('YYYY-MM-DD');
 
     return reservations.filter((r) => {
       const matchDate =
@@ -136,7 +138,7 @@ function RoomReservation() {
     }
     const list = getListData(value);
     if (list.length) {
-      setSelectedDate(dayjs.utc(value).format('YYYY-MM-DD'));
+      setSelectedDate(value.format('YYYY-MM-DD'));
       setIsModalOpen(true);
     }
   };

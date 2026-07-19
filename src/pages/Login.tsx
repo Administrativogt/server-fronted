@@ -14,8 +14,8 @@ const { Title, Text, Link } = Typography;
 const darkBg = '#111827';
 const darkCard = '#1f2937';
 const darkBorder = '#374151';
-const accentBlue = '#6366f1';
-const accentBlueHover = '#818cf8';
+const accentBlue = '#3C50E0'; // índigo de marca (alineado con theme.ts)
+const accentBlueHover = '#6675e8';
 const textWhite = '#ffffff';
 const textMuted = '#9ca3af';
 

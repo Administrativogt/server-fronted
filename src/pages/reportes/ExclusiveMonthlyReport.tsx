@@ -5,8 +5,6 @@ import {
   Row, Col, Card, Statistic, Table, type TableProps, 
 } from 'antd';
 import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons';
-import { DataGrid, type GridColDef } from '@mui/x-data-grid';
-import { esES } from '@mui/x-data-grid/locales';
 import dayjs, { Dayjs } from 'dayjs';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -200,34 +198,38 @@ export default function ExclusiveMonthlyReport(): JSX.Element {
     return arr;
   }, [rows, totalUSD]);
 
-  // ---- DataGrid columns (sin "Estado", "Compartió con" solo nombres)
-  const columns: GridColDef<RowWithPct>[] = useMemo(() => [
-    { field: 'fecha', headerName: 'Fecha', width: 100,
-      valueFormatter: (value) => (value ? dayjs(String(value)).format('DD/MM') : ''),
+  // ---- Columnas del detalle (AntD) — sin "Estado"; "Compartió con" solo nombres
+  const columns: TableProps<RowWithPct>['columns'] = useMemo(() => [
+    { title: 'Fecha', dataIndex: 'fecha', key: 'fecha', width: 100, fixed: 'left',
+      defaultSortOrder: 'descend',
+      sorter: (a, b) => String(a.fecha).localeCompare(String(b.fecha)),
+      render: (v: string) => (v ? dayjs(String(v)).format('DD/MM') : ''),
     },
-    { field: 'sala', headerName: 'Sala', width: 160 },
-    { field: 'equipo', headerName: 'Equipo', width: 160 },
-    { field: 'area', headerName: 'Área', width: 160 },
-    { field: 'persona', headerName: 'Nombre', width: 220 },
-    { field: 'hora_inicio', headerName: 'Inicio', width: 90, valueFormatter: (v) => fmtTime(String(v ?? '')) },
-    { field: 'hora_fin', headerName: 'Fin', width: 90, valueFormatter: (v) => fmtTime(String(v ?? '')) },
-    { field: 'horas_persona', headerName: 'Horas/persona', width: 130, type: 'number',
-      valueFormatter: (v) => fmtNum(Number(v ?? 0)).toFixed(2),
+    { title: 'Sala', dataIndex: 'sala', key: 'sala', width: 160, ellipsis: true },
+    { title: 'Equipo', dataIndex: 'equipo', key: 'equipo', width: 160, ellipsis: true },
+    { title: 'Área', dataIndex: 'area', key: 'area', width: 160, ellipsis: true },
+    { title: 'Nombre', dataIndex: 'persona', key: 'persona', width: 220, ellipsis: true },
+    { title: 'Inicio', dataIndex: 'hora_inicio', key: 'hora_inicio', width: 90,
+      render: (v: string) => fmtTime(String(v ?? '')) },
+    { title: 'Fin', dataIndex: 'hora_fin', key: 'hora_fin', width: 90,
+      render: (v: string) => fmtTime(String(v ?? '')) },
+    { title: 'Horas/persona', dataIndex: 'horas_persona', key: 'horas_persona', width: 130, align: 'right',
+      sorter: (a, b) => a.horas_persona - b.horas_persona,
+      render: (v: number) => fmtNum(Number(v ?? 0)).toFixed(2),
     },
-    { field: 'pago_persona_usd', headerName: 'Pago (USD)', width: 130, type: 'number',
-      valueFormatter: (v) => money(Number(v ?? 0)),
+    { title: 'Pago (USD)', dataIndex: 'pago_persona_usd', key: 'pago_persona_usd', width: 130, align: 'right',
+      sorter: (a, b) => a.pago_persona_usd - b.pago_persona_usd,
+      render: (v: number) => money(Number(v ?? 0)),
     },
-    { field: 'participacion_pct', headerName: 'Participación (%)', width: 150, type: 'number',
-      valueFormatter: (v) => pctTxt(Number(v ?? 0)),
+    { title: 'Participación (%)', dataIndex: 'participacion_pct', key: 'participacion_pct', width: 150, align: 'right',
+      sorter: (a, b) => a.participacion_pct - b.participacion_pct,
+      render: (v: number) => pctTxt(Number(v ?? 0)),
     },
-    { field: 'compartido', headerName: 'Compartido?', width: 120, type: 'boolean',
-      valueFormatter: (v) => (v ? 'Sí' : 'No'),
+    { title: 'Compartido?', dataIndex: 'compartido', key: 'compartido', width: 120, align: 'center',
+      render: (v: boolean) => (v ? 'Sí' : 'No'),
     },
-    {
-      field: 'compartio_con',
-      headerName: 'Compartió con',
-      width: 320,
-      valueGetter: (_v, row) => (row.compartio_con ?? []).map(x => x.nombre).join(', '),
+    { title: 'Compartió con', dataIndex: 'compartio_con', key: 'compartio_con', width: 320, ellipsis: true,
+      render: (_: unknown, row: RowWithPct) => (row.compartio_con ?? []).map(x => x.nombre).join(', '),
     },
   ], []);
 
@@ -570,32 +572,6 @@ export default function ExclusiveMonthlyReport(): JSX.Element {
           .report-styles .ant-table-tbody > tr.row-zebra-even > td { background: ${UI.zebraA}; }
           .report-styles .ant-table-tbody > tr.row-zebra-odd  > td { background: ${UI.zebraB}; }
           .report-styles .ant-table-tbody > tr:hover > td { background: ${UI.hover} !important; }
-
-          /* DataGrid (MUI) */
-          .report-styles .MuiDataGrid-root {
-            color: ${UI.text};
-            background: ${UI.cardBg};
-            border: 1px solid ${UI.gridBorder};
-          }
-          .report-styles .MuiDataGrid-columnHeaders {
-            background: ${UI.headerBg};
-            border-bottom: 1px solid ${UI.gridBorder};
-            color: ${UI.text};
-          }
-          .report-styles .MuiDataGrid-columnHeaderTitle {
-            color: ${UI.text};
-          }
-          .report-styles .MuiDataGrid-row:nth-of-type(even) { background: ${UI.zebraA}; }
-          .report-styles .MuiDataGrid-row:nth-of-type(odd)  { background: ${UI.zebraB}; }
-          .report-styles .MuiDataGrid-row:hover { background: ${UI.hover}; }
-          .report-styles .MuiDataGrid-cell {
-            color: ${UI.text};
-            border-color: ${UI.gridBorder};
-          }
-          .report-styles .MuiDataGrid-footerContainer {
-            border-top: 1px solid ${UI.gridBorder};
-            background: ${UI.cardBg};
-          }
         `}
       </style>
 
@@ -687,21 +663,21 @@ export default function ExclusiveMonthlyReport(): JSX.Element {
         bodyStyle={{ background: UI.cardBg, color: UI.text }}
         style={{ borderColor: UI.border }}
       >
-        <div style={{ height: 620, width: '100%' }}>
-          <DataGrid
-            rows={rows}
-            getRowId={(r) => `${r.reservation_id}-${r.persona}-${r.fecha}-${r.hora_inicio}-${r.sala}`}
-            columns={columns}
-            loading={loading}
-            disableRowSelectionOnClick
-            initialState={{
-              pagination: { paginationModel: { pageSize: 10, page: 0 } },
-              sorting: { sortModel: [{ field: 'fecha', sort: 'desc' }] },
-            }}
-            pageSizeOptions={[10, 20, 50, 100]}
-            localeText={esES.components.MuiDataGrid.defaultProps!.localeText}
-          />
-        </div>
+        <Table<RowWithPct>
+          rowKey={(r) => `${r.reservation_id}-${r.persona}-${r.fecha}-${r.hora_inicio}-${r.sala}`}
+          size="small"
+          columns={columns}
+          dataSource={rows}
+          loading={loading}
+          rowClassName={(_, idx) => ((idx ?? 0) % 2 === 0 ? 'row-zebra-even' : 'row-zebra-odd')}
+          scroll={{ x: 'max-content', y: 520 }}
+          pagination={{
+            defaultPageSize: 10,
+            pageSizeOptions: [10, 20, 50, 100],
+            showSizeChanger: true,
+            showTotal: (total) => `${total} registros`,
+          }}
+        />
       </Card>
     </div>
   );

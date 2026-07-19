@@ -192,7 +192,8 @@ const JurisprudenceDashboardPage: React.FC = () => {
         .map((b) => ({
           tribunal: b.name.length > 28 ? `${b.name.slice(0, 26)}…` : b.name,
           Sentencias: b.count,
-          dbId: b.id,
+          // 0 = sentinel para "sin id"; BarDatum no admite null. Se reconvierte a null en onClick.
+          dbId: b.id ?? 0,
         })),
     [stats?.by_tribunal],
   );
@@ -206,7 +207,8 @@ const JurisprudenceDashboardPage: React.FC = () => {
         .map((b) => ({
           tipo: b.name.length > 32 ? `${b.name.slice(0, 30)}…` : b.name,
           Sentencias: b.count,
-          dbId: b.id,
+          // 0 = sentinel para "sin id"; BarDatum no admite null. Se reconvierte a null en onClick.
+          dbId: b.id ?? 0,
         })),
     [stats?.by_failure_type],
   );
@@ -557,7 +559,6 @@ const JurisprudenceDashboardPage: React.FC = () => {
                   animate
                   onClick={(bar) => void openYearModal(Number(bar.indexValue))}
                   role="button"
-                  cursor="pointer"
                 />
               )}
             </div>
@@ -665,7 +666,7 @@ const JurisprudenceDashboardPage: React.FC = () => {
                   fill={[{ match: '*', id: 'gradient-tribunal' }]}
                   animate
                   onClick={(bar) => {
-                    const dbId = (bar.data as { dbId: number | null }).dbId;
+                    const dbId = (bar.data as { dbId: number }).dbId || null;
                     void openCategoryModal(
                       `${bar.indexValue} — ${bar.value} sentencia${Number(bar.value) !== 1 ? 's' : ''}`,
                       'tribunal',
@@ -673,7 +674,6 @@ const JurisprudenceDashboardPage: React.FC = () => {
                     );
                   }}
                   role="button"
-                  cursor="pointer"
                 />
               )}
             </div>
@@ -781,7 +781,7 @@ const JurisprudenceDashboardPage: React.FC = () => {
                   fill={[{ match: '*', id: 'gradient-failure' }]}
                   animate
                   onClick={(bar) => {
-                    const dbId = (bar.data as { dbId: number | null }).dbId;
+                    const dbId = (bar.data as { dbId: number }).dbId || null;
                     void openCategoryModal(
                       `${bar.indexValue} — ${bar.value} sentencia${Number(bar.value) !== 1 ? 's' : ''}`,
                       'failure_type',
@@ -789,7 +789,6 @@ const JurisprudenceDashboardPage: React.FC = () => {
                     );
                   }}
                   role="button"
-                  cursor="pointer"
                 />
               )}
             </div>

@@ -7,30 +7,6 @@ export const getUserRole = (): UserRole => {
   return 'receptionist'; // Simulado: luego lo conectas al login real
 };
 
-const rolePermissions: Record<UserRole, Record<string, boolean>> = {
-  admin: {
-    view: true,
-    add: true,
-    edit: true,
-    delete: true,
-    confirm: true,
-  },
-  receptionist: {
-    view: true,
-    add: true,
-    edit: true,
-    delete: false,
-    confirm: true,
-  },
-  messenger: {
-    view: true,
-    add: false,
-    edit: false,
-    delete: false,
-    confirm: false,
-  },
-};
-
 /**
  * Hook principal para verificar permisos específicos del usuario
  * Compatible con el sistema de permisos del backend NestJS

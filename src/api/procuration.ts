@@ -17,8 +17,8 @@ import type {
   ProcurationStateEntity,
   CreateClientDto,
   CreateEntityDto,
-  User,
 } from '../types/procuration.types';
+import type { User } from '../types/user.types';
 
 const BASE = '/procuration-control';
 

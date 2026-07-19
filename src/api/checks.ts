@@ -287,12 +287,21 @@ export const downloadExpensesReport = async (
   );
 };
 
-export const downloadLitigioExpensesReport = async (requestId?: number) =>
-  downloadBlob(
+export const downloadLitigioExpensesReport = async (
+  requestId?: number,
+  expenseIds?: number[],
+) => {
+  const params: Record<string, unknown> = {};
+  if (requestId) params.request_id = requestId;
+  if (expenseIds && expenseIds.length > 0) {
+    params.expense_ids = btoa(JSON.stringify(expenseIds));
+  }
+  return downloadBlob(
     '/checks/reports/litigio-expenses.xlsx',
-    requestId ? { request_id: requestId } : undefined,
+    Object.keys(params).length ? params : undefined,
     'reporte_gastos_litigio.xlsx',
   );
+};
 
 export const downloadMergedLiquidationDocuments = async (checkIds: number[]) => {
   const response = await api.post(

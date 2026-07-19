@@ -447,8 +447,7 @@ function AutorizacionCheque() {
         rowKey="id"
         loading={loading}
         dataSource={data}
-        scroll={{ x: 'max-content' }}
-        sticky={{ offsetHeader: 64 }}
+        scroll={{ x: 'max-content', y: 'calc(100vh - 360px)' }}
         rowSelection={{
           selectedRowKeys,
           onChange: setSelectedRowKeys,
@@ -464,8 +463,15 @@ function AutorizacionCheque() {
           current: pagination.page,
           pageSize: pagination.per_page,
           total: pagination.total,
+          showSizeChanger: true,
+          showTotal: (total, range) => `${range[0]}-${range[1]} de ${total}`,
           onChange: (page, pageSize) => {
-            setFilters((prev) => ({ ...prev, page, per_page: pageSize }));
+            setFilters((prev) => ({
+              ...prev,
+              per_page: pageSize,
+              // Si cambió el tamaño de página, regresa a la 1 para no caer en una página vacía.
+              page: pageSize !== prev.per_page ? 1 : page,
+            }));
           },
         }}
         columns={[
@@ -494,30 +500,77 @@ function AutorizacionCheque() {
           {
             title: 'Descripción',
             dataIndex: 'description',
-            width: 260,
-            ellipsis: { showTitle: false },
+            width: 200,
             render: (desc: string) =>
               desc ? (
                 <Tooltip placement="topLeft" title={desc}>
-                  <span style={{ cursor: 'default' }}>{desc}</span>
+                  <span
+                    style={{
+                      display: '-webkit-box',
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      whiteSpace: 'normal',
+                      wordBreak: 'break-word',
+                      cursor: 'default',
+                    }}
+                  >
+                    {desc}
+                  </span>
                 </Tooltip>
               ) : (
                 '—'
               ),
           },
           { title: 'Cliente', dataIndex: 'client', width: 100 },
-          { title: 'Nombre cliente', dataIndex: 'client_name', width: 180, ellipsis: { showTitle: false }, render: (t: string) => t ? <Tooltip title={t}><span>{t}</span></Tooltip> : '—' },
+          {
+            title: 'Nombre cliente',
+            dataIndex: 'client_name',
+            width: 150,
+            render: (t: string) =>
+              t ? (
+                <Tooltip placement="topLeft" title={t}>
+                  <span
+                    style={{
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      whiteSpace: 'normal',
+                      wordBreak: 'break-word',
+                      cursor: 'default',
+                    }}
+                  >
+                    {t}
+                  </span>
+                </Tooltip>
+              ) : (
+                '—'
+              ),
+          },
           { title: 'Código coordinador', dataIndex: 'coordinator_code', width: 130 },
           { title: 'No. nota', dataIndex: 'work_note_number', width: 100 },
           {
             title: 'Estado',
-            width: 180,
+            width: 120,
             render: (_, row) => {
               const stateId =
                 typeof row.state === 'number'
                   ? row.state
                   : (row.state as { id: number } | undefined)?.id ?? 1;
-              return <Tag color={stateId === 6 ? 'green' : stateId === 4 ? 'red' : 'gold'}>{stateLabelMap[stateId] || 'Pendiente de autorización'}</Tag>;
+              return (
+                <Tag
+                  color={stateId === 6 ? 'green' : stateId === 4 ? 'red' : 'gold'}
+                  style={{
+                    whiteSpace: 'normal',
+                    wordBreak: 'break-word',
+                    maxWidth: '100%',
+                    marginInlineEnd: 0,
+                  }}
+                >
+                  {stateLabelMap[stateId] || 'Pendiente de autorización'}
+                </Tag>
+              );
             },
           },
         ]}

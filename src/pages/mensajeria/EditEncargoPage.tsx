@@ -4,8 +4,7 @@ import { Form, Input, Select, Checkbox, Button, message, Space, Card, Modal, Dat
 import dayjs from 'dayjs';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getEncargoById, updateEncargo, getMensajeros, getUsuariosFormulario, getMunicipios, previewFechaRealizacion } from '../../api/encargos';
-import type { EncargoFormValues, Usuario, Municipio } from '../../types/encargo';
-import useAuthStore from '../../auth/useAuthStore';
+import type { Usuario, Municipio } from '../../types/encargo';
 import { useMensajeriaPermissions } from '../../hooks/usePermissions';
 
 const { Option } = Select;
@@ -39,7 +38,6 @@ const EditEncargoPage: React.FC = () => {
   const [form] = Form.useForm();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const tipoUsuario = useAuthStore((state) => state.tipo_usuario);
   const { canAssignMensajero, isCoordinador, isEquipoMensajeria } =
     useMensajeriaPermissions(); // ✅ NUEVO
 
@@ -108,8 +106,8 @@ const EditEncargoPage: React.FC = () => {
         // 3. Establecer valores del formulario
         form.setFieldsValue({
           ...encargo,
-          solicitante_id: encargo.solicitante?.id || encargo.solicitante_id,
-          municipio_id: encargo.municipio?.id || encargo.municipio_id,
+          solicitante_id: encargo.solicitante?.id,
+          municipio_id: encargo.municipio?.id,
           mensajero_id: encargo.mensajero?.id || null,
           zona: encargo.zona || undefined,
           fecha_realizacion: encargo.fecha_realizacion

@@ -16,7 +16,7 @@ import {
   ApartmentOutlined,
   CrownOutlined,
 } from '@ant-design/icons';
-import { getTipoUsuarioLabel, getTipoUsuarioColor } from '../../types/user.types';
+import { getTipoUsuarioLabel } from '../../types/user.types';
 import type { User } from '../../types/user.types';
 import dayjs from 'dayjs';
 
@@ -59,9 +59,7 @@ const UserDetailsDrawer: React.FC<UserDetailsDrawerProps> = ({ open, user, onClo
 
       <Descriptions column={1} bordered>
         <Descriptions.Item label="Tipo de Usuario">
-          <Tag color={getTipoUsuarioColor(user.tipo_usuario)}>
-            {getTipoUsuarioLabel(user.tipo_usuario)}
-          </Tag>
+          <Tag>{getTipoUsuarioLabel(user.tipo_usuario)}</Tag>
         </Descriptions.Item>
         <Descriptions.Item label={<><TeamOutlined /> Equipo</>}>
           {user.equipo?.nombre || '-'}

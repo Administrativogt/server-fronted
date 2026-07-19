@@ -7,6 +7,7 @@ import 'dayjs/locale/es';
 import { useEffect, lazy, Suspense } from 'react';
 import useThemeStore from './hooks/useThemeStore';
 import Loader from './components/Loader';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Páginas públicas
 import Login from './pages/Login';
@@ -20,10 +21,7 @@ import DashboardPage from './pages/DashboardPage';
 
 import useAuthStore from './auth/useAuthStore';
 import { useToken } from './hooks/useToken';
-
-// Estilos de AG Grid
-import 'ag-grid-community/styles/ag-grid.css';
-import 'ag-grid-community/styles/ag-theme-alpine.css';
+import { PRIMARY, SUCCESS, DANGER, WARNING, INFO } from './pages/dashboard/theme';
 
 /* ─── Páginas con carga diferida (code-splitting por ruta) ──────────────────
    Cada página se descarga solo al navegar a ella, sacando librerías pesadas
@@ -161,12 +159,20 @@ function AppInner() {
       theme={{
         algorithm: themeMode === 'dark' ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
         token: {
-          colorPrimary: '#1677ff',
+          // Marca única (índigo) y semánticos alineados con theme.ts —
+          // así los componentes AntD y las superficies custom comparten acento.
+          colorPrimary: PRIMARY,
+          colorSuccess: SUCCESS,
+          colorError: DANGER,
+          colorWarning: WARNING,
+          colorInfo: INFO,
           borderRadius: 6,
+          fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
         },
       }}
     >
       <AntdApp>
+        <ErrorBoundary>
         <Suspense fallback={<Loader fullScreen label="Cargando…" />}>
         <Routes>
           {/* Ruta pública */}
@@ -342,6 +348,7 @@ function AppInner() {
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
         </Suspense>
+        </ErrorBoundary>
       </AntdApp>
     </ConfigProvider>
   );

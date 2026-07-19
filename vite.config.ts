@@ -14,7 +14,6 @@ export default defineConfig({
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           antd: ['antd', '@ant-design/icons'],
           charts: ['@nivo/pie', '@nivo/bar', '@nivo/core', 'chart.js', 'react-chartjs-2'],
-          grid: ['ag-grid-community', 'ag-grid-react'],
           export: ['exceljs', 'xlsx', 'docx', 'file-saver'],
         },
       },
@@ -28,6 +27,7 @@ export default defineConfig({
       '.ngrok-free.app',
       '.ngrok.io',
       '.tunnelmole.net',
+      '.trycloudflare.com',
       'localhost',
     ],
     proxy: {

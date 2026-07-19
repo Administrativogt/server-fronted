@@ -37,6 +37,7 @@ export interface CheckRequest {
   invoice_nit?: string;
   sent_to_liquidation?: boolean;
   inmobiliario_expenses_amount?: number;
+  litigio_expenses_amount?: number;
   // Solo en el listado de liquidados (GET /checks/liquidated):
   liquidation_id?: number | null;
   liquidation_document?: string | null;

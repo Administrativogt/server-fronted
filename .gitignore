@@ -25,3 +25,8 @@ dist-ssr
 
 # Claude Code worktrees
 .claude/
+
+# Artefactos de sesiones de desarrollo (no subir)
+.playwright-mcp/
+.impeccable/
+/*.png

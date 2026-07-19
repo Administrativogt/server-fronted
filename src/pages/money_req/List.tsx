@@ -15,7 +15,7 @@ import {
   message,
 } from 'antd';
 import { SearchOutlined, ClearOutlined } from '@ant-design/icons';
-import dayjs, { type Dayjs } from 'dayjs';
+import type { Dayjs } from 'dayjs';
 import {
   getMoneyRequirements,
   authorizeMoneyRequirements,
@@ -25,7 +25,6 @@ import {
 } from '../../api/moneyRequirements';
 import { fetchUsers, type UserLite, fullName } from '../../api/users';
 import { getTeams, type Team } from '../../api/teams';
-import { useNavigate } from 'react-router-dom';
 import { usePermissions } from '../../hooks/usePermissions';
 
 const { Title } = Typography;
@@ -62,7 +61,6 @@ const MoneyReqList: React.FC = () => {
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [filters, setFilters] = useState<Filters>(defaultFilters);
 
-  const navigate = useNavigate();
   const { hasPermission, isSuperUser } = usePermissions();
   const canAuthorize = isSuperUser() || hasPermission('money requirements authorizers');
 

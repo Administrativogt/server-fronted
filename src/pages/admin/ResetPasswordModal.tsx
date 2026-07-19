@@ -21,7 +21,7 @@ const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ open, user, onC
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (values: any) => {
+  const handleSubmit = async (values: { password: string; confirmPassword: string; forceChange?: boolean }) => {
     try {
       setLoading(true);
       await resetUserPassword(user.id, values.password, values.forceChange || false);

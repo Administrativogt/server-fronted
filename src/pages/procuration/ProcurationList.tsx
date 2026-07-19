@@ -36,7 +36,6 @@ import dayjs, { Dayjs } from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
 import {
   getProcurations,
-  getAdvancedFilter,
   getStatistics,
   updateProcuration,
   getClients,

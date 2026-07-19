@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
-import { Button, Card, message, Table, Typography, Upload } from 'antd';
+import { useState } from 'react';
+import { Button, Card, message, Typography, Upload } from 'antd';
 import { InboxOutlined } from '@ant-design/icons';
-import type { ColumnsType } from 'antd/es/table';
 import { useNavigate } from 'react-router-dom';
 import { checksApi } from '../../api/accounting';
 

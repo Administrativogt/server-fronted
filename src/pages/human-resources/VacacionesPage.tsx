@@ -16,7 +16,6 @@ import {
   Row,
   Select,
   Space,
-  Statistic,
   Table,
   Tabs,
   Tag,
@@ -52,7 +51,6 @@ import useThemeStore from '../../hooks/useThemeStore';
 import { fetchUsers } from '../../api/notifications';
 import {
   type BalanceLogType,
-  type BalanceBreakdown,
   type DaysUsedStats,
   type MyVacationsResponse,
   type TimeOffTypeValue,
@@ -304,6 +302,26 @@ const VAC_STYLES = `
   .vac-page[data-theme="dark"] .vac-timeline-flow { color: #9ca3af; }
   .vac-page[data-theme="dark"] .vac-timeline-flow strong { color: #e5e7eb; }
   .vac-page[data-theme="dark"] .vac-emp-name { color: #e5e7eb; }
+
+  /* ===== Contraste en modo oscuro: hero, secciones y formulario ===== */
+  /* El número, la unidad y la fecha usaban navy (#0C1D3E) → invisibles en oscuro */
+  .vac-page[data-theme="dark"] .vac-hero-number { color: #F1F5F9; }
+  .vac-page[data-theme="dark"] .vac-hero-number--low { color: #FF6B6B; }
+  .vac-page[data-theme="dark"] .vac-hero-label,
+  .vac-page[data-theme="dark"] .vac-hero-unit,
+  .vac-page[data-theme="dark"] .vac-hero-entry-date { color: #AAB3C7; }
+  .vac-page[data-theme="dark"] .vac-hero-entry-date strong { color: #E8EDF6; }
+  /* Trail de la barra de progreso: evita la barra clara sobre fondo oscuro */
+  .vac-page[data-theme="dark"] .vac-hero-card .ant-progress-inner { background: #2C2F40 !important; }
+  /* Títulos y bordes de tarjetas de sección / formulario */
+  .vac-page[data-theme="dark"] .vac-section-card .ant-card-head-title { color: #ECEDF2; }
+  .vac-page[data-theme="dark"] .vac-section-card { border-color: rgba(255,255,255,0.10) !important; }
+  .vac-page[data-theme="dark"] .vac-section-card .ant-card-head { border-bottom-color: rgba(255,255,255,0.08); }
+  .vac-page[data-theme="dark"] .vac-form-card {
+    border-top-color: rgba(255,255,255,0.10) !important;
+    border-right-color: rgba(255,255,255,0.10) !important;
+    border-bottom-color: rgba(255,255,255,0.10) !important;
+  }
 `;
 
 // ============================================
@@ -329,18 +347,6 @@ const CALENDAR_COLORS = [
 // ============================================
 // HELPERS
 // ============================================
-
-const STATUS_CONFIG: Record<VacationStatus, { label: string; color: string }> = {
-  PENDIENTE: { label: 'Pendiente', color: 'orange' },
-  APROBADA:  { label: 'Aprobada',  color: 'green'  },
-  RECHAZADA: { label: 'Rechazada', color: 'red'    },
-  CANCELADA: { label: 'Cancelada', color: 'default'},
-};
-
-const getStatusTag = (estado: VacationStatus) => {
-  const cfg = STATUS_CONFIG[estado] ?? { label: estado, color: 'default' };
-  return <Tag color={cfg.color}>{cfg.label}</Tag>;
-};
 
 const getStatusBadge = (estado: VacationStatus) => {
   const labels: Record<VacationStatus, string> = {
@@ -715,20 +721,27 @@ const VacacionesPage: React.FC = () => {
       const requestType: VacationRequestTypeValue = values.request_type ?? 'full_day';
       const isHourly = requestType !== 'full_day';
 
+      let fecha_inicio: string;
+      let fecha_fin: string | undefined;
+      let hora_inicio: string | undefined;
+
+      if (isHourly) {
+        fecha_inicio = dayjs(values.fecha_inicio).format('YYYY-MM-DD');
+        hora_inicio = dayjs(values.hora_inicio).format('HH:mm');
+      } else {
+        const [fechaInicio, fechaFin] = values.rango;
+        fecha_inicio = dayjs(fechaInicio).format('YYYY-MM-DD');
+        fecha_fin = dayjs(fechaFin).format('YYYY-MM-DD');
+      }
+
       const payload: Parameters<typeof createVacationRequest>[0] = {
         request_type: requestType,
         time_off_type: values.time_off_type ?? 'vacaciones',
         comentarios: values.comentarios || undefined,
+        fecha_inicio,
+        ...(fecha_fin !== undefined ? { fecha_fin } : {}),
+        ...(hora_inicio !== undefined ? { hora_inicio } : {}),
       };
-
-      if (isHourly) {
-        payload.fecha_inicio = dayjs(values.fecha_inicio).format('YYYY-MM-DD');
-        payload.hora_inicio = dayjs(values.hora_inicio).format('HH:mm');
-      } else {
-        const [fechaInicio, fechaFin] = values.rango;
-        payload.fecha_inicio = dayjs(fechaInicio).format('YYYY-MM-DD');
-        payload.fecha_fin = dayjs(fechaFin).format('YYYY-MM-DD');
-      }
 
       await createVacationRequest(payload);
       message.success('Solicitud enviada');
@@ -766,20 +779,27 @@ const VacacionesPage: React.FC = () => {
       const requestType: VacationRequestTypeValue = values.request_type ?? 'full_day';
       const isHourly = requestType !== 'full_day';
 
+      let fecha_inicio: string;
+      let fecha_fin: string | undefined;
+      let hora_inicio: string | undefined;
+
+      if (isHourly) {
+        fecha_inicio = dayjs(values.fecha_inicio).format('YYYY-MM-DD');
+        hora_inicio = dayjs(values.hora_inicio).format('HH:mm');
+      } else {
+        const [fechaInicio, fechaFin] = values.rango;
+        fecha_inicio = dayjs(fechaInicio).format('YYYY-MM-DD');
+        fecha_fin = dayjs(fechaFin).format('YYYY-MM-DD');
+      }
+
       const payload: Parameters<typeof createVacationRequestForUser>[1] = {
         request_type: requestType,
         time_off_type: values.time_off_type ?? 'vacaciones',
         comentarios: values.comentarios || undefined,
+        fecha_inicio,
+        ...(fecha_fin !== undefined ? { fecha_fin } : {}),
+        ...(hora_inicio !== undefined ? { hora_inicio } : {}),
       };
-
-      if (isHourly) {
-        payload.fecha_inicio = dayjs(values.fecha_inicio).format('YYYY-MM-DD');
-        payload.hora_inicio = dayjs(values.hora_inicio).format('HH:mm');
-      } else {
-        const [fechaInicio, fechaFin] = values.rango;
-        payload.fecha_inicio = dayjs(fechaInicio).format('YYYY-MM-DD');
-        payload.fecha_fin = dayjs(fechaFin).format('YYYY-MM-DD');
-      }
 
       await createVacationRequestForUser(values.user_id, payload);
       message.success('Solicitud creada exitosamente');

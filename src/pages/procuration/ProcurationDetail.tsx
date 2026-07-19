@@ -75,7 +75,6 @@ const ProcurationDetail: React.FC = () => {
   // Check if user is procurator
   const isProcurator = tipoUsuario === 5;
   const isAssignedProcurator = procuration?.procurator?.id === userId;
-  const isApplicant = procuration?.applicant?.id === userId;
 
   // Fetch procuration details
   const fetchProcuration = useCallback(async () => {

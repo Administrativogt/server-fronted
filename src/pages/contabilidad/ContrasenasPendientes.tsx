@@ -1,12 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { Button, Card, DatePicker, message, Select, Space, Table, Tag } from 'antd';
+import { useEffect, useState } from 'react';
+import { Button, Card, DatePicker, message, Select, Space, Table } from 'antd';
 import dayjs from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
 import { contrasenaApi } from '../../api/accounting';
 import type { ContrasenaDeago } from '../../types/accounting.types';
-
-const ESTADO_LABELS: Record<number, string> = { 1: 'Pagada', 2: 'Pendiente', 3: 'Anulada' };
-const ESTADO_COLORS: Record<number, string> = { 1: 'green', 2: 'orange', 3: 'red' };
 
 export default function ContrasenasPendientes() {
   const [data, setData] = useState<ContrasenaDeago[]>([]);

@@ -1,38 +1,17 @@
 // src/pages/DashboardLayout.tsx
-import React, { useEffect, useState } from 'react';
-import { Layout, Menu, Button, Switch, Tooltip, Grid, Input, Empty, theme as antdTheme } from 'antd';
+import React, { Suspense, useEffect, useState } from 'react';
+import { Layout, Menu, Button, Switch, Tooltip, Grid, Input, Empty, Dropdown, Avatar, Tag, theme as antdTheme } from 'antd';
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  HomeOutlined,
-  ScheduleOutlined,
-  DollarOutlined,
-  FileTextOutlined,
   LogoutOutlined,
-  MailOutlined,
-  FolderOpenOutlined,
-  FileProtectOutlined,
-  FileDoneOutlined,
-  PushpinOutlined,
-  FileSearchOutlined,
-  FileAddOutlined,
-  ClockCircleOutlined,
-  SolutionOutlined,
-  AuditOutlined,
   UnorderedListOutlined,
-  PlusCircleOutlined,
-  UserOutlined,
-  SettingOutlined,
   SunOutlined,
   MoonOutlined,
-  UploadOutlined,
-  BankOutlined,
-  ReadOutlined,
-  CalendarOutlined,
-  BarChartOutlined,
   StarOutlined,
   StarFilled,
   SearchOutlined,
+  DownOutlined,
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import useAuthStore from '../auth/useAuthStore';
@@ -40,6 +19,11 @@ import useThemeStore from '../hooks/useThemeStore';
 import api from '../api/axios';
 import { useUserAdminPermissions } from '../hooks/usePermissions';
 import type { ModuleKey } from '../types/module-access.types';
+import { getTipoUsuarioLabel, getTipoUsuarioColor } from '../types/user.types';
+import { MENU, buildMenuItems, type MenuCaps } from '../config/menu';
+import { PRIMARY } from './dashboard/theme';
+import ErrorBoundary from '../components/ErrorBoundary';
+import ContentSkeleton from '../components/ContentSkeleton';
 
 import logoLight from '../assets/logo-cosortium.png';
 import logoDark from '../assets/logo-dark.png';
@@ -67,13 +51,24 @@ const DashboardLayout: React.FC = () => {
   }, [isMobile]);
 
   const {
-    token: { colorBgContainer, borderRadiusLG, colorBgLayout },
+    token: {
+      colorBgContainer,
+      borderRadiusLG,
+      colorBgLayout,
+      colorBgElevated,
+      colorText,
+      colorTextSecondary,
+      colorBorderSecondary,
+    },
   } = antdTheme.useToken();
 
   const navigate = useNavigate();
   const location = useLocation();
   const logout = useAuthStore((s) => s.logout);
   const username = useAuthStore((s) => s.username);
+  const firstName = useAuthStore((s) => s.firstName);
+  const lastName = useAuthStore((s) => s.lastName);
+  const isSuperuser = useAuthStore((s) => s.is_superuser);
   const tipoUsuario = useAuthStore((s) => s.tipo_usuario);
   const modules = useAuthStore((s) => s.modules);
 
@@ -128,500 +123,20 @@ const DashboardLayout: React.FC = () => {
     navigate('/login');
   };
 
-  const getMenuItems = () => {
-    const items = [
-      {
-        key: "/dashboard",
-        icon: <HomeOutlined />,
-        label: "Dashboard",
-        onClick: () => navigate('/dashboard')
-      },
-      {
-        key: "/dashboard/mis-cheques",
-        icon: <DollarOutlined />,
-        label: "Mis cheques",
-        onClick: () => navigate('/dashboard/mis-cheques'),
-      },
-      {
-        key: "agendador",
-        icon: <ScheduleOutlined />,
-        label: "Agendador",
-        children: [
-          {
-            key: "/dashboard/agendador",
-            label: "Lista",
-            onClick: () => navigate('/dashboard/agendador')
-          },
-          {
-            key: "/dashboard/agendador/crear",
-            label: "Crear",
-            onClick: () => navigate('/dashboard/agendador/crear')
-          },
-          {
-            key: "/dashboard/agendador/feriados",
-            label: "Lista de feriados",
-            onClick: () => navigate('/dashboard/agendador/feriados')
-          },
-          {
-            key: "/dashboard/agendador/feriados/crear",
-            label: "Crear feriado",
-            onClick: () => navigate('/dashboard/agendador/feriados/crear')
-          },
-          {
-            key: "/dashboard/agendador/calendario",
-            label: "Calendario",
-            onClick: () => navigate('/dashboard/agendador/calendario')
-          }
-        ]
-      },
-      {
-        key: "autorizacion-cheques",
-        icon: <BankOutlined />,
-        label: "Contabilidad",
-        children: [
-          {
-            key: "/dashboard/autorizacion-cheques/cargar",
-            icon: <UploadOutlined />,
-            label: "Cargar cheques",
-            onClick: () => navigate('/dashboard/autorizacion-cheques/cargar'),
-          },
-          {
-            key: "/dashboard/autorizacion-cheques/lista",
-            icon: <UnorderedListOutlined />,
-            label: "Lista de cheques",
-            onClick: () => navigate('/dashboard/autorizacion-cheques/lista'),
-          },
-        ],
-      },
-      {
-        key: "cheques",
-        icon: <FolderOpenOutlined />,
-        label: "Gestión de cheques",
-        children: [
-          {
-            key: "/dashboard/cheques/autorizacion",
-            icon: <FileProtectOutlined />,
-            label: "Autorización",
-            onClick: () => navigate('/dashboard/cheques/autorizacion')
-          },
-          {
-            key: "/dashboard/cheques/liquidacion",
-            icon: <DollarOutlined />,
-            label: "Liquidación",
-            onClick: () => navigate('/dashboard/cheques/liquidacion')
-          },
-          {
-            key: "/dashboard/cheques/liquidados",
-            icon: <FileDoneOutlined />,
-            label: "Liquidados",
-            onClick: () => navigate('/dashboard/cheques/liquidados')
-          },
-          {
-            key: "/dashboard/cheques/inmobiliario",
-            icon: <FileTextOutlined />,
-            label: "Gastos inmobiliarios",
-            onClick: () => navigate('/dashboard/cheques/inmobiliario')
-          },
-          {
-            key: "/dashboard/cheques/litigio",
-            icon: <FileTextOutlined />,
-            label: "Gastos litigio",
-            onClick: () => navigate('/dashboard/cheques/litigio')
-          },
-          {
-            key: "/dashboard/cheques/pendientes",
-            icon: <PushpinOutlined />,
-            label: "Cheques pendientes",
-            onClick: () => navigate('/dashboard/cheques/pendientes')
-          }
-        ]
-      },
-      {
-        key: "casos",
-        icon: <FileTextOutlined />,
-        label: "Control de casos",
-        children: [
-          {
-            key: "/dashboard/casos",
-            icon: <FileTextOutlined />,
-            label: "Ver casos",
-            onClick: () => navigate('/dashboard/casos')
-          },
-          {
-            key: "/dashboard/casos/crear",
-            icon: <FileAddOutlined />,
-            label: "Crear caso",
-            onClick: () => navigate('/dashboard/casos/crear')
-          },
-        ],
-      },
-      {
-        key: "recursos-humanos",
-        icon: <SolutionOutlined />,
-        label: "Recursos Humanos",
-        children: [
-          {
-            key: "/dashboard/recursos-humanos",
-            icon: <SolutionOutlined />,
-            label: "General",
-            onClick: () => navigate('/dashboard/recursos-humanos'),
-          },
-          {
-            key: "/dashboard/recursos-humanos/vacaciones",
-            icon: <CalendarOutlined />,
-            label: "Vacaciones",
-            onClick: () => navigate('/dashboard/recursos-humanos/vacaciones'),
-          },
-        ],
-      },
-      {
-        key: "mensajeria",
-        icon: <MailOutlined />,
-        label: "Mensajería",
-        children: [
-          // ✅ VALIDACIÓN #12: "Crear envío" - Solo para admins/coordinadores
-          ...(canCreateEncargo ? [{
-            key: "/dashboard/mensajeria/crear",
-            icon: <PlusCircleOutlined />,
-            label: "Crear envío",
-            onClick: () => navigate('/dashboard/mensajeria/crear')
-          }] : []),
-          {
-            key: "/dashboard/mensajeria",
-            icon: <ClockCircleOutlined />,
-            label: "Envíos pendientes",
-            onClick: () => navigate('/dashboard/mensajeria')
-          },
-          {
-            key: "/dashboard/mensajeria/todos",
-            icon: <UnorderedListOutlined />,
-            label: "Todos los envíos",
-            onClick: () => navigate('/dashboard/mensajeria/todos')
-          },
-          ...(canSeeAsignados ? [{
-            key: "/dashboard/mensajeria/asignados",
-            icon: <FileProtectOutlined />,
-            label: "Envíos asignados",
-            onClick: () => navigate('/dashboard/mensajeria/asignados')
-          }] : []),
-          {
-            key: "/dashboard/mensajeria/dashboard",
-            icon: <AuditOutlined />,
-            label: "Dashboard",
-            onClick: () => navigate('/dashboard/mensajeria/dashboard')
-          }
-        ]
-      },
-      {
-        key: "clientes",
-        icon: <UserOutlined />,
-        label: "Clientes",
-        children: [
-          {
-            key: "/dashboard/clientes",
-            icon: <UnorderedListOutlined />,
-            label: "Lista de clientes",
-            onClick: () => navigate('/dashboard/clientes')
-          },
-          {
-            key: "/dashboard/clientes/crear",
-            icon: <FileAddOutlined />,
-            label: "Crear cliente",
-            onClick: () => navigate('/dashboard/clientes/crear')
-          },
-          {
-            key: "/dashboard/casos/solicitudes",
-            icon: <FileSearchOutlined />,
-            label: "Solicitudes de casos",
-            onClick: () => navigate('/dashboard/casos/solicitudes')
-          },
-          {
-            key: "/dashboard/casos/crear-solicitud",
-            icon: <PlusCircleOutlined />,
-            label: "Crear caso",
-            onClick: () => navigate('/dashboard/casos/crear-solicitud')
-          }
-        ]
-      },
-      {
-        key: "reservaciones",
-        icon: <ScheduleOutlined />,
-        label: "Reservaciones",
-        children: [
-          {
-            key: "/dashboard/reservaciones",
-            label: "Calendario",
-            onClick: () => navigate('/dashboard/reservaciones')
-          },
-          {
-            key: "/dashboard/reservaciones/crear",
-            label: "Crear reserva",
-            onClick: () => navigate('/dashboard/reservaciones/crear')
-          },
-          {
-            key: "/dashboard/reservaciones/listar",
-            label: "Listar reservas",
-            onClick: () => navigate('/dashboard/reservaciones/listar')
-          },
-          ...(canSeeReport === true ? [{
-            key: "/dashboard/reservaciones/reporte-exclusivo",
-            icon: <FileTextOutlined />,
-            label: "Reporte exclusivo",
-            onClick: () => navigate('/dashboard/reservaciones/reporte-exclusivo')
-          }] : [])
-        ]
-      },
-      {
-        key: "cargability",
-        icon: <ClockCircleOutlined />,
-        label: "Cargabilidad",
-        children: [
-          {
-            key: "/dashboard/cargability/upload",
-            label: "Subir reporte",
-            onClick: () => navigate('/dashboard/cargability/upload')
-          },
-          {
-            key: "/dashboard/cargability/users",
-            label: "Lista de usuarios",
-            onClick: () => navigate('/dashboard/cargability/users')
-          }
-        ]
-      },
-      {
-        key: "informe-socios",
-        icon: <BarChartOutlined />,
-        label: "Informe Socios",
-        children: [
-          {
-            key: "/dashboard/informe-socios",
-            label: "Generar reportes",
-            onClick: () => navigate('/dashboard/informe-socios')
-          },
-          {
-            key: "/dashboard/informe-socios/importar",
-            label: "Importar datos",
-            onClick: () => navigate('/dashboard/informe-socios/importar')
-          },
-          {
-            key: "/dashboard/informe-socios/datos",
-            label: "Datos importados",
-            onClick: () => navigate('/dashboard/informe-socios/datos')
-          },
-          {
-            key: "/dashboard/informe-socios/socios",
-            label: "Gestión de socios",
-            onClick: () => navigate('/dashboard/informe-socios/socios')
-          }
-        ]
-      },
-      {
-        key: "documentos",
-        icon: <FileTextOutlined />,
-        label: "Documentos",
-        children: [
-          {
-            key: "/dashboard/documentos/crear",
-            icon: <FileAddOutlined />,
-            label: "Crear documento",
-            onClick: () => navigate('/dashboard/documentos/crear')
-          },
-          {
-            key: "/dashboard/documentos",
-            icon: <FileSearchOutlined />,
-            label: "Pendientes",
-            onClick: () => navigate('/dashboard/documentos')
-          },
-          {
-            key: "/dashboard/documentos/entregados",
-            icon: <FileDoneOutlined />,
-            label: "Entregados",
-            onClick: () => navigate('/dashboard/documentos/entregados')
-          }
-        ]
-      },
-      {
-        key: "notificaciones",
-        icon: <MailOutlined />,
-        label: "Notificaciones",
-        children: [
-          {
-            key: "/dashboard/notificaciones/crear",
-            label: "Crear notificación",
-            onClick: () => navigate('/dashboard/notificaciones/crear')
-          },
-          {
-            key: "/dashboard/notificaciones",
-            label: "Listado de notificaciones",
-            onClick: () => navigate('/dashboard/notificaciones')
-          },
-          {
-            key: "/dashboard/notificaciones/entregadas",
-            label: "Pendientes de entrega",
-            onClick: () => navigate('/dashboard/notificaciones/entregadas')
-          }
-        ]
-      },
-      {
-        key: "recibos",
-        icon: <DollarOutlined />,
-        label: "Recibos de Caja",
-        children: [
-          {
-            key: "/dashboard/recibos/crear",
-            label: "Crear recibo",
-            onClick: () => navigate('/dashboard/recibos/crear')
-          },
-          {
-            key: "/dashboard/recibos/listar",
-            label: "Ver recibos",
-            onClick: () => navigate('/dashboard/recibos/listar')
-          }
-        ]
-      },
-      {
-        key: "money-req-submenu",
-        icon: <DollarOutlined />,
-        label: "Requerimientos de dinero",
-        children: [
-          {
-            key: "/dashboard/money-req",
-            label: "Listar requerimientos",
-            onClick: () => navigate('/dashboard/money-req')
-          },
-          {
-            key: "/dashboard/money-req/create",
-            icon: <PlusCircleOutlined />,
-            label: "Crear requerimiento",
-            onClick: () => navigate('/dashboard/money-req/create')
-          }
-        ]
-      },
-      // ✨ NUEVO - Módulo de Actas de Nombramiento
-      {
-        key: "appointments",
-        icon: <SolutionOutlined />,
-        label: "Actas de Nombramiento",
-        children: [
-          {
-            key: "/dashboard/appointments",
-            icon: <FileSearchOutlined />,
-            label: "Listar actas",
-            onClick: () => navigate('/dashboard/appointments')
-          },
-          {
-            key: "/dashboard/appointments/create",
-            icon: <FileAddOutlined />,
-            label: "Crear acta",
-            onClick: () => navigate('/dashboard/appointments/create')
-          },
-          {
-            key: "/dashboard/appointments/asambleas",
-            icon: <BankOutlined />,
-            label: "Asambleas",
-            onClick: () => navigate('/dashboard/appointments/asambleas')
-          }
-        ]
-      },
-      // Módulo de Control de Procuraciones
-      {
-        key: "procuration",
-        icon: <AuditOutlined />,
-        label: "Control Procuraciones",
-        children: [
-          {
-            key: "/dashboard/procuration",
-            icon: <UnorderedListOutlined />,
-            label: "Listar procuraciones",
-            onClick: () => navigate('/dashboard/procuration')
-          },
-          {
-            key: "/dashboard/procuration/create",
-            icon: <PlusCircleOutlined />,
-            label: "Crear procuracion",
-            onClick: () => navigate('/dashboard/procuration/create')
-          }
-        ]
-      },
-      // ✨ NUEVO - Módulo de Jurisprudencia
-      {
-        key: "jurisprudencia",
-        icon: <ReadOutlined />,
-        label: "Jurisprudencia",
-        children: [
-          {
-            key: "/dashboard/jurisprudencia/panel",
-            icon: <AuditOutlined />,
-            label: "Panel & métricas",
-            onClick: () => navigate('/dashboard/jurisprudencia/panel')
-          },
-          {
-            key: "/dashboard/jurisprudencia",
-            icon: <FileSearchOutlined />,
-            label: "Archivo de sentencias",
-            onClick: () => navigate('/dashboard/jurisprudencia')
-          },
-          {
-            key: "/dashboard/jurisprudencia/crear",
-            icon: <FileAddOutlined />,
-            label: "Registrar sentencia",
-            onClick: () => navigate('/dashboard/jurisprudencia/crear')
-          }
-        ]
-      },
-      // ✅ NUEVO: Menú de Administración (solo para superadmins y Pedro Luis)
-      ...(canAccessUserAdmin ? [{
-        key: "admin",
-        icon: <SettingOutlined />,
-        label: "Administración",
-        children: [
-          {
-            key: "/dashboard/admin/users",
-            icon: <UserOutlined />,
-            label: "Gestión de Usuarios",
-            onClick: () => navigate('/dashboard/admin/users')
-          }
-        ]
-      }] : [])
-    ];
+  // Identidad para el menú de usuario del header
+  const fullName = `${firstName} ${lastName}`.trim() || username || 'Usuario';
+  const initials =
+    (((firstName?.[0] ?? '') + (lastName?.[0] ?? '')).trim() || username.slice(0, 2) || 'U').toUpperCase();
+  const roleLabel = isSuperuser ? 'Administrador' : getTipoUsuarioLabel(tipoUsuario ?? undefined);
+  const roleColor = isSuperuser ? 'gold' : getTipoUsuarioColor(tipoUsuario ?? undefined);
 
-    return items.filter((item: any) => {
-      switch (item.key) {
-        case 'mensajeria':
-          return hasModule('encargos');
-        case 'reservaciones':
-          return hasModule('reservas_salas');
-        case '/dashboard/casos':
-        case '/dashboard/casos/crear':
-          return hasModule('expedientes_judiciales');
-        case 'clientes':
-          return hasModule('clientes');
-        case 'notificaciones':
-          return hasModule('notificaciones');
-        case 'recibos':
-          return hasModule('recibos_caja');
-        case 'money-req-submenu':
-          return hasModule('solicitudes_dinero');
-        case 'appointments':
-          return hasModule('actas');
-        case 'procuration':
-          return hasModule('procuracion');
-        case 'cheques':
-          return hasModule('cheques') || hasModule('autorizacion_cheques');
-        case 'autorizacion-cheques':
-          return hasModule('contabilidad') || hasModule('autorizacion_cheques');
-        case 'cargability':
-          return hasModule('cargabilidad');
-        case 'informe-socios':
-          return hasModule('informe_socios');
-        case 'admin':
-          return canAccessUserAdmin && hasModule('usuarios');
-        case 'recursos-humanos':
-          return hasModule('recursos_humanos');
-        default:
-          return true;
-      }
-    });
+  // Capacidades que deciden la visibilidad de cada módulo (ver src/config/menu.tsx)
+  const caps: MenuCaps = {
+    hasModule,
+    canCreateEncargo,
+    canSeeAsignados,
+    canSeeReport: canSeeReport === true,
+    canAccessUserAdmin,
   };
 
   /* Mejora UX en modo colapsado:
@@ -652,32 +167,52 @@ const DashboardLayout: React.FC = () => {
     });
 
   /* ⭐ Estrella de favorito en los módulos de primer nivel.
-     stopPropagation para que el click no expanda/colapse el submenú. */
-  const labelWithStar = (origKey: string, label: React.ReactNode) => {
+     Es un <button> real (accesible por teclado); stopPropagation para que el
+     click no expanda/colapse el submenú. */
+  const labelWithStar = (origKey: string, label: React.ReactNode, hasChildren = false) => {
     if (collapsed) return label;
     const isFav = favorites.includes(origKey);
     return (
-      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          width: '100%',
+          boxSizing: 'border-box',
+          // En submenús, reserva espacio a la derecha para la flecha de AntD
+          // (empieza en ~16px del borde) para que la estrella no la tope.
+          paddingInlineEnd: hasChildren ? 24 : 0,
+        }}
+      >
+        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {label}
         </span>
         <Tooltip title={isFav ? 'Quitar de favoritos' : 'Agregar a favoritos'} placement="right">
-          <span
+          <button
+            type="button"
             className="menu-fav-star"
+            aria-label={isFav ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+            aria-pressed={isFav}
             onClick={(e) => {
               e.stopPropagation();
               toggleFavorite(origKey);
             }}
             style={{
               display: 'inline-flex',
+              alignItems: 'center',
+              flexShrink: 0,
               padding: '0 2px',
+              background: 'none',
+              border: 'none',
+              color: 'inherit',
               cursor: 'pointer',
               opacity: isFav ? 1 : 0.35,
               transition: 'opacity 0.15s',
             }}
           >
             {isFav ? <StarFilled style={{ color: '#faad14' }} /> : <StarOutlined />}
-          </span>
+          </button>
         </Tooltip>
       </span>
     );
@@ -687,7 +222,7 @@ const DashboardLayout: React.FC = () => {
   const addStars = (items: any[], isFavGroup = false): any[] =>
     items.map((it) => {
       const origKey = isFavGroup ? String(it.key).replace(/^fav:/, '') : it.key;
-      return { ...it, label: labelWithStar(origKey, it.label) };
+      return { ...it, label: labelWithStar(origKey, it.label, !!it.children?.length) };
     });
 
   // Clona un módulo con keys prefijadas para usarlo en la sección de favoritos
@@ -712,7 +247,7 @@ const DashboardLayout: React.FC = () => {
     return false;
   };
 
-  const rawItems = getMenuItems();
+  const rawItems = buildMenuItems(MENU, caps);
 
   // Listado principal (filtrado por búsqueda si aplica)
   const mainItems = isSearching ? rawItems.filter(matchesSearch) : rawItems;
@@ -825,7 +360,13 @@ const DashboardLayout: React.FC = () => {
             selectedKeys={[location.pathname]}
             openKeys={effectiveOpenKeys}
             onOpenChange={(keys) => setOpenKeys(keys.slice(-1))}
-            onClick={() => { if (isMobile) setCollapsed(true); }}
+            onClick={({ key }) => {
+              // Navega directo desde la key (ruta). Los clones de favoritos
+              // llevan prefijo "fav:" que se retira antes de navegar.
+              const path = key.startsWith('fav:') ? key.slice(4) : key;
+              if (path.startsWith('/')) navigate(path);
+              if (isMobile) setCollapsed(true);
+            }}
             items={finalItems}
           />
         )}
@@ -870,24 +411,110 @@ const DashboardLayout: React.FC = () => {
             onClick={() => setCollapsed((c) => !c)}
             style={{ fontSize: 16, width: 64, height: 64 }}
           />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <Switch
               checked={isDark}
               onChange={toggleTheme}
               checkedChildren={<MoonOutlined />}
               unCheckedChildren={<SunOutlined />}
             />
-            <span style={{ fontWeight: 'bold' }}>
-              {username || 'Usuario'}
-            </span>
-            <Button
-              type="primary"
-              danger
-              icon={<LogoutOutlined />}
-              onClick={handleLogout}
+            <Dropdown
+              trigger={['click']}
+              placement="bottomRight"
+              dropdownRender={() => (
+                <div
+                  style={{
+                    minWidth: 244,
+                    background: colorBgElevated,
+                    borderRadius: borderRadiusLG,
+                    border: `1px solid ${colorBorderSecondary}`,
+                    boxShadow: '0 6px 24px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: 16 }}>
+                    <Avatar size={44} style={{ backgroundColor: PRIMARY, flexShrink: 0, fontWeight: 600 }}>
+                      {initials}
+                    </Avatar>
+                    <div style={{ minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontWeight: 600,
+                          color: colorText,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {fullName}
+                      </div>
+                      <div style={{ fontSize: 12, color: colorTextSecondary }}>{username}</div>
+                      <Tag color={roleColor} style={{ marginTop: 6, marginInlineEnd: 0 }}>
+                        {roleLabel}
+                      </Tag>
+                    </div>
+                  </div>
+                  <div style={{ height: 1, background: colorBorderSecondary }} />
+                  <div style={{ padding: 8 }}>
+                    <Button
+                      type="text"
+                      danger
+                      block
+                      icon={<LogoutOutlined />}
+                      onClick={handleLogout}
+                      style={{ justifyContent: 'flex-start' }}
+                    >
+                      Cerrar sesión
+                    </Button>
+                  </div>
+                </div>
+              )}
             >
-              Cerrar sesión
-            </Button>
+              <button
+                type="button"
+                className="user-trigger"
+                aria-label={`Menú de usuario: ${fullName}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '4px 8px',
+                  background: 'none',
+                  border: 'none',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  color: colorText,
+                }}
+              >
+                <Avatar size={32} style={{ backgroundColor: PRIMARY, fontWeight: 600 }}>
+                  {initials}
+                </Avatar>
+                {!isMobile && (
+                  <span
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontWeight: 600,
+                        maxWidth: 160,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {fullName}
+                    </span>
+                    <span style={{ fontSize: 11, color: colorTextSecondary }}>{roleLabel}</span>
+                  </span>
+                )}
+                <DownOutlined style={{ fontSize: 10, opacity: 0.55 }} />
+              </button>
+            </Dropdown>
           </div>
         </Header>
 
@@ -901,7 +528,15 @@ const DashboardLayout: React.FC = () => {
             overflowX: 'auto',
           }}
         >
-          <Outlet />
+          {/* Suspense interno: al navegar entre páginas lazy, el shell queda fijo
+              y solo el contenido muestra un skeleton. El Error Boundary con scope
+              de contenido (keyed por ruta) aísla fallos de página sin perder el
+              sidebar y se resetea al navegar. */}
+          <ErrorBoundary key={location.pathname} fullScreen={false}>
+            <Suspense fallback={<ContentSkeleton />}>
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
         </Content>
 
         <Footer style={{ textAlign: 'center', background: 'transparent' }}>

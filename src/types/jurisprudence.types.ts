@@ -112,9 +112,11 @@ export interface DashboardStats {
     id: number;
     expedient: string;
     specific_theme: string;
+    init_date: string | null;
     end_date: string | null;
     tribunal: string | null;
     sense_of_failure: string | null;
+    sentence_file: string | null;
   }>;
 }
 

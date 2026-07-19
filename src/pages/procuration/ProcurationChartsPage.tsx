@@ -24,10 +24,11 @@ import {
   Title,
 } from 'chart.js';
 import { Bar, Pie } from 'react-chartjs-2';
-import dayjs, { Dayjs } from 'dayjs';
+import type { Dayjs } from 'dayjs';
 import { getTeams } from '../../api/teams';
 import { getClients, getUsers } from '../../api/procuration';
-import type { Client, User } from '../../types/procuration.types';
+import type { Client } from '../../types/procuration.types';
+import type { User } from '../../types/user.types';
 import type { Team } from '../../api/teams';
 import {
   getMonthChart,
@@ -176,7 +177,7 @@ const ProcurationChartsPage: React.FC = () => {
       .catch(() => {});
     getUsers()
       .then((users) =>
-        setProcurators(users.filter((u: User) => u.tipo_usuario === 5 && (u as any).estado === 1)),
+        setProcurators(users.filter((u: User) => u.tipo_usuario === 5 && u.estado === 1)),
       )
       .catch(() => {});
   }, []);
@@ -185,7 +186,7 @@ const ProcurationChartsPage: React.FC = () => {
   useEffect(() => {
     if (priorityTeam) {
       const filtered = procurators.filter(
-        (u) => u.equipo && (u.equipo as any).id === priorityTeam,
+        (u) => u.equipo && u.equipo.id === priorityTeam,
       );
       setProcurators(filtered.length ? filtered : procurators);
     }
@@ -371,9 +372,9 @@ const ProcurationChartsPage: React.FC = () => {
             const filtered = users.filter(
               (u: User) =>
                 u.tipo_usuario === 5 &&
-                (u as any).estado === 1 &&
+                u.estado === 1 &&
                 u.equipo &&
-                (u.equipo as any).id === priorityTeam,
+                u.equipo.id === priorityTeam,
             );
             setProcurators(filtered);
           })

@@ -77,8 +77,12 @@ const HumanResourcesPage: React.FC = () => {
   const userId = useAuthStore((s) => s.userId);
   const tipoUsuario = useAuthStore((s) => s.tipo_usuario);
   const isSuperuser = useAuthStore((s) => s.is_superuser);
+  const modules = useAuthStore((s) => s.modules);
 
   const isAdmin = isSuperuser || tipoUsuario === 18 || tipoUsuario === 6;
+  // Módulo 'sugerencias' (Django: tipo 2, superuser o permiso 18) — habilita ver el
+  // LISTADO del buzón; crear sugerencias/denuncias queda abierto a todos
+  const canViewMailboxList = modules.some((m) => m.key === 'sugerencias');
 
   // Datos maestros
   const [mailboxTypes, setMailboxTypes] = useState<MailboxType[]>([]);
@@ -188,9 +192,10 @@ const HumanResourcesPage: React.FC = () => {
   }, [loadCertificates]);
 
   useEffect(() => {
+    if (!canViewMailboxList) return;
     loadSuggestions();
     loadComplaints();
-  }, [loadSuggestions, loadComplaints]);
+  }, [canViewMailboxList, loadSuggestions, loadComplaints]);
 
   // ============================================
   // HELPERS
@@ -751,49 +756,60 @@ const HumanResourcesPage: React.FC = () => {
             >
               Nueva sugerencia
             </Button>
-            <Button icon={<ReloadOutlined />} onClick={loadSuggestions}>
-              Recargar
-            </Button>
+            {canViewMailboxList && (
+              <Button icon={<ReloadOutlined />} onClick={loadSuggestions}>
+                Recargar
+              </Button>
+            )}
           </Space>
         }
       >
-        {/* Filtros */}
-        <Card size="small" style={{ marginBottom: 16, background: 'transparent' }} variant="borderless">
-          <Form form={suggestionFilterForm} layout="inline">
-            <Form.Item name="mailbox_type" label="Buzon">
-              <Select
-                allowClear
-                placeholder="Todos"
-                style={{ width: 140 }}
-                options={mailboxTypes.map((m) => ({ label: m.name, value: m.id }))}
-              />
-            </Form.Item>
-            <Form.Item name="date" label="Fecha">
-              <DatePicker placeholder="Seleccionar" />
-            </Form.Item>
-            <Form.Item name="user" label="Usuario">
-              <Input placeholder="Nombre" style={{ width: 150 }} />
-            </Form.Item>
-            <Form.Item>
-              <Space>
-                <Button icon={<FilterOutlined />} onClick={submitSuggestionFilter}>
-                  Filtrar
-                </Button>
-                <Button onClick={clearSuggestionFilter}>Limpiar</Button>
-              </Space>
-            </Form.Item>
-          </Form>
-        </Card>
+        {canViewMailboxList ? (
+          <>
+            {/* Filtros */}
+            <Card size="small" style={{ marginBottom: 16, background: 'transparent' }} variant="borderless">
+              <Form form={suggestionFilterForm} layout="inline">
+                <Form.Item name="mailbox_type" label="Buzon">
+                  <Select
+                    allowClear
+                    placeholder="Todos"
+                    style={{ width: 140 }}
+                    options={mailboxTypes.map((m) => ({ label: m.name, value: m.id }))}
+                  />
+                </Form.Item>
+                <Form.Item name="date" label="Fecha">
+                  <DatePicker placeholder="Seleccionar" />
+                </Form.Item>
+                <Form.Item name="user" label="Usuario">
+                  <Input placeholder="Nombre" style={{ width: 150 }} />
+                </Form.Item>
+                <Form.Item>
+                  <Space>
+                    <Button icon={<FilterOutlined />} onClick={submitSuggestionFilter}>
+                      Filtrar
+                    </Button>
+                    <Button onClick={clearSuggestionFilter}>Limpiar</Button>
+                  </Space>
+                </Form.Item>
+              </Form>
+            </Card>
 
-        <Table
-          rowKey="id"
-          loading={suggestionsLoading}
-          dataSource={suggestions}
-          columns={suggestionColumns as any}
-          pagination={{ pageSize: 10 }}
-          size="middle"
-          scroll={{ x: 900 }}
-        />
+            <Table
+              rowKey="id"
+              loading={suggestionsLoading}
+              dataSource={suggestions}
+              columns={suggestionColumns as any}
+              pagination={{ pageSize: 10 }}
+              size="middle"
+              scroll={{ x: 900 }}
+            />
+          </>
+        ) : (
+          <Text type="secondary">
+            Envía tu sugerencia con el botón "Nueva sugerencia". El listado del buzón
+            solo está disponible para los encargados.
+          </Text>
+        )}
       </Card>
     </div>
   );
@@ -826,49 +842,60 @@ const HumanResourcesPage: React.FC = () => {
             >
               Nueva denuncia
             </Button>
-            <Button icon={<ReloadOutlined />} onClick={loadComplaints}>
-              Recargar
-            </Button>
+            {canViewMailboxList && (
+              <Button icon={<ReloadOutlined />} onClick={loadComplaints}>
+                Recargar
+              </Button>
+            )}
           </Space>
         }
       >
-        {/* Filtros */}
-        <Card size="small" style={{ marginBottom: 16, background: 'transparent' }} variant="borderless">
-          <Form form={complaintFilterForm} layout="inline">
-            <Form.Item name="mailbox_type" label="Buzon">
-              <Select
-                allowClear
-                placeholder="Todos"
-                style={{ width: 140 }}
-                options={mailboxTypes.map((m) => ({ label: m.name, value: m.id }))}
-              />
-            </Form.Item>
-            <Form.Item name="date" label="Fecha">
-              <DatePicker placeholder="Seleccionar" />
-            </Form.Item>
-            <Form.Item name="user" label="Usuario">
-              <Input placeholder="Nombre" style={{ width: 150 }} />
-            </Form.Item>
-            <Form.Item>
-              <Space>
-                <Button icon={<FilterOutlined />} onClick={submitComplaintFilter}>
-                  Filtrar
-                </Button>
-                <Button onClick={clearComplaintFilter}>Limpiar</Button>
-              </Space>
-            </Form.Item>
-          </Form>
-        </Card>
+        {canViewMailboxList ? (
+          <>
+            {/* Filtros */}
+            <Card size="small" style={{ marginBottom: 16, background: 'transparent' }} variant="borderless">
+              <Form form={complaintFilterForm} layout="inline">
+                <Form.Item name="mailbox_type" label="Buzon">
+                  <Select
+                    allowClear
+                    placeholder="Todos"
+                    style={{ width: 140 }}
+                    options={mailboxTypes.map((m) => ({ label: m.name, value: m.id }))}
+                  />
+                </Form.Item>
+                <Form.Item name="date" label="Fecha">
+                  <DatePicker placeholder="Seleccionar" />
+                </Form.Item>
+                <Form.Item name="user" label="Usuario">
+                  <Input placeholder="Nombre" style={{ width: 150 }} />
+                </Form.Item>
+                <Form.Item>
+                  <Space>
+                    <Button icon={<FilterOutlined />} onClick={submitComplaintFilter}>
+                      Filtrar
+                    </Button>
+                    <Button onClick={clearComplaintFilter}>Limpiar</Button>
+                  </Space>
+                </Form.Item>
+              </Form>
+            </Card>
 
-        <Table
-          rowKey="id"
-          loading={complaintsLoading}
-          dataSource={complaints}
-          columns={complaintColumns as any}
-          pagination={{ pageSize: 10 }}
-          size="middle"
-          scroll={{ x: 1000 }}
-        />
+            <Table
+              rowKey="id"
+              loading={complaintsLoading}
+              dataSource={complaints}
+              columns={complaintColumns as any}
+              pagination={{ pageSize: 10 }}
+              size="middle"
+              scroll={{ x: 1000 }}
+            />
+          </>
+        ) : (
+          <Text type="secondary">
+            Envía tu denuncia con el botón "Nueva denuncia". El listado del buzón
+            solo está disponible para los encargados.
+          </Text>
+        )}
       </Card>
     </div>
   );
