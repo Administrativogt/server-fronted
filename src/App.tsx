@@ -71,7 +71,7 @@ const PendingEncargosPage = lazy(() => import('./pages/mensajeria/PendingEncargo
 const EditEncargoPage = lazy(() => import('./pages/mensajeria/EditEncargoPage'));
 const MensajeriaDashboardPage = lazy(() => import('./pages/mensajeria/MensajeriaDashboardPage'));
 const AssignedEncargosPage = lazy(() => import('./pages/mensajeria/AssignedEncargosPage'));
-const AllEncargosPage = lazy(() => import('./pages/mensajeria/components/AllEncargosPage'));
+const AllEncargosPage = lazy(() => import('./pages/mensajeria/AllEncargosPage'));
 
 // Cargabilidad
 const UploadCargabilityReport = lazy(() => import('./pages/cargability/UploadCargabilityReport'));

@@ -1,6 +1,6 @@
 // src/pages/mensajeria/components/CommentModal.tsx
 import React, { useState, useEffect } from 'react';
-import { Modal, Input, List, message, Button, Space } from 'antd';
+import { Modal, Input, List, message, Button, Space, Typography } from 'antd';
 import { createComentario, getComentariosByEncargo, deleteComentario } from '../../../api/comentarios';
 import type { Comentario } from '../../../types/comentario';
 import useAuthStore from '../../../auth/useAuthStore';
@@ -16,6 +16,7 @@ interface CommentModalProps {
 const CommentModal: React.FC<CommentModalProps> = ({ open, encargoId, onClose }) => {
   const [comentarios, setComentarios] = useState<Comentario[]>([]);
   const [newComment, setNewComment] = useState('');
+  const [saving, setSaving] = useState(false);
   const userId = useAuthStore((state) => state.userId);
 
   useEffect(() => {
@@ -37,6 +38,7 @@ const CommentModal: React.FC<CommentModalProps> = ({ open, encargoId, onClose })
       message.warning('El comentario no puede estar vacío');
       return;
     }
+    setSaving(true);
     try {
       await createComentario(encargoId, newComment);
       message.success('Comentario agregado');
@@ -46,6 +48,8 @@ const CommentModal: React.FC<CommentModalProps> = ({ open, encargoId, onClose })
       setComentarios(res.data);
     } catch (error: any) {
       message.error(error.response?.data?.message || 'Error al guardar');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -89,9 +93,9 @@ const CommentModal: React.FC<CommentModalProps> = ({ open, encargoId, onClose })
               description={
                 <>
                   <div>{item.text}</div>
-                  <small style={{ color: '#999' }}>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                     {item.user?.first_name || item.user?.username || 'Usuario'} • {new Date(item.datetime).toLocaleString('es-GT')}
-                  </small>
+                  </Typography.Text>
                 </>
               }
             />
@@ -109,7 +113,7 @@ const CommentModal: React.FC<CommentModalProps> = ({ open, encargoId, onClose })
         />
         <Space style={{ marginTop: 8, float: 'right' }}>
           <Button onClick={onClose}>Cancelar</Button>
-          <Button type="primary" onClick={handleOk}>
+          <Button type="primary" onClick={handleOk} loading={saving}>
             Agregar
           </Button>
         </Space>

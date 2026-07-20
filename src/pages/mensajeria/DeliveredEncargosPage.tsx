@@ -1,44 +1,33 @@
 // src/pages/mensajeria/DeliveredEncargosPage.tsx
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Space, Tag, message, DatePicker } from 'antd';
+import { Table, Button, Space, Tag, message, DatePicker, Empty, theme } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { getEncargosFinalizados, downloadEncargosExcel } from '../../api/encargos';
 import type { Encargo } from '../../types/encargo';
+import EncargoExpandedRow from './components/EncargoExpandedRow';
+import { ESTADOS, PRIORIDADES, formatFecha, hasDetalles, saveExcelResponse } from './constants';
 
 const { RangePicker } = DatePicker;
-
-const ESTADOS: Record<number, { label: string; color: string }> = {
-  1: { label: 'Pendiente', color: 'orange' },
-  2: { label: 'En proceso', color: 'blue' },
-  3: { label: 'Entregado', color: 'green' },
-  4: { label: 'No entregado', color: 'red' },
-  5: { label: 'Extraordinario', color: 'volcano' },
-  6: { label: 'Anulado', color: 'default' },
-  7: { label: 'Rechazado', color: 'magenta' },
-  8: { label: 'Extra Entregado', color: 'purple' },
-};
-
-const PRIORIDADES: Record<number, string> = {
-  1: 'A',
-  2: 'B',
-  3: 'C',
-  4: 'D',
-};
 
 const DeliveredEncargosPage: React.FC = () => {
   const [encargos, setEncargos] = useState<Encargo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [filters, setFilters] = useState({
     startDate: null as string | null,
     endDate: null as string | null,
   });
   const navigate = useNavigate();
+  const { token } = theme.useToken();
 
   useEffect(() => {
     loadEncargos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
 
   const loadEncargos = async () => {
+    setLoading(true);
     try {
       const params: { start?: string; end?: string } = {};
       if (filters.startDate) params.start = filters.startDate;
@@ -46,8 +35,10 @@ const DeliveredEncargosPage: React.FC = () => {
 
       const res = await getEncargosFinalizados(params);
       setEncargos(res.data);
+      setLoadError(false);
     } catch (error) {
       console.error('Error al cargar encargos finalizados:', error);
+      setLoadError(true);
       message.error('No se pudieron cargar los envíos finalizados');
     } finally {
       setLoading(false);
@@ -65,32 +56,19 @@ const DeliveredEncargosPage: React.FC = () => {
   };
 
   const handleExportExcel = async () => {
+    setExporting(true);
     try {
       const response = await downloadEncargosExcel({
         startDate: filters.startDate || undefined,
         endDate: filters.endDate || undefined,
       });
       
-      const contentDisposition = response.headers['content-disposition'];
-      let filename = 'Envios-Entregados.xlsx';
-      
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename="?([^";]+)"?/);
-        if (match) filename = match[1];
-      }
-      
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', filename);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      
+      saveExcelResponse(response, 'Envios-Entregados.xlsx');
       message.success('Reporte descargado exitosamente');
     } catch (err: any) {
-      message.error('Error al descargar reporte');
+      message.error(err?.response?.data?.message || 'Error al descargar reporte');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -124,14 +102,18 @@ const DeliveredEncargosPage: React.FC = () => {
       dataIndex: 'fecha_realizacion',
       key: 'fecha_realizacion',
       width: 120,
-      render: (date: string) => date?.split('T')[0] || '-',
+      sorter: (a: Encargo, b: Encargo) =>
+        (a.fecha_realizacion || '').localeCompare(b.fecha_realizacion || ''),
+      render: (date: string) => formatFecha(date),
     },
     {
       title: 'Fecha Entrega',
       dataIndex: 'fecha_entrega',
       key: 'fecha_entrega',
       width: 120,
-      render: (date: string) => date ? date.split('T')[0] : '-',
+      sorter: (a: Encargo, b: Encargo) =>
+        (a.fecha_entrega || '').localeCompare(b.fecha_entrega || ''),
+      render: (date: string) => formatFecha(date),
     },
     {
       title: 'Estado',
@@ -150,7 +132,7 @@ const DeliveredEncargosPage: React.FC = () => {
       render: (_: any, record: Encargo) => (
         <Space size="small">
           <Button size="small" onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}>
-            Ver Detalle
+            Editar
           </Button>
         </Space>
       ),
@@ -161,13 +143,13 @@ const DeliveredEncargosPage: React.FC = () => {
     <div style={{ padding: '16px 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h2 style={{ margin: 0 }}>Envíos Finalizados</h2>
-        <Button type="default" onClick={handleExportExcel}>
+        <Button type="default" onClick={handleExportExcel} loading={exporting}>
           Exportar Excel
         </Button>
       </div>
 
       {/* Filtros */}
-      <div style={{ marginBottom: 16, padding: '16px', background: '#f5f5f5', borderRadius: 8 }}>
+      <div style={{ marginBottom: 16, padding: '16px', background: token.colorFillAlter, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8 }}>
         <Space wrap>
           <RangePicker onChange={handleDateChange} placeholder={['Fecha inicio', 'Fecha fin']} />
           <Button onClick={() => setFilters({ startDate: null, endDate: null })}>
@@ -184,6 +166,21 @@ const DeliveredEncargosPage: React.FC = () => {
         pagination={{ pageSize: 10 }}
         scroll={{ x: 1400 }}
         bordered
+        expandable={{
+          expandedRowRender: (record: Encargo) => <EncargoExpandedRow encargo={record} />,
+          rowExpandable: hasDetalles,
+        }}
+        locale={{
+          emptyText: loadError ? (
+            <Empty description="No se pudieron cargar los envíos finalizados">
+              <Button type="primary" onClick={loadEncargos}>
+                Reintentar
+              </Button>
+            </Empty>
+          ) : (
+            <Empty description="No hay envíos finalizados en este período. Sin filtro de fechas se muestra el mes actual." />
+          ),
+        }}
       />
     </div>
   );

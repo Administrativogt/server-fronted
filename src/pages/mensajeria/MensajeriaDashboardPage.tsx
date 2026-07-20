@@ -20,12 +20,15 @@ import useThemeStore from '../../hooks/useThemeStore'; // ✅ Tema claro/oscuro
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 
-// Colores para los gráficos
+// Paleta de gráficas alineada al design system: índigo de marca como dominante
+// y los semánticos (verde/rojo/ámbar/cian) solo donde comunican estado.
 const COLORS = {
-  pie: ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe', '#00f2fe', '#43e97b', '#38f9d7'],
-  priority: ['#ff6b6b', '#feca57', '#48dbfb', '#1dd1a1'],
-  state: ['#00d2d3', '#ff6b6b', '#feca57'],
-  zone: ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe', '#00f2fe'],
+  pie: ['#3C50E0', '#06B6D4', '#10B981', '#F59E0B', '#F43F5E', '#14B8A6', '#F97316', '#64748B'],
+  // Prioridad A (mismo día) → D: urgencia decreciente
+  priority: ['#EF4444', '#F59E0B', '#10B981', '#3C50E0'],
+  // Correctos / Rechazados / Incidencias
+  state: ['#10B981', '#EF4444', '#F59E0B'],
+  zone: ['#3C50E0', '#06B6D4', '#10B981', '#F59E0B', '#F43F5E', '#14B8A6'],
 };
 
 const MensajeriaDashboardPage: React.FC = () => {
@@ -174,7 +177,6 @@ const MensajeriaDashboardPage: React.FC = () => {
           end: filters.endDate || undefined,
         }
       );
-      console.log('📊 Tiempos de entrega:', resTiempos);
       setChartTiempos(resTiempos.solicitudes || []);
 
       // ✅ NUEVO: Cargar gráfica de zonas del mensajero
@@ -185,7 +187,6 @@ const MensajeriaDashboardPage: React.FC = () => {
           end: filters.endDate || undefined,
         }
       );
-      console.log('📊 Zonas del mensajero:', resZonas);
       setChartZonasMensajero(resZonas || []);
 
     } catch (error) {
@@ -277,7 +278,7 @@ const MensajeriaDashboardPage: React.FC = () => {
               ]}
             />
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#999' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: chartColors.textMuted }}>
               Sin datos disponibles
             </div>
           )}
@@ -324,7 +325,7 @@ const MensajeriaDashboardPage: React.FC = () => {
               motionConfig="gentle"
             />
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#999' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: chartColors.textMuted }}>
               Sin datos disponibles
             </div>
           )}
@@ -339,21 +340,23 @@ const MensajeriaDashboardPage: React.FC = () => {
 
       {/* Filtros - SOLO para admins/coordinadores */}
       {!isMensajero && (
-        <Row gutter={16} style={{ marginBottom: 24 }}>
-          <Col span={8}>
+        <Row gutter={[16, 12]} style={{ marginBottom: 24 }}>
+          <Col xs={24} md={8}>
             <RangePicker
               onChange={handleDateChange}
               style={{ width: '100%' }}
               placeholder={['Fecha inicio', 'Fecha fin']}
             />
           </Col>
-          <Col span={4}>
-            <Button onClick={loadCharts} type="primary" loading={loading}>
+          <Col xs={12} md={4}>
+            <Button onClick={loadCharts} type="primary" loading={loading} block>
               Aplicar
             </Button>
           </Col>
-          <Col span={4}>
-            <Button onClick={handleReset}>Reset</Button>
+          <Col xs={12} md={4}>
+            <Button onClick={handleReset} block>
+              Reset
+            </Button>
           </Col>
         </Row>
       )}
@@ -372,10 +375,10 @@ const MensajeriaDashboardPage: React.FC = () => {
 
           <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
             <Col xs={24} lg={12}>
-              {renderBarChart('Encargos por Mes', chartMonth, '#667eea')}
+              {renderBarChart('Encargos por Mes', chartMonth, '#3C50E0')}
             </Col>
             <Col xs={24} lg={12}>
-              {renderBarChart('Encargos por Zona', chartZone, '#764ba2')}
+              {renderBarChart('Encargos por Zona', chartZone, '#06B6D4')}
             </Col>
           </Row>
         </>
@@ -386,8 +389,8 @@ const MensajeriaDashboardPage: React.FC = () => {
         {isMensajero ? 'Mis Estadísticas' : 'Estadísticas por Mensajero'}
       </h3>
       {!isMensajero && (
-        <Row gutter={16} style={{ marginBottom: 16 }}>
-          <Col span={8}>
+        <Row gutter={[16, 12]} style={{ marginBottom: 16 }}>
+          <Col xs={24} md={8}>
             <Select
               placeholder="Seleccionar mensajero"
               value={filters.mensajeroId || undefined}
@@ -407,8 +410,8 @@ const MensajeriaDashboardPage: React.FC = () => {
               ))}
             </Select>
           </Col>
-          <Col span={4}>
-            <Button onClick={loadMensajeroChart} type="primary">
+          <Col xs={12} md={4}>
+            <Button onClick={loadMensajeroChart} type="primary" block>
               Cargar
             </Button>
           </Col>
@@ -419,7 +422,7 @@ const MensajeriaDashboardPage: React.FC = () => {
         <>
           <Row gutter={[16, 16]}>
             <Col xs={24} lg={12}>
-              {renderBarChart('Encargos del Mensajero por Mes', chartMensajero, '#f5576c')}
+              {renderBarChart('Encargos del Mensajero por Mes', chartMensajero, '#3C50E0')}
             </Col>
             <Col xs={24} lg={12}>
               {renderPieChart('Distribución del Mensajero', chartMensajero, COLORS.pie)}
@@ -444,7 +447,7 @@ const MensajeriaDashboardPage: React.FC = () => {
                       margin={{ top: 20, right: 130, bottom: 50, left: 60 }}
                       padding={0.3}
                       groupMode="grouped"
-                      colors={['#4CAF50', '#f44336']}
+                      colors={['#10B981', '#EF4444']}
                       borderColor={{ from: 'color', modifiers: [['darker', 1.6]] }}
                       axisBottom={{
                         tickSize: 5,
@@ -490,7 +493,7 @@ const MensajeriaDashboardPage: React.FC = () => {
                     />
                   </div>
                 ) : (
-                  <div style={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>
+                  <div style={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', color: chartColors.textMuted }}>
                     No hay encargos entregados para este mensajero en el período seleccionado
                   </div>
                 )}
@@ -544,7 +547,7 @@ const MensajeriaDashboardPage: React.FC = () => {
                       />
                     </div>
                   ) : (
-                    <div style={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>
+                    <div style={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', color: chartColors.textMuted }}>
                       No hay datos de zonas para este mensajero en el período seleccionado
                     </div>
                   )}
@@ -555,7 +558,7 @@ const MensajeriaDashboardPage: React.FC = () => {
       )}
 
       {filters.mensajeroId && chartMensajero.labels.length === 0 && (
-        <p style={{ textAlign: 'center', color: '#999' }}>
+        <p style={{ textAlign: 'center', color: chartColors.textMuted }}>
           No hay datos para el mensajero seleccionado en el rango de fechas.
         </p>
       )}

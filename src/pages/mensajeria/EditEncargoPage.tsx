@@ -1,10 +1,11 @@
 // src/pages/mensajeria/EditEncargoPage.tsx
 import React, { useEffect, useState } from 'react';
-import { Form, Input, Select, Checkbox, Button, message, Space, Card, Modal, DatePicker } from 'antd';
+import { Form, Input, Select, Checkbox, Button, message, Space, Card, DatePicker } from 'antd';
 import dayjs from 'dayjs';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getEncargoById, updateEncargo, getMensajeros, getUsuariosFormulario, getMunicipios, previewFechaRealizacion } from '../../api/encargos';
 import type { Usuario, Municipio } from '../../types/encargo';
+import CommentModal from './components/CommentModal';
 import { useMensajeriaPermissions } from '../../hooks/usePermissions';
 
 const { Option } = Select;
@@ -41,6 +42,16 @@ const EditEncargoPage: React.FC = () => {
   const { canAssignMensajero, isCoordinador, isEquipoMensajeria } =
     useMensajeriaPermissions(); // ✅ NUEVO
 
+  // Los bloques condicionales del formulario deben observar los valores con
+  // useWatch: leer form.getFieldValue() en el render no re-renderiza la página
+  // al marcar un checkbox, y los campos dependientes nunca aparecían.
+  const mensajeriaEnviada = Form.useWatch('mensajeria_enviada', form);
+  const tieneHora = Form.useWatch('tiene_hora', form);
+  const tieneObservaciones = Form.useWatch('tiene_observaciones', form);
+  const prioridadHora = Form.useWatch('prioridad_hora', form);
+  const estadoActual = Form.useWatch('estado', form);
+  const rejectReason = Form.useWatch('reject_reason', form);
+
   // Solo el equipo de mensajería (mensajeros + Wendy, Amalia, Mara, Pedro)
   // puede modificar la fecha de realización. Para el resto es solo lectura
   // (se calcula según prioridad + hora). Coincide con el backend.
@@ -48,7 +59,6 @@ const EditEncargoPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [comentarioModal, setComentarioModal] = useState(false);
-  const [comentario, setComentario] = useState('');
   const [mensajeros, setMensajeros] = useState<Usuario[]>([]);
   const [solicitantes, setSolicitantes] = useState<Usuario[]>([]); // ✅ Lista de solicitantes
   const [municipios, setMunicipios] = useState<Municipio[]>([]); // ✅ Lista de municipios
@@ -217,11 +227,6 @@ const EditEncargoPage: React.FC = () => {
     }
   };
 
-  const handleAddComentary = () => {
-    message.info('Función de comentarios aún no implementada');
-    setComentarioModal(false);
-  };
-
   return (
     <Card title="Editar Envío" style={{ maxWidth: 900, margin: '0 auto' }}>
       <Form
@@ -304,7 +309,7 @@ const EditEncargoPage: React.FC = () => {
           </Select>
         </Form.Item>
 
-        {form.getFieldValue('mensajeria_enviada') === 'otros' && (
+        {mensajeriaEnviada === 'otros' && (
           <Form.Item
             label="Especifique la mensajería"
             name="otros_mensajeria"
@@ -432,7 +437,7 @@ const EditEncargoPage: React.FC = () => {
           <Checkbox>¿Tendrá hora de entrega?</Checkbox>
         </Form.Item>
 
-        {form.getFieldValue('tiene_hora') && (
+        {tieneHora && (
           <>
             <Form.Item
               label="Horario"
@@ -478,7 +483,7 @@ const EditEncargoPage: React.FC = () => {
                   }),
                 ]}
               >
-                <Input type="time" disabled={form.getFieldValue('prioridad_hora') !== 4} />
+                <Input type="time" disabled={prioridadHora !== 4} />
               </Form.Item>
             </div>
           </>
@@ -488,7 +493,7 @@ const EditEncargoPage: React.FC = () => {
           <Checkbox>¿Agregar observaciones?</Checkbox>
         </Form.Item>
 
-        {form.getFieldValue('tiene_observaciones') && (
+        {tieneObservaciones && (
           <Form.Item
             label="Observaciones"
             name="observaciones_text"
@@ -507,13 +512,13 @@ const EditEncargoPage: React.FC = () => {
               Cancelar
             </Button>
 
-            {isCoordinador && form.getFieldValue('estado') > 1 && (
+            {isCoordinador && estadoActual > 1 && (
               <Button danger onClick={() => message.info('Quitar Aceptado: pendiente')}>
                 Quitar Aceptado
               </Button>
             )}
 
-            {form.getFieldValue('estado') === 5 && !form.getFieldValue('reject_reason') && (
+            {estadoActual === 5 && !rejectReason && (
               <Button onClick={() => setComentarioModal(true)}>
                 Agregar comentario
               </Button>
@@ -522,21 +527,14 @@ const EditEncargoPage: React.FC = () => {
         </Form.Item>
       </Form>
 
-      <Modal
-        title="Agregar comentario"
-        open={comentarioModal}
-        onCancel={() => setComentarioModal(false)}
-        onOk={handleAddComentary}
-        okText="Guardar"
-        cancelText="Cancelar"
-      >
-        <TextArea
-          value={comentario}
-          onChange={(e) => setComentario(e.target.value)}
-          rows={4}
-          placeholder="Escriba su comentario..."
+      {/* Comentarios reales del encargo (mismo componente que en Pendientes) */}
+      {comentarioModal && id && (
+        <CommentModal
+          open={true}
+          encargoId={Number(id)}
+          onClose={() => setComentarioModal(false)}
         />
-      </Modal>
+      )}
     </Card>
   );
 };

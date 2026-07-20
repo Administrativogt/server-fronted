@@ -1,6 +1,6 @@
 // src/pages/mensajeria/PendingEncargosPage.tsx
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Space, Tag, message, Modal, Input, Select, Tooltip } from 'antd';
+import { Table, Button, Space, Tag, message, Modal, Input, Select, Tooltip, Empty, theme, Grid } from 'antd';
 import {
   InfoCircleOutlined,
   FlagFilled,
@@ -23,33 +23,25 @@ import {
 } from '../../api/encargos';
 import type { Encargo, Usuario } from '../../types/encargo';
 import CommentModal from './components/CommentModal';
+import EncargoExpandedRow from './components/EncargoExpandedRow';
+import EncargoCardList from './components/EncargoCardList';
+import { ESTADOS, PRIORIDADES, formatFecha, formatHorario, hasDetalles, saveExcelResponse } from './constants';
 import useAuthStore from '../../auth/useAuthStore'; // ✅ Importar
 
 const { confirm } = Modal;
 const { TextArea } = Input;
 const { Option } = Select;
 
-const ESTADOS: Record<number, { label: string; color: string }> = {
-  1: { label: 'Pendiente', color: 'orange' },
-  2: { label: 'En proceso', color: 'blue' },
-  3: { label: 'Entregado', color: 'green' },
-  4: { label: 'No entregado', color: 'red' },
-  5: { label: 'Extraordinario', color: 'volcano' },
-  6: { label: 'Anulado', color: 'default' },
-  7: { label: 'Rechazado', color: 'magenta' },
-  8: { label: 'Extra Entregado', color: 'purple' },
-};
-
-const PRIORIDADES: Record<number, string> = {
-  1: 'A',
-  2: 'B',
-  3: 'C',
-  4: 'D',
-};
-
 const PendingEncargosPage: React.FC = () => {
   const [encargos, setEncargos] = useState<Encargo[]>([]); // ✅ Corregido: solo un paréntesis
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const { token } = theme.useToken();
+
+  // En viewports < md (mensajeros en ruta) la tabla se reemplaza por tarjetas
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
   const [commentModalOpen, setCommentModalOpen] = useState<{ open: boolean; encargoId: number | null }>({
     open: false,
     encargoId: null,
@@ -91,6 +83,7 @@ const PendingEncargosPage: React.FC = () => {
   }, [userId, isMensajero]); // ✅ Agregar dependencias
 
   const loadEncargos = async () => {
+    setLoading(true);
     try {
       const res = await getPendingEncargos();
       // Estados activos: Pendiente (1), En proceso (2), Extraordinario (5) — igual que Django original
@@ -101,8 +94,10 @@ const PendingEncargosPage: React.FC = () => {
       } else {
         setEncargos(activeOnly);
       }
+      setLoadError(false);
     } catch (error) {
       console.error('Error al cargar encargos pendientes:', error);
+      setLoadError(true);
       message.error('No se pudieron cargar los envíos pendientes');
     } finally {
       setLoading(false);
@@ -125,26 +120,16 @@ const PendingEncargosPage: React.FC = () => {
   };
 
   const downloadExcel = async (mensajeroId: number) => {
+    setExporting(true);
     try {
       const encargoIds = filteredEncargos.map((e) => e.id);
       const response = await downloadEncargosExcel({ mensajeroId, encargoIds });
-      const contentDisposition = response.headers['content-disposition'];
-      let filename = 'Ruta-Pendientes.xlsx';
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename="?([^";]+)"?/);
-        if (match) filename = match[1];
-      }
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', filename);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      saveExcelResponse(response, 'Ruta-Pendientes.xlsx');
       message.success('Reporte descargado exitosamente');
     } catch (err: any) {
       message.error(err?.response?.data?.message || 'Error al descargar reporte');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -244,11 +229,12 @@ const PendingEncargosPage: React.FC = () => {
         <Space size={4}>
           <span>{index + 1}</span>
           <Tooltip title={`Creado: ${new Date(record.fecha_creacion).toLocaleString('es-GT')}`}>
-            <InfoCircleOutlined style={{ color: '#f5222d', fontSize: 12, cursor: 'pointer' }} />
+            {/* Info neutral en color secundario; el rojo se reserva para peligro/error */}
+            <InfoCircleOutlined style={{ color: token.colorTextSecondary, fontSize: 12, cursor: 'pointer' }} />
           </Tooltip>
           {record.razon_extra && (
             <Tooltip title={`Comentario: ${record.razon_extra}`}>
-              <FlagFilled style={{ color: '#f5222d', fontSize: 12, cursor: 'pointer' }} />
+              <FlagFilled style={{ color: token.colorWarning, fontSize: 12, cursor: 'pointer' }} />
             </Tooltip>
           )}
         </Space>
@@ -264,7 +250,13 @@ const PendingEncargosPage: React.FC = () => {
     { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario' },
     { title: 'Empresa', dataIndex: 'empresa', key: 'empresa' },
     { title: 'Dirección', dataIndex: 'direccion', key: 'direccion' },
-    { title: 'Zona', dataIndex: 'zona', key: 'zona', width: 80 },
+    {
+      title: 'Zona',
+      dataIndex: 'zona',
+      key: 'zona',
+      width: 80,
+      sorter: (a: Encargo, b: Encargo) => (a.zona || 0) - (b.zona || 0),
+    },
     {
       title: 'Mensajería enviada',
       dataIndex: 'mensajeria_enviada',
@@ -303,6 +295,7 @@ const PendingEncargosPage: React.FC = () => {
       dataIndex: 'prioridad',
       key: 'prioridad',
       width: 100,
+      sorter: (a: Encargo, b: Encargo) => a.prioridad - b.prioridad,
       render: (p: number) => PRIORIDADES[p] || p,
     },
     {
@@ -310,7 +303,15 @@ const PendingEncargosPage: React.FC = () => {
       dataIndex: 'fecha_realizacion',
       key: 'fecha',
       width: 120,
-      render: (date: string) => date.split('T')[0],
+      sorter: (a: Encargo, b: Encargo) =>
+        (a.fecha_realizacion || '').localeCompare(b.fecha_realizacion || ''),
+      render: (date: string) => formatFecha(date),
+    },
+    {
+      title: 'Horario',
+      key: 'horario',
+      width: 140,
+      render: (_: any, record: Encargo) => formatHorario(record) || '—',
     },
     {
       title: 'Estado',
@@ -334,6 +335,7 @@ const PendingEncargosPage: React.FC = () => {
               <Button
                 size="small"
                 type="primary"
+                aria-label="Iniciar entrega"
                 icon={<RocketOutlined />}
                 onClick={() => handleStartDelivery(record.id)}
               />
@@ -345,12 +347,13 @@ const PendingEncargosPage: React.FC = () => {
               <Tooltip title="Editar">
                 <Button
                   size="small"
+                  aria-label="Editar"
                   icon={<EditOutlined />}
                   onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}
                 />
               </Tooltip>
               <Tooltip title="Eliminar">
-                <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)} />
+                <Button size="small" danger aria-label="Eliminar" icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)} />
               </Tooltip>
             </>
           )}
@@ -360,16 +363,18 @@ const PendingEncargosPage: React.FC = () => {
               size="small"
               type="primary"
               danger
+              aria-label="Rechazar"
               icon={<CloseCircleOutlined />}
               onClick={() => handleReject(record.id)}
             />
           </Tooltip>
           <Tooltip title="Reportar incidencia">
-            <Button size="small" type="dashed" icon={<WarningOutlined />} onClick={() => handleIncidence(record.id)} />
+            <Button size="small" type="dashed" aria-label="Reportar incidencia" icon={<WarningOutlined />} onClick={() => handleIncidence(record.id)} />
           </Tooltip>
           <Tooltip title="Comentarios">
             <Button
               size="small"
+              aria-label="Comentarios"
               icon={<CommentOutlined />}
               onClick={() => setCommentModalOpen({ open: true, encargoId: record.id })}
             />
@@ -379,9 +384,75 @@ const PendingEncargosPage: React.FC = () => {
     },
   ];
 
+  const emptyContent = loadError ? (
+    <Empty description="No se pudieron cargar los envíos pendientes">
+      <Button type="primary" onClick={loadEncargos}>
+        Reintentar
+      </Button>
+    </Empty>
+  ) : (
+    <Empty
+      description={
+        filterMensajero
+          ? 'Este mensajero no tiene envíos activos. Quite el filtro para ver todos.'
+          : 'No hay envíos pendientes. Los nuevos encargos aparecerán aquí al crearse.'
+      }
+    />
+  );
+
+  // Acciones en tarjeta (móvil): botones con texto y tamaño táctil
+  const renderCardActions = (record: Encargo) => (
+    <>
+      {!isMensajero && !record.mensajero && (
+        <Select
+          placeholder="Asignar mensajero…"
+          size="large"
+          style={{ width: '100%' }}
+          showSearch
+          optionFilterProp="children"
+          onChange={(value: number) => handleAssignMensajero(record.id, value)}
+        >
+          {mensajeros.map((m) => (
+            <Select.Option key={m.id} value={m.id}>
+              {m.first_name} {m.last_name}
+            </Select.Option>
+          ))}
+        </Select>
+      )}
+      {record.estado === 1 && record.mensajero && (
+        <Button size="large" type="primary" icon={<RocketOutlined />} onClick={() => handleStartDelivery(record.id)}>
+          Iniciar
+        </Button>
+      )}
+      {!isMensajero && (
+        <>
+          <Button size="large" icon={<EditOutlined />} onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}>
+            Editar
+          </Button>
+          <Button size="large" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)}>
+            Eliminar
+          </Button>
+        </>
+      )}
+      <Button size="large" danger icon={<CloseCircleOutlined />} onClick={() => handleReject(record.id)}>
+        Rechazar
+      </Button>
+      <Button size="large" icon={<WarningOutlined />} onClick={() => handleIncidence(record.id)}>
+        Incidencia
+      </Button>
+      <Button
+        size="large"
+        icon={<CommentOutlined />}
+        onClick={() => setCommentModalOpen({ open: true, encargoId: record.id })}
+      >
+        Comentarios
+      </Button>
+    </>
+  );
+
   return (
     <div style={{ padding: '16px 0' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
         <h2 style={{ margin: 0 }}>Envíos Pendientes</h2>
         <Space>
           {!isMensajero && (
@@ -389,7 +460,12 @@ const PendingEncargosPage: React.FC = () => {
               Crear Envío
             </Button>
           )}
-          <Button type="default" onClick={handleExportExcel} disabled={!filteredEncargos.length}>
+          <Button
+            type="default"
+            onClick={handleExportExcel}
+            disabled={!filteredEncargos.length}
+            loading={exporting}
+          >
             Exportar Excel
           </Button>
         </Space>
@@ -416,33 +492,45 @@ const PendingEncargosPage: React.FC = () => {
               </Option>
             ))}
           </Select>
-          <span style={{ color: '#888' }}>
+          <span style={{ color: token.colorTextSecondary }}>
             {filteredEncargos.length} envío{filteredEncargos.length === 1 ? '' : 's'}
           </span>
         </div>
       )}
 
-      <Table
-        dataSource={filteredEncargos}
-        columns={columns}
-        rowKey="id"
-        loading={loading}
-        pagination={{
-          defaultPageSize: 10,
-          pageSizeOptions: ['10', '20', '50', '100'],
-          showSizeChanger: true,
-          showTotal: (total, range) => `${range[0]}-${range[1]} de ${total} envíos`,
-        }}
-        scroll={{ x: 1200 }}
-        bordered
-        rowClassName={(record: Encargo) =>
-          record.observaciones ? 'encargo-row-with-observations' : ''
-        }
-        onRow={(record: Encargo) => ({
-          title: record.observaciones ? `Observaciones: ${record.observaciones}` : undefined,
-          style: record.observaciones ? { backgroundColor: 'rgba(0, 0, 255, 0.1)' } : {},
-        })}
-      />
+      {isMobile ? (
+        <EncargoCardList
+          encargos={filteredEncargos}
+          loading={loading}
+          emptyText={emptyContent}
+          renderActions={renderCardActions}
+        />
+      ) : (
+        <Table
+          dataSource={filteredEncargos}
+          columns={columns}
+          rowKey="id"
+          loading={loading}
+          pagination={{
+            defaultPageSize: 10,
+            pageSizeOptions: ['10', '20', '50', '100'],
+            showSizeChanger: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} de ${total} envíos`,
+          }}
+          scroll={{ x: 1340 }}
+          bordered
+          expandable={{
+            expandedRowRender: (record: Encargo) => <EncargoExpandedRow encargo={record} />,
+            rowExpandable: hasDetalles,
+          }}
+          onRow={(record: Encargo) => ({
+            // Tinte con token del tema: visible también en modo oscuro. El detalle
+            // completo se lee expandiendo la fila (funciona en móvil, sin hover).
+            style: record.observaciones ? { backgroundColor: token.colorPrimaryBg } : {},
+          })}
+          locale={{ emptyText: emptyContent }}
+        />
+      )}
 
       {/* Modal de comentarios */}
       {commentModalOpen.open && commentModalOpen.encargoId !== null && (
@@ -456,6 +544,7 @@ const PendingEncargosPage: React.FC = () => {
       {/* Modal para seleccionar mensajero al exportar (solo admin) */}
       <Modal
         title="Seleccione el mensajero"
+        confirmLoading={exporting}
         open={exportModal}
         onCancel={() => { setExportModal(false); setSelectedMensajero(null); }}
         onOk={handleConfirmExport}

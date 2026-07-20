@@ -1,6 +1,6 @@
 // src/pages/mensajeria/AllEncargosPage.tsx
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Space, Tag, message, Modal, DatePicker, Select, Input, Tooltip, theme } from 'antd';
+import { Table, Button, Space, Tag, message, Modal, DatePicker, Select, Input, Tooltip, theme, Empty, Grid } from 'antd';
 import {
   InfoCircleOutlined,
   FlagFilled,
@@ -10,32 +10,17 @@ import {
   FlagOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { downloadEncargosExcel, getAllEncargos, sendComplaint, getMensajeros, updateEncargo } from '../../../api/encargos';
-import type { Encargo, Usuario } from '../../../types/encargo';
-import useAuthStore from '../../../auth/useAuthStore'; // ✅ Importar para obtener userId y tipo_usuario
+import { downloadEncargosExcel, getAllEncargos, sendComplaint, getMensajeros, updateEncargo } from '../../api/encargos';
+import type { Encargo, Usuario } from '../../types/encargo';
+import EncargoExpandedRow from './components/EncargoExpandedRow';
+import EncargoCardList from './components/EncargoCardList';
+import { ESTADOS, PRIORIDADES, formatFecha, formatHorario, hasDetalles, saveExcelResponse } from './constants';
+import useAuthStore from '../../auth/useAuthStore'; // ✅ Importar para obtener userId y tipo_usuario
 import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 const { TextArea } = Input;
-
-const ESTADOS: Record<number, { label: string; color: string }> = {
-  1: { label: 'Pendiente', color: 'orange' },
-  2: { label: 'En proceso', color: 'blue' },
-  3: { label: 'Entregado', color: 'green' },
-  4: { label: 'No entregado', color: 'red' },
-  5: { label: 'Extraordinario', color: 'volcano' },
-  6: { label: 'Anulado', color: 'default' },
-  7: { label: 'Rechazado', color: 'magenta' },
-  8: { label: 'Extra Entregado', color: 'purple' },
-};
-
-const PRIORIDADES: Record<number, string> = {
-  1: 'A',
-  2: 'B',
-  3: 'C',
-  4: 'D',
-};
 
 // Rango por defecto: últimos 30 días. Sin esto la pantalla pide los ~29 mil
 // encargos históricos completos y tarda varios segundos en cargar.
@@ -45,6 +30,8 @@ const DEFAULT_END = () => dayjs().format('YYYY-MM-DD');
 const AllEncargosPage: React.FC = () => {
   const [encargos, setEncargos] = useState<Encargo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [filters, setFilters] = useState({
     startDate: DEFAULT_START() as string | null,
     endDate: DEFAULT_END() as string | null,
@@ -65,6 +52,10 @@ const AllEncargosPage: React.FC = () => {
   
   const navigate = useNavigate();
   const { token } = theme.useToken(); // ✅ Tokens del tema (claro/oscuro)
+
+  // En viewports < md (mensajeros en ruta) la tabla se reemplaza por tarjetas
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
 
   // ✅ Obtener usuario actual para filtrar si es mensajero
   const userId = useAuthStore((state) => state.userId);
@@ -88,33 +79,38 @@ const AllEncargosPage: React.FC = () => {
     loadMensajeros();
   }, []);
 
-  // ✅ Cargar datos dentro del useEffect
-  useEffect(() => {
-    const loadEncargos = async () => {
-      try {
-        const params: any = {
-          start: filters.startDate || undefined,
-          end: filters.endDate || undefined,
-          search: filters.search || undefined,
-          estados: filters.estado ? [filters.estado] : undefined,
-        };
+  // Una sola función de carga reutilizada por el efecto y por las acciones
+  // (asignar, iniciar, entregar) — antes el armado de params estaba duplicado 3 veces.
+  const loadEncargos = async () => {
+    setLoading(true);
+    try {
+      const params: any = {
+        start: filters.startDate || undefined,
+        end: filters.endDate || undefined,
+        search: filters.search || undefined,
+        estados: filters.estado ? [filters.estado] : undefined,
+      };
 
-        // ✅ Si es mensajero, SIEMPRE filtrar por sus propios encargos
-        if (isMensajero && userId) {
-          params.mensajero = userId;
-        }
-        
-        const res = await getAllEncargos(params);
-        setEncargos(res.data);
-      } catch {
-        message.error('Error al cargar los envíos');
-      } finally {
-        setLoading(false);
+      // ✅ Si es mensajero, SIEMPRE filtrar por sus propios encargos
+      if (isMensajero && userId) {
+        params.mensajero = userId;
       }
-    };
 
+      const res = await getAllEncargos(params);
+      setEncargos(res.data);
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+      message.error('Error al cargar los envíos');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     loadEncargos();
-  }, [filters, isMensajero, userId]); // ✅ Dependencias correctas
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, isMensajero, userId]);
 
   const handleFilterChange = (key: keyof typeof filters, value: any) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -139,7 +135,7 @@ const AllEncargosPage: React.FC = () => {
     try {
       await updateEncargo(encargoId, { mensajero_id: mensajeroId });
       message.success('Mensajero asignado');
-      setFilters(prev => ({ ...prev })); // dispara la recarga de la lista
+      loadEncargos();
     } catch {
       message.error('No se pudo asignar el mensajero');
     }
@@ -156,24 +152,14 @@ const AllEncargosPage: React.FC = () => {
         try {
           await updateEncargo(id, { estado: 2 } as any);
           message.success('Envío marcado como "En proceso"');
-          const params: any = {
-            start: filters.startDate || undefined,
-            end: filters.endDate || undefined,
-            search: filters.search || undefined,
-            estados: filters.estado ? [filters.estado] : undefined,
-          };
-          if (isMensajero && userId) {
-            params.mensajero = userId;
-          }
-          const res = await getAllEncargos(params);
-          setEncargos(res.data);
+          await loadEncargos();
         } catch (err: any) {
           message.error(err.response?.data?.message || 'Error al iniciar');
         }
       },
     });
   };
-  
+
   const handleDeliver = (id: number) => {
     Modal.confirm({
       title: '¿Confirmar entrega?',
@@ -185,17 +171,7 @@ const AllEncargosPage: React.FC = () => {
         try {
           await updateEncargo(id, { estado: 3 } as any);
           message.success('Envío marcado como entregado');
-          const params: any = {
-            start: filters.startDate || undefined,
-            end: filters.endDate || undefined,
-            search: filters.search || undefined,
-            estados: filters.estado ? [filters.estado] : undefined,
-          };
-          if (isMensajero && userId) {
-            params.mensajero = userId;
-          }
-          const res = await getAllEncargos(params);
-          setEncargos(res.data);
+          await loadEncargos();
         } catch (err: any) {
           message.error(err.response?.data?.message || 'Error al entregar');
         }
@@ -241,6 +217,7 @@ const AllEncargosPage: React.FC = () => {
       return;
     }
 
+    setExporting(true);
     try {
       // ✅ Exportar con filtros + mensajero
       const response = await downloadEncargosExcel({
@@ -250,24 +227,7 @@ const AllEncargosPage: React.FC = () => {
         endDate: filters.endDate || undefined,
       });
       
-      // ✅ Extraer nombre del archivo del header si está disponible
-      const contentDisposition = response.headers['content-disposition'];
-      let filename = 'Reporte-Mensajeria.xlsx';
-      
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename="?([^";]+)"?/);
-        if (match) filename = match[1];
-      }
-      
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', filename);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      
+      saveExcelResponse(response, 'Reporte-Mensajeria.xlsx');
       message.success('Reporte descargado exitosamente');
       
       // Cerrar modal y limpiar selección
@@ -276,6 +236,8 @@ const AllEncargosPage: React.FC = () => {
     } catch (err: any) {
       const msg = err?.response?.data?.message || 'Error al descargar reporte';
       message.error(msg);
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -289,11 +251,12 @@ const AllEncargosPage: React.FC = () => {
         <Space size={4}>
           <span>{index + 1}</span>
           <Tooltip title={`Creado: ${new Date(record.fecha_creacion).toLocaleString('es-GT')}`}>
-            <InfoCircleOutlined style={{ color: '#f5222d', fontSize: 12, cursor: 'pointer' }} />
+            {/* Info neutral en color secundario; el rojo se reserva para peligro/error */}
+            <InfoCircleOutlined style={{ color: token.colorTextSecondary, fontSize: 12, cursor: 'pointer' }} />
           </Tooltip>
           {record.razon_extra && (
             <Tooltip title={`Comentario: ${record.razon_extra}`}>
-              <FlagFilled style={{ color: '#f5222d', fontSize: 12, cursor: 'pointer' }} />
+              <FlagFilled style={{ color: token.colorWarning, fontSize: 12, cursor: 'pointer' }} />
             </Tooltip>
           )}
         </Space>
@@ -309,7 +272,13 @@ const AllEncargosPage: React.FC = () => {
     { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario' },
     { title: 'Empresa', dataIndex: 'empresa', key: 'empresa' },
     { title: 'Dirección', dataIndex: 'direccion', key: 'direccion' },
-    { title: 'Zona', dataIndex: 'zona', key: 'zona', width: 80 },
+    {
+      title: 'Zona',
+      dataIndex: 'zona',
+      key: 'zona',
+      width: 80,
+      sorter: (a: Encargo, b: Encargo) => (a.zona || 0) - (b.zona || 0),
+    },
     {
       title: 'Mensajería enviada',
       dataIndex: 'mensajeria_enviada',
@@ -348,6 +317,7 @@ const AllEncargosPage: React.FC = () => {
       dataIndex: 'prioridad',
       key: 'prioridad',
       width: 100,
+      sorter: (a: Encargo, b: Encargo) => a.prioridad - b.prioridad,
       render: (p: number) => PRIORIDADES[p] || p,
     },
     {
@@ -355,7 +325,15 @@ const AllEncargosPage: React.FC = () => {
       dataIndex: 'fecha_realizacion',
       key: 'fecha',
       width: 120,
-      render: (date: string) => date.split('T')[0],
+      sorter: (a: Encargo, b: Encargo) =>
+        (a.fecha_realizacion || '').localeCompare(b.fecha_realizacion || ''),
+      render: (date: string) => formatFecha(date),
+    },
+    {
+      title: 'Horario',
+      key: 'horario',
+      width: 140,
+      render: (_: any, record: Encargo) => formatHorario(record) || '—',
     },
     {
       title: 'Estado',
@@ -379,6 +357,7 @@ const AllEncargosPage: React.FC = () => {
               <Button
                 size="small"
                 type="primary"
+                aria-label="Iniciar entrega"
                 icon={<RocketOutlined />}
                 onClick={() => handleStartDelivery(record.id)}
               />
@@ -391,6 +370,7 @@ const AllEncargosPage: React.FC = () => {
               <Button
                 size="small"
                 type="primary"
+                aria-label="Marcar como entregado"
                 icon={<CheckCircleOutlined />}
                 onClick={() => handleDeliver(record.id)}
               />
@@ -403,13 +383,14 @@ const AllEncargosPage: React.FC = () => {
               <Tooltip title="Editar">
                 <Button
                   size="small"
+                  aria-label="Editar"
                   icon={<EditOutlined />}
                   onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}
                 />
               </Tooltip>
               {record.estado !== 3 && (
                 <Tooltip title="Enviar reclamo">
-                  <Button size="small" type="dashed" icon={<FlagOutlined />} onClick={() => handleComplaint(record.id)} />
+                  <Button size="small" type="dashed" aria-label="Enviar reclamo" icon={<FlagOutlined />} onClick={() => handleComplaint(record.id)} />
                 </Tooltip>
               )}
             </>
@@ -419,9 +400,63 @@ const AllEncargosPage: React.FC = () => {
     },
   ];
 
+  const emptyContent = loadError ? (
+    <Empty description="No se pudieron cargar los envíos">
+      <Button type="primary" onClick={loadEncargos}>
+        Reintentar
+      </Button>
+    </Empty>
+  ) : (
+    <Empty description="No hay envíos en el rango de fechas seleccionado. Amplíe el rango o ajuste los filtros." />
+  );
+
+  // Acciones en tarjeta (móvil): botones con texto y tamaño táctil
+  const renderCardActions = (record: Encargo) => (
+    <>
+      {!isMensajero && !record.mensajero && (
+        <Select
+          placeholder="Asignar mensajero…"
+          size="large"
+          style={{ width: '100%' }}
+          showSearch
+          optionFilterProp="children"
+          onChange={(value: number) => handleAssignMensajero(record.id, value)}
+        >
+          {mensajeros.map((m) => (
+            <Option key={m.id} value={m.id}>
+              {m.first_name} {m.last_name}
+            </Option>
+          ))}
+        </Select>
+      )}
+      {record.estado === 1 && (!isMensajero || record.mensajero?.id === userId) && (
+        <Button size="large" type="primary" icon={<RocketOutlined />} onClick={() => handleStartDelivery(record.id)}>
+          Iniciar
+        </Button>
+      )}
+      {record.estado === 2 && (!isMensajero || record.mensajero?.id === userId) && (
+        <Button size="large" type="primary" icon={<CheckCircleOutlined />} onClick={() => handleDeliver(record.id)}>
+          Entregar
+        </Button>
+      )}
+      {!isMensajero && (
+        <>
+          <Button size="large" icon={<EditOutlined />} onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}>
+            Editar
+          </Button>
+          {record.estado !== 3 && (
+            <Button size="large" icon={<FlagOutlined />} onClick={() => handleComplaint(record.id)}>
+              Reclamo
+            </Button>
+          )}
+        </>
+      )}
+    </>
+  );
+
   return (
     <div style={{ padding: '16px 0' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
         <h2 style={{ margin: 0 }}>{isMensajero ? 'Mis Envíos' : 'Todos los Envíos'}</h2>
         <Space>
           {!isMensajero && (
@@ -429,7 +464,7 @@ const AllEncargosPage: React.FC = () => {
               Crear Envío
             </Button>
           )}
-          <Button type="default" onClick={handleExportExcel}>
+          <Button type="default" onClick={handleExportExcel} loading={exporting}>
             Exportar Excel
           </Button>
           {/* ❌ ELIMINADO: Botón "Registrar Email" ya no es necesario en NestJS */}
@@ -438,20 +473,21 @@ const AllEncargosPage: React.FC = () => {
 
       {/* Filtros */}
       <div style={{ marginBottom: 16, padding: '16px', background: token.colorFillAlter, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8 }}>
-        <Space wrap>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center' }}>
           <RangePicker
             value={[
               filters.startDate ? dayjs(filters.startDate) : null,
               filters.endDate ? dayjs(filters.endDate) : null,
             ]}
             onChange={handleDateChange}
+            style={isMobile ? { width: '100%' } : undefined}
           />
           <Select
             placeholder="Filtrar por estado"
             allowClear
             value={filters.estado || undefined}
             onChange={(value) => handleFilterChange('estado', value)}
-            style={{ width: 180 }}
+            style={{ width: isMobile ? '100%' : 180 }}
             showSearch
             optionFilterProp="children"
             filterOption={(input, option) =>
@@ -465,27 +501,43 @@ const AllEncargosPage: React.FC = () => {
           <Input.Search
             placeholder="Buscar por solicitante, empresa..."
             allowClear
-            style={{ width: 240 }}
+            style={{ width: isMobile ? '100%' : 240 }}
             onSearch={(value) => handleFilterChange('search', value || null)}
             onChange={(e) => { if (!e.target.value) handleFilterChange('search', null); }}
           />
           <Button onClick={handleResetFilters}>Reset</Button>
-        </Space>
+        </div>
       </div>
 
-      <Table
-        dataSource={encargos}
-        columns={columns}
-        rowKey="id"
-        loading={loading}
-        pagination={{ pageSize: 10 }}
-        scroll={{ x: 1200, y: 500 }}
-        bordered
-        onRow={(record: Encargo) => ({
-          title: record.observaciones ? `Observaciones: ${record.observaciones}` : undefined,
-          style: record.observaciones ? { backgroundColor: 'rgba(0, 0, 255, 0.1)' } : {},
-        })}
-      />
+      {isMobile ? (
+        <EncargoCardList
+          encargos={encargos}
+          loading={loading}
+          emptyText={emptyContent}
+          showMensajero={!isMensajero}
+          renderActions={renderCardActions}
+        />
+      ) : (
+        <Table
+          dataSource={encargos}
+          columns={columns}
+          rowKey="id"
+          loading={loading}
+          pagination={{ pageSize: 10 }}
+          scroll={{ x: 1340, y: 500 }}
+          bordered
+          expandable={{
+            expandedRowRender: (record: Encargo) => <EncargoExpandedRow encargo={record} />,
+            rowExpandable: hasDetalles,
+          }}
+          onRow={(record: Encargo) => ({
+            // Tinte con token del tema: visible también en modo oscuro. El detalle
+            // completo se lee expandiendo la fila (funciona en móvil, sin hover).
+            style: record.observaciones ? { backgroundColor: token.colorPrimaryBg } : {},
+          })}
+          locale={{ emptyText: emptyContent }}
+        />
+      )}
 
       {/* Modal de reclamo */}
       <Modal
@@ -500,7 +552,7 @@ const AllEncargosPage: React.FC = () => {
         okText="Enviar Reclamo"
         cancelText="Cancelar"
       >
-        <p style={{ marginBottom: 12, color: '#666' }}>
+        <p style={{ marginBottom: 12, color: token.colorTextSecondary }}>
           El reclamo será enviado desde su correo personal al coordinador de mensajería.
         </p>
         <TextArea
@@ -521,14 +573,15 @@ const AllEncargosPage: React.FC = () => {
 
       {/* ✅ NUEVO: Modal para seleccionar mensajero antes de exportar */}
       <Modal
-        title="Escoga mensajero:"
+        title="Seleccione el mensajero"
+        confirmLoading={exporting}
         open={exportModal}
         onCancel={() => {
           setExportModal(false);
           setSelectedMensajero(null);
         }}
         onOk={handleConfirmExport}
-        okText="Crear"
+        okText="Descargar"
         cancelText="Cancelar"
       >
         <Select

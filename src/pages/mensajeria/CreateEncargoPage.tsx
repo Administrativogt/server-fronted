@@ -49,6 +49,10 @@ const CreateEncargoPage: React.FC = () => {
   const [fechaCalculada, setFechaCalculada] = useState<string>('');
   const [calculandoFecha, setCalculandoFecha] = useState(false);
 
+  // useWatch: leer form.getFieldValue() en el render no re-renderiza al cambiar
+  // el select, y "Hora final" quedaba deshabilitada aun eligiendo "Entre".
+  const prioridadHora = Form.useWatch('prioridad_hora', form);
+
   // La fecha de realización se calcula automáticamente según prioridad + hora
   // (corte 9 AM) en el backend. El usuario no la ingresa.
   const recalcularFecha = async (prioridad: number, municipioId?: number) => {
@@ -437,7 +441,7 @@ const CreateEncargoPage: React.FC = () => {
                   }),
                 ]}
               >
-                <Input type="time" disabled={form.getFieldValue('prioridad_hora') !== 4} />
+                <Input type="time" disabled={prioridadHora !== 4} />
               </Form.Item>
             </div>
           </>
@@ -462,10 +466,10 @@ const CreateEncargoPage: React.FC = () => {
         <Form.Item>
           <Space>
             <Button type="primary" htmlType="submit" loading={loading}>
-              Enviar
+              Crear Envío
             </Button>
             <Button onClick={() => navigate('/dashboard/mensajeria')}>
-              Regresar
+              Cancelar
             </Button>
           </Space>
         </Form.Item>
