@@ -1,7 +1,16 @@
 // src/pages/mensajeria/PendingEncargosPage.tsx
 import React, { useEffect, useState } from 'react';
 import { Table, Button, Space, Tag, message, Modal, Input, Select, Tooltip } from 'antd';
-import { InfoCircleOutlined, FlagFilled } from '@ant-design/icons';
+import {
+  InfoCircleOutlined,
+  FlagFilled,
+  RocketOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  CloseCircleOutlined,
+  WarningOutlined,
+  CommentOutlined,
+} from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import {
   getPendingEncargos,
@@ -316,43 +325,55 @@ const PendingEncargosPage: React.FC = () => {
     {
       title: 'Acciones',
       key: 'acciones',
-      width: 280,
+      width: 190,
       render: (_: any, record: Encargo) => (
         <Space size="small" wrap>
-          {/* Botón Iniciar - Solo si está en estado Pendiente (1) y tiene mensajero asignado */}
+          {/* Iniciar - Solo si está en estado Pendiente (1) y tiene mensajero asignado */}
           {record.estado === 1 && record.mensajero && (
-            <Button 
-              size="small" 
-              type="primary"
-              onClick={() => handleStartDelivery(record.id)}
-            >
-              🚀 Iniciar
-            </Button>
+            <Tooltip title="Iniciar entrega">
+              <Button
+                size="small"
+                type="primary"
+                icon={<RocketOutlined />}
+                onClick={() => handleStartDelivery(record.id)}
+              />
+            </Tooltip>
           )}
-          
+
           {!isMensajero && (
             <>
-              <Button size="small" onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}>
-                Editar
-              </Button>
-              <Button size="small" danger onClick={() => handleDelete(record.id)}>
-                Eliminar
-              </Button>
+              <Tooltip title="Editar">
+                <Button
+                  size="small"
+                  icon={<EditOutlined />}
+                  onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}
+                />
+              </Tooltip>
+              <Tooltip title="Eliminar">
+                <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)} />
+              </Tooltip>
             </>
           )}
-          
-          <Button size="small" type="primary" danger onClick={() => handleReject(record.id)}>
-            Rechazar
-          </Button>
-          <Button size="small" type="dashed" onClick={() => handleIncidence(record.id)}>
-            Incidencia
-          </Button>
-          <Button
-            size="small"
-            onClick={() => setCommentModalOpen({ open: true, encargoId: record.id })}
-          >
-            Comentarios
-          </Button>
+
+          <Tooltip title="Rechazar">
+            <Button
+              size="small"
+              type="primary"
+              danger
+              icon={<CloseCircleOutlined />}
+              onClick={() => handleReject(record.id)}
+            />
+          </Tooltip>
+          <Tooltip title="Reportar incidencia">
+            <Button size="small" type="dashed" icon={<WarningOutlined />} onClick={() => handleIncidence(record.id)} />
+          </Tooltip>
+          <Tooltip title="Comentarios">
+            <Button
+              size="small"
+              icon={<CommentOutlined />}
+              onClick={() => setCommentModalOpen({ open: true, encargoId: record.id })}
+            />
+          </Tooltip>
         </Space>
       ),
     },

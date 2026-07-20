@@ -1,7 +1,14 @@
 // src/pages/mensajeria/AllEncargosPage.tsx
 import React, { useEffect, useState } from 'react';
 import { Table, Button, Space, Tag, message, Modal, DatePicker, Select, Input, Tooltip, theme } from 'antd';
-import { InfoCircleOutlined, FlagFilled } from '@ant-design/icons';
+import {
+  InfoCircleOutlined,
+  FlagFilled,
+  RocketOutlined,
+  CheckCircleOutlined,
+  EditOutlined,
+  FlagOutlined,
+} from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { downloadEncargosExcel, getAllEncargos, sendComplaint, getMensajeros, updateEncargo } from '../../../api/encargos';
 import type { Encargo, Usuario } from '../../../types/encargo';
@@ -363,41 +370,47 @@ const AllEncargosPage: React.FC = () => {
     {
       title: 'Acciones',
       key: 'acciones',
-      width: 250,
+      width: 150,
       render: (_: any, record: Encargo) => (
         <Space size="small" wrap>
-          {/* Botón Iniciar - Estado Pendiente (1): mensajero solo ve el suyo, admin ve todos */}
+          {/* Iniciar - Estado Pendiente (1): mensajero solo ve el suyo, admin ve todos */}
           {record.estado === 1 && (!isMensajero || record.mensajero?.id === userId) && (
-            <Button
-              size="small"
-              type="primary"
-              onClick={() => handleStartDelivery(record.id)}
-            >
-              🚀 Iniciar
-            </Button>
+            <Tooltip title="Iniciar entrega">
+              <Button
+                size="small"
+                type="primary"
+                icon={<RocketOutlined />}
+                onClick={() => handleStartDelivery(record.id)}
+              />
+            </Tooltip>
           )}
 
-          {/* Botón Entregar - Estado En proceso (2): mensajero solo ve el suyo, admin ve todos */}
+          {/* Entregar - Estado En proceso (2): mensajero solo ve el suyo, admin ve todos */}
           {record.estado === 2 && (!isMensajero || record.mensajero?.id === userId) && (
-            <Button
-              size="small"
-              type="primary"
-              onClick={() => handleDeliver(record.id)}
-            >
-              ✅ Entregar
-            </Button>
+            <Tooltip title="Marcar como entregado">
+              <Button
+                size="small"
+                type="primary"
+                icon={<CheckCircleOutlined />}
+                onClick={() => handleDeliver(record.id)}
+              />
+            </Tooltip>
           )}
-          
+
           {/* Botones de admin */}
           {!isMensajero && (
             <>
-              <Button size="small" onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}>
-                Editar
-              </Button>
+              <Tooltip title="Editar">
+                <Button
+                  size="small"
+                  icon={<EditOutlined />}
+                  onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}
+                />
+              </Tooltip>
               {record.estado !== 3 && (
-                <Button size="small" type="dashed" onClick={() => handleComplaint(record.id)}>
-                  Reclamo
-                </Button>
+                <Tooltip title="Enviar reclamo">
+                  <Button size="small" type="dashed" icon={<FlagOutlined />} onClick={() => handleComplaint(record.id)} />
+                </Tooltip>
               )}
             </>
           )}
