@@ -31,17 +31,18 @@ import {
   createDocument,
 } from "../../api/documents";
 import { fetchPlaces, type PlaceDto } from "../../api/notifications";
-import { fetchDocumentFilterValues } from "../../api/documents";
 import type { User } from "../../types/user.types";
 
 const { Title, Text } = Typography;
+
+// Tipos de documento fijos. Cualquier otro se captura con "No está en la lista".
+const DOCUMENT_TYPES = ["Sobre", "Folder", "Cheque", "Revista"];
 
 const CreateDocumentForm: React.FC = () => {
   const [form] = Form.useForm();
   const [users, setUsers] = useState<User[]>([]);
   const [receivers, setReceivers] = useState<User[]>([]);
   const [places, setPlaces] = useState<PlaceDto[]>([]);
-  const [documentTypeSuggestions, setDocumentTypeSuggestions] = useState<string[]>([]);
   const [otroEntregadoPor, setOtroEntregadoPor] = useState(false);
   const [otroTipoDoc, setOtroTipoDoc] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -58,10 +59,6 @@ const CreateDocumentForm: React.FC = () => {
     fetchPlaces()
       .then(setPlaces)
       .catch(() => message.error("Error cargando lugares"));
-
-    fetchDocumentFilterValues()
-      .then((meta) => setDocumentTypeSuggestions(meta.documentTypes || []))
-      .catch(() => {});
   }, []);
 
   const onFinish = async (values: Record<string, unknown>) => {
@@ -224,7 +221,7 @@ const CreateDocumentForm: React.FC = () => {
                   showSearch
                   optionFilterProp="label"
                   suffixIcon={<FileTextOutlined />}
-                  options={documentTypeSuggestions.map((t) => ({
+                  options={DOCUMENT_TYPES.map((t) => ({
                     value: t,
                     label: t,
                   }))}
