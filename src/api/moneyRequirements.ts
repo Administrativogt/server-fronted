@@ -18,6 +18,8 @@ export interface MoneyRequirement {
   workNoteNumber?: string;
   teamName?: string;
   areaName?: string;
+  applicantName?: string;
+  responsibleName?: string;
   created?: string;
 }
 

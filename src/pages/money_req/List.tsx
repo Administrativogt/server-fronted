@@ -12,9 +12,11 @@ import {
   DatePicker,
   Row,
   Col,
+  Tooltip,
   message,
 } from 'antd';
-import { SearchOutlined, ClearOutlined } from '@ant-design/icons';
+import { SearchOutlined, ClearOutlined, PrinterOutlined } from '@ant-design/icons';
+import { printMoneyRequirement } from './printReceipt';
 import type { Dayjs } from 'dayjs';
 import {
   getMoneyRequirements,
@@ -168,6 +170,21 @@ const MoneyReqList: React.FC = () => {
         const info = stateMap[state] || { text: 'Desconocido', color: 'default' };
         return <Tag color={info.color}>{info.text}</Tag>;
       },
+    },
+    {
+      title: 'Imprimir',
+      key: 'print',
+      width: 90,
+      fixed: 'right' as const,
+      render: (_: unknown, record: MoneyRequirement) => (
+        <Tooltip title="Imprimir comprobante">
+          <Button
+            size="small"
+            icon={<PrinterOutlined />}
+            onClick={() => printMoneyRequirement(record)}
+          />
+        </Tooltip>
+      ),
     },
   ];
 
