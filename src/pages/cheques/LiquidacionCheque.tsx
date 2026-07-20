@@ -577,13 +577,29 @@ function LiquidacionCheque() {
           <Form.Item label="Documento">
             <Space direction="vertical" style={{ width: '100%' }}>
               <Upload
-                beforeUpload={() => false}
+                accept=".pdf,.png,.jpg,.jpeg"
+                beforeUpload={(file) => {
+                  const permitidos = ['application/pdf', 'image/png', 'image/jpeg'];
+                  const esValido =
+                    permitidos.includes(file.type) ||
+                    /\.(pdf|png|jpe?g)$/i.test(file.name);
+                  if (!esValido) {
+                    message.error(
+                      `"${file.name}" no es un formato permitido. Use PDF, PNG, JPG o JPEG.`,
+                    );
+                    return Upload.LIST_IGNORE;
+                  }
+                  return false; // válido: no subir automático, se envía con el formulario
+                }}
                 fileList={fileList}
                 onChange={({ fileList: fl }) => setFileList(fl.slice(-1))}
                 maxCount={1}
               >
                 <Button icon={<UploadOutlined />}>Elija un documento</Button>
               </Upload>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                Formatos permitidos: PDF, PNG, JPG o JPEG (las imágenes se convierten a PDF automáticamente)
+              </Typography.Text>
               <Button type="link" size="small" onClick={clearFile} style={{ padding: 0 }}>
                 Limpiar
               </Button>
