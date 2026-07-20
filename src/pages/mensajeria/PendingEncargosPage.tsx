@@ -5,6 +5,7 @@ import {
   InfoCircleOutlined,
   FlagFilled,
   RocketOutlined,
+  CheckCircleOutlined,
   EditOutlined,
   DeleteOutlined,
   CloseCircleOutlined,
@@ -165,6 +166,25 @@ const PendingEncargosPage: React.FC = () => {
           loadEncargos();
         } catch (err: any) {
           message.error(err.response?.data?.message || 'Error al iniciar');
+        }
+      },
+    });
+  };
+
+  const handleDeliver = (id: number) => {
+    confirm({
+      title: '¿Marcar como entregado?',
+      content: '¿Confirma que el envío ya fue entregado?',
+      okText: 'Sí, entregar',
+      okType: 'primary',
+      cancelText: 'Cancelar',
+      onOk: async () => {
+        try {
+          await updateEncargo(id, { estado: 3 } as any);
+          message.success('Envío marcado como entregado');
+          loadEncargos();
+        } catch (err: any) {
+          message.error(err.response?.data?.message || 'Error al entregar');
         }
       },
     });
@@ -342,6 +362,19 @@ const PendingEncargosPage: React.FC = () => {
             </Tooltip>
           )}
 
+          {/* Entregar - En proceso (2): el mensajero cierra su entrega */}
+          {record.estado === 2 && record.mensajero && (
+            <Tooltip title="Marcar como entregado">
+              <Button
+                size="small"
+                type="primary"
+                aria-label="Marcar como entregado"
+                icon={<CheckCircleOutlined />}
+                onClick={() => handleDeliver(record.id)}
+              />
+            </Tooltip>
+          )}
+
           {!isMensajero && (
             <>
               <Tooltip title="Editar">
@@ -422,6 +455,11 @@ const PendingEncargosPage: React.FC = () => {
       {record.estado === 1 && record.mensajero && (
         <Button size="large" type="primary" icon={<RocketOutlined />} onClick={() => handleStartDelivery(record.id)}>
           Iniciar
+        </Button>
+      )}
+      {record.estado === 2 && record.mensajero && (
+        <Button size="large" type="primary" icon={<CheckCircleOutlined />} onClick={() => handleDeliver(record.id)}>
+          Entregar
         </Button>
       )}
       {!isMensajero && (
