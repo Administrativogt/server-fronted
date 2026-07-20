@@ -4,17 +4,14 @@ import { CheckCircleOutlined, CloseCircleOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import {
   filterDocuments,
-  fetchDocumentFilterValues,
   fetchUsers,
   applyActionToDocuments,
   type DocumentDto,
-  type DocumentFilterValues,
   DOCUMENT_STATES,
 } from "../../api/documents";
 import type { User } from "../../types/user.types";
 
 const { Option } = Select;
-const { RangePicker } = DatePicker;
 
 /** Resuelve un valor (string o number) a nombre de usuario si es un ID numérico */
 const resolveToUserName = (val: unknown, usersMap: Map<string, string>): string => {
@@ -31,19 +28,9 @@ const DocumentFilters: React.FC = () => {
   const [data, setData] = useState<DocumentDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [filterValues, setFilterValues] = useState<DocumentFilterValues | null>(null);
   const [usersMap, setUsersMap] = useState<Map<string, string>>(new Map());
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [lastParams, setLastParams] = useState<Record<string, string>>({});
-
-  const fetchFilters = async () => {
-    try {
-      const res = await fetchDocumentFilterValues();
-      setFilterValues(res);
-    } catch {
-      message.error("Error cargando valores de filtro");
-    }
-  };
 
   const fetchFilteredDocs = async (params: Record<string, string> = {}) => {
     setLoading(true);
@@ -58,24 +45,21 @@ const DocumentFilters: React.FC = () => {
     }
   };
 
+  // Estado se filtra en cliente (el backend ya limita a entregados/finalizados)
+  const [stateFilter, setStateFilter] = useState<number | undefined>(undefined);
+
   const onFinish = (values: Record<string, unknown>) => {
     const params: Record<string, string> = {};
 
-    if (values.range) {
-      const range = values.range as [dayjs.Dayjs | null, dayjs.Dayjs | null];
-      if (range[0]) params.receptionDate = range[0].format("YYYY-MM-DD");
-      if (range[1]) params.deliveryDate = range[1].format("YYYY-MM-DD");
+    if (values.receptionDate) {
+      params.receptionDate = (values.receptionDate as dayjs.Dayjs).format("YYYY-MM-DD");
     }
 
-    if (values.documentType) params.documentType = values.documentType as string;
-    if (values.documentDeliverBy) params.documentDeliverBy = values.documentDeliverBy as string;
-    if (values.submitTo) params.submitTo = values.submitTo as string;
-
+    setStateFilter(values.state as number | undefined);
     fetchFilteredDocs(params);
   };
 
   useEffect(() => {
-    fetchFilters();
     fetchFilteredDocs();
 
     fetchUsers()
@@ -185,44 +169,16 @@ const DocumentFilters: React.FC = () => {
     <>
       <Form form={form} layout="vertical" onFinish={onFinish}>
         <Row gutter={16}>
-          <Col span={6}>
-            <Form.Item label="Rango de fechas" name="range">
-              <RangePicker format="DD/MM/YYYY" />
+          <Col xs={24} sm={8} md={6}>
+            <Form.Item label="Día de recepción" name="receptionDate">
+              <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
             </Form.Item>
           </Col>
-          <Col span={6}>
-            <Form.Item label="Tipo" name="documentType">
+          <Col xs={24} sm={8} md={6}>
+            <Form.Item label="Estado" name="state">
               <Select allowClear placeholder="Todos">
-                {filterValues?.documentTypes?.map((d: string) => (
-                  <Option key={d} value={d}>
-                    {d}
-                  </Option>
-                ))}
-              </Select>
-            </Form.Item>
-          </Col>
-          <Col span={6}>
-            <Form.Item label="Entregado por" name="documentDeliverBy">
-              <Select
-                allowClear
-                showSearch
-                placeholder="Todos"
-                optionFilterProp="label"
-                options={filterValues?.documentDelivers?.map((d: string) => ({
-                  value: d,
-                  label: resolveToUserName(d, usersMap),
-                }))}
-              />
-            </Form.Item>
-          </Col>
-          <Col span={6}>
-            <Form.Item label="Dirigido a" name="submitTo">
-              <Select allowClear showSearch placeholder="Todos">
-                {filterValues?.submitTo?.map((s: string) => (
-                  <Option key={s} value={s}>
-                    {s}
-                  </Option>
-                ))}
+                <Option value={DOCUMENT_STATES.DELIVERED}>Entregado</Option>
+                <Option value={DOCUMENT_STATES.FINALIZED}>Finalizado</Option>
               </Select>
             </Form.Item>
           </Col>
@@ -258,6 +214,7 @@ const DocumentFilters: React.FC = () => {
               <Button
                 onClick={() => {
                   form.resetFields();
+                  setStateFilter(undefined);
                   fetchFilteredDocs();
                 }}
               >
@@ -271,7 +228,7 @@ const DocumentFilters: React.FC = () => {
       <Table
         rowKey="id"
         columns={columns}
-        dataSource={data}
+        dataSource={stateFilter ? data.filter((d) => d.state === stateFilter) : data}
         loading={loading}
         rowSelection={{
           selectedRowKeys,
