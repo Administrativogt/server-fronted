@@ -306,16 +306,14 @@ const AllEncargosPage: React.FC = () => {
       render: (_: any, record: Encargo) => 
         record.solicitante ? `${record.solicitante.first_name} ${record.solicitante.last_name}` : '-'
     },
-    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', ellipsis: true, width: 150 },
-    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', ellipsis: true, width: 130 },
-    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', ellipsis: true, width: 200 },
+    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario' },
+    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa' },
+    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion' },
     { title: 'Zona', dataIndex: 'zona', key: 'zona', width: 80 },
     {
       title: 'Mensajería enviada',
       dataIndex: 'mensajeria_enviada',
       key: 'mensajeria_enviada',
-      ellipsis: true,
-      width: 140,
       render: (v: string) => v || '—',
     },
     {
@@ -480,13 +478,7 @@ const AllEncargosPage: React.FC = () => {
         columns={columns}
         rowKey="id"
         loading={loading}
-        size="small"
-        pagination={{
-          defaultPageSize: 20,
-          pageSizeOptions: ['10', '20', '50', '100'],
-          showSizeChanger: true,
-          showTotal: (total, range) => `${range[0]}-${range[1]} de ${total} envíos`,
-        }}
+        pagination={{ pageSize: 10 }}
         scroll={{ x: 1200, y: 500 }}
         bordered
         onRow={(record: Encargo) => ({
