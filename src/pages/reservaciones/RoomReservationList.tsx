@@ -116,6 +116,7 @@ export default function ReservationsList() {
 
   const [canApprove, setCanApprove] = useState(false);
   const [isSuperuser, setIsSuperuser] = useState(false);
+  const [canManageAll, setCanManageAll] = useState(false);
   const [onlyMine, setOnlyMine] = useState(false);
   const [me, setMe] = useState<{ id: number; full_name: string } | null>(null);
 
@@ -164,7 +165,7 @@ export default function ReservationsList() {
       // 1) Permisos y usuario actual (en paralelo lo que se pueda)
       const [shareRes, approveRes, partnersRes] = await Promise.all([
         api.get<{ canShare: boolean; user: { id: number; full_name: string } }>('/room-reservations/share/can'),
-        api.get<{ canApprove: boolean; isSuperuser: boolean }>('/room-reservations/approve/can'),
+        api.get<{ canApprove: boolean; isSuperuser: boolean; canManageAll?: boolean }>('/room-reservations/approve/can'),
         api.get<Partner[]>('/room-reservations/team/users'),
       ]);
 
@@ -173,6 +174,7 @@ export default function ReservationsList() {
       setCanApprove(!!approveRes.data?.canApprove);
       const isSuper = !!approveRes.data?.isSuperuser;
       setIsSuperuser(isSuper);
+      setCanManageAll(!!approveRes.data?.canManageAll || isSuper);
       setPartners(partnersRes.data || []);
 
       // 3) Construir params para la lista
@@ -430,8 +432,8 @@ export default function ReservationsList() {
 
   // permisos por fila
   const isOwner       = (r: Reservation) => me && (r.request_user_id === me.id || r.user?.id === me.id);
-  const canEditRow    = (r: Reservation) => (isSuperuser || isOwner(r)) && r.state === 0;
-  const canDeleteRow  = (r: Reservation) => (isSuperuser || isOwner(r)) && r.state === 0;
+  const canEditRow    = (r: Reservation) => (canManageAll || isOwner(r)) && r.state === 0;
+  const canDeleteRow  = (r: Reservation) => (canManageAll || isOwner(r)) && r.state === 0;
   const canCancelRow  = (r: Reservation) => isOwner(r) && (r.state === 0 || r.state === 1); // Puede cancelar si está pendiente o aceptada
   const canApproveRow = (r: Reservation) => canApprove && r.state === 0;
 
