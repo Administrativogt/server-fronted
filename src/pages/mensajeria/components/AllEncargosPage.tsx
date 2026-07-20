@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { downloadEncargosExcel, getAllEncargos, sendComplaint, getMensajeros, updateEncargo } from '../../../api/encargos';
 import type { Encargo, Usuario } from '../../../types/encargo';
 import useAuthStore from '../../../auth/useAuthStore'; // ✅ Importar para obtener userId y tipo_usuario
+import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -29,12 +30,17 @@ const PRIORIDADES: Record<number, string> = {
   4: 'D',
 };
 
+// Rango por defecto: últimos 30 días. Sin esto la pantalla pide los ~29 mil
+// encargos históricos completos y tarda varios segundos en cargar.
+const DEFAULT_START = () => dayjs().subtract(30, 'day').format('YYYY-MM-DD');
+const DEFAULT_END = () => dayjs().format('YYYY-MM-DD');
+
 const AllEncargosPage: React.FC = () => {
   const [encargos, setEncargos] = useState<Encargo[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
-    startDate: null as string | null,
-    endDate: null as string | null,
+    startDate: DEFAULT_START() as string | null,
+    endDate: DEFAULT_END() as string | null,
     estado: null as number | null,
     search: null as string | null,
   });
@@ -118,7 +124,7 @@ const AllEncargosPage: React.FC = () => {
   };
 
   const handleResetFilters = () => {
-    setFilters({ startDate: null, endDate: null, estado: null, search: null });
+    setFilters({ startDate: DEFAULT_START(), endDate: DEFAULT_END(), estado: null, search: null });
   };
 
   const handleStartDelivery = (id: number) => {
@@ -382,7 +388,13 @@ const AllEncargosPage: React.FC = () => {
       {/* Filtros */}
       <div style={{ marginBottom: 16, padding: '16px', background: token.colorFillAlter, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8 }}>
         <Space wrap>
-          <RangePicker onChange={handleDateChange} />
+          <RangePicker
+            value={[
+              filters.startDate ? dayjs(filters.startDate) : null,
+              filters.endDate ? dayjs(filters.endDate) : null,
+            ]}
+            onChange={handleDateChange}
+          />
           <Select
             placeholder="Filtrar por estado"
             allowClear
