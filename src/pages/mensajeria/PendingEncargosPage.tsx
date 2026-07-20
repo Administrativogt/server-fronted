@@ -257,6 +257,12 @@ const PendingEncargosPage: React.FC = () => {
     { title: 'Dirección', dataIndex: 'direccion', key: 'direccion' },
     { title: 'Zona', dataIndex: 'zona', key: 'zona', width: 80 },
     {
+      title: 'Mensajería enviada',
+      dataIndex: 'mensajeria_enviada',
+      key: 'mensajeria_enviada',
+      render: (v: string) => v || '—',
+    },
+    {
       title: 'Mensajero',
       key: 'mensajero',
       render: (_: any, record: Encargo) => {
