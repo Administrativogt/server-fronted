@@ -32,7 +32,7 @@ const HORAS_PRIORIDAD = [
   { value: 4, label: 'Entre' },
 ];
 
-const ZONAS = Array.from({ length: 25 }, (_, i) => i + 1);
+const ZONAS = Array.from({ length: 26 }, (_, i) => i); // Zonas 0 a 25
 
 const EditEncargoPage: React.FC = () => {
   const [form] = Form.useForm();
