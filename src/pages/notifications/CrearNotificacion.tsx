@@ -20,13 +20,12 @@ import {
   createNotification,
   fetchProveniences,
   fetchPlaces,
-  fetchUsers,
+  fetchNotificationReceivers,
   fetchHalls,
   createProvenience,
   fetchHallsByProvenience,
 } from "../../api/notifications";
 import { type ProvenienceDto, type HallDto } from "../../api/notifications";
-import type { User } from "../../types/user.types";
 import useAuthStore from "../../auth/useAuthStore";
 import AddProvenienceModal from "./AddProvenienceModal";
 
@@ -51,7 +50,9 @@ const CrearNotificacion: React.FC = () => {
   const [form] = Form.useForm<NotificationFormValues>();
   const [proveniences, setProveniences] = useState<ProvenienceDto[]>([]);
   const [places, setPlaces] = useState<{ id: number; name: string }[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [receivers, setReceivers] = useState<
+    { id: number; first_name: string; last_name: string }[]
+  >([]);
   const [halls, setHalls] = useState<HallDto[]>([]);
   const [allHalls, setAllHalls] = useState<HallDto[]>([]);
   const [showOther, setShowOther] = useState(false);
@@ -67,7 +68,13 @@ const CrearNotificacion: React.FC = () => {
     Promise.allSettled([
       fetchProveniences().then(setProveniences),
       fetchPlaces().then(setPlaces),
-      fetchUsers().then(setUsers),
+      fetchNotificationReceivers().then((recs) => {
+        setReceivers(recs);
+        // Autocompletar con el usuario logueado si es un receptor válido.
+        if (userId && recs.some((r) => r.id === userId)) {
+          form.setFieldsValue({ recepReceives: userId });
+        }
+      }),
       fetchHalls().then(setAllHalls),
     ]).then((results) => {
       if (results.some((r) => r.status === "rejected")) {
@@ -75,7 +82,7 @@ const CrearNotificacion: React.FC = () => {
       }
       setLoadingCatalogs(false);
     });
-  }, []);
+  }, [userId, form]);
 
   const onProvenienceChange = (val: number) => {
     form.setFieldsValue({ hall: undefined, otherProvenience: undefined });
@@ -227,22 +234,21 @@ const CrearNotificacion: React.FC = () => {
                 >
                   <Input placeholder="Nombre de la entidad" />
                 </Form.Item>
-              ) : (
+              ) : halls.length > 0 ? (
                 <Form.Item
                   label="Sala / Hall"
                   name="hall"
-                  rules={[{ required: halls.length > 0, message: "Selecciona sala" }]}
+                  rules={[{ required: true, message: "Selecciona sala" }]}
                 >
                   <Select
                     placeholder={hallPlaceholder}
-                    disabled={halls.length === 0}
                     showSearch
                     optionFilterProp="label"
                     loading={loadingHalls}
                     options={halls.map((h) => ({ value: h.id, label: h.name }))}
                   />
                 </Form.Item>
-              )}
+              ) : null}
             </Col>
 
             <Col xs={24} md={12} lg={8}>
@@ -272,7 +278,7 @@ const CrearNotificacion: React.FC = () => {
                   showSearch
                   optionFilterProp="label"
                   loading={loadingCatalogs}
-                  options={users.map((u) => ({
+                  options={receivers.map((u) => ({
                     value: u.id,
                     label: `${u.first_name} ${u.last_name}`,
                   }))}

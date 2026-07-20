@@ -231,3 +231,11 @@ export async function fetchUsers(): Promise<User[]> {
   const { data } = await api.get("/users");
   return data;
 }
+
+/** Usuarios que pueden recibir notificaciones (recepción/mensajería). */
+export async function fetchNotificationReceivers(): Promise<
+  { id: number; first_name: string; last_name: string }[]
+> {
+  const { data } = await api.get("/notifications/receivers");
+  return data;
+}
