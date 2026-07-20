@@ -1,17 +1,13 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { Table, Input, DatePicker, Button, Typography, Row, Col, Select, Space, Tag, message, Modal } from "antd";
+import { Table, DatePicker, Button, Typography, Row, Col, Select, Space, Tag, message, Modal } from "antd";
 import { CheckCircleOutlined, CloseCircleOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import {
   filterNotifications,
-  fetchProveniences,
-  fetchUsers,
   applyActionToNotifications,
   type NotificationDto,
-  type ProvenienceDto,
   NOTIFICATION_STATES,
 } from "../../api/notifications";
-import type { User } from "../../types/user.types";
 
 const { Title } = Typography;
 
@@ -19,15 +15,8 @@ const Entregadas: React.FC = () => {
   const [notifications, setNotifications] = useState<NotificationDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [proveniences, setProveniences] = useState<ProvenienceDto[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
   const [filters, setFilters] = useState<Record<string, string | undefined>>({});
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-
-  useEffect(() => {
-    fetchProveniences().then(setProveniences).catch(() => {});
-    fetchUsers().then(setUsers).catch(() => {});
-  }, []);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -171,78 +160,19 @@ const Entregadas: React.FC = () => {
     <div>
       <Title level={3}>Notificaciones entregadas</Title>
 
-      <Row gutter={[16, 12]} style={{ marginBottom: 16 }}>
-        <Col span={6}>
+      <Row gutter={[16, 12]} style={{ marginBottom: 16 }} align="bottom">
+        <Col xs={24} sm={8} md={6}>
           <DatePicker
             style={{ width: "100%" }}
-            placeholder="Fecha recepción"
+            placeholder="Día de recepción"
+            value={filters.receptionDate ? dayjs(filters.receptionDate) : null}
+            format="DD/MM/YYYY"
             onChange={(date) =>
               handleFilterChange("receptionDate", date ? dayjs(date).format("YYYY-MM-DD") : undefined)
             }
           />
         </Col>
-        <Col span={6}>
-          <DatePicker
-            style={{ width: "100%" }}
-            placeholder="Fecha entrega"
-            onChange={(date) =>
-              handleFilterChange("deliveryDate", date ? dayjs(date).format("YYYY-MM-DD") : undefined)
-            }
-          />
-        </Col>
-        <Col span={6}>
-          <Input
-            placeholder="Cédula"
-            allowClear
-            onChange={(e) => handleFilterChange("cedule", e.target.value || undefined)}
-          />
-        </Col>
-        <Col span={6}>
-          <Input
-            placeholder="Expediente"
-            allowClear
-            onChange={(e) => handleFilterChange("expedientNum", e.target.value || undefined)}
-          />
-        </Col>
-      </Row>
-
-      <Row gutter={[16, 12]} style={{ marginBottom: 16 }}>
-        <Col span={6}>
-          <Select
-            style={{ width: "100%" }}
-            placeholder="Procedencia"
-            allowClear
-            showSearch
-            optionFilterProp="label"
-            options={proveniences.map((p) => ({
-              value: p.id,
-              label: p.name,
-            }))}
-            onChange={(val) => handleFilterChange("provenience", val !== undefined ? String(val) : undefined)}
-          />
-        </Col>
-        <Col span={6}>
-          <Select
-            style={{ width: "100%" }}
-            placeholder="Entregada a"
-            allowClear
-            showSearch
-            optionFilterProp="label"
-            options={users.map((u) => ({
-              value: u.id,
-              label: `${u.first_name} ${u.last_name}`,
-            }))}
-            onChange={(val) => handleFilterChange("deliverTo", val !== undefined ? String(val) : undefined)}
-          />
-        </Col>
-        <Col span={6}>
-          <Input
-            placeholder="Dirigida a"
-            allowClear
-            onChange={(e) => handleFilterChange("directedTo", e.target.value || undefined)}
-          />
-        </Col>
-        <Col span={6}>
+        <Col xs={24} sm={8} md={6}>
           <Select
             style={{ width: "100%" }}
             placeholder="Estado"
@@ -255,10 +185,7 @@ const Entregadas: React.FC = () => {
             onChange={(val) => handleFilterChange("state", val !== undefined ? String(val) : undefined)}
           />
         </Col>
-      </Row>
-
-      <Row gutter={[16, 12]} style={{ marginBottom: 16 }}>
-        <Col>
+        <Col xs={24} sm={8} md={6}>
           <Space>
             <Button type="primary" onClick={handleSearch}>
               Buscar
