@@ -55,7 +55,6 @@ import {
   fetchComplaintTypes,
   fetchComplaints,
   fetchMailboxTypes,
-  fetchPendingCertificates,
   fetchSuggestionObservations,
   fetchSuggestions,
   filterComplaints,
@@ -93,7 +92,9 @@ const HumanResourcesPage: React.FC = () => {
   // Certificados
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [certLoading, setCertLoading] = useState(false);
-  const [showAllCertificates, setShowAllCertificates] = useState(false);
+  // Filtro de la tarjeta-resumen: null = todas, 1 = ingresadas, 2 = entregadas.
+  // Arranca en 1 (pendientes) = la cola de trabajo, como antes.
+  const [certStateFilter, setCertStateFilter] = useState<number | null>(1);
   const [certificateModalOpen, setCertificateModalOpen] = useState(false);
   const [certificateForm] = Form.useForm();
   const [requestingWork, setRequestingWork] = useState(false);
@@ -152,16 +153,17 @@ const HumanResourcesPage: React.FC = () => {
   const loadCertificates = useCallback(async () => {
     setCertLoading(true);
     try {
-      const data = showAllCertificates
-        ? await fetchAllCertificates()
-        : await fetchPendingCertificates();
+      // Siempre traemos TODAS: así los contadores (ingresadas / entregadas /
+      // total) son reales y las tarjetas-resumen filtran en cliente. Antes se
+      // cargaban solo las pendientes y "Entregadas" siempre mostraba 0.
+      const data = await fetchAllCertificates();
       setCertificates(data);
     } catch {
       message.error('Error al cargar certificados');
     } finally {
       setCertLoading(false);
     }
-  }, [showAllCertificates]);
+  }, []);
 
   const loadSuggestions = useCallback(async () => {
     setSuggestionsLoading(true);
@@ -464,7 +466,16 @@ const HumanResourcesPage: React.FC = () => {
           ]
         : []),
     ],
-    [isAdmin, showAllCertificates],
+    [isAdmin],
+  );
+
+  // Certificados visibles según la tarjeta-resumen seleccionada
+  const visibleCertificates = useMemo(
+    () =>
+      certStateFilter == null
+        ? certificates
+        : certificates.filter((c) => c.state === certStateFilter),
+    [certificates, certStateFilter],
   );
 
   const suggestionColumns = useMemo(
@@ -676,50 +687,49 @@ const HumanResourcesPage: React.FC = () => {
                 Crear certificado
               </Button>
             )}
-            <Checkbox
-              checked={showAllCertificates}
-              onChange={(e) => setShowAllCertificates(e.target.checked)}
-            >
-              Ver todos
-            </Checkbox>
             <Button icon={<ReloadOutlined />} onClick={loadCertificates}>
               Recargar
             </Button>
           </Space>
         }
       >
-        {/* Resumen de estados de solicitudes */}
+        {/* Resumen de estados — cada tarjeta filtra la tabla al hacer clic */}
         <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-          <Col xs={12} sm={8} md={6}>
-            <Card size="small" style={{ textAlign: 'center', borderTop: '3px solid #fa8c16' }}>
-              <Title level={3} style={{ margin: 0, color: '#fa8c16' }}>
-                {certificates.filter((c) => c.state === 1).length}
-              </Title>
-              <Text type="secondary">Ingresadas</Text>
-            </Card>
-          </Col>
-          <Col xs={12} sm={8} md={6}>
-            <Card size="small" style={{ textAlign: 'center', borderTop: '3px solid #52c41a' }}>
-              <Title level={3} style={{ margin: 0, color: '#52c41a' }}>
-                {certificates.filter((c) => c.state === 2).length}
-              </Title>
-              <Text type="secondary">Entregadas</Text>
-            </Card>
-          </Col>
-          <Col xs={12} sm={8} md={6}>
-            <Card size="small" style={{ textAlign: 'center', borderTop: '3px solid #1677ff' }}>
-              <Title level={3} style={{ margin: 0, color: '#1677ff' }}>
-                {certificates.length}
-              </Title>
-              <Text type="secondary">Total</Text>
-            </Card>
-          </Col>
+          {[
+            { key: 1, label: 'Ingresadas', color: '#fa8c16', count: certificates.filter((c) => c.state === 1).length },
+            { key: 2, label: 'Entregadas', color: '#52c41a', count: certificates.filter((c) => c.state === 2).length },
+            { key: null as number | null, label: 'Total', color: '#1677ff', count: certificates.length },
+          ].map((card) => {
+            const active = certStateFilter === card.key;
+            return (
+              <Col xs={12} sm={8} md={6} key={card.label}>
+                <Card
+                  size="small"
+                  hoverable
+                  onClick={() => setCertStateFilter(card.key)}
+                  aria-pressed={active}
+                  style={{
+                    textAlign: 'center',
+                    borderTop: `3px solid ${card.color}`,
+                    cursor: 'pointer',
+                    outline: active ? `2px solid ${card.color}` : 'none',
+                    background: active ? `${card.color}14` : undefined,
+                  }}
+                >
+                  <Title level={3} style={{ margin: 0, color: card.color }}>
+                    {card.count}
+                  </Title>
+                  <Text type="secondary">{card.label}</Text>
+                </Card>
+              </Col>
+            );
+          })}
         </Row>
 
         <Table
           rowKey="id"
           loading={certLoading}
-          dataSource={certificates}
+          dataSource={visibleCertificates}
           columns={certificateColumns as any}
           pagination={{ pageSize: 10 }}
           size="middle"
