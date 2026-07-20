@@ -104,6 +104,17 @@ const PendingEncargosPage: React.FC = () => {
     ? encargos.filter((e) => e.mensajero?.id === filterMensajero)
     : encargos;
 
+  // Asignar mensajero directo desde la celda de la tabla
+  const handleAssignMensajero = async (encargoId: number, mensajeroId: number) => {
+    try {
+      await updateEncargo(encargoId, { mensajero_id: mensajeroId });
+      message.success('Mensajero asignado');
+      loadEncargos();
+    } catch {
+      message.error('No se pudo asignar el mensajero');
+    }
+  };
+
   const downloadExcel = async (mensajeroId: number) => {
     try {
       const encargoIds = filteredEncargos.map((e) => e.id);
@@ -245,11 +256,32 @@ const PendingEncargosPage: React.FC = () => {
     { title: 'Empresa', dataIndex: 'empresa', key: 'empresa' },
     { title: 'Dirección', dataIndex: 'direccion', key: 'direccion' },
     { title: 'Zona', dataIndex: 'zona', key: 'zona', width: 80 },
-    { 
-      title: 'Mensajero', 
+    {
+      title: 'Mensajero',
       key: 'mensajero',
-      render: (_: any, record: Encargo) =>
-        record.mensajero ? `${record.mensajero.first_name} ${record.mensajero.last_name}` : 'Sin asignar'
+      render: (_: any, record: Encargo) => {
+        if (record.mensajero) {
+          return `${record.mensajero.first_name} ${record.mensajero.last_name}`;
+        }
+        // Los mensajeros no asignan; admins/coordinadores asignan aquí mismo
+        if (isMensajero) return 'Sin asignar';
+        return (
+          <Select
+            placeholder="Asignar…"
+            size="small"
+            style={{ minWidth: 160 }}
+            showSearch
+            optionFilterProp="children"
+            onChange={(value: number) => handleAssignMensajero(record.id, value)}
+          >
+            {mensajeros.map((m) => (
+              <Select.Option key={m.id} value={m.id}>
+                {m.first_name} {m.last_name}
+              </Select.Option>
+            ))}
+          </Select>
+        );
+      }
     },
     {
       title: 'Prioridad',
