@@ -7,7 +7,7 @@ import {
 } from 'antd';
 import {
   EditOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, 
-  ReloadOutlined, DownloadOutlined, SearchOutlined, StopOutlined,
+  ReloadOutlined, DownloadOutlined, StopOutlined,
   SyncOutlined
 } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
@@ -107,9 +107,9 @@ export default function ReservationsList() {
   const [stateFilter, setStateFilter] = useState<StateFilter>('all');
 
   // Nuevos estados para los filtros
-  const [roomFilter, setRoomFilter] = useState<string>('');
+  const [roomFilter, setRoomFilter] = useState<string | null>(null);
   const [dateFilter, setDateFilter] = useState<Dayjs | null>(null);
-  const [userFilter, setUserFilter] = useState<string>('');
+  const [userFilter, setUserFilter] = useState<number | null>(null);
 
   const [partners, setPartners] = useState<Partner[]>([]);
   const partnersMap = useMemo(() => new Map(partners.map(p => [p.id, p.full_name])), [partners]);
@@ -199,38 +199,55 @@ export default function ReservationsList() {
 
   // Función para limpiar todos los filtros
   const clearFilters = () => {
-    setRoomFilter('');
+    setRoomFilter(null);
     setDateFilter(null);
-    setUserFilter('');
+    setUserFilter(null);
   };
 
   // Filtrar las reservas según los criterios seleccionados
+  // Opciones para los desplegables de Sala y Usuario (derivadas de los datos)
+  const roomOptions = useMemo(() => {
+    const names = new Set<string>();
+    rows.forEach(r => { if (r.room?.name) names.add(r.room.name); });
+    return [...names].sort((a, b) => a.localeCompare(b, 'es')).map(n => ({ label: n, value: n }));
+  }, [rows]);
+
+  const userOptions = useMemo(() => {
+    const map = new Map<number, string>();
+    rows.forEach(r => {
+      if (r.user?.id) map.set(r.user.id, `${r.user.first_name} ${r.user.last_name}`.trim());
+    });
+    return [...map.entries()]
+      .map(([id, name]) => ({ label: name, value: id }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'es'));
+  }, [rows]);
+
   const filteredRows = useMemo(() => {
     let filtered = rows;
 
-    // Filtro por sala
+    // Filtro por sala (nombre exacto del desplegable)
     if (roomFilter) {
-      filtered = filtered.filter(reservation => 
-        reservation.room?.name?.toLowerCase().includes(roomFilter.toLowerCase())
-      );
+      filtered = filtered.filter(reservation => reservation.room?.name === roomFilter);
     }
 
     // Filtro por fecha
     if (dateFilter) {
       const filterDate = dateFilter.format('YYYY-MM-DD');
-      filtered = filtered.filter(reservation => 
+      filtered = filtered.filter(reservation =>
         reservation.reservation_date === filterDate
       );
+      // Primero las reservaciones propias del día, luego las recurrentes
+      filtered = [...filtered].sort((a, b) => {
+        const ra = a.is_recurring ? 1 : 0;
+        const rb = b.is_recurring ? 1 : 0;
+        if (ra !== rb) return ra - rb;
+        return (a.init_hour || '').localeCompare(b.init_hour || '');
+      });
     }
 
-    // Filtro por usuario
+    // Filtro por usuario (id del desplegable)
     if (userFilter) {
-      filtered = filtered.filter(reservation => {
-        const userName = reservation.user ? 
-          `${reservation.user.first_name} ${reservation.user.last_name}`.toLowerCase() : 
-          '';
-        return userName.includes(userFilter.toLowerCase());
-      });
+      filtered = filtered.filter(reservation => reservation.user?.id === userFilter);
     }
 
     return filtered;
@@ -802,13 +819,15 @@ export default function ReservationsList() {
         {/* Filtro por Sala */}
         <Space>
           <span>Sala:</span>
-          <Input
-            placeholder="Buscar por nombre de sala"
+          <Select
+            placeholder="Todas las salas"
             value={roomFilter}
-            onChange={(e) => setRoomFilter(e.target.value)}
-            style={{ width: 200 }}
+            onChange={(v) => setRoomFilter(v ?? null)}
+            options={roomOptions}
+            style={{ width: 220 }}
             allowClear
-            prefix={<SearchOutlined />}
+            showSearch
+            optionFilterProp="label"
           />
         </Space>
 
@@ -827,13 +846,15 @@ export default function ReservationsList() {
         {/* Filtro por Usuario */}
         <Space>
           <span>Usuario:</span>
-          <Input
-            placeholder="Buscar por nombre de usuario"
+          <Select
+            placeholder="Todos los usuarios"
             value={userFilter}
-            onChange={(e) => setUserFilter(e.target.value)}
-            style={{ width: 200 }}
+            onChange={(v) => setUserFilter(v ?? null)}
+            options={userOptions}
+            style={{ width: 240 }}
             allowClear
-            prefix={<SearchOutlined />}
+            showSearch
+            optionFilterProp="label"
           />
         </Space>
 
