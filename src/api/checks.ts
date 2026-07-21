@@ -271,14 +271,27 @@ export const downloadLiquidatedReport = async (
   return downloadBlob('/checks/reports/liquidated.xlsx', params, 'reporte_cheques_liquidados.xlsx');
 };
 
-export const downloadExpensesReport = async (
-  requestId?: number,
-  expenseIds?: number[],
-) => {
+export const downloadExpensesReport = async (options?: {
+  request_id?: number;
+  responsible_id?: number;
+  delivered_by_id?: number;
+  state?: number;
+  note_number?: number;
+  receipt_number?: string;
+  receipt_serie?: string;
+  expense_ids?: number[];
+}) => {
   const params: Record<string, unknown> = {};
-  if (requestId) params.request_id = requestId;
-  if (expenseIds && expenseIds.length > 0) {
-    params.expense_ids = btoa(JSON.stringify(expenseIds));
+  if (options) {
+    const { expense_ids, ...rest } = options;
+    Object.entries(rest).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params[key] = value;
+      }
+    });
+    if (expense_ids && expense_ids.length > 0) {
+      params.expense_ids = btoa(JSON.stringify(expense_ids));
+    }
   }
   return downloadBlob(
     '/checks/reports/inmobiliario-expenses.xlsx',

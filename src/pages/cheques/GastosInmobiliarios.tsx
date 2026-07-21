@@ -44,7 +44,6 @@ function GastosInmobiliarios() {
   const canViewAll = isSuperuser || [1, 2, 10].includes(tipoUsuario || 0);
 
   const [data, setData] = useState<InmobiliarioExpense[]>([]);
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [users, setUsers] = useState<UserLite[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -79,6 +78,7 @@ function GastosInmobiliarios() {
   const [filters, setFilters] = useState({
     request_id: undefined as number | undefined,
     responsible_id: canViewAll ? (undefined as number | undefined) : (userId ?? undefined),
+    state: undefined as number | undefined,
     page: 1,
     per_page: 20,
   });
@@ -199,6 +199,7 @@ function GastosInmobiliarios() {
         ...filters,
         request_id: filters.request_id || undefined,
         responsible_id: canViewAll ? filters.responsible_id || undefined : userId || undefined,
+        state: filters.state ?? undefined,
       });
       setData(response.data);
       setPagination({
@@ -337,7 +338,7 @@ function GastosInmobiliarios() {
     }
     setRecentDownloading(true);
     try {
-      await downloadExpensesReport(undefined, recentKeys.map(Number));
+      await downloadExpensesReport({ expense_ids: recentKeys.map(Number) });
     } catch (error: any) {
       message.error(error?.response?.data?.message || 'Error al descargar el reporte');
     } finally {
@@ -357,17 +358,13 @@ function GastosInmobiliarios() {
           </Button>
           <Button onClick={openRecent}>Gastos recientes</Button>
           <Button
-            onClick={() => {
-              if (!selectedRowKeys.length) {
-                message.info('Seleccione al menos un registro');
-                return;
-              }
-              const selectedIds = data
-                .filter((row) => selectedRowKeys.includes(row.id))
-                .map((row) => row.id);
-              downloadExpensesReport(filters.request_id, selectedIds);
-            }}
-            disabled={!selectedRowKeys.length}
+            onClick={() =>
+              downloadExpensesReport({
+                request_id: filters.request_id,
+                responsible_id: canViewAll ? filters.responsible_id : userId ?? undefined,
+                state: filters.state,
+              })
+            }
           >
             Descargar reporte
           </Button>
@@ -398,6 +395,19 @@ function GastosInmobiliarios() {
             optionFilterProp="label"
           />
         ) : null}
+        <Select<number>
+          allowClear
+          style={{ width: 200 }}
+          placeholder="estado"
+          value={filters.state}
+          onChange={(value) => setFilters((prev) => ({ ...prev, state: value }))}
+          options={[
+            { label: 'Aceptado', value: 1 },
+            { label: 'Creado', value: 3 },
+            { label: 'Liquidado', value: 4 },
+            { label: 'Rechazado', value: 2 },
+          ]}
+        />
         <Button
           type="primary"
           onClick={() => {
@@ -415,10 +425,6 @@ function GastosInmobiliarios() {
         dataSource={data}
         scroll={{ x: 'max-content' }}
         sticky={{ offsetHeader: 64 }}
-        rowSelection={{
-          selectedRowKeys,
-          onChange: setSelectedRowKeys,
-        }}
         pagination={{
           current: pagination.page,
           pageSize: pagination.per_page,
