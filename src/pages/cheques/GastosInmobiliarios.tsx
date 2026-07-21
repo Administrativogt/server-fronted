@@ -716,6 +716,12 @@ function GastosInmobiliarios() {
           rowSelection={{ selectedRowKeys: recentKeys, onChange: setRecentKeys }}
           columns={[
             { title: 'ID', render: (_, row) => row.request_id?.request_id ?? '—', width: 80 },
+            {
+              title: 'Fecha',
+              dataIndex: 'date',
+              width: 120,
+              render: (value: string) => (value ? dayjs(value).format('DD/MM/YYYY') : '—'),
+            },
             { title: 'Cliente', dataIndex: 'client', ellipsis: true },
             {
               title: 'Entregado por',
