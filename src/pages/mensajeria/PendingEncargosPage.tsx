@@ -290,12 +290,15 @@ const PendingEncargosPage: React.FC = () => {
       key: 'solicitante',
       width: 150,
       ellipsis: true,
+      sorter: (a: Encargo, b: Encargo) =>
+        `${a.solicitante?.first_name ?? ''} ${a.solicitante?.last_name ?? ''}`
+          .localeCompare(`${b.solicitante?.first_name ?? ''} ${b.solicitante?.last_name ?? ''}`, 'es'),
       render: (_: any, record: Encargo) =>
         record.solicitante ? `${record.solicitante.first_name} ${record.solicitante.last_name}` : '-'
     },
-    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: 140, ellipsis: true },
-    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: 140, ellipsis: true },
-    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: 260, ellipsis: true },
+    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: 140, ellipsis: true, sorter: (a: Encargo, b: Encargo) => (a.destinatario || '').localeCompare(b.destinatario || '', 'es') },
+    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: 140, ellipsis: true, sorter: (a: Encargo, b: Encargo) => (a.empresa || '').localeCompare(b.empresa || '', 'es') },
+    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: 260, ellipsis: true, sorter: (a: Encargo, b: Encargo) => (a.direccion || '').localeCompare(b.direccion || '', 'es') },
     {
       title: 'Zona',
       dataIndex: 'zona',
@@ -309,6 +312,8 @@ const PendingEncargosPage: React.FC = () => {
       key: 'mensajeria_enviada',
       width: 140,
       ellipsis: true,
+      sorter: (a: Encargo, b: Encargo) =>
+        (a.mensajeria_enviada || '').localeCompare(b.mensajeria_enviada || '', 'es'),
       render: (v: string) => v || '—',
     },
     {
@@ -316,6 +321,9 @@ const PendingEncargosPage: React.FC = () => {
       key: 'mensajero',
       width: 180,
       ellipsis: true,
+      sorter: (a: Encargo, b: Encargo) =>
+        `${a.mensajero?.first_name ?? ''} ${a.mensajero?.last_name ?? ''}`
+          .localeCompare(`${b.mensajero?.first_name ?? ''} ${b.mensajero?.last_name ?? ''}`, 'es'),
       render: (_: any, record: Encargo) => {
         if (record.mensajero) {
           return `${record.mensajero.first_name} ${record.mensajero.last_name}`;
@@ -368,6 +376,7 @@ const PendingEncargosPage: React.FC = () => {
       dataIndex: 'estado',
       key: 'estado',
       width: 120,
+      sorter: (a: Encargo, b: Encargo) => a.estado - b.estado,
       render: (estado: number) => {
         const config = ESTADOS[estado];
         return config ? <Tag color={config.color}>{config.label}</Tag> : estado;

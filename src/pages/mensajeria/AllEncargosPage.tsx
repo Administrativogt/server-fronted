@@ -262,32 +262,48 @@ const AllEncargosPage: React.FC = () => {
         </Space>
       ),
     },
-    // ✅ CORREGIDO: Usar relaciones correctas del tipo Encargo
-    { 
-      title: 'Solicitante', 
+    // Columnas de texto largo: ancho fijo + ellipsis (tooltip nativo con el texto
+    // completo). Sin width, AntD reparte el espacio a partes iguales y parte
+    // palabras a la mitad; el detalle completo vive en la fila expandida.
+    {
+      title: 'Solicitante',
       key: 'solicitante',
-      render: (_: any, record: Encargo) => 
+      width: 150,
+      ellipsis: true,
+      sorter: (a: Encargo, b: Encargo) =>
+        `${a.solicitante?.first_name ?? ''} ${a.solicitante?.last_name ?? ''}`
+          .localeCompare(`${b.solicitante?.first_name ?? ''} ${b.solicitante?.last_name ?? ''}`, 'es'),
+      render: (_: any, record: Encargo) =>
         record.solicitante ? `${record.solicitante.first_name} ${record.solicitante.last_name}` : '-'
     },
-    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario' },
-    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa' },
-    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion' },
+    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: 140, ellipsis: true, sorter: (a: Encargo, b: Encargo) => (a.destinatario || '').localeCompare(b.destinatario || '', 'es') },
+    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: 140, ellipsis: true, sorter: (a: Encargo, b: Encargo) => (a.empresa || '').localeCompare(b.empresa || '', 'es') },
+    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: 260, ellipsis: true, sorter: (a: Encargo, b: Encargo) => (a.direccion || '').localeCompare(b.direccion || '', 'es') },
     {
       title: 'Zona',
       dataIndex: 'zona',
       key: 'zona',
-      width: 80,
+      width: 70,
       sorter: (a: Encargo, b: Encargo) => (a.zona || 0) - (b.zona || 0),
     },
     {
-      title: 'Mensajería enviada',
+      title: 'Tipo',
       dataIndex: 'mensajeria_enviada',
       key: 'mensajeria_enviada',
+      width: 140,
+      ellipsis: true,
+      sorter: (a: Encargo, b: Encargo) =>
+        (a.mensajeria_enviada || '').localeCompare(b.mensajeria_enviada || '', 'es'),
       render: (v: string) => v || '—',
     },
     {
       title: 'Mensajero',
       key: 'mensajero',
+      width: 180,
+      ellipsis: true,
+      sorter: (a: Encargo, b: Encargo) =>
+        `${a.mensajero?.first_name ?? ''} ${a.mensajero?.last_name ?? ''}`
+          .localeCompare(`${b.mensajero?.first_name ?? ''} ${b.mensajero?.last_name ?? ''}`, 'es'),
       render: (_: any, record: Encargo) => {
         if (record.mensajero) {
           return `${record.mensajero.first_name} ${record.mensajero.last_name}`;
@@ -340,6 +356,7 @@ const AllEncargosPage: React.FC = () => {
       dataIndex: 'estado',
       key: 'estado',
       width: 120,
+      sorter: (a: Encargo, b: Encargo) => a.estado - b.estado,
       render: (estado: number) => {
         const config = ESTADOS[estado];
         return config ? <Tag color={config.color}>{config.label}</Tag> : estado;
@@ -524,7 +541,7 @@ const AllEncargosPage: React.FC = () => {
           rowKey="id"
           loading={loading}
           pagination={{ pageSize: 10 }}
-          scroll={{ x: 1340, y: 500 }}
+          scroll={{ x: 1810 }}
           bordered
           expandable={{
             expandedRowRender: (record: Encargo) => <EncargoExpandedRow encargo={record} />,
