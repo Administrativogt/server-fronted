@@ -33,6 +33,7 @@ import {
   verifyParentCheck,
 } from '../../api/checks';
 import { fetchUsers, fullName, type UserLite } from '../../api/users';
+import api from '../../api/axios';
 import useAuthStore from '../../auth/useAuthStore';
 
 const { Title } = Typography;
@@ -82,27 +83,39 @@ function GastosInmobiliarios() {
   );
   const [filters, setFilters] = useState({
     request_id: undefined as number | undefined,
-    responsible_id: canViewAll ? (undefined as number | undefined) : (userId ?? undefined),
+    // El scope lo aplica el backend según el usuario; el front solo manda una
+    // persona cuando se filtra explícitamente por "entregado por".
+    responsible_id: undefined as number | undefined,
     state: undefined as number | undefined,
     page: 1,
     per_page: 20,
   });
   const [pagination, setPagination] = useState({ total: 0, page: 1, per_page: 20 });
 
+  // Hidrata el equipo del usuario si la sesión es de antes de que se guardara
+  // (sin obligar a re-login). Necesario para que la secretaria de Inmobiliario
+  // vea el filtro "entregado por".
   useEffect(() => {
-    if (!canViewAll && userId) {
-      setFilters((prev) => ({ ...prev, responsible_id: userId }));
+    if (equipoId == null) {
+      api
+        .get('/auth/profile')
+        .then(({ data }) => {
+          const eq = data?.equipo_id ?? data?.equipo?.id ?? null;
+          if (eq != null) useAuthStore.getState().setEquipoId(Number(eq));
+        })
+        .catch(() => {});
     }
-  }, [canViewAll, userId]);
+  }, [equipoId]);
 
   const fetchCheckOptions = useCallback(async () => {
     setCheckOptionsLoading(true);
     try {
+      // El scope lo aplica el backend (secretaria de Inmobiliario ve todo el
+      // equipo; el resto solo lo suyo), no hace falta forzar responsible_id.
       const response = await getPendingLiquidation({
         page: 1,
         per_page: 200,
         equipo_id: 4,
-        ...(canViewAll ? {} : { responsible_id: userId ?? undefined }),
       });
       setCheckOptions(response.data);
     } catch (error: any) {
@@ -113,7 +126,7 @@ function GastosInmobiliarios() {
     } finally {
       setCheckOptionsLoading(false);
     }
-  }, [canViewAll, userId]);
+  }, []);
 
   useEffect(() => {
     if (modalOpen) {
@@ -203,7 +216,7 @@ function GastosInmobiliarios() {
       const response = await getInmobiliarioExpenses({
         ...filters,
         request_id: filters.request_id || undefined,
-        responsible_id: canViewAll ? filters.responsible_id || undefined : userId || undefined,
+        responsible_id: filters.responsible_id || undefined,
         state: filters.state ?? undefined,
       });
       setData(response.data);
@@ -366,7 +379,7 @@ function GastosInmobiliarios() {
             onClick={() =>
               downloadExpensesReport({
                 request_id: filters.request_id,
-                responsible_id: canViewAll ? filters.responsible_id : userId ?? undefined,
+                responsible_id: filters.responsible_id,
                 state: filters.state,
               })
             }
