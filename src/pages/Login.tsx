@@ -82,6 +82,7 @@ function Login() {
       setUserId(decoded.sub);
       setTipoUsuario(user?.tipo_usuario ?? null);
       useAuthStore.getState().setAreaId(user?.area?.id ?? null);
+      useAuthStore.getState().setEquipoId(user?.equipo?.id ?? null);
       setIsSuperuser(user?.is_superuser === true);
       setPermissions(Array.isArray(user?.codenames) ? user.codenames : []);
       setModules(Array.isArray(user?.modules) ? (user.modules as ModuleAccessItem[]) : []);

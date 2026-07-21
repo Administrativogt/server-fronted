@@ -41,7 +41,12 @@ function GastosInmobiliarios() {
   const userId = useAuthStore((s) => s.userId);
   const tipoUsuario = useAuthStore((s) => s.tipo_usuario);
   const isSuperuser = useAuthStore((s) => s.is_superuser);
-  const canViewAll = isSuperuser || [1, 2, 10].includes(tipoUsuario || 0);
+  const equipoId = useAuthStore((s) => s.equipoId);
+  // Secretaria del equipo Inmobiliario (equipo 4, tipo 6): gestiona los gastos
+  // de todo el equipo, así que ve/filtra como acceso total (igual que el backend).
+  const isInmobiliarioSecretary = equipoId === 4 && tipoUsuario === 6;
+  const canViewAll =
+    isSuperuser || [1, 2, 10].includes(tipoUsuario || 0) || isInmobiliarioSecretary;
 
   const [data, setData] = useState<InmobiliarioExpense[]>([]);
   const [users, setUsers] = useState<UserLite[]>([]);

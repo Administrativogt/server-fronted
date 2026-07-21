@@ -17,6 +17,7 @@ interface AuthState {
   tipo_usuario: number | null;
   is_superuser: boolean;
   areaId: number | null;
+  equipoId: number | null;
   permissions: string[];
   modules: ModuleAccessItem[];
   setAreaId: (id: number | null) => void;
@@ -28,6 +29,7 @@ interface AuthState {
   setRefreshToken: (token: string) => void;
   setTipoUsuario: (tipo: number | null) => void;
   setIsSuperuser: (value: boolean) => void;
+  setEquipoId: (id: number | null) => void;
   setPermissions: (permissions: string[]) => void;
   setModules: (modules: ModuleAccessItem[]) => void;
   logout: (redirect?: boolean) => void;
@@ -43,11 +45,13 @@ const useAuthStore = create<AuthState>((set) => {
   const rawRefresh = sessionStorage.getItem('refreshToken');
   const rawTipoUsuario = sessionStorage.getItem('tipo_usuario');
   const rawAreaId = sessionStorage.getItem('areaId');
+  const rawEquipoId = sessionStorage.getItem('equipoId');
   const rawIsSuperuser = sessionStorage.getItem('is_superuser');
   const rawPermissions = sessionStorage.getItem('permissions');
   const rawModules = sessionStorage.getItem('modules');
   const parsedTipoUsuario = rawTipoUsuario ? Number(rawTipoUsuario) : null;
   const parsedAreaId = rawAreaId ? Number(rawAreaId) : null;
+  const parsedEquipoId = rawEquipoId ? Number(rawEquipoId) : null;
   const parsedIsSuperuser = rawIsSuperuser === 'true';
   const parsedPermissions = rawPermissions ? JSON.parse(rawPermissions) : [];
   const parsedModules = rawModules ? JSON.parse(rawModules) : [];
@@ -63,6 +67,7 @@ const useAuthStore = create<AuthState>((set) => {
     sessionStorage.removeItem('refreshToken');
     sessionStorage.removeItem('tipo_usuario');
     sessionStorage.removeItem('areaId');
+    sessionStorage.removeItem('equipoId');
     sessionStorage.removeItem('is_superuser');
     sessionStorage.removeItem('permissions');
     sessionStorage.removeItem('modules');
@@ -77,6 +82,7 @@ const useAuthStore = create<AuthState>((set) => {
     refreshToken: expiredOrInvalid ? null : rawRefresh,
     tipo_usuario: expiredOrInvalid ? null : parsedTipoUsuario,
     areaId: expiredOrInvalid ? null : parsedAreaId,
+    equipoId: expiredOrInvalid ? null : parsedEquipoId,
     is_superuser: expiredOrInvalid ? false : parsedIsSuperuser,
     permissions: expiredOrInvalid ? [] : parsedPermissions,
     modules: expiredOrInvalid ? [] : parsedModules,
@@ -140,6 +146,16 @@ const useAuthStore = create<AuthState>((set) => {
       set({ areaId: id });
     },
 
+    setEquipoId: (id) => {
+      if (id === null || Number.isNaN(id)) {
+        sessionStorage.removeItem('equipoId');
+        set({ equipoId: null });
+        return;
+      }
+      sessionStorage.setItem('equipoId', id.toString());
+      set({ equipoId: id });
+    },
+
     setPermissions: (permissions) => {
       sessionStorage.setItem('permissions', JSON.stringify(permissions));
       set({ permissions });
@@ -160,6 +176,7 @@ const useAuthStore = create<AuthState>((set) => {
       sessionStorage.removeItem('refreshToken');
       sessionStorage.removeItem('tipo_usuario');
       sessionStorage.removeItem('areaId');
+      sessionStorage.removeItem('equipoId');
       sessionStorage.removeItem('is_superuser');
       sessionStorage.removeItem('permissions');
       sessionStorage.removeItem('modules');
@@ -172,6 +189,7 @@ const useAuthStore = create<AuthState>((set) => {
         refreshToken: null,
         tipo_usuario: null,
         areaId: null,
+        equipoId: null,
         is_superuser: false,
         permissions: [],
         modules: [],
