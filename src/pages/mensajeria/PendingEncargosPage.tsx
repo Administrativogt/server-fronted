@@ -1,6 +1,7 @@
 // src/pages/mensajeria/PendingEncargosPage.tsx
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Space, Tag, message, Modal, Input, Select, Tooltip, Empty, theme, Grid } from 'antd';
+import { Table, Button, Space, Tag, message, Modal, Input, Select, Tooltip, Empty, theme, Grid, DatePicker } from 'antd';
+import dayjs from 'dayjs';
 import {
   InfoCircleOutlined,
   FlagFilled,
@@ -62,6 +63,9 @@ const PendingEncargosPage: React.FC = () => {
   const [selectedMensajero, setSelectedMensajero] = useState<number | null>(null);
   const [mensajeros, setMensajeros] = useState<Usuario[]>([]);
   const [filterMensajero, setFilterMensajero] = useState<number | null>(null);
+  // Filtro "Filtrar encargos": texto libre + rango de fechas de realización
+  const [searchText, setSearchText] = useState('');
+  const [dateRange, setDateRange] = useState<[string | null, string | null]>([null, null]);
   const navigate = useNavigate();
   
   // ✅ Obtener usuario actual para filtrar si es mensajero
@@ -105,9 +109,27 @@ const PendingEncargosPage: React.FC = () => {
     }
   };
 
-  const filteredEncargos = filterMensajero
-    ? encargos.filter((e) => e.mensajero?.id === filterMensajero)
-    : encargos;
+  const filteredEncargos = encargos.filter((e) => {
+    if (filterMensajero && e.mensajero?.id !== filterMensajero) return false;
+    // Búsqueda por texto en solicitante, destinatario, empresa y dirección
+    if (searchText.trim()) {
+      const q = searchText.toLowerCase();
+      const hay = [
+        `${e.solicitante?.first_name ?? ''} ${e.solicitante?.last_name ?? ''}`,
+        e.destinatario,
+        e.empresa,
+        e.direccion,
+      ]
+        .join(' ')
+        .toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    // Rango de fechas de realización
+    const [start, end] = dateRange;
+    if (start && (e.fecha_realizacion || '') < start) return false;
+    if (end && (e.fecha_realizacion || '') > end) return false;
+    return true;
+  });
 
   // Asignar mensajero directo desde la celda de la tabla
   const handleAssignMensajero = async (encargoId: number, mensajeroId: number) => {
@@ -260,32 +282,40 @@ const PendingEncargosPage: React.FC = () => {
         </Space>
       ),
     },
-    // ✅ CORREGIDO: Usar relaciones correctas del tipo Encargo
-    { 
-      title: 'Solicitante', 
+    // Columnas de texto largo: ancho fijo + ellipsis (tooltip nativo con el texto
+    // completo). Sin width, AntD reparte el espacio a partes iguales y parte
+    // palabras a la mitad; el detalle completo vive en la fila expandida.
+    {
+      title: 'Solicitante',
       key: 'solicitante',
-      render: (_: any, record: Encargo) => 
+      width: 150,
+      ellipsis: true,
+      render: (_: any, record: Encargo) =>
         record.solicitante ? `${record.solicitante.first_name} ${record.solicitante.last_name}` : '-'
     },
-    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario' },
-    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa' },
-    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion' },
+    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: 140, ellipsis: true },
+    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: 140, ellipsis: true },
+    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: 260, ellipsis: true },
     {
       title: 'Zona',
       dataIndex: 'zona',
       key: 'zona',
-      width: 80,
+      width: 70,
       sorter: (a: Encargo, b: Encargo) => (a.zona || 0) - (b.zona || 0),
     },
     {
-      title: 'Mensajería enviada',
+      title: 'Tipo',
       dataIndex: 'mensajeria_enviada',
       key: 'mensajeria_enviada',
+      width: 140,
+      ellipsis: true,
       render: (v: string) => v || '—',
     },
     {
       title: 'Mensajero',
       key: 'mensajero',
+      width: 180,
+      ellipsis: true,
       render: (_: any, record: Encargo) => {
         if (record.mensajero) {
           return `${record.mensajero.first_name} ${record.mensajero.last_name}`;
@@ -490,6 +520,16 @@ const PendingEncargosPage: React.FC = () => {
 
   return (
     <div style={{ padding: '16px 0' }}>
+      {/* Compacta las celdas (menos alto) pero con letra mas grande y legible */}
+      <style>{`
+        .mensajeria-compact-table .ant-table-tbody > tr > td,
+        .mensajeria-compact-table .ant-table-thead > tr > th {
+          font-size: 14px;
+          padding-top: 6px;
+          padding-bottom: 6px;
+          line-height: 1.35;
+        }
+      `}</style>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
         <h2 style={{ margin: 0 }}>Envíos Pendientes</h2>
         <Space>
@@ -509,11 +549,32 @@ const PendingEncargosPage: React.FC = () => {
         </Space>
       </div>
 
-      {!isMensajero && (
-        <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontWeight: 500 }}>Filtrar por mensajero:</span>
+      {/* Filtrar encargos: búsqueda + rango de fechas + (para admin) mensajero */}
+      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <Input.Search
+          placeholder="Buscar por solicitante, destinatario, empresa o dirección…"
+          allowClear
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          style={{ width: 340 }}
+        />
+        <DatePicker.RangePicker
+          format="DD/MM/YYYY"
+          placeholder={['Fecha inicio', 'Fecha final']}
+          value={[
+            dateRange[0] ? dayjs(dateRange[0]) : null,
+            dateRange[1] ? dayjs(dateRange[1]) : null,
+          ]}
+          onChange={(dates) =>
+            setDateRange([
+              dates?.[0] ? dates[0].format('YYYY-MM-DD') : null,
+              dates?.[1] ? dates[1].format('YYYY-MM-DD') : null,
+            ])
+          }
+        />
+        {!isMensajero && (
           <Select
-            style={{ minWidth: 280 }}
+            style={{ minWidth: 240 }}
             placeholder="Todos los mensajeros"
             value={filterMensajero}
             onChange={(value) => setFilterMensajero(value)}
@@ -530,11 +591,22 @@ const PendingEncargosPage: React.FC = () => {
               </Option>
             ))}
           </Select>
-          <span style={{ color: token.colorTextSecondary }}>
-            {filteredEncargos.length} envío{filteredEncargos.length === 1 ? '' : 's'}
-          </span>
-        </div>
-      )}
+        )}
+        {(searchText || dateRange[0] || dateRange[1] || filterMensajero) && (
+          <Button
+            onClick={() => {
+              setSearchText('');
+              setDateRange([null, null]);
+              setFilterMensajero(null);
+            }}
+          >
+            Limpiar
+          </Button>
+        )}
+        <span style={{ color: token.colorTextSecondary }}>
+          {filteredEncargos.length} envío{filteredEncargos.length === 1 ? '' : 's'}
+        </span>
+      </div>
 
       {isMobile ? (
         <EncargoCardList
@@ -545,17 +617,19 @@ const PendingEncargosPage: React.FC = () => {
         />
       ) : (
         <Table
+          className="mensajeria-compact-table"
           dataSource={filteredEncargos}
           columns={columns}
           rowKey="id"
           loading={loading}
+          size="small"
           pagination={{
-            defaultPageSize: 10,
+            defaultPageSize: 20,
             pageSizeOptions: ['10', '20', '50', '100'],
             showSizeChanger: true,
             showTotal: (total, range) => `${range[0]}-${range[1]} de ${total} envíos`,
           }}
-          scroll={{ x: 1340 }}
+          scroll={{ x: 1850 }}
           bordered
           expandable={{
             expandedRowRender: (record: Encargo) => <EncargoExpandedRow encargo={record} />,
