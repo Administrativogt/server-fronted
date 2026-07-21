@@ -302,6 +302,49 @@ function GastosInmobiliarios() {
     }
   };
 
+  // ── Gastos recientes: modal con lo que el usuario creó, para bajar el
+  //    Excel y enviárselo a los responsables que deben liquidar ──────────
+  const [recentOpen, setRecentOpen] = useState(false);
+  const [recentLoading, setRecentLoading] = useState(false);
+  const [recentData, setRecentData] = useState<InmobiliarioExpense[]>([]);
+  const [recentKeys, setRecentKeys] = useState<React.Key[]>([]);
+  const [recentDownloading, setRecentDownloading] = useState(false);
+
+  const openRecent = async () => {
+    setRecentOpen(true);
+    setRecentLoading(true);
+    try {
+      const response = await getInmobiliarioExpenses({
+        creator_id: userId || undefined,
+        page: 1,
+        per_page: 50,
+      });
+      setRecentData(response.data);
+      setRecentKeys(response.data.map((row) => row.id)); // preselecciona todos
+    } catch (error: any) {
+      setRecentData([]);
+      setRecentKeys([]);
+      message.error(error?.response?.data?.message || 'Error al cargar gastos recientes');
+    } finally {
+      setRecentLoading(false);
+    }
+  };
+
+  const handleDownloadRecent = async () => {
+    if (!recentKeys.length) {
+      message.info('Selecciona al menos un gasto');
+      return;
+    }
+    setRecentDownloading(true);
+    try {
+      await downloadExpensesReport(undefined, recentKeys.map(Number));
+    } catch (error: any) {
+      message.error(error?.response?.data?.message || 'Error al descargar el reporte');
+    } finally {
+      setRecentDownloading(false);
+    }
+  };
+
   return (
     <Card>
       <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }} wrap>
@@ -312,6 +355,7 @@ function GastosInmobiliarios() {
           <Button onClick={() => loadData()} loading={loading}>
             Recargar
           </Button>
+          <Button onClick={openRecent}>Gastos recientes</Button>
           <Button
             onClick={() => {
               if (!selectedRowKeys.length) {
@@ -613,6 +657,74 @@ function GastosInmobiliarios() {
             </Col>
           </Row>
         </Form>
+      </Modal>
+
+      <Modal
+        title="Gastos que creaste recientemente"
+        open={recentOpen}
+        onCancel={() => setRecentOpen(false)}
+        width={860}
+        footer={[
+          <Button key="cerrar" onClick={() => setRecentOpen(false)}>
+            Cerrar
+          </Button>,
+          <Button
+            key="descargar"
+            type="primary"
+            loading={recentDownloading}
+            onClick={handleDownloadRecent}
+          >
+            Descargar Excel ({recentKeys.length})
+          </Button>,
+        ]}
+      >
+        <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
+          Selecciona los gastos y descarga el Excel para enviárselo a cada
+          responsable. En el reporte, los pendientes de liquidar salen primero.
+        </Typography.Paragraph>
+        <Table<InmobiliarioExpense>
+          rowKey="id"
+          size="small"
+          loading={recentLoading}
+          dataSource={recentData}
+          pagination={false}
+          scroll={{ y: 360 }}
+          rowSelection={{ selectedRowKeys: recentKeys, onChange: setRecentKeys }}
+          columns={[
+            { title: 'ID', render: (_, row) => row.request_id?.request_id ?? '—', width: 80 },
+            { title: 'Cliente', dataIndex: 'client', ellipsis: true },
+            {
+              title: 'Entregado por',
+              width: 180,
+              render: (_, row) =>
+                row.delivered_by
+                  ? `${row.delivered_by.first_name} ${row.delivered_by.last_name}`.trim() ||
+                    row.delivered_by.username
+                  : '—',
+            },
+            {
+              title: 'Valor',
+              dataIndex: 'receipt_value',
+              width: 110,
+              render: (v) => Number(v).toFixed(2),
+            },
+            {
+              title: 'Estado',
+              dataIndex: 'state',
+              width: 160,
+              render: (state: number) => {
+                const map: Record<number, { color: string; label: string }> = {
+                  1: { color: 'gold', label: 'Pendiente de liquidar' },
+                  2: { color: 'red', label: 'Rechazado' },
+                  3: { color: 'gold', label: 'Pendiente de liquidar' },
+                  4: { color: 'green', label: 'Liquidado' },
+                };
+                const { color, label } = map[state] ?? { color: 'default', label: `Estado ${state}` };
+                return <Tag color={color}>{label}</Tag>;
+              },
+            },
+          ]}
+        />
       </Modal>
     </Card>
   );
