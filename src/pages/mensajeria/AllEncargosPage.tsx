@@ -1,6 +1,6 @@
 // src/pages/mensajeria/AllEncargosPage.tsx
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Space, Tag, message, Modal, DatePicker, Select, Input, Tooltip, theme, Empty, Grid } from 'antd';
+import { Table, Button, Space, Tag, message, Modal, DatePicker, Select, Input, Tooltip, theme, Empty, Grid, ConfigProvider } from 'antd';
 import {
   InfoCircleOutlined,
   FlagFilled,
@@ -262,23 +262,21 @@ const AllEncargosPage: React.FC = () => {
         </Space>
       ),
     },
-    // Columnas de texto largo: ancho fijo + ellipsis (tooltip nativo con el texto
-    // completo). Sin width, AntD reparte el espacio a partes iguales y parte
-    // palabras a la mitad; el detalle completo vive en la fila expandida.
+    // Columnas de texto largo: ancho fijo y el texto envuelve a la siguiente
+    // línea (pedido de los usuarios: ver la info completa, no cortada con "…").
     {
       title: 'Solicitante',
       key: 'solicitante',
       width: 150,
-      ellipsis: true,
       sorter: (a: Encargo, b: Encargo) =>
         `${a.solicitante?.first_name ?? ''} ${a.solicitante?.last_name ?? ''}`
           .localeCompare(`${b.solicitante?.first_name ?? ''} ${b.solicitante?.last_name ?? ''}`, 'es'),
       render: (_: any, record: Encargo) =>
         record.solicitante ? `${record.solicitante.first_name} ${record.solicitante.last_name}` : '-'
     },
-    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: 140, ellipsis: true, sorter: (a: Encargo, b: Encargo) => (a.destinatario || '').localeCompare(b.destinatario || '', 'es') },
-    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: 140, ellipsis: true, sorter: (a: Encargo, b: Encargo) => (a.empresa || '').localeCompare(b.empresa || '', 'es') },
-    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: 260, ellipsis: true, sorter: (a: Encargo, b: Encargo) => (a.direccion || '').localeCompare(b.direccion || '', 'es') },
+    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: 140, sorter: (a: Encargo, b: Encargo) => (a.destinatario || '').localeCompare(b.destinatario || '', 'es') },
+    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: 140, sorter: (a: Encargo, b: Encargo) => (a.empresa || '').localeCompare(b.empresa || '', 'es') },
+    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: 260, sorter: (a: Encargo, b: Encargo) => (a.direccion || '').localeCompare(b.direccion || '', 'es') },
     {
       title: 'Zona',
       dataIndex: 'zona',
@@ -291,7 +289,6 @@ const AllEncargosPage: React.FC = () => {
       dataIndex: 'mensajeria_enviada',
       key: 'mensajeria_enviada',
       width: 140,
-      ellipsis: true,
       sorter: (a: Encargo, b: Encargo) =>
         (a.mensajeria_enviada || '').localeCompare(b.mensajeria_enviada || '', 'es'),
       render: (v: string) => v || '—',
@@ -300,7 +297,6 @@ const AllEncargosPage: React.FC = () => {
       title: 'Mensajero',
       key: 'mensajero',
       width: 180,
-      ellipsis: true,
       sorter: (a: Encargo, b: Encargo) =>
         `${a.mensajero?.first_name ?? ''} ${a.mensajero?.last_name ?? ''}`
           .localeCompare(`${b.mensajero?.first_name ?? ''} ${b.mensajero?.last_name ?? ''}`, 'es'),
@@ -472,6 +468,9 @@ const AllEncargosPage: React.FC = () => {
   );
 
   return (
+    // Letra más grande solo en esta pantalla (pedido de los usuarios): sube la
+    // tipografía base de AntD para tabla, filtros, tags y modales.
+    <ConfigProvider theme={{ token: { fontSize: 18 } }}>
     <div style={{ padding: '16px 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
         <h2 style={{ margin: 0 }}>{isMensajero ? 'Mis Envíos' : 'Todos los Envíos'}</h2>
@@ -620,6 +619,7 @@ const AllEncargosPage: React.FC = () => {
         </Select>
       </Modal>
     </div>
+    </ConfigProvider>
   );
 };
 

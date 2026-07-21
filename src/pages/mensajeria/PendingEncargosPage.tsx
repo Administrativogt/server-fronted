@@ -1,6 +1,6 @@
 // src/pages/mensajeria/PendingEncargosPage.tsx
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Space, Tag, message, Modal, Input, Select, Tooltip, Empty, theme, Grid, DatePicker } from 'antd';
+import { Table, Button, Space, Tag, message, Modal, Input, Select, Tooltip, Empty, theme, Grid, DatePicker, ConfigProvider } from 'antd';
 import dayjs from 'dayjs';
 import {
   InfoCircleOutlined,
@@ -282,23 +282,21 @@ const PendingEncargosPage: React.FC = () => {
         </Space>
       ),
     },
-    // Columnas de texto largo: ancho fijo + ellipsis (tooltip nativo con el texto
-    // completo). Sin width, AntD reparte el espacio a partes iguales y parte
-    // palabras a la mitad; el detalle completo vive en la fila expandida.
+    // Columnas de texto largo: ancho fijo y el texto envuelve a la siguiente
+    // línea (pedido de los usuarios: ver la info completa, no cortada con "…").
     {
       title: 'Solicitante',
       key: 'solicitante',
       width: 150,
-      ellipsis: true,
       sorter: (a: Encargo, b: Encargo) =>
         `${a.solicitante?.first_name ?? ''} ${a.solicitante?.last_name ?? ''}`
           .localeCompare(`${b.solicitante?.first_name ?? ''} ${b.solicitante?.last_name ?? ''}`, 'es'),
       render: (_: any, record: Encargo) =>
         record.solicitante ? `${record.solicitante.first_name} ${record.solicitante.last_name}` : '-'
     },
-    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: 140, ellipsis: true, sorter: (a: Encargo, b: Encargo) => (a.destinatario || '').localeCompare(b.destinatario || '', 'es') },
-    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: 140, ellipsis: true, sorter: (a: Encargo, b: Encargo) => (a.empresa || '').localeCompare(b.empresa || '', 'es') },
-    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: 260, ellipsis: true, sorter: (a: Encargo, b: Encargo) => (a.direccion || '').localeCompare(b.direccion || '', 'es') },
+    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: 140, sorter: (a: Encargo, b: Encargo) => (a.destinatario || '').localeCompare(b.destinatario || '', 'es') },
+    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: 140, sorter: (a: Encargo, b: Encargo) => (a.empresa || '').localeCompare(b.empresa || '', 'es') },
+    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: 260, sorter: (a: Encargo, b: Encargo) => (a.direccion || '').localeCompare(b.direccion || '', 'es') },
     {
       title: 'Zona',
       dataIndex: 'zona',
@@ -311,7 +309,6 @@ const PendingEncargosPage: React.FC = () => {
       dataIndex: 'mensajeria_enviada',
       key: 'mensajeria_enviada',
       width: 140,
-      ellipsis: true,
       sorter: (a: Encargo, b: Encargo) =>
         (a.mensajeria_enviada || '').localeCompare(b.mensajeria_enviada || '', 'es'),
       render: (v: string) => v || '—',
@@ -320,7 +317,6 @@ const PendingEncargosPage: React.FC = () => {
       title: 'Mensajero',
       key: 'mensajero',
       width: 180,
-      ellipsis: true,
       sorter: (a: Encargo, b: Encargo) =>
         `${a.mensajero?.first_name ?? ''} ${a.mensajero?.last_name ?? ''}`
           .localeCompare(`${b.mensajero?.first_name ?? ''} ${b.mensajero?.last_name ?? ''}`, 'es'),
@@ -528,12 +524,14 @@ const PendingEncargosPage: React.FC = () => {
   );
 
   return (
+    // Letra más grande solo en esta pantalla (pedido de los usuarios): sube la
+    // tipografía base de AntD para tabla, filtros, tags y modales.
+    <ConfigProvider theme={{ token: { fontSize: 18 } }}>
     <div style={{ padding: '16px 0' }}>
-      {/* Compacta las celdas (menos alto) pero con letra mas grande y legible */}
+      {/* Compacta las celdas (menos alto); el tamaño de letra lo da el ConfigProvider */}
       <style>{`
         .mensajeria-compact-table .ant-table-tbody > tr > td,
         .mensajeria-compact-table .ant-table-thead > tr > th {
-          font-size: 14px;
           padding-top: 6px;
           padding-bottom: 6px;
           line-height: 1.35;
@@ -722,6 +720,7 @@ const PendingEncargosPage: React.FC = () => {
         </Modal>
       )}
     </div>
+    </ConfigProvider>
   );
 };
 
