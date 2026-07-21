@@ -144,27 +144,34 @@ const AssignedEncargosPage: React.FC = () => {
   );
 
   const columns = [
-    { title: '#', dataIndex: 'id', key: 'id', width: 60 },
+    { title: '#', dataIndex: 'id', key: 'id', width: 70 },
+    // Columnas de texto largo: ancho fijo + ellipsis para que las filas queden
+    // compactas; sin width AntD reparte el espacio y parte palabras a la mitad.
     ...(isAdminMensajeria ? [{
       title: 'Mensajero',
       key: 'mensajero',
+      width: 170,
+      ellipsis: true,
       render: (_: any, record: Encargo) =>
         record.mensajero ? `${record.mensajero.first_name} ${record.mensajero.last_name}` : '-'
     }] : []),
     {
       title: 'Solicitante',
       key: 'solicitante',
+      width: 150,
+      ellipsis: true,
       render: (_: any, record: Encargo) =>
         record.solicitante ? `${record.solicitante.first_name} ${record.solicitante.last_name}` : '-'
     },
-    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario' },
-    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa' },
-    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion' },
-    { title: 'Zona', dataIndex: 'zona', key: 'zona', width: 80 },
+    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: 140, ellipsis: true },
+    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: 140, ellipsis: true },
+    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: 260, ellipsis: true },
+    { title: 'Zona', dataIndex: 'zona', key: 'zona', width: 70 },
     {
       title: 'Fecha',
       dataIndex: 'fecha_realizacion',
       key: 'fecha',
+      width: 110,
       render: (date: string) => formatFecha(date),
     },
     {
@@ -177,6 +184,7 @@ const AssignedEncargosPage: React.FC = () => {
       title: 'Estado',
       dataIndex: 'estado',
       key: 'estado',
+      width: 120,
       render: (estado: number) => {
         const config = ESTADOS[estado];
         return config ? <Tag color={config.color}>{config.label}</Tag> : estado;
@@ -185,6 +193,7 @@ const AssignedEncargosPage: React.FC = () => {
     {
       title: 'Acciones',
       key: 'acciones',
+      width: 140,
       render: (_: any, record: Encargo) => <Space size="small">{renderAcciones(record)}</Space>,
     },
   ];
@@ -235,7 +244,7 @@ const AssignedEncargosPage: React.FC = () => {
           rowKey="id"
           loading={loading}
           pagination={{ pageSize: 10 }}
-          scroll={{ x: 1140 }}
+          scroll={{ x: isAdminMensajeria ? 1560 : 1390 }}
           bordered
           expandable={{
             expandedRowRender: (record: Encargo) => <EncargoExpandedRow encargo={record} />,

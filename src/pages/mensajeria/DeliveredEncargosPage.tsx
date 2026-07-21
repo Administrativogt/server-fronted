@@ -73,20 +73,26 @@ const DeliveredEncargosPage: React.FC = () => {
   };
 
   const columns = [
-    { title: '#', dataIndex: 'id', key: 'id', width: 60 },
-    { 
-      title: 'Solicitante', 
+    { title: '#', dataIndex: 'id', key: 'id', width: 70 },
+    // Columnas de texto largo: ancho fijo + ellipsis para que las filas queden
+    // compactas; sin width AntD reparte el espacio y parte palabras a la mitad.
+    {
+      title: 'Solicitante',
       key: 'solicitante',
-      render: (_: any, record: Encargo) => 
+      width: 150,
+      ellipsis: true,
+      render: (_: any, record: Encargo) =>
         record.solicitante ? `${record.solicitante.first_name} ${record.solicitante.last_name}` : '-'
     },
-    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario' },
-    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa' },
-    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion' },
-    { title: 'Zona', dataIndex: 'zona', key: 'zona', width: 80 },
-    { 
-      title: 'Mensajero', 
+    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: 140, ellipsis: true },
+    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: 140, ellipsis: true },
+    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: 260, ellipsis: true },
+    { title: 'Zona', dataIndex: 'zona', key: 'zona', width: 70 },
+    {
+      title: 'Mensajero',
       key: 'mensajero',
+      width: 170,
+      ellipsis: true,
       render: (_: any, record: Encargo) =>
         record.mensajero ? `${record.mensajero.first_name} ${record.mensajero.last_name}` : 'Sin asignar'
     },
@@ -164,7 +170,7 @@ const DeliveredEncargosPage: React.FC = () => {
         rowKey="id"
         loading={loading}
         pagination={{ pageSize: 10 }}
-        scroll={{ x: 1400 }}
+        scroll={{ x: 1580 }}
         bordered
         expandable={{
           expandedRowRender: (record: Encargo) => <EncargoExpandedRow encargo={record} />,
