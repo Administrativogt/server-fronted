@@ -105,12 +105,11 @@ export async function updateDocument(id: number, payload: Partial<DocumentDto>) 
 }
 
 //
-// 5. Eliminar (soft delete via PATCH con state=3)
+// 5. Eliminar (soft delete: el backend valida que esté pendiente y setea state=3)
 //
 export async function deleteDocument(id: number, deleteReason: string) {
-  const { data } = await api.patch(`/documents/${id}`, {
-    state: DOCUMENT_STATES.DELETED,
-    deleteReason,
+  const { data } = await api.delete(`/documents/${id}`, {
+    data: { reason: deleteReason },
   });
   return data;
 }

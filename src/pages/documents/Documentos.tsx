@@ -1,10 +1,27 @@
 import React, { useEffect, useState } from "react";
-import { Table, Button, Space, message, Tag } from "antd";
-import { PlusOutlined, ReloadOutlined } from "@ant-design/icons";
+import { Table, Button, Space, message, Tag, Modal, Input, Tooltip, Typography } from "antd";
+import {
+  PlusOutlined,
+  ReloadOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  ExclamationCircleOutlined,
+} from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
-import { fetchPendingDocuments, fetchUsers, type DocumentDto } from "../../api/documents";
+import {
+  fetchPendingDocuments,
+  fetchUsers,
+  deleteDocument,
+  type DocumentDto,
+} from "../../api/documents";
 import type { User } from "../../types/user.types";
 import DocumentActions from "./DocumentActions";
+import EditDocumentModal from "./EditDocumentModal";
+import useAuthStore from "../../auth/useAuthStore";
+
+// Recepcionista (tipo 7): Wendy y Amalia. Debe coincidir con el backend
+// (DocumentsService.assertCanManage).
+const RECEPCIONISTA = 7;
 
 /** Resuelve un string que puede ser un ID numérico a nombre de usuario */
 const resolveUserString = (val: string | null | undefined, usersMap: Map<string, string>): string => {
@@ -21,7 +38,15 @@ const Documentos: React.FC = () => {
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [deliverModalVisible, setDeliverModalVisible] = useState(false);
   const [usersMap, setUsersMap] = useState<Map<string, string>>(new Map());
+  const [editingDoc, setEditingDoc] = useState<DocumentDto | null>(null);
+  const [deletingDoc, setDeletingDoc] = useState<DocumentDto | null>(null);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const navigate = useNavigate();
+
+  const is_superuser = useAuthStore((s) => s.is_superuser);
+  const tipo_usuario = useAuthStore((s) => s.tipo_usuario);
+  const canManage = is_superuser === true || tipo_usuario === RECEPCIONISTA;
 
   const fetchDocuments = async () => {
     setLoading(true);
@@ -90,7 +115,58 @@ const Documentos: React.FC = () => {
             })
           : "",
     },
+    ...(canManage
+      ? [
+          {
+            title: "Acciones",
+            key: "actions",
+            width: 100,
+            render: (_: unknown, record: DocumentDto) => (
+              <Space>
+                <Tooltip title="Editar">
+                  <Button
+                    size="small"
+                    icon={<EditOutlined />}
+                    onClick={() => setEditingDoc(record)}
+                  />
+                </Tooltip>
+                <Tooltip title="Eliminar">
+                  <Button
+                    size="small"
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={() => {
+                      setDeleteReason("");
+                      setDeletingDoc(record);
+                    }}
+                  />
+                </Tooltip>
+              </Space>
+            ),
+          },
+        ]
+      : []),
   ];
+
+  const handleDelete = async () => {
+    if (!deletingDoc) return;
+    if (!deleteReason.trim()) {
+      message.warning("Ingresa el motivo de la eliminación");
+      return;
+    }
+    setDeleting(true);
+    try {
+      await deleteDocument(deletingDoc.id, deleteReason.trim());
+      message.success(`Documento #${deletingDoc.id} eliminado`);
+      setDeletingDoc(null);
+      setSelectedRowKeys((keys) => keys.filter((k) => k !== deletingDoc.id));
+      fetchDocuments();
+    } catch {
+      message.error("Error al eliminar documento");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <div>
@@ -144,6 +220,45 @@ const Documentos: React.FC = () => {
           fetchDocuments();
         }}
       />
+
+      <EditDocumentModal
+        document={editingDoc}
+        onClose={() => setEditingDoc(null)}
+        onSuccess={() => {
+          setEditingDoc(null);
+          fetchDocuments();
+        }}
+      />
+
+      <Modal
+        title={
+          <Space>
+            <ExclamationCircleOutlined style={{ color: "#dc2626" }} />
+            {`Eliminar documento #${deletingDoc?.id ?? ""}`}
+          </Space>
+        }
+        open={!!deletingDoc}
+        onOk={handleDelete}
+        onCancel={() => setDeletingDoc(null)}
+        okText="Eliminar"
+        okButtonProps={{ danger: true }}
+        cancelText="Cancelar"
+        confirmLoading={deleting}
+        destroyOnClose
+      >
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          El documento saldrá de la lista de pendientes y no podrá entregarse.
+          Indica el motivo de la eliminación:
+        </Typography.Paragraph>
+        <Input.TextArea
+          rows={3}
+          placeholder="Motivo de la eliminación"
+          value={deleteReason}
+          onChange={(e) => setDeleteReason(e.target.value)}
+          maxLength={250}
+          showCount
+        />
+      </Modal>
     </div>
   );
 };
