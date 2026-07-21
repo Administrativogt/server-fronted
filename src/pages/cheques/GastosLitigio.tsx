@@ -306,6 +306,12 @@ function GastosLitigio() {
 
   return (
     <Card>
+      {/* Evita que los encabezados se partan letra por letra en columnas angostas */}
+      <style>{`
+        .gastos-litigio-table .ant-table-thead > tr > th {
+          white-space: nowrap;
+        }
+      `}</style>
       <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }} wrap>
         <Title level={4} style={{ margin: 0 }}>
           Gastos litigio
@@ -368,6 +374,7 @@ function GastosLitigio() {
       </Space>
 
       <Table<LitigioExpense>
+        className="gastos-litigio-table"
         rowKey="id"
         loading={loading}
         dataSource={data}
@@ -389,12 +396,12 @@ function GastosLitigio() {
           { title: 'ID', render: (_, row) => row.request_id?.request_id ?? '—', width: 90 },
           { title: 'Fecha', dataIndex: 'date', width: 120 },
           { title: 'NT', dataIndex: 'note_number', width: 90 },
-          { title: 'Cliente', dataIndex: 'client' },
-          { title: 'Documentos', dataIndex: 'documents' },
+          { title: 'Cliente', dataIndex: 'client', width: 120, ellipsis: true },
+          { title: 'Documentos', dataIndex: 'documents', width: 120 },
           { title: 'No. de comprobante', dataIndex: 'receipt_number_reference', width: 170 },
           { title: 'Comprobante a ingresar', dataIndex: 'receipt_number', width: 190 },
           { title: 'Valor', dataIndex: 'receipt_value', render: (v) => Number(v).toFixed(2), width: 120 },
-          { title: 'Comentario', dataIndex: 'comment' },
+          { title: 'Comentario', dataIndex: 'comment', width: 200, ellipsis: true },
           {
             title: 'Entrega',
             width: 170,
