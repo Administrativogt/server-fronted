@@ -164,6 +164,17 @@ const AssignedEncargosPage: React.FC = () => {
           text-align: center;
           font-weight: 700;
         }
+        .asignados-table .ant-table-tbody > tr > td {
+          word-break: break-word;
+        }
+        @media (max-width: 1600px) {
+          .asignados-table .ant-table-tbody > tr > td,
+          .asignados-table .ant-table-thead > tr > th {
+            font-size: 13px;
+            padding-left: 4px;
+            padding-right: 4px;
+          }
+        }
       `}</style>
       {/* Título centrado y botón Regresar celeste, como el viejo */}
       <h2 style={{ textAlign: 'center', marginTop: 0 }}>Envios Asignados</h2>

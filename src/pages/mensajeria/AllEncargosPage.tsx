@@ -521,6 +521,14 @@ const AllEncargosPage: React.FC = () => {
           word-break: break-word;
           padding: 6px 6px;
         }
+        @media (max-width: 1600px) {
+          .entregados-table .ant-table-tbody > tr > td,
+          .entregados-table .ant-table-thead > tr > th {
+            font-size: 13px;
+            padding-left: 4px;
+            padding-right: 4px;
+          }
+        }
       `}</style>
       {/* Título centrado y botonera de colores, como el viejo */}
       <h2 style={{ textAlign: 'center', marginTop: 0 }}>Envios entregados</h2>

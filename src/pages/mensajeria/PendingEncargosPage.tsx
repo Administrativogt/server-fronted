@@ -359,6 +359,7 @@ const PendingEncargosPage: React.FC = () => {
   const columns = [
     {
       title: '#',
+      width: '4%',
       key: 'num',
       render: (_: any, record: Encargo, index: number) => (
         <Space size={4}>
@@ -372,16 +373,18 @@ const PendingEncargosPage: React.FC = () => {
     },
     {
       title: 'Solicitante',
+      width: '8%',
       key: 'solicitante',
       render: (_: any, record: Encargo) =>
         record.solicitante ? `${record.solicitante.first_name} ${record.solicitante.last_name}` : '-'
     },
-    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario' },
-    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa' },
-    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion' },
+    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: '8%' },
+    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: '7%' },
+    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: '15%' },
     { title: 'Zona', dataIndex: 'zona', key: 'zona', align: 'center' as const },
     {
       title: 'Mensajero',
+      width: '10%',
       key: 'mensajero',
       render: (_: any, record: Encargo) => {
         if (record.mensajero) {
@@ -417,40 +420,47 @@ const PendingEncargosPage: React.FC = () => {
     },
     {
       title: 'Mensajeria enviada',
+      width: '7%',
       dataIndex: 'mensajeria_enviada',
       key: 'mensajeria_enviada',
       render: (v: string) => v || '—',
     },
     {
       title: 'Pr',
+      width: '4%',
       dataIndex: 'prioridad',
       key: 'prioridad',
       render: (p: number) => PRIORIDADES_TEXTO[p] || p,
     },
     {
       title: 'Realización',
+      width: '7%',
       dataIndex: 'fecha_realizacion',
       key: 'fecha',
       render: (date: string) => ddmmyyyy(date),
     },
     {
       title: 'Hora',
+      width: '6%',
       key: 'horario',
       render: (_: any, record: Encargo) => formatHorario(record) || '',
     },
     {
       title: 'Opciones',
+      width: '8%',
       key: 'opciones',
       render: (_: any, record: Encargo) => renderOpciones(record),
     },
     {
       title: 'Observaciones',
+      width: '9%',
       dataIndex: 'observaciones',
       key: 'observaciones',
       render: (v: string) => v || '',
     },
     {
       title: 'Estado',
+      width: '5%',
       dataIndex: 'estado',
       key: 'estado',
       render: (estado: number) => {
@@ -462,6 +472,7 @@ const PendingEncargosPage: React.FC = () => {
     {
       title: '',
       key: 'comentarios',
+      width: '3%',
       render: (_: any, record: Encargo) => (
         <Space size={4}>
           {iconBtn('Comentarios', <CommentOutlined />, '#0d6efd', () =>
@@ -579,6 +590,18 @@ const PendingEncargosPage: React.FC = () => {
           text-align: center;
           font-weight: 700;
         }
+        .mensajeria-compact-table .ant-table-tbody > tr > td {
+          word-break: break-word;
+        }
+        /* Pantallas angostas (laptops de la empresa): letra mas compacta */
+        @media (max-width: 1600px) {
+          .mensajeria-compact-table .ant-table-tbody > tr > td,
+          .mensajeria-compact-table .ant-table-thead > tr > th {
+            font-size: 13px;
+            padding-left: 4px;
+            padding-right: 4px;
+          }
+        }
         /* Fila azul del viejo: envío con observaciones */
         .fila-observaciones > td {
           background-color: rgba(0, 0, 255, 0.4) !important;
@@ -644,6 +667,7 @@ const PendingEncargosPage: React.FC = () => {
       ) : (
         <Table
           className="mensajeria-compact-table"
+          tableLayout="fixed"
           dataSource={filteredEncargos}
           columns={columns}
           rowKey="id"
