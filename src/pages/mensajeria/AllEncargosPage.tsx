@@ -253,6 +253,7 @@ const AllEncargosPage: React.FC = () => {
   const columns = [
     {
       title: '#',
+      width: '4%',
       dataIndex: 'id',
       key: 'id',
       render: (_: any, record: Encargo, index: number) => (
@@ -283,6 +284,7 @@ const AllEncargosPage: React.FC = () => {
     // línea (pedido de los usuarios: ver la info completa, no cortada con "…").
     {
       title: 'Solicitante',
+      width: '9%',
       key: 'solicitante',
       sorter: (a: Encargo, b: Encargo) =>
         `${a.solicitante?.first_name ?? ''} ${a.solicitante?.last_name ?? ''}`
@@ -290,17 +292,19 @@ const AllEncargosPage: React.FC = () => {
       render: (_: any, record: Encargo) =>
         record.solicitante ? `${record.solicitante.first_name} ${record.solicitante.last_name}` : '-'
     },
-    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', sorter: (a: Encargo, b: Encargo) => (a.destinatario || '').localeCompare(b.destinatario || '', 'es') },
-    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', sorter: (a: Encargo, b: Encargo) => (a.empresa || '').localeCompare(b.empresa || '', 'es') },
-    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', sorter: (a: Encargo, b: Encargo) => (a.direccion || '').localeCompare(b.direccion || '', 'es') },
+    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: '9%', sorter: (a: Encargo, b: Encargo) => (a.destinatario || '').localeCompare(b.destinatario || '', 'es') },
+    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: '8%', sorter: (a: Encargo, b: Encargo) => (a.empresa || '').localeCompare(b.empresa || '', 'es') },
+    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: '20%', sorter: (a: Encargo, b: Encargo) => (a.direccion || '').localeCompare(b.direccion || '', 'es') },
     {
       title: 'Zona',
+      width: '4%',
       dataIndex: 'zona',
       key: 'zona',
       sorter: (a: Encargo, b: Encargo) => (a.zona || 0) - (b.zona || 0),
     },
     {
       title: 'Tipo',
+      width: '7%',
       dataIndex: 'mensajeria_enviada',
       key: 'mensajeria_enviada',
       sorter: (a: Encargo, b: Encargo) =>
@@ -309,6 +313,7 @@ const AllEncargosPage: React.FC = () => {
     },
     {
       title: 'Mensajero',
+      width: '10%',
       key: 'mensajero',
       sorter: (a: Encargo, b: Encargo) =>
         `${a.mensajero?.first_name ?? ''} ${a.mensajero?.last_name ?? ''}`
@@ -323,7 +328,7 @@ const AllEncargosPage: React.FC = () => {
           <Select
             placeholder="Asignar…"
             size="small"
-            style={{ minWidth: 160 }}
+            style={{ width: '100%' }}
             showSearch
             optionFilterProp="children"
             onChange={(value: number) => handleAssignMensajero(record.id, value)}
@@ -339,6 +344,7 @@ const AllEncargosPage: React.FC = () => {
     },
     {
       title: 'Pr',
+      width: '3%',
       dataIndex: 'prioridad',
       key: 'prioridad',
       sorter: (a: Encargo, b: Encargo) => a.prioridad - b.prioridad,
@@ -346,6 +352,7 @@ const AllEncargosPage: React.FC = () => {
     },
     {
       title: 'Fecha',
+      width: '7%',
       dataIndex: 'fecha_realizacion',
       key: 'fecha',
       sorter: (a: Encargo, b: Encargo) =>
@@ -359,11 +366,13 @@ const AllEncargosPage: React.FC = () => {
     },
     {
       title: 'Horario',
+      width: '7%',
       key: 'horario',
       render: (_: any, record: Encargo) => formatHorario(record) || '—',
     },
     {
       title: 'Estado',
+      width: '6%',
       dataIndex: 'estado',
       key: 'estado',
       sorter: (a: Encargo, b: Encargo) => a.estado - b.estado,
@@ -386,6 +395,7 @@ const AllEncargosPage: React.FC = () => {
     },
     {
       title: 'Opciones',
+      width: '6%',
       key: 'acciones',
       render: (_: any, record: Encargo) => (
         <Space size="small" wrap>

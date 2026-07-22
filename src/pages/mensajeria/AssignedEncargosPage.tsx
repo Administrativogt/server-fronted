@@ -89,43 +89,49 @@ const AssignedEncargosPage: React.FC = () => {
 
   // Columnas en el orden exacto del Django viejo
   const columns = [
-    { title: '#', key: 'num', render: (_: any, __: Encargo, index: number) => index + 1 },
+    { title: '#', key: 'num', width: '4%', render: (_: any, __: Encargo, index: number) => index + 1 },
     {
       title: 'Solicitante',
+      width: '9%',
       key: 'solicitante',
       render: (_: any, record: Encargo) =>
         record.solicitante ? `${record.solicitante.first_name} ${record.solicitante.last_name}` : '-'
     },
-    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario' },
-    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa' },
-    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion' },
-    { title: 'Zona', dataIndex: 'zona', key: 'zona' },
+    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: '9%' },
+    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: '8%' },
+    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: '21%' },
+    { title: 'Zona', dataIndex: 'zona', key: 'zona', width: '4%' },
     {
       title: 'Mensajero',
+      width: '9%',
       key: 'mensajero',
       render: (_: any, record: Encargo) =>
         record.mensajero ? `${record.mensajero.first_name} ${record.mensajero.last_name}` : '-'
     },
     {
       title: 'Mensajería enviada',
+      width: '8%',
       dataIndex: 'mensajeria_enviada',
       key: 'mensajeria_enviada',
       render: (v: string) => v || '—',
     },
     {
       title: 'Prioridad',
+      width: '5%',
       dataIndex: 'prioridad',
       key: 'prioridad',
       render: (p: number) => PRIORIDADES[p] || p,
     },
     {
       title: 'Fecha de realización',
+      width: '8%',
       dataIndex: 'fecha_realizacion',
       key: 'fecha',
       render: (date: string) => ddmmyyyy(date),
     },
     {
       title: 'Estado',
+      width: '7%',
       dataIndex: 'estado',
       key: 'estado',
       render: (estado: number) => {
@@ -135,6 +141,7 @@ const AssignedEncargosPage: React.FC = () => {
     },
     {
       title: 'Opciones',
+      width: '12%',
       key: 'opciones',
       render: (_: any, record: Encargo) => <Space size="small">{renderAcciones(record)}</Space>,
     },
