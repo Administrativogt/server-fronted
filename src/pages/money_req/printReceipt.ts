@@ -154,7 +154,6 @@ export function printMoneyRequirement(r: MoneyRequirement): void {
       ${r.workNoteNumber ? row('Nota de trabajo', esc(r.workNoteNumber), { mono: true }) : ''}
       ${row('Detalle', `<span class="desc">${esc(r.description)}</span>`)}
       ${row('Equipo', esc(r.teamName))}
-      ${row('Área de práctica', esc(r.areaName))}
       ${row('Estado', `<span class="badge">${esc(stateLabel)}</span>`)}
     </div>
 

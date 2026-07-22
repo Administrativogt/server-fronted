@@ -149,7 +149,6 @@ const MoneyReqList: React.FC = () => {
     { title: 'Correlativo', dataIndex: 'correlative', key: 'correlative', width: 130 },
     { title: 'NT', dataIndex: 'workNoteNumber', key: 'workNoteNumber', width: 120 },
     { title: 'Equipo', dataIndex: 'teamName', key: 'teamName', width: 130 },
-    { title: 'Área', dataIndex: 'areaName', key: 'areaName', width: 150 },
     {
       title: 'Creación',
       dataIndex: 'created',

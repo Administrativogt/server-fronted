@@ -13,7 +13,7 @@ import {
 } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { getTeams, getPracticeAreas, type Team, type PracticeArea } from '../../api/teams';
+import { getTeams, type Team } from '../../api/teams';
 import { fetchUsers, type UserLite, fullName } from '../../api/users';
 import type { MoneyRequirement } from '../../api/moneyRequirements';
 import { createMoneyRequirement, sendAuthorizationEmail } from '../../api/moneyRequirements';
@@ -36,23 +36,20 @@ interface FormValues {
   description?: string;
   date?: dayjs.Dayjs;
   teamId: number;
-  areaIds: number[];
   responsibleForAuthorizingId: number;
 }
 
 const CreateMoneyRequirement: React.FC = () => {
   const [form] = Form.useForm<FormValues>();
   const [teams, setTeams] = useState<Team[]>([]);
-  const [areas, setAreas] = useState<PracticeArea[]>([]);
   const [users, setUsers] = useState<UserLite[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [t, a, u] = await Promise.all([getTeams(), getPracticeAreas(), fetchUsers()]);
+        const [t, u] = await Promise.all([getTeams(), fetchUsers()]);
         setTeams(t);
-        setAreas(a);
         setUsers(u);
       } catch (err) {
         console.error('Error cargando datos', err);
@@ -82,7 +79,6 @@ const CreateMoneyRequirement: React.FC = () => {
         description: values.description,
         date: values.date ? dayjs(values.date).format('YYYY-MM-DD') : undefined,
         teamId: values.teamId,
-        areaIds: values.areaIds,
         responsibleForAuthorizingId: values.responsibleForAuthorizingId,
       };
 
@@ -107,7 +103,6 @@ const CreateMoneyRequirement: React.FC = () => {
         description: values.description,
         date: values.date ? dayjs(values.date).format('YYYY-MM-DD') : undefined,
         teamId: values.teamId,
-        areaIds: values.areaIds,
         responsibleForAuthorizingId: values.responsibleForAuthorizingId,
       };
 
@@ -182,21 +177,6 @@ const CreateMoneyRequirement: React.FC = () => {
             {teams.map((t) => (
               <Select.Option key={t.id} value={t.id}>
                 {t.name}
-              </Select.Option>
-            ))}
-          </Select>
-        </Form.Item>
-
-        <Form.Item label="Área" name="areaIds" rules={[{ required: true }]}>
-          <Select
-            mode="multiple"
-            placeholder="Seleccione una o más áreas"
-            showSearch
-            optionFilterProp="children"
-          >
-            {areas.map((a) => (
-              <Select.Option key={a.id} value={a.id}>
-                {a.name}
               </Select.Option>
             ))}
           </Select>
