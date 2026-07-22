@@ -78,7 +78,12 @@ const HumanResourcesPage: React.FC = () => {
   const isSuperuser = useAuthStore((s) => s.is_superuser);
   const modules = useAuthStore((s) => s.modules);
 
+  const username = useAuthStore((s) => s.username);
+
   const isAdmin = isSuperuser || tipoUsuario === 18 || tipoUsuario === 6;
+  // Administración de certificados: SOLO Erick Mejía de RRHH (MEJ000) — el
+  // resto solo solicita y ve sus propias constancias (el backend también filtra)
+  const isCertAdmin = isSuperuser || username?.toUpperCase() === 'MEJ000';
   // Módulo 'sugerencias' (Django: tipo 2, superuser o permiso 18) — habilita ver el
   // LISTADO del buzón; crear sugerencias/denuncias queda abierto a todos
   const canViewMailboxList = modules.some((m) => m.key === 'sugerencias');
@@ -445,7 +450,7 @@ const HumanResourcesPage: React.FC = () => {
         dataIndex: 'state',
         render: (value: number) => getCertificateStateTag(value),
       },
-      ...(isAdmin
+      ...(isCertAdmin
         ? [
             {
               title: 'Acciones',
@@ -466,7 +471,7 @@ const HumanResourcesPage: React.FC = () => {
           ]
         : []),
     ],
-    [isAdmin],
+    [isCertAdmin],
   );
 
   // Certificados visibles según la tarjeta-resumen seleccionada
@@ -673,12 +678,12 @@ const HumanResourcesPage: React.FC = () => {
         title={
           <Space>
             <TeamOutlined />
-            <span>{isAdmin ? 'Administracion de certificados' : 'Certificados'}</span>
+            <span>{isCertAdmin ? 'Administracion de certificados' : 'Mis certificados'}</span>
           </Space>
         }
         extra={
           <Space>
-            {isAdmin && (
+            {isCertAdmin && (
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
