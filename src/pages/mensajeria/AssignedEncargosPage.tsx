@@ -163,6 +163,10 @@ const AssignedEncargosPage: React.FC = () => {
         .asignados-table .ant-table-thead > tr > th {
           text-align: center;
           font-weight: 700;
+          font-size: 13px;
+          word-break: keep-all;
+          padding-left: 2px;
+          padding-right: 2px;
         }
         .asignados-table .ant-table-tbody > tr > td {
           word-break: break-word;
