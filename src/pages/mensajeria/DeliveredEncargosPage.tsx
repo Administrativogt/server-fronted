@@ -73,26 +73,22 @@ const DeliveredEncargosPage: React.FC = () => {
   };
 
   const columns = [
-    { title: '#', dataIndex: 'id', key: 'id', width: 70 },
-    // Columnas de texto largo: ancho fijo + ellipsis para que las filas queden
+    { title: '#', dataIndex: 'id', key: 'id' },
+    // Columnas a ancho natural: la tabla ocupa el 100% y el texto envuelve
     // compactas; sin width AntD reparte el espacio y parte palabras a la mitad.
     {
       title: 'Solicitante',
       key: 'solicitante',
-      width: 150,
-      ellipsis: true,
       render: (_: any, record: Encargo) =>
         record.solicitante ? `${record.solicitante.first_name} ${record.solicitante.last_name}` : '-'
     },
-    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: 140, ellipsis: true },
-    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: 140, ellipsis: true },
-    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: 260, ellipsis: true },
-    { title: 'Zona', dataIndex: 'zona', key: 'zona', width: 70 },
+    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario' },
+    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa' },
+    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion' },
+    { title: 'Zona', dataIndex: 'zona', key: 'zona' },
     {
       title: 'Mensajero',
       key: 'mensajero',
-      width: 170,
-      ellipsis: true,
       render: (_: any, record: Encargo) =>
         record.mensajero ? `${record.mensajero.first_name} ${record.mensajero.last_name}` : 'Sin asignar'
     },
@@ -100,14 +96,12 @@ const DeliveredEncargosPage: React.FC = () => {
       title: 'Prioridad',
       dataIndex: 'prioridad',
       key: 'prioridad',
-      width: 100,
       render: (p: number) => PRIORIDADES[p] || p,
     },
     {
       title: 'Fecha Realización',
       dataIndex: 'fecha_realizacion',
       key: 'fecha_realizacion',
-      width: 120,
       sorter: (a: Encargo, b: Encargo) =>
         (a.fecha_realizacion || '').localeCompare(b.fecha_realizacion || ''),
       render: (date: string) => formatFecha(date),
@@ -116,7 +110,6 @@ const DeliveredEncargosPage: React.FC = () => {
       title: 'Fecha Entrega',
       dataIndex: 'fecha_entrega',
       key: 'fecha_entrega',
-      width: 120,
       sorter: (a: Encargo, b: Encargo) =>
         (a.fecha_entrega || '').localeCompare(b.fecha_entrega || ''),
       render: (date: string) => formatFecha(date),
@@ -125,7 +118,6 @@ const DeliveredEncargosPage: React.FC = () => {
       title: 'Estado',
       dataIndex: 'estado',
       key: 'estado',
-      width: 120,
       render: (estado: number) => {
         const config = ESTADOS[estado];
         return config ? <Tag color={config.color}>{config.label}</Tag> : estado;
@@ -134,7 +126,6 @@ const DeliveredEncargosPage: React.FC = () => {
     {
       title: 'Acciones',
       key: 'acciones',
-      width: 120,
       render: (_: any, record: Encargo) => (
         <Space size="small">
           <Button size="small" onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}>
@@ -170,7 +161,6 @@ const DeliveredEncargosPage: React.FC = () => {
         rowKey="id"
         loading={loading}
         pagination={{ pageSize: 10 }}
-        scroll={{ x: 1580 }}
         bordered
         expandable={{
           expandedRowRender: (record: Encargo) => <EncargoExpandedRow encargo={record} />,
