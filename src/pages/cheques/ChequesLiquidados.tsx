@@ -31,6 +31,9 @@ function ChequesLiquidados() {
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [filters, setFilters] = useState({
     request_id: undefined as number | undefined,
+    work_note_number: undefined as number | undefined,
+    client: '',
+    invoice_number: '',
     init_date: '',
     end_date: '',
     page: 1,
@@ -48,6 +51,9 @@ function ChequesLiquidados() {
       const response = await getLiquidatedChecks({
         ...filters,
         request_id: filters.request_id || undefined,
+        work_note_number: filters.work_note_number || undefined,
+        client: filters.client.trim() || undefined,
+        invoice_number: filters.invoice_number.trim() || undefined,
         init_date: filters.init_date || undefined,
         end_date: filters.end_date || undefined,
       });
@@ -170,6 +176,26 @@ function ChequesLiquidados() {
           placeholder="request_id"
           value={filters.request_id}
           onChange={(value) => setFilters((prev) => ({ ...prev, request_id: value || undefined }))}
+        />
+        <InputNumber
+          placeholder="Nota de trabajo (NT)"
+          style={{ width: 170 }}
+          value={filters.work_note_number}
+          onChange={(value) => setFilters((prev) => ({ ...prev, work_note_number: value || undefined }))}
+        />
+        <Input
+          placeholder="Cliente"
+          allowClear
+          style={{ width: 180 }}
+          value={filters.client}
+          onChange={(e) => setFilters((prev) => ({ ...prev, client: e.target.value }))}
+        />
+        <Input
+          placeholder="No. de comprobante"
+          allowClear
+          style={{ width: 180 }}
+          value={filters.invoice_number}
+          onChange={(e) => setFilters((prev) => ({ ...prev, invoice_number: e.target.value }))}
         />
         <DatePicker
           placeholder="Fecha inicio"
