@@ -255,7 +255,6 @@ const AllEncargosPage: React.FC = () => {
       title: '#',
       dataIndex: 'id',
       key: 'id',
-      width: 80,
       render: (_: any, record: Encargo, index: number) => (
         <Space size={4}>
           <span>{index + 1}</span>
@@ -285,28 +284,25 @@ const AllEncargosPage: React.FC = () => {
     {
       title: 'Solicitante',
       key: 'solicitante',
-      width: 150,
       sorter: (a: Encargo, b: Encargo) =>
         `${a.solicitante?.first_name ?? ''} ${a.solicitante?.last_name ?? ''}`
           .localeCompare(`${b.solicitante?.first_name ?? ''} ${b.solicitante?.last_name ?? ''}`, 'es'),
       render: (_: any, record: Encargo) =>
         record.solicitante ? `${record.solicitante.first_name} ${record.solicitante.last_name}` : '-'
     },
-    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: 140, sorter: (a: Encargo, b: Encargo) => (a.destinatario || '').localeCompare(b.destinatario || '', 'es') },
-    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: 140, sorter: (a: Encargo, b: Encargo) => (a.empresa || '').localeCompare(b.empresa || '', 'es') },
-    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: 260, sorter: (a: Encargo, b: Encargo) => (a.direccion || '').localeCompare(b.direccion || '', 'es') },
+    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', sorter: (a: Encargo, b: Encargo) => (a.destinatario || '').localeCompare(b.destinatario || '', 'es') },
+    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', sorter: (a: Encargo, b: Encargo) => (a.empresa || '').localeCompare(b.empresa || '', 'es') },
+    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', sorter: (a: Encargo, b: Encargo) => (a.direccion || '').localeCompare(b.direccion || '', 'es') },
     {
       title: 'Zona',
       dataIndex: 'zona',
       key: 'zona',
-      width: 70,
       sorter: (a: Encargo, b: Encargo) => (a.zona || 0) - (b.zona || 0),
     },
     {
       title: 'Tipo',
       dataIndex: 'mensajeria_enviada',
       key: 'mensajeria_enviada',
-      width: 140,
       sorter: (a: Encargo, b: Encargo) =>
         (a.mensajeria_enviada || '').localeCompare(b.mensajeria_enviada || '', 'es'),
       render: (v: string) => v || '—',
@@ -314,7 +310,6 @@ const AllEncargosPage: React.FC = () => {
     {
       title: 'Mensajero',
       key: 'mensajero',
-      width: 180,
       sorter: (a: Encargo, b: Encargo) =>
         `${a.mensajero?.first_name ?? ''} ${a.mensajero?.last_name ?? ''}`
           .localeCompare(`${b.mensajero?.first_name ?? ''} ${b.mensajero?.last_name ?? ''}`, 'es'),
@@ -346,7 +341,6 @@ const AllEncargosPage: React.FC = () => {
       title: 'Pr',
       dataIndex: 'prioridad',
       key: 'prioridad',
-      width: 80,
       sorter: (a: Encargo, b: Encargo) => a.prioridad - b.prioridad,
       render: (p: number) => PRIORIDADES[p] || p,
     },
@@ -354,7 +348,6 @@ const AllEncargosPage: React.FC = () => {
       title: 'Fecha',
       dataIndex: 'fecha_realizacion',
       key: 'fecha',
-      width: 120,
       sorter: (a: Encargo, b: Encargo) =>
         (a.fecha_realizacion || '').localeCompare(b.fecha_realizacion || ''),
       render: (date: string) => {
@@ -367,14 +360,12 @@ const AllEncargosPage: React.FC = () => {
     {
       title: 'Horario',
       key: 'horario',
-      width: 140,
       render: (_: any, record: Encargo) => formatHorario(record) || '—',
     },
     {
       title: 'Estado',
       dataIndex: 'estado',
       key: 'estado',
-      width: 120,
       sorter: (a: Encargo, b: Encargo) => a.estado - b.estado,
       // Texto coloreado como el viejo: Entregado verde, Extraordinario rojo,
       // "Entregado Extra" verde con "Extra" en rojo
@@ -396,7 +387,6 @@ const AllEncargosPage: React.FC = () => {
     {
       title: 'Opciones',
       key: 'acciones',
-      width: 150,
       render: (_: any, record: Encargo) => (
         <Space size="small" wrap>
           {/* Iniciar - Estado Pendiente (1): mensajero solo ve el suyo, admin ve todos */}
@@ -510,7 +500,7 @@ const AllEncargosPage: React.FC = () => {
   return (
     // Letra más grande solo en esta pantalla (pedido de los usuarios): sube la
     // tipografía base de AntD para tabla, filtros, tags y modales.
-    <ConfigProvider theme={{ token: { fontSize: 18 } }}>
+    <ConfigProvider theme={{ token: { fontSize: 15 } }}>
     <div style={{ padding: '16px 0' }}>
       <style>{`
         .entregados-table .ant-table-thead > tr > th {
@@ -608,7 +598,6 @@ const AllEncargosPage: React.FC = () => {
           rowKey="id"
           loading={loading}
           pagination={{ pageSize: 10 }}
-          scroll={{ x: 1810 }}
           bordered
           expandable={{
             expandedRowRender: (record: Encargo) => <EncargoExpandedRow encargo={record} />,

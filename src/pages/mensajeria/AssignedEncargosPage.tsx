@@ -89,22 +89,20 @@ const AssignedEncargosPage: React.FC = () => {
 
   // Columnas en el orden exacto del Django viejo
   const columns = [
-    { title: '#', key: 'num', width: 60, render: (_: any, __: Encargo, index: number) => index + 1 },
+    { title: '#', key: 'num', render: (_: any, __: Encargo, index: number) => index + 1 },
     {
       title: 'Solicitante',
       key: 'solicitante',
-      width: 150,
       render: (_: any, record: Encargo) =>
         record.solicitante ? `${record.solicitante.first_name} ${record.solicitante.last_name}` : '-'
     },
-    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: 140 },
-    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: 140 },
-    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: 260 },
-    { title: 'Zona', dataIndex: 'zona', key: 'zona', width: 70 },
+    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario' },
+    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa' },
+    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion' },
+    { title: 'Zona', dataIndex: 'zona', key: 'zona' },
     {
       title: 'Mensajero',
       key: 'mensajero',
-      width: 150,
       render: (_: any, record: Encargo) =>
         record.mensajero ? `${record.mensajero.first_name} ${record.mensajero.last_name}` : '-'
     },
@@ -112,28 +110,24 @@ const AssignedEncargosPage: React.FC = () => {
       title: 'Mensajería enviada',
       dataIndex: 'mensajeria_enviada',
       key: 'mensajeria_enviada',
-      width: 150,
       render: (v: string) => v || '—',
     },
     {
       title: 'Prioridad',
       dataIndex: 'prioridad',
       key: 'prioridad',
-      width: 90,
       render: (p: number) => PRIORIDADES[p] || p,
     },
     {
       title: 'Fecha de realización',
       dataIndex: 'fecha_realizacion',
       key: 'fecha',
-      width: 130,
       render: (date: string) => ddmmyyyy(date),
     },
     {
       title: 'Estado',
       dataIndex: 'estado',
       key: 'estado',
-      width: 130,
       render: (estado: number) => {
         const config = ESTADOS[estado];
         return config ? <Tag color={config.color}>{config.label}</Tag> : estado;
@@ -142,7 +136,6 @@ const AssignedEncargosPage: React.FC = () => {
     {
       title: 'Opciones',
       key: 'opciones',
-      width: 230,
       render: (_: any, record: Encargo) => <Space size="small">{renderAcciones(record)}</Space>,
     },
   ];
@@ -193,7 +186,6 @@ const AssignedEncargosPage: React.FC = () => {
           rowKey="id"
           loading={loading}
           pagination={{ pageSize: 10 }}
-          scroll={{ x: 1700 }}
           bordered
           expandable={{
             expandedRowRender: (record: Encargo) => <EncargoExpandedRow encargo={record} />,
