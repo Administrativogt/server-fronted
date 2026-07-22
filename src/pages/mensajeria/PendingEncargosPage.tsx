@@ -381,7 +381,7 @@ const PendingEncargosPage: React.FC = () => {
     { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: '8%' },
     { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: '7%' },
     { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: '14%' },
-    { title: 'Zona', dataIndex: 'zona', key: 'zona', width: '3%', align: 'center' as const },
+    { title: 'Zona', dataIndex: 'zona', key: 'zona', width: '4%', align: 'center' as const },
     {
       title: 'Mensajero',
       width: '9%',
@@ -447,7 +447,7 @@ const PendingEncargosPage: React.FC = () => {
     },
     {
       title: 'Opciones',
-      width: '8%',
+      width: '5%',
       key: 'opciones',
       render: (_: any, record: Encargo) => renderOpciones(record),
     },
