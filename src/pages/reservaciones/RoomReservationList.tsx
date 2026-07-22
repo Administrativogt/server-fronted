@@ -1,5 +1,6 @@
 // src/pages/reservaciones/ReservationsList.tsx
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Button, Modal, Select, Space, Table, Tag, Typography, message,
   notification, Tooltip, Switch, Form, DatePicker, TimePicker,
@@ -453,6 +454,26 @@ export default function ReservationsList() {
   const canDeleteRow  = (r: Reservation) => (canManageAll || isOwner(r)) && r.state === 0;
   const canCancelRow  = (r: Reservation) => isOwner(r) && (r.state === 0 || r.state === 1); // Puede cancelar si está pendiente o aceptada
   const canApproveRow = (r: Reservation) => canApprove && r.state === 0;
+
+  // Deep-link desde el calendario: /listar?editar=<id> abre el editor de esa
+  // reserva (si el usuario puede editarla). Se consume una sola vez.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const editParamConsumed = useRef(false);
+  useEffect(() => {
+    const editId = Number(searchParams.get('editar'));
+    if (!editId || editParamConsumed.current || loading || !me) return;
+    const row = rows.find(r => r.id === editId);
+    if (!row) return; // aún no cargan las filas de esa reserva
+    editParamConsumed.current = true;
+    if (canEditRow(row)) {
+      openEdit(row);
+    } else {
+      message.info('Solo puedes editar tus propias reservaciones pendientes.');
+    }
+    searchParams.delete('editar');
+    setSearchParams(searchParams, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, loading, me]);
 
   // Definición de columnas simplificada (sin inicio y fin)
   const columns = [

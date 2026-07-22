@@ -1,5 +1,5 @@
 import { Calendar, Badge, Modal, List, Skeleton, message, Select, Button } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined } from '@ant-design/icons';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
 import 'dayjs/locale/es';
@@ -12,6 +12,8 @@ dayjs.locale('es');
 dayjs.extend(utc);
 
 interface ApiReservation {
+  id?: number; // el SP devuelve la columna `id`
+  state?: string; // '0'=Pendiente (única editable)
   reservation_id: string;
   reservation_date: string;
   init_hour: string;
@@ -36,6 +38,17 @@ function RoomReservation() {
   const [currentMonth, setCurrentMonth] = useState(dayjs());
   const [selectedRooms, setSelectedRooms] = useState<string[]>([]);
   const [allRooms, setAllRooms] = useState<Room[]>([]);
+  // Nombre completo del usuario actual: el itinerario del día solo trae
+  // user_name, así se detectan las reservas propias para ofrecer "Editar"
+  // (el backend valida el permiso real de todos modos).
+  const [myName, setMyName] = useState('');
+
+  useEffect(() => {
+    api
+      .get<{ user?: { full_name?: string } }>('/room-reservations/share/can')
+      .then(({ data }) => setMyName(data?.user?.full_name?.trim() || ''))
+      .catch(() => {});
+  }, []);
 
   const today = dayjs();
   const minMonth = today.subtract(5, 'month').startOf('month');
@@ -219,21 +232,43 @@ function RoomReservation() {
       >
         <List
           dataSource={selectedDayReservations}
-          renderItem={(item) => (
-            <List.Item>
-              <div>
-                <strong>
-                  {item.init_hour.slice(0, 5)} - {item.end_hour.slice(0, 5)}
-                </strong>
-                <br />
-                <b>{item.reason}</b>
-                <br />
-                Sala: {item.room_name}
-                <br />
-                Solicitado por: {item.user_name}
-              </div>
-            </List.Item>
-          )}
+          renderItem={(item) => {
+            const esMia =
+              !!myName && item.user_name?.trim() === myName && !!item.id;
+            const editable = esMia && String(item.state ?? '0') === '0';
+            return (
+              <List.Item
+                actions={
+                  editable
+                    ? [
+                        <Button
+                          key="editar"
+                          size="small"
+                          icon={<EditOutlined />}
+                          onClick={() =>
+                            navigate(`/dashboard/reservaciones/listar?editar=${item.id}`)
+                          }
+                        >
+                          Editar
+                        </Button>,
+                      ]
+                    : undefined
+                }
+              >
+                <div>
+                  <strong>
+                    {item.init_hour.slice(0, 5)} - {item.end_hour.slice(0, 5)}
+                  </strong>
+                  <br />
+                  <b>{item.reason}</b>
+                  <br />
+                  Sala: {item.room_name}
+                  <br />
+                  Solicitado por: {item.user_name}
+                </div>
+              </List.Item>
+            );
+          }}
         />
       </Modal>
     </div>
