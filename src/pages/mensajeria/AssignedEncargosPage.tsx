@@ -99,7 +99,7 @@ const AssignedEncargosPage: React.FC = () => {
     },
     { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: '9%' },
     { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: '8%' },
-    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: '21%' },
+    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: '17%' },
     { title: 'Zona', dataIndex: 'zona', key: 'zona', width: '4%' },
     {
       title: 'Mensajero',
@@ -141,7 +141,7 @@ const AssignedEncargosPage: React.FC = () => {
     },
     {
       title: 'Opciones',
-      width: '12%',
+      width: '10%',
       key: 'opciones',
       render: (_: any, record: Encargo) => <Space size="small">{renderAcciones(record)}</Space>,
     },
@@ -207,6 +207,7 @@ const AssignedEncargosPage: React.FC = () => {
           pagination={{ pageSize: 10 }}
           bordered
           expandable={{
+            columnWidth: 32,
             expandedRowRender: (record: Encargo) => <EncargoExpandedRow encargo={record} />,
             rowExpandable: hasDetalles,
           }}

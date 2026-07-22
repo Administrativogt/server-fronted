@@ -294,7 +294,7 @@ const AllEncargosPage: React.FC = () => {
     },
     { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: '9%', sorter: (a: Encargo, b: Encargo) => (a.destinatario || '').localeCompare(b.destinatario || '', 'es') },
     { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: '8%', sorter: (a: Encargo, b: Encargo) => (a.empresa || '').localeCompare(b.empresa || '', 'es') },
-    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: '20%', sorter: (a: Encargo, b: Encargo) => (a.direccion || '').localeCompare(b.direccion || '', 'es') },
+    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: '18%', sorter: (a: Encargo, b: Encargo) => (a.direccion || '').localeCompare(b.direccion || '', 'es') },
     {
       title: 'Zona',
       width: '4%',
@@ -623,6 +623,7 @@ const AllEncargosPage: React.FC = () => {
           pagination={{ pageSize: 10 }}
           bordered
           expandable={{
+            columnWidth: 32,
             expandedRowRender: (record: Encargo) => <EncargoExpandedRow encargo={record} />,
             rowExpandable: hasDetalles,
           }}

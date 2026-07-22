@@ -380,11 +380,11 @@ const PendingEncargosPage: React.FC = () => {
     },
     { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: '8%' },
     { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: '7%' },
-    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: '15%' },
-    { title: 'Zona', dataIndex: 'zona', key: 'zona', align: 'center' as const },
+    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: '14%' },
+    { title: 'Zona', dataIndex: 'zona', key: 'zona', width: '3%', align: 'center' as const },
     {
       title: 'Mensajero',
-      width: '10%',
+      width: '9%',
       key: 'mensajero',
       render: (_: any, record: Encargo) => {
         if (record.mensajero) {
@@ -453,7 +453,7 @@ const PendingEncargosPage: React.FC = () => {
     },
     {
       title: 'Observaciones',
-      width: '9%',
+      width: '8%',
       dataIndex: 'observaciones',
       key: 'observaciones',
       render: (v: string) => v || '',
