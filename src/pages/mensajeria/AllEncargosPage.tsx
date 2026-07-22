@@ -8,6 +8,8 @@ import {
   CheckCircleOutlined,
   EditOutlined,
   FlagOutlined,
+  RollbackOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { downloadEncargosExcel, getAllEncargos, sendComplaint, getMensajeros, updateEncargo } from '../../api/encargos';
@@ -15,6 +17,7 @@ import type { Encargo, Usuario } from '../../types/encargo';
 import EncargoExpandedRow from './components/EncargoExpandedRow';
 import EncargoCardList from './components/EncargoCardList';
 import { ESTADOS, PRIORIDADES, formatFecha, formatHorario, hasDetalles, saveExcelResponse } from './constants';
+import { confirmarEntrega } from './deliver';
 import useAuthStore from '../../auth/useAuthStore'; // ✅ Importar para obtener userId y tipo_usuario
 import dayjs from 'dayjs';
 
@@ -49,6 +52,7 @@ const AllEncargosPage: React.FC = () => {
   const [exportModal, setExportModal] = useState(false);
   const [selectedMensajero, setSelectedMensajero] = useState<number | null>(null);
   const [mensajeros, setMensajeros] = useState<Usuario[]>([]);
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
   
   const navigate = useNavigate();
   const { token } = theme.useToken(); // ✅ Tokens del tema (claro/oscuro)
@@ -160,20 +164,25 @@ const AllEncargosPage: React.FC = () => {
     });
   };
 
-  const handleDeliver = (id: number) => {
+  // Flujo de entrega viejo compartido: fecha_entrega + 5→8 + razón de tardanza
+  const handleDeliver = (record: Encargo) => confirmarEntrega(record, loadEncargos);
+
+  // "Volver a pendiente" del Django viejo (icono share rojo en Entregados):
+  // regresa un encargo finalizado a estado 1 y limpia incidencias/razones.
+  const handleBackToPending = (id: number) => {
     Modal.confirm({
-      title: '¿Confirmar entrega?',
-      content: '¿Está seguro que desea marcar este envío como entregado?',
-      okText: 'Sí, entregar',
+      title: '¿Volver a pendiente?',
+      content: 'El envío regresará a la lista de pendientes.',
+      okText: 'Sí, regresar',
       okType: 'primary',
       cancelText: 'Cancelar',
       onOk: async () => {
         try {
-          await updateEncargo(id, { estado: 3 } as any);
-          message.success('Envío marcado como entregado');
+          await updateEncargo(id, { estado: 1, incidencias: null, razon_eliminacion: '' } as any);
+          message.success('Envío regresado a pendientes');
           await loadEncargos();
         } catch (err: any) {
-          message.error(err.response?.data?.message || 'Error al entregar');
+          message.error(err.response?.data?.message || 'Error al regresar el envío');
         }
       },
     });
@@ -244,19 +253,28 @@ const AllEncargosPage: React.FC = () => {
   const columns = [
     {
       title: '#',
+      width: '4%',
       dataIndex: 'id',
       key: 'id',
-      width: 80,
       render: (_: any, record: Encargo, index: number) => (
         <Space size={4}>
           <span>{index + 1}</span>
           <Tooltip title={`Creado: ${new Date(record.fecha_creacion).toLocaleString('es-GT')}`}>
-            {/* Info neutral en color secundario; el rojo se reserva para peligro/error */}
-            <InfoCircleOutlined style={{ color: token.colorTextSecondary, fontSize: 12, cursor: 'pointer' }} />
+            {/* Rojo como el icono info del viejo */}
+            <InfoCircleOutlined style={{ color: '#dc3545', fontSize: 13, cursor: 'pointer' }} />
           </Tooltip>
+          {/* "Volver a pendiente" del viejo: icono share rojo, solo admin */}
+          {!isMensajero && [3, 4, 6, 7, 8].includes(record.estado) && (
+            <Tooltip title="Volver a pendiente">
+              <RollbackOutlined
+                style={{ color: '#dc3545', fontSize: 14, cursor: 'pointer' }}
+                onClick={() => handleBackToPending(record.id)}
+              />
+            </Tooltip>
+          )}
           {record.razon_extra && (
             <Tooltip title={`Comentario: ${record.razon_extra}`}>
-              <FlagFilled style={{ color: token.colorWarning, fontSize: 12, cursor: 'pointer' }} />
+              <FlagFilled style={{ color: '#dc3545', fontSize: 12, cursor: 'pointer' }} />
             </Tooltip>
           )}
         </Space>
@@ -266,37 +284,37 @@ const AllEncargosPage: React.FC = () => {
     // línea (pedido de los usuarios: ver la info completa, no cortada con "…").
     {
       title: 'Solicitante',
+      width: '9%',
       key: 'solicitante',
-      width: 150,
       sorter: (a: Encargo, b: Encargo) =>
         `${a.solicitante?.first_name ?? ''} ${a.solicitante?.last_name ?? ''}`
           .localeCompare(`${b.solicitante?.first_name ?? ''} ${b.solicitante?.last_name ?? ''}`, 'es'),
       render: (_: any, record: Encargo) =>
         record.solicitante ? `${record.solicitante.first_name} ${record.solicitante.last_name}` : '-'
     },
-    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: 140, sorter: (a: Encargo, b: Encargo) => (a.destinatario || '').localeCompare(b.destinatario || '', 'es') },
-    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: 140, sorter: (a: Encargo, b: Encargo) => (a.empresa || '').localeCompare(b.empresa || '', 'es') },
-    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: 260, sorter: (a: Encargo, b: Encargo) => (a.direccion || '').localeCompare(b.direccion || '', 'es') },
+    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: '9%', sorter: (a: Encargo, b: Encargo) => (a.destinatario || '').localeCompare(b.destinatario || '', 'es') },
+    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: '8%', sorter: (a: Encargo, b: Encargo) => (a.empresa || '').localeCompare(b.empresa || '', 'es') },
+    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: '20%', sorter: (a: Encargo, b: Encargo) => (a.direccion || '').localeCompare(b.direccion || '', 'es') },
     {
       title: 'Zona',
+      width: '4%',
       dataIndex: 'zona',
       key: 'zona',
-      width: 70,
       sorter: (a: Encargo, b: Encargo) => (a.zona || 0) - (b.zona || 0),
     },
     {
       title: 'Tipo',
+      width: '7%',
       dataIndex: 'mensajeria_enviada',
       key: 'mensajeria_enviada',
-      width: 140,
       sorter: (a: Encargo, b: Encargo) =>
         (a.mensajeria_enviada || '').localeCompare(b.mensajeria_enviada || '', 'es'),
       render: (v: string) => v || '—',
     },
     {
       title: 'Mensajero',
+      width: '10%',
       key: 'mensajero',
-      width: 180,
       sorter: (a: Encargo, b: Encargo) =>
         `${a.mensajero?.first_name ?? ''} ${a.mensajero?.last_name ?? ''}`
           .localeCompare(`${b.mensajero?.first_name ?? ''} ${b.mensajero?.last_name ?? ''}`, 'es'),
@@ -310,7 +328,7 @@ const AllEncargosPage: React.FC = () => {
           <Select
             placeholder="Asignar…"
             size="small"
-            style={{ minWidth: 160 }}
+            style={{ width: '100%' }}
             showSearch
             optionFilterProp="children"
             onChange={(value: number) => handleAssignMensajero(record.id, value)}
@@ -325,43 +343,60 @@ const AllEncargosPage: React.FC = () => {
       }
     },
     {
-      title: 'Prioridad',
+      title: 'Pr',
+      width: '3%',
       dataIndex: 'prioridad',
       key: 'prioridad',
-      width: 100,
       sorter: (a: Encargo, b: Encargo) => a.prioridad - b.prioridad,
       render: (p: number) => PRIORIDADES[p] || p,
     },
     {
       title: 'Fecha',
+      width: '7%',
       dataIndex: 'fecha_realizacion',
       key: 'fecha',
-      width: 120,
       sorter: (a: Encargo, b: Encargo) =>
         (a.fecha_realizacion || '').localeCompare(b.fecha_realizacion || ''),
-      render: (date: string) => formatFecha(date),
+      render: (date: string) => {
+        const ymd = formatFecha(date);
+        if (ymd === '—') return ymd;
+        const [y, m, d] = ymd.split('-');
+        return `${d}/${m}/${y}`;
+      },
     },
     {
       title: 'Horario',
+      width: '7%',
       key: 'horario',
-      width: 140,
       render: (_: any, record: Encargo) => formatHorario(record) || '—',
     },
     {
       title: 'Estado',
+      width: '6%',
       dataIndex: 'estado',
       key: 'estado',
-      width: 120,
       sorter: (a: Encargo, b: Encargo) => a.estado - b.estado,
+      // Texto coloreado como el viejo: Entregado verde, Extraordinario rojo,
+      // "Entregado Extra" verde con "Extra" en rojo
       render: (estado: number) => {
         const config = ESTADOS[estado];
-        return config ? <Tag color={config.color}>{config.label}</Tag> : estado;
+        if (!config) return estado;
+        if (estado === 8) {
+          return (
+            <span style={{ color: '#28a745', fontWeight: 600 }}>
+              Entregado <span style={{ color: '#dc3545' }}>Extra</span>
+            </span>
+          );
+        }
+        const color =
+          estado === 3 ? '#28a745' : [4, 5, 7].includes(estado) ? '#dc3545' : undefined;
+        return <span style={color ? { color, fontWeight: 600 } : undefined}>{config.label}</span>;
       },
     },
     {
-      title: 'Acciones',
+      title: 'Opciones',
+      width: '6%',
       key: 'acciones',
-      width: 150,
       render: (_: any, record: Encargo) => (
         <Space size="small" wrap>
           {/* Iniciar - Estado Pendiente (1): mensajero solo ve el suyo, admin ve todos */}
@@ -377,18 +412,20 @@ const AllEncargosPage: React.FC = () => {
             </Tooltip>
           )}
 
-          {/* Entregar - Estado En proceso (2): mensajero solo ve el suyo, admin ve todos */}
-          {record.estado === 2 && (!isMensajero || record.mensajero?.id === userId) && (
-            <Tooltip title="Marcar como entregado">
+          {/* Entregado - En proceso (2) y Extraordinario (5) */}
+          {[2, 5].includes(record.estado) && (!isMensajero || record.mensajero?.id === userId) && (
+            <Tooltip title="Entregado">
               <Button
                 size="small"
                 type="primary"
-                aria-label="Marcar como entregado"
+                style={{ background: '#28a745', borderColor: '#28a745' }}
+                aria-label="Entregado"
                 icon={<CheckCircleOutlined />}
-                onClick={() => handleDeliver(record.id)}
+                onClick={() => handleDeliver(record)}
               />
             </Tooltip>
           )}
+
 
           <Tooltip title="Editar">
             <Button
@@ -443,9 +480,20 @@ const AllEncargosPage: React.FC = () => {
           Iniciar
         </Button>
       )}
-      {record.estado === 2 && (!isMensajero || record.mensajero?.id === userId) && (
-        <Button size="large" type="primary" icon={<CheckCircleOutlined />} onClick={() => handleDeliver(record.id)}>
-          Entregar
+      {[2, 5].includes(record.estado) && (!isMensajero || record.mensajero?.id === userId) && (
+        <Button
+          size="large"
+          type="primary"
+          style={{ background: '#28a745', borderColor: '#28a745' }}
+          icon={<CheckCircleOutlined />}
+          onClick={() => handleDeliver(record)}
+        >
+          Entregado
+        </Button>
+      )}
+      {!isMensajero && [3, 4, 6, 7, 8].includes(record.estado) && (
+        <Button size="large" danger icon={<RollbackOutlined />} onClick={() => handleBackToPending(record.id)}>
+          Volver a pendiente
         </Button>
       )}
       <Button size="large" icon={<EditOutlined />} onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}>
@@ -462,40 +510,73 @@ const AllEncargosPage: React.FC = () => {
   return (
     // Letra más grande solo en esta pantalla (pedido de los usuarios): sube la
     // tipografía base de AntD para tabla, filtros, tags y modales.
-    <ConfigProvider theme={{ token: { fontSize: 18 } }}>
+    <ConfigProvider theme={{ token: { fontSize: 15 } }}>
     <div style={{ padding: '16px 0' }}>
+      <style>{`
+        .entregados-table .ant-table-thead > tr > th {
+          text-align: center;
+          font-weight: 700;
+        }
+        .entregados-table .ant-table-tbody > tr > td {
+          word-break: break-word;
+          padding: 6px 6px;
+        }
+      `}</style>
+      {/* Título centrado y botonera de colores, como el viejo */}
+      <h2 style={{ textAlign: 'center', marginTop: 0 }}>Envios entregados</h2>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
-        <h2 style={{ margin: 0 }}>{isMensajero ? 'Mis Envíos' : 'Todos los Envíos'}</h2>
-        <Space>
+        <Space wrap>
           {!isMensajero && (
-            <Button type="primary" onClick={() => navigate('/dashboard/mensajeria/crear')}>
-              Crear Envío
+            <Button style={{ background: '#28a745', borderColor: '#28a745', color: '#fff' }} onClick={() => navigate('/dashboard/mensajeria/crear')}>
+              Crear Envio
             </Button>
           )}
-          <Button type="default" onClick={handleExportExcel} loading={exporting}>
-            Exportar Excel
+          <Button style={{ background: '#ffc107', borderColor: '#ffc107', color: '#212529' }} onClick={handleExportExcel} loading={exporting}>
+            Crear Reporte
           </Button>
-          {/* ❌ ELIMINADO: Botón "Registrar Email" ya no es necesario en NestJS */}
+          <Button style={{ background: '#6c757d', borderColor: '#6c757d', color: '#fff' }} onClick={() => navigate('/dashboard/mensajeria')}>
+            Ver pendientes
+          </Button>
+        </Space>
+        <Space>
+          <Button style={{ background: '#0d6efd', borderColor: '#0d6efd', color: '#fff' }} onClick={() => setFilterModalOpen(true)}>
+            Filtrar encargos
+          </Button>
+          <Tooltip title="Quitar filtros">
+            <Button
+              style={{ background: '#dc3545', borderColor: '#dc3545', color: '#fff' }}
+              icon={<ReloadOutlined />}
+              onClick={handleResetFilters}
+            />
+          </Tooltip>
         </Space>
       </div>
 
-      {/* Filtros */}
-      <div style={{ marginBottom: 16, padding: '16px', background: token.colorFillAlter, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8 }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center' }}>
+      {/* Modal "Filtrar encargos" del viejo */}
+      <Modal
+        title="Filtrar encargos"
+        open={filterModalOpen}
+        onCancel={() => setFilterModalOpen(false)}
+        onOk={() => setFilterModalOpen(false)}
+        okText="Aplicar"
+        cancelText="Cerrar"
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size={12}>
           <RangePicker
+            style={{ width: '100%' }}
+            format="DD/MM/YYYY"
             value={[
               filters.startDate ? dayjs(filters.startDate) : null,
               filters.endDate ? dayjs(filters.endDate) : null,
             ]}
             onChange={handleDateChange}
-            style={isMobile ? { width: '100%' } : undefined}
           />
           <Select
             placeholder="Filtrar por estado"
             allowClear
             value={filters.estado || undefined}
             onChange={(value) => handleFilterChange('estado', value)}
-            style={{ width: isMobile ? '100%' : 180 }}
+            style={{ width: '100%' }}
             showSearch
             optionFilterProp="children"
             filterOption={(input, option) =>
@@ -509,13 +590,11 @@ const AllEncargosPage: React.FC = () => {
           <Input.Search
             placeholder="Buscar por solicitante, empresa..."
             allowClear
-            style={{ width: isMobile ? '100%' : 240 }}
             onSearch={(value) => handleFilterChange('search', value || null)}
             onChange={(e) => { if (!e.target.value) handleFilterChange('search', null); }}
           />
-          <Button onClick={handleResetFilters}>Reset</Button>
-        </div>
-      </div>
+        </Space>
+      </Modal>
 
       {isMobile ? (
         <EncargoCardList
@@ -527,12 +606,13 @@ const AllEncargosPage: React.FC = () => {
         />
       ) : (
         <Table
+          className="entregados-table"
+          tableLayout="fixed"
           dataSource={encargos}
           columns={columns}
           rowKey="id"
           loading={loading}
           pagination={{ pageSize: 10 }}
-          scroll={{ x: 1810 }}
           bordered
           expandable={{
             expandedRowRender: (record: Encargo) => <EncargoExpandedRow encargo={record} />,

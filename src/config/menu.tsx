@@ -129,8 +129,8 @@ export const MENU: NavItem[] = [
     children: [
       { key: '/dashboard/mensajeria/crear', label: 'Crear envío', icon: <PlusCircleOutlined />, visible: (c) => c.canCreateEncargo },
       { key: '/dashboard/mensajeria', label: 'Envíos pendientes', icon: <ClockCircleOutlined /> },
-      { key: '/dashboard/mensajeria/todos', label: 'Todos los envíos', icon: <UnorderedListOutlined /> },
       { key: '/dashboard/mensajeria/asignados', label: 'Envíos asignados', icon: <FileProtectOutlined />, visible: (c) => c.canSeeAsignados },
+      { key: '/dashboard/mensajeria/todos', label: 'Todos los envíos', icon: <UnorderedListOutlined /> },
       { key: '/dashboard/mensajeria/dashboard', label: 'Dashboard', icon: <AuditOutlined /> },
     ],
   },

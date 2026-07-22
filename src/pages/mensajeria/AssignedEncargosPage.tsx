@@ -1,34 +1,35 @@
 // src/pages/mensajeria/AssignedEncargosPage.tsx
+// Réplica de la pantalla "Envios Asignados" del Django viejo
+// (solicitudes/mensajeros/envios_asignados.html): la "ruta" del mensajero.
+// Solo estados 2 (En proceso) y 5 (Extraordinario), SIN filtro de fechas, y una
+// única acción por fila: el botón verde "Entregado" con confirmación y razón de
+// tardanza si la fecha de realización ya pasó.
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Button, Space, Tag, message, Modal, DatePicker, Empty, Grid } from 'antd';
-import { RocketOutlined, CheckCircleOutlined, EditOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
-import { updateEncargo, getAllEncargos } from '../../api/encargos';
+import { Table, Button, Space, Tag, message, Empty, Grid } from 'antd';
+import { CheckCircleOutlined, EditOutlined, LeftOutlined } from '@ant-design/icons';
+import { getAllEncargos } from '../../api/encargos';
 import type { Encargo } from '../../types/encargo';
 import EncargoExpandedRow from './components/EncargoExpandedRow';
 import EncargoCardList from './components/EncargoCardList';
-import { ESTADOS, formatFecha, formatHorario, hasDetalles } from './constants';
+import { ESTADOS, PRIORIDADES, formatFecha, hasDetalles } from './constants';
+import { confirmarEntrega } from './deliver';
 import useAuthStore from '../../auth/useAuthStore';
 import { useMensajeriaPermissions } from '../../hooks/usePermissions';
 
-const { confirm } = Modal;
-const { RangePicker } = DatePicker;
-
-// Rango por defecto: últimos 30 días. Sin esto la pantalla pedía los ~29 mil
-// encargos históricos completos y tardaba varios segundos en cargar.
-const DEFAULT_START = () => dayjs().subtract(30, 'day').format('YYYY-MM-DD');
-const DEFAULT_END = () => dayjs().format('YYYY-MM-DD');
+/** "2026-07-20…" → "20/07/2026", como lo mostraba Django */
+const ddmmyyyy = (date?: string | null): string => {
+  const ymd = formatFecha(date);
+  if (ymd === '—') return ymd;
+  const [y, m, d] = ymd.split('-');
+  return `${d}/${m}/${y}`;
+};
 
 const AssignedEncargosPage: React.FC = () => {
   const navigate = useNavigate();
   const [encargos, setEncargos] = useState<Encargo[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [filters, setFilters] = useState({
-    startDate: DEFAULT_START() as string | null,
-    endDate: DEFAULT_END() as string | null,
-  });
   const userId = useAuthStore((state) => state.userId);
   const tipoUsuario = useAuthStore((state) => state.tipo_usuario);
   const isMensajero = tipoUsuario === 8;
@@ -41,18 +42,13 @@ const AssignedEncargosPage: React.FC = () => {
   const loadEncargos = async () => {
     setLoading(true);
     try {
-      const params: any = {
-        start: filters.startDate || undefined,
-        end: filters.endDate || undefined,
-      };
-
-      // ✅ Si es mensajero, filtrar por sus encargos desde el backend
+      // Igual que Django: estado__in=[2,5] del propio mensajero, sin fechas
+      const params: any = { estados: [2, 5] };
       if (isMensajero && userId) {
         params.mensajero = userId;
       }
-
       const res = await getAllEncargos(params);
-      // Solo envíos con mensajero asignado (el mensajero ya viene filtrado del backend)
+      // Admin/coordinación ve la ruta activa de todos los mensajeros
       setEncargos(res.data.filter((e) => e.mensajero != null));
       setLoadError(false);
     } catch {
@@ -66,82 +62,21 @@ const AssignedEncargosPage: React.FC = () => {
   useEffect(() => {
     loadEncargos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, isMensajero, isAdminMensajeria, filters]);
+  }, [userId, isMensajero, isAdminMensajeria]);
 
-  const handleDateChange = (dates: any) => {
-    if (dates && dates.length === 2) {
-      setFilters({
-        startDate: dates[0]?.format('YYYY-MM-DD') || null,
-        endDate: dates[1]?.format('YYYY-MM-DD') || null,
-      });
-    } else {
-      setFilters({ startDate: DEFAULT_START(), endDate: DEFAULT_END() });
-    }
-  };
-
-  const handleStartDelivery = (id: number) => {
-    confirm({
-      title: '¿Iniciar entrega?',
-      content: '¿Desea marcar este envío como "En proceso"?',
-      okText: 'Sí, iniciar',
-      okType: 'primary',
-      cancelText: 'Cancelar',
-      onOk: async () => {
-        try {
-          await updateEncargo(id, { estado: 2 } as any); // Estado 2 = En proceso
-          message.success('Envío marcado como "En proceso"');
-          loadEncargos();
-        } catch (err: any) {
-          message.error(err.response?.data?.message || 'Error al iniciar');
-        }
-      },
-    });
-  };
-
-  const handleDeliver = (id: number) => {
-    confirm({
-      title: '¿Confirmar entrega?',
-      content: '¿Está seguro que desea marcar este envío como entregado?',
-      okText: 'Sí, entregar',
-      okType: 'primary',
-      cancelText: 'Cancelar',
-      onOk: async () => {
-        try {
-          await updateEncargo(id, { estado: 3 } as any);
-          message.success('Envío marcado como entregado');
-          loadEncargos();
-        } catch (err: any) {
-          message.error(err.response?.data?.message || 'Error al entregar');
-        }
-      },
-    });
-  };
-
-  // Acciones compartidas entre la tabla (desktop) y las tarjetas (móvil);
-  // en móvil los botones crecen para ser objetivo táctil cómodo.
+  // Única acción del flujo viejo: botón verde "Entregado" (estados 2 y 5).
+  // Editar se conserva por pedido de los mensajeros (2026-07-22).
   const renderAcciones = (record: Encargo, size: 'small' | 'large' = 'small') => (
     <>
-      {record.estado === 1 && (
-        <Button
-          size={size}
-          type="default"
-          icon={<RocketOutlined />}
-          onClick={() => handleStartDelivery(record.id)}
-        >
-          Iniciar
-        </Button>
-      )}
-      {record.estado === 2 && (
-        <Button
-          size={size}
-          type="primary"
-          icon={<CheckCircleOutlined />}
-          onClick={() => handleDeliver(record.id)}
-        >
-          Entregar
-        </Button>
-      )}
-      {record.estado === 3 && <Tag color="green">Completado</Tag>}
+      <Button
+        size={size}
+        type="primary"
+        style={{ background: '#28a745', borderColor: '#28a745' }}
+        icon={<CheckCircleOutlined />}
+        onClick={() => confirmarEntrega(record, loadEncargos)}
+      >
+        Entregado
+      </Button>
       <Button
         size={size}
         icon={<EditOutlined />}
@@ -152,57 +87,62 @@ const AssignedEncargosPage: React.FC = () => {
     </>
   );
 
+  // Columnas en el orden exacto del Django viejo
   const columns = [
-    { title: '#', dataIndex: 'id', key: 'id', width: 70 },
-    // Columnas de texto largo: ancho fijo + ellipsis para que las filas queden
-    // compactas; sin width AntD reparte el espacio y parte palabras a la mitad.
-    ...(isAdminMensajeria ? [{
-      title: 'Mensajero',
-      key: 'mensajero',
-      width: 170,
-      ellipsis: true,
-      render: (_: any, record: Encargo) =>
-        record.mensajero ? `${record.mensajero.first_name} ${record.mensajero.last_name}` : '-'
-    }] : []),
+    { title: '#', key: 'num', width: '4%', render: (_: any, __: Encargo, index: number) => index + 1 },
     {
       title: 'Solicitante',
+      width: '9%',
       key: 'solicitante',
-      width: 150,
-      ellipsis: true,
       render: (_: any, record: Encargo) =>
         record.solicitante ? `${record.solicitante.first_name} ${record.solicitante.last_name}` : '-'
     },
-    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: 140, ellipsis: true },
-    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: 140, ellipsis: true },
-    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: 260, ellipsis: true },
-    { title: 'Zona', dataIndex: 'zona', key: 'zona', width: 70 },
+    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: '9%' },
+    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: '8%' },
+    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: '21%' },
+    { title: 'Zona', dataIndex: 'zona', key: 'zona', width: '4%' },
     {
-      title: 'Fecha',
-      dataIndex: 'fecha_realizacion',
-      key: 'fecha',
-      width: 110,
-      render: (date: string) => formatFecha(date),
+      title: 'Mensajero',
+      width: '9%',
+      key: 'mensajero',
+      render: (_: any, record: Encargo) =>
+        record.mensajero ? `${record.mensajero.first_name} ${record.mensajero.last_name}` : '-'
     },
     {
-      title: 'Horario',
-      key: 'horario',
-      width: 140,
-      render: (_: any, record: Encargo) => formatHorario(record) || '—',
+      title: 'Mensajería enviada',
+      width: '8%',
+      dataIndex: 'mensajeria_enviada',
+      key: 'mensajeria_enviada',
+      render: (v: string) => v || '—',
+    },
+    {
+      title: 'Prioridad',
+      width: '5%',
+      dataIndex: 'prioridad',
+      key: 'prioridad',
+      render: (p: number) => PRIORIDADES[p] || p,
+    },
+    {
+      title: 'Fecha de realización',
+      width: '8%',
+      dataIndex: 'fecha_realizacion',
+      key: 'fecha',
+      render: (date: string) => ddmmyyyy(date),
     },
     {
       title: 'Estado',
+      width: '7%',
       dataIndex: 'estado',
       key: 'estado',
-      width: 120,
       render: (estado: number) => {
         const config = ESTADOS[estado];
         return config ? <Tag color={config.color}>{config.label}</Tag> : estado;
       },
     },
     {
-      title: 'Acciones',
-      key: 'acciones',
-      width: 210,
+      title: 'Opciones',
+      width: '12%',
+      key: 'opciones',
       render: (_: any, record: Encargo) => <Space size="small">{renderAcciones(record)}</Space>,
     },
   ];
@@ -214,28 +154,27 @@ const AssignedEncargosPage: React.FC = () => {
       </Button>
     </Empty>
   ) : (
-    <Empty
-      description={
-        isMensajero
-          ? 'No tienes envíos asignados en este rango de fechas.'
-          : 'No hay envíos con mensajero asignado en este rango de fechas. Amplíe el rango para ver más.'
-      }
-    />
+    <Empty description="No tienes encargos asignados" />
   );
 
   return (
     <div style={{ padding: '16px 0' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
-        <h2 style={{ margin: 0 }}>Envíos Asignados</h2>
-        <RangePicker
-          value={[
-            filters.startDate ? dayjs(filters.startDate) : null,
-            filters.endDate ? dayjs(filters.endDate) : null,
-          ]}
-          onChange={handleDateChange}
-          allowClear={false}
-          style={isMobile ? { width: '100%' } : undefined}
-        />
+      <style>{`
+        .asignados-table .ant-table-thead > tr > th {
+          text-align: center;
+          font-weight: 700;
+        }
+      `}</style>
+      {/* Título centrado y botón Regresar celeste, como el viejo */}
+      <h2 style={{ textAlign: 'center', marginTop: 0 }}>Envios Asignados</h2>
+      <div style={{ marginBottom: 16 }}>
+        <Button
+          style={{ background: '#17a2b8', borderColor: '#17a2b8', color: '#fff' }}
+          icon={<LeftOutlined />}
+          onClick={() => navigate('/dashboard/mensajeria')}
+        >
+          Regresar
+        </Button>
       </div>
 
       {isMobile ? (
@@ -248,12 +187,13 @@ const AssignedEncargosPage: React.FC = () => {
         />
       ) : (
         <Table
+          className="asignados-table"
+          tableLayout="fixed"
           dataSource={encargos}
           columns={columns}
           rowKey="id"
           loading={loading}
           pagination={{ pageSize: 10 }}
-          scroll={{ x: isAdminMensajeria ? 1560 : 1390 }}
           bordered
           expandable={{
             expandedRowRender: (record: Encargo) => <EncargoExpandedRow encargo={record} />,
