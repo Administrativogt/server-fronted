@@ -36,6 +36,7 @@ export interface MenuCaps {
   canSeeAsignados: boolean;
   canSeeReport: boolean;
   canAccessUserAdmin: boolean;
+  canManageInduction: boolean;
 }
 
 /**
@@ -58,6 +59,15 @@ export const MENU: NavItem[] = [
     visible: (c) => c.canAccessUserAdmin && c.hasModule('usuarios'),
     children: [
       { key: '/dashboard/admin/users', label: 'Gestión de Usuarios', icon: <UserOutlined /> },
+    ],
+  },
+  {
+    key: 'induccion',
+    label: 'Inducción',
+    icon: <ReadOutlined />,
+    visible: (c) => c.canManageInduction,
+    children: [
+      { key: '/dashboard/induccion', label: 'Contenido público' },
     ],
   },
   {

@@ -12,6 +12,8 @@ import ErrorBoundary from './components/ErrorBoundary';
 // Páginas públicas
 import Login from './pages/Login';
 const CrearContrasena = lazy(() => import('./pages/CrearContrasena'));
+const InduccionPublic = lazy(() => import('./pages/induccion/InduccionPublic'));
+const InduccionAdmin = lazy(() => import('./pages/induccion/InduccionAdmin'));
 
 // Layout / Guards (shell — se mantienen eager)
 import PrivateRoute from './routes/PrivateRoute';
@@ -179,6 +181,7 @@ function AppInner() {
           <Route path="/login" element={<Login />} />
           <Route path="/crear-contrasena" element={<CrearContrasena />} />
           <Route path="/autorizacion-parcial" element={<AutorizacionParcial />} />
+          <Route path="/induccion" element={<InduccionPublic />} />
 
           {/* Rutas privadas */}
           <Route element={<PrivateRoute />}>
@@ -282,6 +285,9 @@ function AppInner() {
               </Route>
 
               {/* Recursos humanos */}
+              {/* Inducción: gestión del contenido público (superusuarios + RRHH; el backend valida) */}
+              <Route path="/dashboard/induccion" element={<InduccionAdmin />} />
+
               <Route element={<ModuleRoute moduleKey="recursos_humanos" />}>
                 <Route path="/dashboard/recursos-humanos" element={<HumanResourcesPage />} />
                 <Route path="/dashboard/recursos-humanos/vacaciones" element={<VacacionesPage />} />

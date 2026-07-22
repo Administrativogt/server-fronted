@@ -137,6 +137,9 @@ const DashboardLayout: React.FC = () => {
     canSeeAsignados,
     canSeeReport: canSeeReport === true,
     canAccessUserAdmin,
+    // Espejo del backend (INDUCTION_ADMINS): superusuarios + RRHH (MEJ000)
+    canManageInduction:
+      isSuperuser || username?.toUpperCase() === 'MEJ000',
   };
 
   /* Mejora UX en modo colapsado:
