@@ -188,6 +188,7 @@ const AssignedEncargosPage: React.FC = () => {
       ) : (
         <Table
           className="asignados-table"
+          tableLayout="fixed"
           dataSource={encargos}
           columns={columns}
           rowKey="id"

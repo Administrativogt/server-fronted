@@ -517,6 +517,10 @@ const AllEncargosPage: React.FC = () => {
           text-align: center;
           font-weight: 700;
         }
+        .entregados-table .ant-table-tbody > tr > td {
+          word-break: break-word;
+          padding: 6px 6px;
+        }
       `}</style>
       {/* Título centrado y botonera de colores, como el viejo */}
       <h2 style={{ textAlign: 'center', marginTop: 0 }}>Envios entregados</h2>
@@ -603,6 +607,7 @@ const AllEncargosPage: React.FC = () => {
       ) : (
         <Table
           className="entregados-table"
+          tableLayout="fixed"
           dataSource={encargos}
           columns={columns}
           rowKey="id"
