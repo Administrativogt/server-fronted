@@ -143,6 +143,7 @@ function AppInner() {
     if (location.pathname === '/autorizacion-parcial') return;
     if (location.pathname === '/crear-contrasena') return;
     if (location.pathname === '/login') return;
+    if (location.pathname === '/induccion') return;
     if (!isAuthenticated()) {
       clearToken();
       logout(false);
