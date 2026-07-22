@@ -159,9 +159,20 @@ const AssignedEncargosPage: React.FC = () => {
 
   return (
     <div style={{ padding: '16px 0' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
-        <h2 style={{ margin: 0 }}>Envíos Asignados</h2>
-        <Button icon={<LeftOutlined />} onClick={() => navigate('/dashboard/mensajeria')}>
+      <style>{`
+        .asignados-table .ant-table-thead > tr > th {
+          text-align: center;
+          font-weight: 700;
+        }
+      `}</style>
+      {/* Título centrado y botón Regresar celeste, como el viejo */}
+      <h2 style={{ textAlign: 'center', marginTop: 0 }}>Envios Asignados</h2>
+      <div style={{ marginBottom: 16 }}>
+        <Button
+          style={{ background: '#17a2b8', borderColor: '#17a2b8', color: '#fff' }}
+          icon={<LeftOutlined />}
+          onClick={() => navigate('/dashboard/mensajeria')}
+        >
           Regresar
         </Button>
       </div>
@@ -176,6 +187,7 @@ const AssignedEncargosPage: React.FC = () => {
         />
       ) : (
         <Table
+          className="asignados-table"
           dataSource={encargos}
           columns={columns}
           rowKey="id"

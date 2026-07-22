@@ -9,6 +9,7 @@ import {
   EditOutlined,
   FlagOutlined,
   RollbackOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { downloadEncargosExcel, getAllEncargos, sendComplaint, getMensajeros, updateEncargo } from '../../api/encargos';
@@ -51,6 +52,7 @@ const AllEncargosPage: React.FC = () => {
   const [exportModal, setExportModal] = useState(false);
   const [selectedMensajero, setSelectedMensajero] = useState<number | null>(null);
   const [mensajeros, setMensajeros] = useState<Usuario[]>([]);
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
   
   const navigate = useNavigate();
   const { token } = theme.useToken(); // ✅ Tokens del tema (claro/oscuro)
@@ -258,12 +260,21 @@ const AllEncargosPage: React.FC = () => {
         <Space size={4}>
           <span>{index + 1}</span>
           <Tooltip title={`Creado: ${new Date(record.fecha_creacion).toLocaleString('es-GT')}`}>
-            {/* Info neutral en color secundario; el rojo se reserva para peligro/error */}
-            <InfoCircleOutlined style={{ color: token.colorTextSecondary, fontSize: 12, cursor: 'pointer' }} />
+            {/* Rojo como el icono info del viejo */}
+            <InfoCircleOutlined style={{ color: '#dc3545', fontSize: 13, cursor: 'pointer' }} />
           </Tooltip>
+          {/* "Volver a pendiente" del viejo: icono share rojo, solo admin */}
+          {!isMensajero && [3, 4, 6, 7, 8].includes(record.estado) && (
+            <Tooltip title="Volver a pendiente">
+              <RollbackOutlined
+                style={{ color: '#dc3545', fontSize: 14, cursor: 'pointer' }}
+                onClick={() => handleBackToPending(record.id)}
+              />
+            </Tooltip>
+          )}
           {record.razon_extra && (
             <Tooltip title={`Comentario: ${record.razon_extra}`}>
-              <FlagFilled style={{ color: token.colorWarning, fontSize: 12, cursor: 'pointer' }} />
+              <FlagFilled style={{ color: '#dc3545', fontSize: 12, cursor: 'pointer' }} />
             </Tooltip>
           )}
         </Space>
@@ -332,10 +343,10 @@ const AllEncargosPage: React.FC = () => {
       }
     },
     {
-      title: 'Prioridad',
+      title: 'Pr',
       dataIndex: 'prioridad',
       key: 'prioridad',
-      width: 100,
+      width: 80,
       sorter: (a: Encargo, b: Encargo) => a.prioridad - b.prioridad,
       render: (p: number) => PRIORIDADES[p] || p,
     },
@@ -346,7 +357,12 @@ const AllEncargosPage: React.FC = () => {
       width: 120,
       sorter: (a: Encargo, b: Encargo) =>
         (a.fecha_realizacion || '').localeCompare(b.fecha_realizacion || ''),
-      render: (date: string) => formatFecha(date),
+      render: (date: string) => {
+        const ymd = formatFecha(date);
+        if (ymd === '—') return ymd;
+        const [y, m, d] = ymd.split('-');
+        return `${d}/${m}/${y}`;
+      },
     },
     {
       title: 'Horario',
@@ -360,13 +376,25 @@ const AllEncargosPage: React.FC = () => {
       key: 'estado',
       width: 120,
       sorter: (a: Encargo, b: Encargo) => a.estado - b.estado,
+      // Texto coloreado como el viejo: Entregado verde, Extraordinario rojo,
+      // "Entregado Extra" verde con "Extra" en rojo
       render: (estado: number) => {
         const config = ESTADOS[estado];
-        return config ? <Tag color={config.color}>{config.label}</Tag> : estado;
+        if (!config) return estado;
+        if (estado === 8) {
+          return (
+            <span style={{ color: '#28a745', fontWeight: 600 }}>
+              Entregado <span style={{ color: '#dc3545' }}>Extra</span>
+            </span>
+          );
+        }
+        const color =
+          estado === 3 ? '#28a745' : [4, 5, 7].includes(estado) ? '#dc3545' : undefined;
+        return <span style={color ? { color, fontWeight: 600 } : undefined}>{config.label}</span>;
       },
     },
     {
-      title: 'Acciones',
+      title: 'Opciones',
       key: 'acciones',
       width: 150,
       render: (_: any, record: Encargo) => (
@@ -398,18 +426,6 @@ const AllEncargosPage: React.FC = () => {
             </Tooltip>
           )}
 
-          {/* Volver a pendiente (Django: icono share) - solo admin, estados finalizados */}
-          {!isMensajero && [3, 4, 6, 7, 8].includes(record.estado) && (
-            <Tooltip title="Volver a pendiente">
-              <Button
-                size="small"
-                danger
-                aria-label="Volver a pendiente"
-                icon={<RollbackOutlined />}
-                onClick={() => handleBackToPending(record.id)}
-              />
-            </Tooltip>
-          )}
 
           <Tooltip title="Editar">
             <Button
@@ -496,38 +512,67 @@ const AllEncargosPage: React.FC = () => {
     // tipografía base de AntD para tabla, filtros, tags y modales.
     <ConfigProvider theme={{ token: { fontSize: 18 } }}>
     <div style={{ padding: '16px 0' }}>
+      <style>{`
+        .entregados-table .ant-table-thead > tr > th {
+          text-align: center;
+          font-weight: 700;
+        }
+      `}</style>
+      {/* Título centrado y botonera de colores, como el viejo */}
+      <h2 style={{ textAlign: 'center', marginTop: 0 }}>Envios entregados</h2>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
-        <h2 style={{ margin: 0 }}>{isMensajero ? 'Mis Envíos' : 'Todos los Envíos'}</h2>
-        <Space>
+        <Space wrap>
           {!isMensajero && (
-            <Button type="primary" onClick={() => navigate('/dashboard/mensajeria/crear')}>
-              Crear Envío
+            <Button style={{ background: '#28a745', borderColor: '#28a745', color: '#fff' }} onClick={() => navigate('/dashboard/mensajeria/crear')}>
+              Crear Envio
             </Button>
           )}
-          <Button type="default" onClick={handleExportExcel} loading={exporting}>
-            Exportar Excel
+          <Button style={{ background: '#ffc107', borderColor: '#ffc107', color: '#212529' }} onClick={handleExportExcel} loading={exporting}>
+            Crear Reporte
           </Button>
-          {/* ❌ ELIMINADO: Botón "Registrar Email" ya no es necesario en NestJS */}
+          <Button style={{ background: '#6c757d', borderColor: '#6c757d', color: '#fff' }} onClick={() => navigate('/dashboard/mensajeria')}>
+            Ver pendientes
+          </Button>
+        </Space>
+        <Space>
+          <Button style={{ background: '#0d6efd', borderColor: '#0d6efd', color: '#fff' }} onClick={() => setFilterModalOpen(true)}>
+            Filtrar encargos
+          </Button>
+          <Tooltip title="Quitar filtros">
+            <Button
+              style={{ background: '#dc3545', borderColor: '#dc3545', color: '#fff' }}
+              icon={<ReloadOutlined />}
+              onClick={handleResetFilters}
+            />
+          </Tooltip>
         </Space>
       </div>
 
-      {/* Filtros */}
-      <div style={{ marginBottom: 16, padding: '16px', background: token.colorFillAlter, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8 }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center' }}>
+      {/* Modal "Filtrar encargos" del viejo */}
+      <Modal
+        title="Filtrar encargos"
+        open={filterModalOpen}
+        onCancel={() => setFilterModalOpen(false)}
+        onOk={() => setFilterModalOpen(false)}
+        okText="Aplicar"
+        cancelText="Cerrar"
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size={12}>
           <RangePicker
+            style={{ width: '100%' }}
+            format="DD/MM/YYYY"
             value={[
               filters.startDate ? dayjs(filters.startDate) : null,
               filters.endDate ? dayjs(filters.endDate) : null,
             ]}
             onChange={handleDateChange}
-            style={isMobile ? { width: '100%' } : undefined}
           />
           <Select
             placeholder="Filtrar por estado"
             allowClear
             value={filters.estado || undefined}
             onChange={(value) => handleFilterChange('estado', value)}
-            style={{ width: isMobile ? '100%' : 180 }}
+            style={{ width: '100%' }}
             showSearch
             optionFilterProp="children"
             filterOption={(input, option) =>
@@ -541,13 +586,11 @@ const AllEncargosPage: React.FC = () => {
           <Input.Search
             placeholder="Buscar por solicitante, empresa..."
             allowClear
-            style={{ width: isMobile ? '100%' : 240 }}
             onSearch={(value) => handleFilterChange('search', value || null)}
             onChange={(e) => { if (!e.target.value) handleFilterChange('search', null); }}
           />
-          <Button onClick={handleResetFilters}>Reset</Button>
-        </div>
-      </div>
+        </Space>
+      </Modal>
 
       {isMobile ? (
         <EncargoCardList
@@ -559,6 +602,7 @@ const AllEncargosPage: React.FC = () => {
         />
       ) : (
         <Table
+          className="entregados-table"
           dataSource={encargos}
           columns={columns}
           rowKey="id"

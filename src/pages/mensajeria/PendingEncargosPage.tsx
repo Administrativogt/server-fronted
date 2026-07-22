@@ -1,17 +1,29 @@
 // src/pages/mensajeria/PendingEncargosPage.tsx
+// Clon visual de "Envios Pendientes" del Django viejo
+// (solicitudes/usuarios/envios.html + static/js/solicitudes/envios.js):
+// título centrado, botonera de colores (Crear Envio verde, Crear Reporte
+// amarillo con dropdown, Ver entregados gris, Envios asignados celeste para
+// mensajeros, Filtrar encargos azul + reset rojo), tabla con las columnas y el
+// orden del viejo (Pr, Realización, Hora, Opciones con iconos, Observaciones,
+// Estado, comentarios) y filas azules cuando el envío tiene observaciones.
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Space, Tag, message, Modal, Input, Select, Tooltip, Empty, theme, Grid, DatePicker, ConfigProvider } from 'antd';
+import { Table, Button, Space, message, Modal, Input, Select, Tooltip, Empty, Grid, DatePicker, ConfigProvider, Dropdown } from 'antd';
 import dayjs from 'dayjs';
 import {
   InfoCircleOutlined,
   FlagFilled,
-  RocketOutlined,
-  CheckCircleOutlined,
   EditOutlined,
   DeleteOutlined,
-  CloseCircleOutlined,
+  CloseOutlined,
+  CheckOutlined,
+  CheckSquareOutlined,
+  BookOutlined,
   WarningOutlined,
   CommentOutlined,
+  ReloadOutlined,
+  RocketOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -25,22 +37,39 @@ import {
 } from '../../api/encargos';
 import type { Encargo, Usuario } from '../../types/encargo';
 import CommentModal from './components/CommentModal';
-import EncargoExpandedRow from './components/EncargoExpandedRow';
 import EncargoCardList from './components/EncargoCardList';
-import { ESTADOS, PRIORIDADES, PRIORIDADES_TEXTO, formatFecha, formatHorario, hasDetalles, saveExcelResponse } from './constants';
+import { PRIORIDADES_TEXTO, formatFecha, formatHorario, saveExcelResponse } from './constants';
 import { confirmarEntrega } from './deliver';
-import useAuthStore from '../../auth/useAuthStore'; // ✅ Importar
+import useAuthStore from '../../auth/useAuthStore';
+import { useMensajeriaPermissions } from '../../hooks/usePermissions';
 
 const { confirm } = Modal;
 const { TextArea } = Input;
 const { Option } = Select;
 
+// Paleta Bootstrap del sistema viejo
+const BTN = {
+  success: { background: '#28a745', borderColor: '#28a745', color: '#fff' },
+  warning: { background: '#ffc107', borderColor: '#ffc107', color: '#212529' },
+  secondary: { background: '#6c757d', borderColor: '#6c757d', color: '#fff' },
+  info: { background: '#17a2b8', borderColor: '#17a2b8', color: '#fff' },
+  primary: { background: '#0d6efd', borderColor: '#0d6efd', color: '#fff' },
+  danger: { background: '#dc3545', borderColor: '#dc3545', color: '#fff' },
+};
+
+/** "2026-07-20…" → "20/07/2026", como lo mostraba Django */
+const ddmmyyyy = (date?: string | null): string => {
+  const ymd = formatFecha(date);
+  if (ymd === '—') return ymd;
+  const [y, m, d] = ymd.split('-');
+  return `${d}/${m}/${y}`;
+};
+
 const PendingEncargosPage: React.FC = () => {
-  const [encargos, setEncargos] = useState<Encargo[]>([]); // ✅ Corregido: solo un paréntesis
+  const [encargos, setEncargos] = useState<Encargo[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const { token } = theme.useToken();
 
   // En viewports < md (mensajeros en ruta) la tabla se reemplaza por tarjetas
   const screens = Grid.useBreakpoint();
@@ -60,23 +89,29 @@ const PendingEncargosPage: React.FC = () => {
     encargoId: null,
     reason: '',
   });
+  // Crear Reporte (dropdown viejo): 1 = En proceso, 2 = General
   const [exportModal, setExportModal] = useState(false);
+  const [exportType, setExportType] = useState<1 | 2>(2);
   const [selectedMensajero, setSelectedMensajero] = useState<number | null>(null);
   const [mensajeros, setMensajeros] = useState<Usuario[]>([]);
+  // Selección de mensajero por fila (select + botón Asignar, como el viejo)
+  const [pendingAssign, setPendingAssign] = useState<Record<number, number>>({});
+  // Modal "Filtrar encargos" del viejo
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [filterMensajero, setFilterMensajero] = useState<number | null>(null);
-  // Filtro "Filtrar encargos": texto libre + rango de fechas de realización
   const [searchText, setSearchText] = useState('');
   const [dateRange, setDateRange] = useState<[string | null, string | null]>([null, null]);
   const navigate = useNavigate();
-  
-  // ✅ Obtener usuario actual para filtrar si es mensajero
+
   const userId = useAuthStore((state) => state.userId);
   const tipoUsuario = useAuthStore((state) => state.tipo_usuario);
   const isMensajero = tipoUsuario === 8;
+  const { isAdminMensajeria } = useMensajeriaPermissions();
+  // Grupo mensajería/admin: opera los envíos (asignar, aceptar, entregar…)
+  const canOperate = isMensajero || isAdminMensajeria;
 
   useEffect(() => {
     loadEncargos();
-    // Igual que Django: el grupo de mensajería también asigna mensajeros
     getMensajeros()
       .then((res) => {
         const sorted = res.data.sort((a: Usuario, b: Usuario) =>
@@ -85,14 +120,15 @@ const PendingEncargosPage: React.FC = () => {
         setMensajeros(sorted);
       })
       .catch(() => {});
-  }, [userId, isMensajero]); // ✅ Agregar dependencias
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, isMensajero]);
 
   const loadEncargos = async () => {
     setLoading(true);
     try {
       const res = await getPendingEncargos();
-      // Estados activos: Pendiente (1), En proceso (2), Extraordinario (5) — igual que Django original.
-      // Los mensajeros ven TODOS los pendientes (como en el sistema viejo), no solo los suyos.
+      // Estados activos: Pendiente (1), En proceso (2), Extraordinario (5).
+      // Los mensajeros ven TODOS los pendientes (como en el sistema viejo).
       setEncargos(res.data.filter((e: Encargo) => [1, 2, 5].includes(e.estado)));
       setLoadError(false);
     } catch (error) {
@@ -106,7 +142,6 @@ const PendingEncargosPage: React.FC = () => {
 
   const filteredEncargos = encargos.filter((e) => {
     if (filterMensajero && e.mensajero?.id !== filterMensajero) return false;
-    // Búsqueda por texto en solicitante, destinatario, empresa y dirección
     if (searchText.trim()) {
       const q = searchText.toLowerCase();
       const hay = [
@@ -119,15 +154,27 @@ const PendingEncargosPage: React.FC = () => {
         .toLowerCase();
       if (!hay.includes(q)) return false;
     }
-    // Rango de fechas de realización
     const [start, end] = dateRange;
     if (start && (e.fecha_realizacion || '') < start) return false;
     if (end && (e.fecha_realizacion || '') > end) return false;
     return true;
   });
 
-  // Asignar mensajero directo desde la celda de la tabla
-  const handleAssignMensajero = async (encargoId: number, mensajeroId: number) => {
+  const hasActiveFilters = Boolean(searchText || dateRange[0] || dateRange[1] || filterMensajero);
+
+  const resetFilters = () => {
+    setSearchText('');
+    setDateRange([null, null]);
+    setFilterMensajero(null);
+  };
+
+  // Asignar mensajero: select + botón "Asignar" (igual que el viejo)
+  const handleAssignMensajero = async (encargoId: number) => {
+    const mensajeroId = pendingAssign[encargoId];
+    if (!mensajeroId) {
+      message.warning('Seleccione un mensajero');
+      return;
+    }
     try {
       await updateEncargo(encargoId, { mensajero_id: mensajeroId });
       message.success('Mensajero asignado');
@@ -137,12 +184,11 @@ const PendingEncargosPage: React.FC = () => {
     }
   };
 
-  const downloadExcel = async (mensajeroId: number) => {
+  const downloadExcel = async (mensajeroId: number, type: 1 | 2) => {
     setExporting(true);
     try {
-      const encargoIds = filteredEncargos.map((e) => e.id);
-      const response = await downloadEncargosExcel({ mensajeroId, encargoIds });
-      saveExcelResponse(response, 'Ruta-Pendientes.xlsx');
+      const response = await downloadEncargosExcel({ mensajeroId, type });
+      saveExcelResponse(response, type === 1 ? 'Ruta-En-Proceso.xlsx' : 'Reporte-General.xlsx');
       message.success('Reporte descargado exitosamente');
     } catch (err: any) {
       message.error(err?.response?.data?.message || 'Error al descargar reporte');
@@ -151,9 +197,10 @@ const PendingEncargosPage: React.FC = () => {
     }
   };
 
-  const handleExportExcel = () => {
+  const handleCrearReporte = (type: 1 | 2) => {
+    setExportType(type);
     if (isMensajero && userId) {
-      downloadExcel(userId);
+      downloadExcel(userId, type);
     } else {
       setExportModal(true);
     }
@@ -164,13 +211,13 @@ const PendingEncargosPage: React.FC = () => {
       message.warning('Por favor seleccione un mensajero');
       return;
     }
-    await downloadExcel(selectedMensajero);
+    await downloadExcel(selectedMensajero, exportType);
     setExportModal(false);
     setSelectedMensajero(null);
   };
 
-  // "Aceptar" del Django viejo (check negro): Pendiente → En proceso
-  const handleStartDelivery = (id: number) => {
+  // "Aceptar" del viejo (check negro): Pendiente → En proceso
+  const handleAceptar = (id: number) => {
     confirm({
       title: '¿Aceptar envío?',
       content: '¿Desea aceptar este envío y marcarlo "En proceso"?',
@@ -191,6 +238,25 @@ const PendingEncargosPage: React.FC = () => {
 
   // Flujo de entrega viejo compartido: fecha_entrega + 5→8 + razón de tardanza
   const handleDeliver = (record: Encargo) => confirmarEntrega(record, loadEncargos);
+
+  // "Extraordinario" del viejo (alerta naranja): estado 5 y va a editar
+  const handleExtraordinario = (id: number) => {
+    confirm({
+      title: '¿Marcar como Extraordinario?',
+      content: 'El envío pasará a estado Extraordinario y podrá editar el detalle.',
+      okText: 'Sí, marcar',
+      okType: 'primary',
+      cancelText: 'Cancelar',
+      onOk: async () => {
+        try {
+          await updateEncargo(id, { estado: 5 } as any);
+          navigate(`/dashboard/mensajeria/editar/${id}`);
+        } catch (err: any) {
+          message.error(err.response?.data?.message || 'Error al marcar extraordinario');
+        }
+      },
+    });
+  };
 
   const handleDelete = (id: number) => {
     confirm({
@@ -241,191 +307,182 @@ const PendingEncargosPage: React.FC = () => {
     }
   };
 
+  // Iconos de "Opciones" del viejo (lápiz, basurero, X, check, check verde,
+  // agenda, alerta) — mismos colores de referencia
+  const iconBtn = (
+    title: string,
+    icon: React.ReactNode,
+    color: string,
+    onClick: () => void,
+  ) => (
+    <Tooltip title={title} key={title}>
+      <span
+        role="button"
+        aria-label={title}
+        onClick={onClick}
+        style={{ color, fontSize: 18, cursor: 'pointer', padding: '0 2px' }}
+      >
+        {icon}
+      </span>
+    </Tooltip>
+  );
+
+  const renderOpciones = (record: Encargo) => {
+    const opciones: React.ReactNode[] = [];
+    // Editar: todos (los mensajeros lo pidieron explícitamente)
+    opciones.push(iconBtn('Editar', <EditOutlined />, '#8d6e63', () => navigate(`/dashboard/mensajeria/editar/${record.id}`)));
+    if (!isMensajero) {
+      opciones.push(iconBtn('Eliminar', <DeleteOutlined />, '#1976d2', () => handleDelete(record.id)));
+    }
+    if (canOperate) {
+      if (record.estado === 1) {
+        opciones.push(iconBtn('Rechazar', <CloseOutlined />, '#dc3545', () => handleReject(record.id)));
+        opciones.push(iconBtn('Aceptar', <CheckOutlined />, '#212529', () => handleAceptar(record.id)));
+      }
+      if ([2, 5].includes(record.estado)) {
+        opciones.push(iconBtn('Entregado', <CheckSquareOutlined />, '#28a745', () => handleDeliver(record)));
+      }
+      opciones.push(iconBtn('Agregar incidencia', <BookOutlined />, '#6f42c1', () => handleIncidence(record.id)));
+      if ([1, 2].includes(record.estado)) {
+        opciones.push(iconBtn('Extraordinario', <WarningOutlined />, '#fd7e14', () => handleExtraordinario(record.id)));
+      }
+    }
+    return <Space size={2} wrap>{opciones}</Space>;
+  };
+
+  const ESTADO_TEXTO: Record<number, { label: string; color?: string }> = {
+    1: { label: 'Pendiente' },
+    2: { label: 'En proceso' },
+    5: { label: 'Extraordinario', color: '#dc3545' },
+  };
+
   const columns = [
     {
       title: '#',
-      dataIndex: 'id',
-      key: 'id',
-      width: 80,
+      key: 'num',
+      width: 70,
       render: (_: any, record: Encargo, index: number) => (
         <Space size={4}>
           <span>{index + 1}</span>
           <Tooltip title={`Creado: ${new Date(record.fecha_creacion).toLocaleString('es-GT')}`}>
-            {/* Info neutral en color secundario; el rojo se reserva para peligro/error */}
-            <InfoCircleOutlined style={{ color: token.colorTextSecondary, fontSize: 12, cursor: 'pointer' }} />
+            {/* Rojo como el icono info del viejo */}
+            <InfoCircleOutlined style={{ color: '#dc3545', fontSize: 13, cursor: 'pointer' }} />
           </Tooltip>
-          {record.razon_extra && (
-            <Tooltip title={`Comentario: ${record.razon_extra}`}>
-              <FlagFilled style={{ color: token.colorWarning, fontSize: 12, cursor: 'pointer' }} />
-            </Tooltip>
-          )}
         </Space>
       ),
     },
-    // Columnas de texto largo: ancho fijo y el texto envuelve a la siguiente
-    // línea (pedido de los usuarios: ver la info completa, no cortada con "…").
     {
       title: 'Solicitante',
       key: 'solicitante',
       width: 150,
-      sorter: (a: Encargo, b: Encargo) =>
-        `${a.solicitante?.first_name ?? ''} ${a.solicitante?.last_name ?? ''}`
-          .localeCompare(`${b.solicitante?.first_name ?? ''} ${b.solicitante?.last_name ?? ''}`, 'es'),
       render: (_: any, record: Encargo) =>
         record.solicitante ? `${record.solicitante.first_name} ${record.solicitante.last_name}` : '-'
     },
-    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: 140, sorter: (a: Encargo, b: Encargo) => (a.destinatario || '').localeCompare(b.destinatario || '', 'es') },
-    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: 140, sorter: (a: Encargo, b: Encargo) => (a.empresa || '').localeCompare(b.empresa || '', 'es') },
-    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: 260, sorter: (a: Encargo, b: Encargo) => (a.direccion || '').localeCompare(b.direccion || '', 'es') },
-    {
-      title: 'Zona',
-      dataIndex: 'zona',
-      key: 'zona',
-      width: 70,
-      sorter: (a: Encargo, b: Encargo) => (a.zona || 0) - (b.zona || 0),
-    },
-    {
-      title: 'Tipo',
-      dataIndex: 'mensajeria_enviada',
-      key: 'mensajeria_enviada',
-      width: 140,
-      sorter: (a: Encargo, b: Encargo) =>
-        (a.mensajeria_enviada || '').localeCompare(b.mensajeria_enviada || '', 'es'),
-      render: (v: string) => v || '—',
-    },
+    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: 140 },
+    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: 130 },
+    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: 240 },
+    { title: 'Zona', dataIndex: 'zona', key: 'zona', width: 60, align: 'center' as const },
     {
       title: 'Mensajero',
       key: 'mensajero',
-      width: 180,
-      sorter: (a: Encargo, b: Encargo) =>
-        `${a.mensajero?.first_name ?? ''} ${a.mensajero?.last_name ?? ''}`
-          .localeCompare(`${b.mensajero?.first_name ?? ''} ${b.mensajero?.last_name ?? ''}`, 'es'),
+      width: 190,
       render: (_: any, record: Encargo) => {
         if (record.mensajero) {
           return `${record.mensajero.first_name} ${record.mensajero.last_name}`;
         }
-        // Igual que Django: admins/coordinadores Y mensajeros asignan aquí mismo
+        if (!canOperate) return 'Sin asignar';
+        // Select + botón azul "Asignar", como el viejo
         return (
-          <Select
-            placeholder="Asignar…"
-            size="small"
-            style={{ minWidth: 160 }}
-            showSearch
-            optionFilterProp="children"
-            onChange={(value: number) => handleAssignMensajero(record.id, value)}
-          >
-            {mensajeros.map((m) => (
-              <Select.Option key={m.id} value={m.id}>
-                {m.first_name} {m.last_name}
-              </Select.Option>
-            ))}
-          </Select>
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <Select
+              placeholder="Selec…"
+              size="small"
+              style={{ width: '100%' }}
+              showSearch
+              optionFilterProp="children"
+              value={pendingAssign[record.id]}
+              onChange={(value: number) =>
+                setPendingAssign((prev) => ({ ...prev, [record.id]: value }))
+              }
+            >
+              {mensajeros.map((m) => (
+                <Select.Option key={m.id} value={m.id}>
+                  {m.first_name} {m.last_name}
+                </Select.Option>
+              ))}
+            </Select>
+            <Button size="small" style={BTN.primary} onClick={() => handleAssignMensajero(record.id)}>
+              Asignar
+            </Button>
+          </Space>
         );
       }
     },
     {
-      title: 'Prioridad',
+      title: 'Mensajeria enviada',
+      dataIndex: 'mensajeria_enviada',
+      key: 'mensajeria_enviada',
+      width: 130,
+      render: (v: string) => v || '—',
+    },
+    {
+      title: 'Pr',
       dataIndex: 'prioridad',
       key: 'prioridad',
-      width: 100,
-      sorter: (a: Encargo, b: Encargo) => a.prioridad - b.prioridad,
-      // Texto como el Django viejo: Alta / Media / Baja / Villa Nueva
-      render: (p: number) => PRIORIDADES_TEXTO[p] || PRIORIDADES[p] || p,
+      width: 80,
+      render: (p: number) => PRIORIDADES_TEXTO[p] || p,
     },
     {
-      title: 'Fecha',
+      title: 'Realización',
       dataIndex: 'fecha_realizacion',
       key: 'fecha',
-      width: 120,
-      sorter: (a: Encargo, b: Encargo) =>
-        (a.fecha_realizacion || '').localeCompare(b.fecha_realizacion || ''),
-      render: (date: string) => formatFecha(date),
+      width: 110,
+      render: (date: string) => ddmmyyyy(date),
     },
     {
-      title: 'Horario',
+      title: 'Hora',
       key: 'horario',
-      width: 140,
-      render: (_: any, record: Encargo) => formatHorario(record) || '—',
+      width: 120,
+      render: (_: any, record: Encargo) => formatHorario(record) || '',
+    },
+    {
+      title: 'Opciones',
+      key: 'opciones',
+      width: 150,
+      render: (_: any, record: Encargo) => renderOpciones(record),
+    },
+    {
+      title: 'Observaciones',
+      dataIndex: 'observaciones',
+      key: 'observaciones',
+      width: 180,
+      render: (v: string) => v || '',
     },
     {
       title: 'Estado',
       dataIndex: 'estado',
       key: 'estado',
-      width: 120,
-      sorter: (a: Encargo, b: Encargo) => a.estado - b.estado,
+      width: 110,
       render: (estado: number) => {
-        const config = ESTADOS[estado];
-        return config ? <Tag color={config.color}>{config.label}</Tag> : estado;
+        const cfg = ESTADO_TEXTO[estado];
+        if (!cfg) return estado;
+        return <span style={cfg.color ? { color: cfg.color, fontWeight: 600 } : undefined}>{cfg.label}</span>;
       },
     },
     {
-      title: 'Acciones',
-      key: 'acciones',
-      width: 190,
+      title: '',
+      key: 'comentarios',
+      width: 70,
       render: (_: any, record: Encargo) => (
-        <Space size="small" wrap>
-          {/* Aceptar (Django: check negro) - Pendiente (1) con mensajero asignado */}
-          {record.estado === 1 && record.mensajero && (
-            <Tooltip title="Aceptar">
-              <Button
-                size="small"
-                type="primary"
-                aria-label="Aceptar"
-                icon={<RocketOutlined />}
-                onClick={() => handleStartDelivery(record.id)}
-              />
+        <Space size={4}>
+          {iconBtn('Comentarios', <CommentOutlined />, '#0d6efd', () =>
+            setCommentModalOpen({ open: true, encargoId: record.id }),
+          )}
+          {record.razon_extra && (
+            <Tooltip title={`Comentario: ${record.razon_extra}`}>
+              <FlagFilled style={{ color: '#dc3545', fontSize: 14 }} />
             </Tooltip>
           )}
-
-          {/* Entregado (Django: check verde) - En proceso (2) y Extraordinario (5) */}
-          {[2, 5].includes(record.estado) && record.mensajero && (
-            <Tooltip title="Entregado">
-              <Button
-                size="small"
-                type="primary"
-                style={{ background: '#28a745', borderColor: '#28a745' }}
-                aria-label="Entregado"
-                icon={<CheckCircleOutlined />}
-                onClick={() => handleDeliver(record)}
-              />
-            </Tooltip>
-          )}
-
-          <Tooltip title="Editar">
-            <Button
-              size="small"
-              aria-label="Editar"
-              icon={<EditOutlined />}
-              onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}
-            />
-          </Tooltip>
-          {!isMensajero && (
-            <Tooltip title="Eliminar">
-              <Button size="small" danger aria-label="Eliminar" icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)} />
-            </Tooltip>
-          )}
-
-          <Tooltip title="Rechazar">
-            <Button
-              size="small"
-              type="primary"
-              danger
-              aria-label="Rechazar"
-              icon={<CloseCircleOutlined />}
-              onClick={() => handleReject(record.id)}
-            />
-          </Tooltip>
-          <Tooltip title="Reportar incidencia">
-            <Button size="small" type="dashed" aria-label="Reportar incidencia" icon={<WarningOutlined />} onClick={() => handleIncidence(record.id)} />
-          </Tooltip>
-          <Tooltip title="Comentarios">
-            <Button
-              size="small"
-              aria-label="Comentarios"
-              icon={<CommentOutlined />}
-              onClick={() => setCommentModalOpen({ open: true, encargoId: record.id })}
-            />
-          </Tooltip>
         </Space>
       ),
     },
@@ -450,14 +507,22 @@ const PendingEncargosPage: React.FC = () => {
   // Acciones en tarjeta (móvil): botones con texto y tamaño táctil
   const renderCardActions = (record: Encargo) => (
     <>
-      {!isMensajero && !record.mensajero && (
+      {canOperate && !record.mensajero && (
         <Select
           placeholder="Asignar mensajero…"
           size="large"
           style={{ width: '100%' }}
           showSearch
           optionFilterProp="children"
-          onChange={(value: number) => handleAssignMensajero(record.id, value)}
+          onChange={(value: number) => {
+            setPendingAssign((prev) => ({ ...prev, [record.id]: value }));
+            updateEncargo(record.id, { mensajero_id: value })
+              .then(() => {
+                message.success('Mensajero asignado');
+                loadEncargos();
+              })
+              .catch(() => message.error('No se pudo asignar el mensajero'));
+          }}
         >
           {mensajeros.map((m) => (
             <Select.Option key={m.id} value={m.id}>
@@ -466,16 +531,16 @@ const PendingEncargosPage: React.FC = () => {
           ))}
         </Select>
       )}
-      {record.estado === 1 && record.mensajero && (
-        <Button size="large" type="primary" icon={<RocketOutlined />} onClick={() => handleStartDelivery(record.id)}>
+      {record.estado === 1 && record.mensajero && canOperate && (
+        <Button size="large" type="primary" icon={<RocketOutlined />} onClick={() => handleAceptar(record.id)}>
           Aceptar
         </Button>
       )}
-      {[2, 5].includes(record.estado) && record.mensajero && (
+      {[2, 5].includes(record.estado) && record.mensajero && canOperate && (
         <Button
           size="large"
           type="primary"
-          style={{ background: '#28a745', borderColor: '#28a745' }}
+          style={BTN.success}
           icon={<CheckCircleOutlined />}
           onClick={() => handleDeliver(record)}
         >
@@ -490,12 +555,16 @@ const PendingEncargosPage: React.FC = () => {
           Eliminar
         </Button>
       )}
-      <Button size="large" danger icon={<CloseCircleOutlined />} onClick={() => handleReject(record.id)}>
-        Rechazar
-      </Button>
-      <Button size="large" icon={<WarningOutlined />} onClick={() => handleIncidence(record.id)}>
-        Incidencia
-      </Button>
+      {canOperate && record.estado === 1 && (
+        <Button size="large" danger icon={<CloseCircleOutlined />} onClick={() => handleReject(record.id)}>
+          Rechazar
+        </Button>
+      )}
+      {canOperate && (
+        <Button size="large" icon={<WarningOutlined />} onClick={() => handleIncidence(record.id)}>
+          Incidencia
+        </Button>
+      )}
       <Button
         size="large"
         icon={<CommentOutlined />}
@@ -507,11 +576,9 @@ const PendingEncargosPage: React.FC = () => {
   );
 
   return (
-    // Letra más grande solo en esta pantalla (pedido de los usuarios): sube la
-    // tipografía base de AntD para tabla, filtros, tags y modales.
+    // Letra más grande solo en esta pantalla (pedido de los usuarios)
     <ConfigProvider theme={{ token: { fontSize: 18 } }}>
     <div style={{ padding: '16px 0' }}>
-      {/* Compacta las celdas (menos alto); el tamaño de letra lo da el ConfigProvider */}
       <style>{`
         .mensajeria-compact-table .ant-table-tbody > tr > td,
         .mensajeria-compact-table .ant-table-thead > tr > th {
@@ -519,83 +586,63 @@ const PendingEncargosPage: React.FC = () => {
           padding-bottom: 6px;
           line-height: 1.35;
         }
+        .mensajeria-compact-table .ant-table-thead > tr > th {
+          text-align: center;
+          font-weight: 700;
+        }
+        /* Fila azul del viejo: envío con observaciones */
+        .fila-observaciones > td {
+          background-color: rgba(0, 0, 255, 0.4) !important;
+        }
       `}</style>
+
+      {/* Título centrado, como el viejo */}
+      <h2 style={{ textAlign: 'center', marginTop: 0 }}>Envios Pendientes</h2>
+
+      {/* Botonera del viejo: izquierda acciones, derecha filtro */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
-        <h2 style={{ margin: 0 }}>Envíos Pendientes</h2>
-        <Space>
+        <Space wrap>
           {!isMensajero && (
-            <Button type="primary" onClick={() => navigate('/dashboard/mensajeria/crear')}>
-              Crear Envío
+            <Button style={BTN.success} onClick={() => navigate('/dashboard/mensajeria/crear')}>
+              Crear Envio
             </Button>
           )}
-          <Button
-            type="default"
-            onClick={handleExportExcel}
-            disabled={!filteredEncargos.length}
-            loading={exporting}
-          >
-            Exportar Excel
+          {canOperate && (
+            <Dropdown
+              menu={{
+                items: [
+                  { key: '1', label: 'En proceso', onClick: () => handleCrearReporte(1) },
+                  { key: '2', label: 'General', onClick: () => handleCrearReporte(2) },
+                ],
+              }}
+            >
+              <Button style={BTN.warning} loading={exporting}>
+                Crear Reporte
+              </Button>
+            </Dropdown>
+          )}
+          <Button style={BTN.secondary} onClick={() => navigate('/dashboard/mensajeria/todos')}>
+            Ver entregados
           </Button>
+          {isMensajero && (
+            <Button style={BTN.info} onClick={() => navigate('/dashboard/mensajeria/asignados')}>
+              Envios asignados
+            </Button>
+          )}
         </Space>
-      </div>
-
-      {/* Filtrar encargos: búsqueda + rango de fechas + (para admin) mensajero */}
-      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <Input.Search
-          placeholder="Buscar por solicitante, destinatario, empresa o dirección…"
-          allowClear
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          style={{ width: 340 }}
-        />
-        <DatePicker.RangePicker
-          format="DD/MM/YYYY"
-          placeholder={['Fecha inicio', 'Fecha final']}
-          value={[
-            dateRange[0] ? dayjs(dateRange[0]) : null,
-            dateRange[1] ? dayjs(dateRange[1]) : null,
-          ]}
-          onChange={(dates) =>
-            setDateRange([
-              dates?.[0] ? dates[0].format('YYYY-MM-DD') : null,
-              dates?.[1] ? dates[1].format('YYYY-MM-DD') : null,
-            ])
-          }
-        />
-        {!isMensajero && (
-          <Select
-            style={{ minWidth: 240 }}
-            placeholder="Todos los mensajeros"
-            value={filterMensajero}
-            onChange={(value) => setFilterMensajero(value)}
-            allowClear
-            showSearch
-            optionFilterProp="children"
-            filterOption={(input, option) =>
-              String(option?.children || '').toLowerCase().includes(input.toLowerCase())
-            }
-          >
-            {mensajeros.map((m) => (
-              <Option key={m.id} value={m.id}>
-                {m.first_name} {m.last_name}
-              </Option>
-            ))}
-          </Select>
-        )}
-        {(searchText || dateRange[0] || dateRange[1] || filterMensajero) && (
-          <Button
-            onClick={() => {
-              setSearchText('');
-              setDateRange([null, null]);
-              setFilterMensajero(null);
-            }}
-          >
-            Limpiar
+        <Space>
+          <Button style={BTN.primary} onClick={() => setFilterModalOpen(true)}>
+            Filtrar encargos
           </Button>
-        )}
-        <span style={{ color: token.colorTextSecondary }}>
-          {filteredEncargos.length} envío{filteredEncargos.length === 1 ? '' : 's'}
-        </span>
+          <Tooltip title="Quitar filtros">
+            <Button
+              style={BTN.danger}
+              icon={<ReloadOutlined />}
+              onClick={resetFilters}
+              disabled={!hasActiveFilters}
+            />
+          </Tooltip>
+        </Space>
       </div>
 
       {isMobile ? (
@@ -619,17 +666,9 @@ const PendingEncargosPage: React.FC = () => {
             showSizeChanger: true,
             showTotal: (total, range) => `${range[0]}-${range[1]} de ${total} envíos`,
           }}
-          scroll={{ x: 1850 }}
+          scroll={{ x: 1900 }}
           bordered
-          expandable={{
-            expandedRowRender: (record: Encargo) => <EncargoExpandedRow encargo={record} />,
-            rowExpandable: hasDetalles,
-          }}
-          onRow={(record: Encargo) => ({
-            // Tinte con token del tema: visible también en modo oscuro. El detalle
-            // completo se lee expandiendo la fila (funciona en móvil, sin hover).
-            style: record.observaciones ? { backgroundColor: token.colorPrimaryBg } : {},
-          })}
+          rowClassName={(record: Encargo) => (record.observaciones ? 'fila-observaciones' : '')}
           locale={{ emptyText: emptyContent }}
         />
       )}
@@ -643,7 +682,64 @@ const PendingEncargosPage: React.FC = () => {
         />
       )}
 
-      {/* Modal para seleccionar mensajero al exportar (solo admin) */}
+      {/* Modal "Filtrar encargos" del viejo: texto + rango de fechas (+ mensajero) */}
+      <Modal
+        title="Filtrar encargos"
+        open={filterModalOpen}
+        onCancel={() => setFilterModalOpen(false)}
+        onOk={() => setFilterModalOpen(false)}
+        okText="Aplicar"
+        cancelText="Cerrar"
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size={12}>
+          <Input
+            placeholder="Buscar por solicitante, destinatario, empresa o dirección…"
+            allowClear
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+          />
+          <DatePicker.RangePicker
+            style={{ width: '100%' }}
+            format="DD/MM/YYYY"
+            placeholder={['Fecha inicio', 'Fecha final']}
+            value={[
+              dateRange[0] ? dayjs(dateRange[0]) : null,
+              dateRange[1] ? dayjs(dateRange[1]) : null,
+            ]}
+            onChange={(dates) =>
+              setDateRange([
+                dates?.[0] ? dates[0].format('YYYY-MM-DD') : null,
+                dates?.[1] ? dates[1].format('YYYY-MM-DD') : null,
+              ])
+            }
+          />
+          {!isMensajero && (
+            <Select
+              style={{ width: '100%' }}
+              placeholder="Todos los mensajeros"
+              value={filterMensajero}
+              onChange={(value) => setFilterMensajero(value)}
+              allowClear
+              showSearch
+              optionFilterProp="children"
+              filterOption={(input, option) =>
+                String(option?.children || '').toLowerCase().includes(input.toLowerCase())
+              }
+            >
+              {mensajeros.map((m) => (
+                <Option key={m.id} value={m.id}>
+                  {m.first_name} {m.last_name}
+                </Option>
+              ))}
+            </Select>
+          )}
+          <span>
+            {filteredEncargos.length} envío{filteredEncargos.length === 1 ? '' : 's'} con los filtros actuales
+          </span>
+        </Space>
+      </Modal>
+
+      {/* Modal para seleccionar mensajero al exportar (Crear Reporte) */}
       <Modal
         title="Seleccione el mensajero"
         confirmLoading={exporting}
@@ -672,36 +768,22 @@ const PendingEncargosPage: React.FC = () => {
         </Select>
       </Modal>
 
-      {/* Modal de rechazo / incidencia */}
-      {actionModal.open && (
-        <Modal
-          title={
-            actionModal.type === 'reject'
-              ? 'Razón del rechazo'
-              : 'Reportar incidencia'
-          }
-          open={true}
-          onCancel={() =>
-            setActionModal({ open: false, type: null, encargoId: null, reason: '' })
-          }
-          onOk={handleActionOk}
-          okText="Confirmar"
-          cancelText="Cancelar"
-        >
-          <TextArea
-            value={actionModal.reason}
-            onChange={(e) =>
-              setActionModal({ ...actionModal, reason: e.target.value })
-            }
-            placeholder={
-              actionModal.type === 'reject'
-                ? 'Ingrese la razón del rechazo...'
-                : 'Describa la incidencia...'
-            }
-            rows={4}
-          />
-        </Modal>
-      )}
+      {/* Modal razón de rechazo / incidencia */}
+      <Modal
+        title={actionModal.type === 'reject' ? 'Razón del rechazo' : 'Razón de la incidencia'}
+        open={actionModal.open}
+        onCancel={() => setActionModal({ open: false, type: null, encargoId: null, reason: '' })}
+        onOk={handleActionOk}
+        okText="Guardar"
+        cancelText="Cancelar"
+      >
+        <TextArea
+          rows={3}
+          placeholder="Escriba la razón…"
+          value={actionModal.reason}
+          onChange={(e) => setActionModal((prev) => ({ ...prev, reason: e.target.value }))}
+        />
+      </Modal>
     </div>
     </ConfigProvider>
   );
