@@ -74,13 +74,11 @@ const certificateStates = [
 
 const HumanResourcesPage: React.FC = () => {
   const userId = useAuthStore((s) => s.userId);
-  const tipoUsuario = useAuthStore((s) => s.tipo_usuario);
   const isSuperuser = useAuthStore((s) => s.is_superuser);
   const modules = useAuthStore((s) => s.modules);
 
   const username = useAuthStore((s) => s.username);
 
-  const isAdmin = isSuperuser || tipoUsuario === 18 || tipoUsuario === 6;
   // Administración de certificados: SOLO Erick Mejía de RRHH (MEJ000) — el
   // resto solo solicita y ve sus propias constancias (el backend también filtra)
   const isCertAdmin = isSuperuser || username?.toUpperCase() === 'MEJ000';

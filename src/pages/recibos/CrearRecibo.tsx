@@ -106,6 +106,11 @@ const CrearRecibo: React.FC = () => {
 
       const totalAmount = cleanedChecks.reduce((sum, c) => sum + c.value, 0);
 
+      if (!cleanedChecks.length || totalAmount <= 0) {
+        message.error('Agrega al menos una forma de pago (el monto no puede ser Q.0)');
+        return;
+      }
+
       if (isSuperuser && !serieNumber) {
         message.error('Debes seleccionar una serie');
         return;
@@ -130,9 +135,14 @@ const CrearRecibo: React.FC = () => {
       await cashReceiptsApi.create(payload);
       message.success(`✅ Recibo creado correctamente por ${username}`);
       navigate('/dashboard/recibos/listar');
-    } catch (err) {
+    } catch (err: any) {
       console.error('❌ Error al crear recibo:', err);
-      message.error('Error al crear el recibo');
+      const backendMsg = err?.response?.data?.message;
+      message.error(
+        Array.isArray(backendMsg)
+          ? backendMsg.join(', ')
+          : backendMsg || 'Error al crear el recibo',
+      );
     }
   };
 

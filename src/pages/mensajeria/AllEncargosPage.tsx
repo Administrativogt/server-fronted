@@ -1,6 +1,6 @@
 // src/pages/mensajeria/AllEncargosPage.tsx
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Space, Tag, message, Modal, DatePicker, Select, Input, Tooltip, theme, Empty, Grid, ConfigProvider } from 'antd';
+import { Table, Button, Space, message, Modal, DatePicker, Select, Input, Tooltip, theme, Empty, Grid, ConfigProvider } from 'antd';
 import {
   InfoCircleOutlined,
   FlagFilled,
