@@ -247,11 +247,14 @@ const downloadBlob = async (url: string, params?: Record<string, unknown>, filen
   window.URL.revokeObjectURL(blobUrl);
 };
 
-export const downloadPendingLiquidationReport = async (userId?: number) =>
+export const downloadPendingLiquidationReport = async (
+  userId?: number,
+  filename?: string,
+) =>
   downloadBlob(
     '/checks/reports/pending-liquidation.xlsx',
     userId ? { user_id: userId } : undefined,
-    'reporte_cheques_pendientes.xlsx',
+    filename || 'Reporte_Cheques_Pendientes_general.xlsx',
   );
 
 export const downloadLiquidatedReport = async (

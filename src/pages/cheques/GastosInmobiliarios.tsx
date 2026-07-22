@@ -25,6 +25,7 @@ import {
   createInmobiliarioExpense,
   deleteInmobiliarioExpense,
   downloadExpensesReport,
+  downloadPendingLiquidationReport,
   getCheckByRequestId,
   getInmobiliarioExpenses,
   getPendingLiquidation,
@@ -81,6 +82,9 @@ function GastosInmobiliarios() {
       })),
     [requestOptions],
   );
+  const [pendingModalOpen, setPendingModalOpen] = useState(false);
+  const [pendingUserId, setPendingUserId] = useState<number | undefined>(undefined);
+  const [pendingDownloading, setPendingDownloading] = useState(false);
   const [filters, setFilters] = useState({
     request_id: undefined as number | undefined,
     // El scope lo aplica el backend según el usuario; el front solo manda una
@@ -349,6 +353,29 @@ function GastosInmobiliarios() {
     }
   };
 
+  const handleDownloadPendingReport = async () => {
+    setPendingDownloading(true);
+    try {
+      const selected = users.find((u) => u.id === pendingUserId);
+      const namePart = selected
+        ? (selected.first_name || fullName(selected)).trim().replace(/\s+/g, '_')
+        : 'general';
+      await downloadPendingLiquidationReport(
+        pendingUserId,
+        `Reporte_Cheques_Pendientes_${namePart}.xlsx`,
+      );
+      setPendingModalOpen(false);
+    } catch (error: any) {
+      if (error?.response?.status === 400) {
+        message.info('No hay cheques pendientes de liquidar para esa selección');
+      } else {
+        message.error('Error al generar el reporte');
+      }
+    } finally {
+      setPendingDownloading(false);
+    }
+  };
+
   const handleDownloadRecent = async () => {
     if (!recentKeys.length) {
       message.info('Selecciona al menos un gasto');
@@ -384,7 +411,15 @@ function GastosInmobiliarios() {
               })
             }
           >
-            Descargar reporte
+            Reporte de gastos
+          </Button>
+          <Button
+            onClick={() => {
+              setPendingUserId(undefined);
+              setPendingModalOpen(true);
+            }}
+          >
+            Reporte cheques pendientes de liquidar
           </Button>
           <Button type="primary" onClick={openCreate}>
             Crear gasto
@@ -755,6 +790,33 @@ function GastosInmobiliarios() {
             },
           ]}
         />
+      </Modal>
+
+      <Modal
+        title="Reporte cheques pendientes de liquidar"
+        open={pendingModalOpen}
+        onCancel={() => setPendingModalOpen(false)}
+        okText="Generar reporte"
+        cancelText="Cerrar"
+        onOk={handleDownloadPendingReport}
+        confirmLoading={pendingDownloading}
+      >
+        <Form layout="vertical">
+          <Form.Item label="Usuario">
+            <Select<number>
+              allowClear
+              showSearch
+              placeholder="Seleccione una opción"
+              value={pendingUserId}
+              onChange={(value) => setPendingUserId(value)}
+              options={users.map((user) => ({
+                label: `${fullName(user)} (${user.username})`,
+                value: user.id,
+              }))}
+              optionFilterProp="label"
+            />
+          </Form.Item>
+        </Form>
       </Modal>
     </Card>
   );
