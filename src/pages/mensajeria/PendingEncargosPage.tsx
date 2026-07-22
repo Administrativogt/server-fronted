@@ -410,20 +410,18 @@ const PendingEncargosPage: React.FC = () => {
             </Tooltip>
           )}
 
+          <Tooltip title="Editar">
+            <Button
+              size="small"
+              aria-label="Editar"
+              icon={<EditOutlined />}
+              onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}
+            />
+          </Tooltip>
           {!isMensajero && (
-            <>
-              <Tooltip title="Editar">
-                <Button
-                  size="small"
-                  aria-label="Editar"
-                  icon={<EditOutlined />}
-                  onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}
-                />
-              </Tooltip>
-              <Tooltip title="Eliminar">
-                <Button size="small" danger aria-label="Eliminar" icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)} />
-              </Tooltip>
-            </>
+            <Tooltip title="Eliminar">
+              <Button size="small" danger aria-label="Eliminar" icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)} />
+            </Tooltip>
           )}
 
           <Tooltip title="Rechazar">
@@ -497,15 +495,13 @@ const PendingEncargosPage: React.FC = () => {
           Entregar
         </Button>
       )}
+      <Button size="large" icon={<EditOutlined />} onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}>
+        Editar
+      </Button>
       {!isMensajero && (
-        <>
-          <Button size="large" icon={<EditOutlined />} onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}>
-            Editar
-          </Button>
-          <Button size="large" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)}>
-            Eliminar
-          </Button>
-        </>
+        <Button size="large" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)}>
+          Eliminar
+        </Button>
       )}
       <Button size="large" danger icon={<CloseCircleOutlined />} onClick={() => handleReject(record.id)}>
         Rechazar

@@ -1,7 +1,8 @@
 // src/pages/mensajeria/AssignedEncargosPage.tsx
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Table, Button, Space, Tag, message, Modal, DatePicker, Empty, Grid } from 'antd';
-import { RocketOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { RocketOutlined, CheckCircleOutlined, EditOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { updateEncargo, getAllEncargos } from '../../api/encargos';
 import type { Encargo } from '../../types/encargo';
@@ -20,6 +21,7 @@ const DEFAULT_START = () => dayjs().subtract(30, 'day').format('YYYY-MM-DD');
 const DEFAULT_END = () => dayjs().format('YYYY-MM-DD');
 
 const AssignedEncargosPage: React.FC = () => {
+  const navigate = useNavigate();
   const [encargos, setEncargos] = useState<Encargo[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -140,6 +142,13 @@ const AssignedEncargosPage: React.FC = () => {
         </Button>
       )}
       {record.estado === 3 && <Tag color="green">Completado</Tag>}
+      <Button
+        size={size}
+        icon={<EditOutlined />}
+        onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}
+      >
+        Editar
+      </Button>
     </>
   );
 
@@ -193,7 +202,7 @@ const AssignedEncargosPage: React.FC = () => {
     {
       title: 'Acciones',
       key: 'acciones',
-      width: 140,
+      width: 210,
       render: (_: any, record: Encargo) => <Space size="small">{renderAcciones(record)}</Space>,
     },
   ];

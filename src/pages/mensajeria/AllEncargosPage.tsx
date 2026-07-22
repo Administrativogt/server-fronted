@@ -390,23 +390,19 @@ const AllEncargosPage: React.FC = () => {
             </Tooltip>
           )}
 
+          <Tooltip title="Editar">
+            <Button
+              size="small"
+              aria-label="Editar"
+              icon={<EditOutlined />}
+              onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}
+            />
+          </Tooltip>
           {/* Botones de admin */}
-          {!isMensajero && (
-            <>
-              <Tooltip title="Editar">
-                <Button
-                  size="small"
-                  aria-label="Editar"
-                  icon={<EditOutlined />}
-                  onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}
-                />
-              </Tooltip>
-              {record.estado !== 3 && (
-                <Tooltip title="Enviar reclamo">
-                  <Button size="small" type="dashed" aria-label="Enviar reclamo" icon={<FlagOutlined />} onClick={() => handleComplaint(record.id)} />
-                </Tooltip>
-              )}
-            </>
+          {!isMensajero && record.estado !== 3 && (
+            <Tooltip title="Enviar reclamo">
+              <Button size="small" type="dashed" aria-label="Enviar reclamo" icon={<FlagOutlined />} onClick={() => handleComplaint(record.id)} />
+            </Tooltip>
           )}
         </Space>
       ),
@@ -452,17 +448,13 @@ const AllEncargosPage: React.FC = () => {
           Entregar
         </Button>
       )}
-      {!isMensajero && (
-        <>
-          <Button size="large" icon={<EditOutlined />} onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}>
-            Editar
-          </Button>
-          {record.estado !== 3 && (
-            <Button size="large" icon={<FlagOutlined />} onClick={() => handleComplaint(record.id)}>
-              Reclamo
-            </Button>
-          )}
-        </>
+      <Button size="large" icon={<EditOutlined />} onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}>
+        Editar
+      </Button>
+      {!isMensajero && record.estado !== 3 && (
+        <Button size="large" icon={<FlagOutlined />} onClick={() => handleComplaint(record.id)}>
+          Reclamo
+        </Button>
       )}
     </>
   );
