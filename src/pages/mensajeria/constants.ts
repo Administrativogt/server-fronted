@@ -22,6 +22,14 @@ export const PRIORIDADES: Record<number, string> = {
   4: 'D',
 };
 
+// Texto de prioridad como lo mostraba el Django viejo en Envíos Pendientes
+export const PRIORIDADES_TEXTO: Record<number, string> = {
+  1: 'Alta',
+  2: 'Media',
+  3: 'Baja',
+  4: 'Villa Nueva',
+};
+
 /** "2026-07-20T00:00:00" → "2026-07-20"; nulos/vacíos → "—" */
 export const formatFecha = (date?: string | null): string =>
   date ? date.split('T')[0] : '—';

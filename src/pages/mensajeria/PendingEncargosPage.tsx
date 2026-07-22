@@ -27,7 +27,8 @@ import type { Encargo, Usuario } from '../../types/encargo';
 import CommentModal from './components/CommentModal';
 import EncargoExpandedRow from './components/EncargoExpandedRow';
 import EncargoCardList from './components/EncargoCardList';
-import { ESTADOS, PRIORIDADES, formatFecha, formatHorario, hasDetalles, saveExcelResponse } from './constants';
+import { ESTADOS, PRIORIDADES, PRIORIDADES_TEXTO, formatFecha, formatHorario, hasDetalles, saveExcelResponse } from './constants';
+import { confirmarEntrega } from './deliver';
 import useAuthStore from '../../auth/useAuthStore'; // ✅ Importar
 
 const { confirm } = Modal;
@@ -75,30 +76,24 @@ const PendingEncargosPage: React.FC = () => {
 
   useEffect(() => {
     loadEncargos();
-    if (!isMensajero) {
-      getMensajeros()
-        .then((res) => {
-          const sorted = res.data.sort((a: Usuario, b: Usuario) =>
-            `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`, 'es'),
-          );
-          setMensajeros(sorted);
-        })
-        .catch(() => {});
-    }
+    // Igual que Django: el grupo de mensajería también asigna mensajeros
+    getMensajeros()
+      .then((res) => {
+        const sorted = res.data.sort((a: Usuario, b: Usuario) =>
+          `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`, 'es'),
+        );
+        setMensajeros(sorted);
+      })
+      .catch(() => {});
   }, [userId, isMensajero]); // ✅ Agregar dependencias
 
   const loadEncargos = async () => {
     setLoading(true);
     try {
       const res = await getPendingEncargos();
-      // Estados activos: Pendiente (1), En proceso (2), Extraordinario (5) — igual que Django original
-      const activeOnly = res.data.filter((e: Encargo) => [1, 2, 5].includes(e.estado));
-
-      if (isMensajero && userId) {
-        setEncargos(activeOnly.filter((e: Encargo) => e.mensajero?.id === userId));
-      } else {
-        setEncargos(activeOnly);
-      }
+      // Estados activos: Pendiente (1), En proceso (2), Extraordinario (5) — igual que Django original.
+      // Los mensajeros ven TODOS los pendientes (como en el sistema viejo), no solo los suyos.
+      setEncargos(res.data.filter((e: Encargo) => [1, 2, 5].includes(e.estado)));
       setLoadError(false);
     } catch (error) {
       console.error('Error al cargar encargos pendientes:', error);
@@ -174,43 +169,28 @@ const PendingEncargosPage: React.FC = () => {
     setSelectedMensajero(null);
   };
 
+  // "Aceptar" del Django viejo (check negro): Pendiente → En proceso
   const handleStartDelivery = (id: number) => {
     confirm({
-      title: '¿Iniciar entrega?',
-      content: '¿Desea marcar este envío como "En proceso"?',
-      okText: 'Sí, iniciar',
+      title: '¿Aceptar envío?',
+      content: '¿Desea aceptar este envío y marcarlo "En proceso"?',
+      okText: 'Aceptar',
       okType: 'primary',
       cancelText: 'Cancelar',
       onOk: async () => {
         try {
           await updateEncargo(id, { estado: 2 } as any);
-          message.success('Envío marcado como "En proceso"');
+          message.success('Envío aceptado ("En proceso")');
           loadEncargos();
         } catch (err: any) {
-          message.error(err.response?.data?.message || 'Error al iniciar');
+          message.error(err.response?.data?.message || 'Error al aceptar');
         }
       },
     });
   };
 
-  const handleDeliver = (id: number) => {
-    confirm({
-      title: '¿Marcar como entregado?',
-      content: '¿Confirma que el envío ya fue entregado?',
-      okText: 'Sí, entregar',
-      okType: 'primary',
-      cancelText: 'Cancelar',
-      onOk: async () => {
-        try {
-          await updateEncargo(id, { estado: 3 } as any);
-          message.success('Envío marcado como entregado');
-          loadEncargos();
-        } catch (err: any) {
-          message.error(err.response?.data?.message || 'Error al entregar');
-        }
-      },
-    });
-  };
+  // Flujo de entrega viejo compartido: fecha_entrega + 5→8 + razón de tardanza
+  const handleDeliver = (record: Encargo) => confirmarEntrega(record, loadEncargos);
 
   const handleDelete = (id: number) => {
     confirm({
@@ -324,8 +304,7 @@ const PendingEncargosPage: React.FC = () => {
         if (record.mensajero) {
           return `${record.mensajero.first_name} ${record.mensajero.last_name}`;
         }
-        // Los mensajeros no asignan; admins/coordinadores asignan aquí mismo
-        if (isMensajero) return 'Sin asignar';
+        // Igual que Django: admins/coordinadores Y mensajeros asignan aquí mismo
         return (
           <Select
             placeholder="Asignar…"
@@ -350,7 +329,8 @@ const PendingEncargosPage: React.FC = () => {
       key: 'prioridad',
       width: 100,
       sorter: (a: Encargo, b: Encargo) => a.prioridad - b.prioridad,
-      render: (p: number) => PRIORIDADES[p] || p,
+      // Texto como el Django viejo: Alta / Media / Baja / Villa Nueva
+      render: (p: number) => PRIORIDADES_TEXTO[p] || PRIORIDADES[p] || p,
     },
     {
       title: 'Fecha',
@@ -384,28 +364,29 @@ const PendingEncargosPage: React.FC = () => {
       width: 190,
       render: (_: any, record: Encargo) => (
         <Space size="small" wrap>
-          {/* Iniciar - Solo si está en estado Pendiente (1) y tiene mensajero asignado */}
+          {/* Aceptar (Django: check negro) - Pendiente (1) con mensajero asignado */}
           {record.estado === 1 && record.mensajero && (
-            <Tooltip title="Iniciar entrega">
+            <Tooltip title="Aceptar">
               <Button
                 size="small"
                 type="primary"
-                aria-label="Iniciar entrega"
+                aria-label="Aceptar"
                 icon={<RocketOutlined />}
                 onClick={() => handleStartDelivery(record.id)}
               />
             </Tooltip>
           )}
 
-          {/* Entregar - En proceso (2): el mensajero cierra su entrega */}
-          {record.estado === 2 && record.mensajero && (
-            <Tooltip title="Marcar como entregado">
+          {/* Entregado (Django: check verde) - En proceso (2) y Extraordinario (5) */}
+          {[2, 5].includes(record.estado) && record.mensajero && (
+            <Tooltip title="Entregado">
               <Button
                 size="small"
                 type="primary"
-                aria-label="Marcar como entregado"
+                style={{ background: '#28a745', borderColor: '#28a745' }}
+                aria-label="Entregado"
                 icon={<CheckCircleOutlined />}
-                onClick={() => handleDeliver(record.id)}
+                onClick={() => handleDeliver(record)}
               />
             </Tooltip>
           )}
@@ -487,12 +468,18 @@ const PendingEncargosPage: React.FC = () => {
       )}
       {record.estado === 1 && record.mensajero && (
         <Button size="large" type="primary" icon={<RocketOutlined />} onClick={() => handleStartDelivery(record.id)}>
-          Iniciar
+          Aceptar
         </Button>
       )}
-      {record.estado === 2 && record.mensajero && (
-        <Button size="large" type="primary" icon={<CheckCircleOutlined />} onClick={() => handleDeliver(record.id)}>
-          Entregar
+      {[2, 5].includes(record.estado) && record.mensajero && (
+        <Button
+          size="large"
+          type="primary"
+          style={{ background: '#28a745', borderColor: '#28a745' }}
+          icon={<CheckCircleOutlined />}
+          onClick={() => handleDeliver(record)}
+        >
+          Entregado
         </Button>
       )}
       <Button size="large" icon={<EditOutlined />} onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}>

@@ -1,6 +1,6 @@
 // src/pages/mensajeria/EditEncargoPage.tsx
 import React, { useEffect, useState } from 'react';
-import { Form, Input, Select, Checkbox, Button, message, Space, Card, DatePicker } from 'antd';
+import { Form, Input, Select, Checkbox, Button, message, Space, Card, DatePicker, Modal } from 'antd';
 import dayjs from 'dayjs';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getEncargoById, updateEncargo, getMensajeros, getUsuariosFormulario, getMunicipios, previewFechaRealizacion } from '../../api/encargos';
@@ -513,7 +513,27 @@ const EditEncargoPage: React.FC = () => {
             </Button>
 
             {isCoordinador && estadoActual > 1 && (
-              <Button danger onClick={() => message.info('Quitar Aceptado: pendiente')}>
+              <Button
+                danger
+                onClick={() =>
+                  Modal.confirm({
+                    title: '¿Quitar aceptado?',
+                    content: 'El envío regresará al estado Pendiente.',
+                    okText: 'Sí, quitar',
+                    okType: 'danger',
+                    cancelText: 'Cancelar',
+                    onOk: async () => {
+                      try {
+                        await updateEncargo(Number(id), { estado: 1 } as any);
+                        message.success('Envío regresado a Pendiente');
+                        navigate('/dashboard/mensajeria');
+                      } catch (err: any) {
+                        message.error(err?.response?.data?.message || 'Error al quitar aceptado');
+                      }
+                    },
+                  })
+                }
+              >
                 Quitar Aceptado
               </Button>
             )}

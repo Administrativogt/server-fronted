@@ -8,6 +8,7 @@ import {
   CheckCircleOutlined,
   EditOutlined,
   FlagOutlined,
+  RollbackOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { downloadEncargosExcel, getAllEncargos, sendComplaint, getMensajeros, updateEncargo } from '../../api/encargos';
@@ -15,6 +16,7 @@ import type { Encargo, Usuario } from '../../types/encargo';
 import EncargoExpandedRow from './components/EncargoExpandedRow';
 import EncargoCardList from './components/EncargoCardList';
 import { ESTADOS, PRIORIDADES, formatFecha, formatHorario, hasDetalles, saveExcelResponse } from './constants';
+import { confirmarEntrega } from './deliver';
 import useAuthStore from '../../auth/useAuthStore'; // ✅ Importar para obtener userId y tipo_usuario
 import dayjs from 'dayjs';
 
@@ -160,20 +162,25 @@ const AllEncargosPage: React.FC = () => {
     });
   };
 
-  const handleDeliver = (id: number) => {
+  // Flujo de entrega viejo compartido: fecha_entrega + 5→8 + razón de tardanza
+  const handleDeliver = (record: Encargo) => confirmarEntrega(record, loadEncargos);
+
+  // "Volver a pendiente" del Django viejo (icono share rojo en Entregados):
+  // regresa un encargo finalizado a estado 1 y limpia incidencias/razones.
+  const handleBackToPending = (id: number) => {
     Modal.confirm({
-      title: '¿Confirmar entrega?',
-      content: '¿Está seguro que desea marcar este envío como entregado?',
-      okText: 'Sí, entregar',
+      title: '¿Volver a pendiente?',
+      content: 'El envío regresará a la lista de pendientes.',
+      okText: 'Sí, regresar',
       okType: 'primary',
       cancelText: 'Cancelar',
       onOk: async () => {
         try {
-          await updateEncargo(id, { estado: 3 } as any);
-          message.success('Envío marcado como entregado');
+          await updateEncargo(id, { estado: 1, incidencias: null, razon_eliminacion: '' } as any);
+          message.success('Envío regresado a pendientes');
           await loadEncargos();
         } catch (err: any) {
-          message.error(err.response?.data?.message || 'Error al entregar');
+          message.error(err.response?.data?.message || 'Error al regresar el envío');
         }
       },
     });
@@ -377,15 +384,29 @@ const AllEncargosPage: React.FC = () => {
             </Tooltip>
           )}
 
-          {/* Entregar - Estado En proceso (2): mensajero solo ve el suyo, admin ve todos */}
-          {record.estado === 2 && (!isMensajero || record.mensajero?.id === userId) && (
-            <Tooltip title="Marcar como entregado">
+          {/* Entregado - En proceso (2) y Extraordinario (5) */}
+          {[2, 5].includes(record.estado) && (!isMensajero || record.mensajero?.id === userId) && (
+            <Tooltip title="Entregado">
               <Button
                 size="small"
                 type="primary"
-                aria-label="Marcar como entregado"
+                style={{ background: '#28a745', borderColor: '#28a745' }}
+                aria-label="Entregado"
                 icon={<CheckCircleOutlined />}
-                onClick={() => handleDeliver(record.id)}
+                onClick={() => handleDeliver(record)}
+              />
+            </Tooltip>
+          )}
+
+          {/* Volver a pendiente (Django: icono share) - solo admin, estados finalizados */}
+          {!isMensajero && [3, 4, 6, 7, 8].includes(record.estado) && (
+            <Tooltip title="Volver a pendiente">
+              <Button
+                size="small"
+                danger
+                aria-label="Volver a pendiente"
+                icon={<RollbackOutlined />}
+                onClick={() => handleBackToPending(record.id)}
               />
             </Tooltip>
           )}
@@ -443,9 +464,20 @@ const AllEncargosPage: React.FC = () => {
           Iniciar
         </Button>
       )}
-      {record.estado === 2 && (!isMensajero || record.mensajero?.id === userId) && (
-        <Button size="large" type="primary" icon={<CheckCircleOutlined />} onClick={() => handleDeliver(record.id)}>
-          Entregar
+      {[2, 5].includes(record.estado) && (!isMensajero || record.mensajero?.id === userId) && (
+        <Button
+          size="large"
+          type="primary"
+          style={{ background: '#28a745', borderColor: '#28a745' }}
+          icon={<CheckCircleOutlined />}
+          onClick={() => handleDeliver(record)}
+        >
+          Entregado
+        </Button>
+      )}
+      {!isMensajero && [3, 4, 6, 7, 8].includes(record.estado) && (
+        <Button size="large" danger icon={<RollbackOutlined />} onClick={() => handleBackToPending(record.id)}>
+          Volver a pendiente
         </Button>
       )}
       <Button size="large" icon={<EditOutlined />} onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}>
