@@ -143,7 +143,7 @@ const MoneyReqList: React.FC = () => {
       key: 'amount',
       width: 130,
       render: (_: unknown, record: MoneyRequirement) =>
-        `${record.currency === 'USD' ? '$' : 'Q'} ${Number(record.amount).toLocaleString('es-GT', { minimumFractionDigits: 2 })}`,
+        `${record.currency === 'USD' || Number(record.currency) === 2 ? '$' : 'Q'} ${Number(record.amount).toLocaleString('es-GT', { minimumFractionDigits: 2 })}`,
     },
     { title: 'Descripción', dataIndex: 'description', key: 'description', width: 220 },
     { title: 'Correlativo', dataIndex: 'correlative', key: 'correlative', width: 130 },

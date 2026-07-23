@@ -18,6 +18,10 @@ const CURRENCY_NAME: Record<string, string> = {
   EUR: 'Euros',
 };
 
+// El backend guarda la moneda como número (1=Q, 2=$, 3=€); el texto es legado
+const esUSD = (c: unknown) => c === 'USD' || c === '$' || Number(c) === 2;
+const esEUR = (c: unknown) => c === 'EUR' || c === '€' || Number(c) === 3;
+
 const esc = (v: unknown): string =>
   String(v ?? '')
     .replace(/&/g, '&amp;')
@@ -26,7 +30,7 @@ const esc = (v: unknown): string =>
     .replace(/"/g, '&quot;');
 
 const money = (r: MoneyRequirement): string => {
-  const sym = r.currency === 'USD' || r.currency === '$' ? '$' : r.currency === 'EUR' || r.currency === '€' ? '€' : 'Q';
+  const sym = esUSD(r.currency) ? '$' : esEUR(r.currency) ? '€' : 'Q';
   return `${sym} ${Number(r.amount).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
@@ -43,7 +47,11 @@ const fecha = (v?: string): string => {
  * del backend: se arma con los datos que ya tiene la lista.
  */
 export function printMoneyRequirement(r: MoneyRequirement): void {
-  const currencyName = CURRENCY_NAME[r.currency] ?? 'Quetzales';
+  const currencyName = esUSD(r.currency)
+    ? 'Dólares'
+    : esEUR(r.currency)
+      ? 'Euros'
+      : (CURRENCY_NAME[r.currency] ?? 'Quetzales');
   const stateLabel = STATE_LABEL[r.state] ?? '—';
 
   const row = (label: string, value: string, opts?: { mono?: boolean; strong?: boolean }) => `
