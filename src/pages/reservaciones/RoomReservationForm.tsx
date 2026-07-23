@@ -67,7 +67,7 @@ const isAuthorizedName = (fullName: string | undefined | null) =>
   !!fullName && AUTHORIZED_NAMES_SET.has(normalize(fullName));
 
 /* ============ Tipos ============ */
-type MeetingType = "team_meeting" | "client_call" | "urgent" | "other";
+type MeetingType = "team_meeting" | "client_call" | "urgent" | "other" | "external_meeting";
 type RecurrencePattern = "daily" | "weekly" | "biweekly" | "monthly";
 interface Room {
   id: number;
@@ -707,6 +707,9 @@ export default function RoomReservationForm() {
                 <Select<MeetingType> style={{ width: "100%" }}>
                   <Select.Option value="team_meeting">
                     Reunión interna
+                  </Select.Option>
+                  <Select.Option value="external_meeting">
+                    Reunión externa
                   </Select.Option>
                   <Select.Option value="client_call">
                     Llamada con cliente
