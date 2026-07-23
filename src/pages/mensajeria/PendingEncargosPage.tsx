@@ -41,7 +41,6 @@ import EncargoCardList from './components/EncargoCardList';
 import { PRIORIDADES_TEXTO, formatFecha, formatHorario, saveExcelResponse } from './constants';
 import { confirmarEntrega } from './deliver';
 import useAuthStore from '../../auth/useAuthStore';
-import { useMensajeriaPermissions } from '../../hooks/usePermissions';
 
 const { confirm } = Modal;
 const { TextArea } = Input;
@@ -106,9 +105,6 @@ const PendingEncargosPage: React.FC = () => {
   const userId = useAuthStore((state) => state.userId);
   const tipoUsuario = useAuthStore((state) => state.tipo_usuario);
   const isMensajero = tipoUsuario === 8;
-  const { isAdminMensajeria } = useMensajeriaPermissions();
-  // Grupo mensajería/admin: opera los envíos (asignar, aceptar, entregar…)
-  const canOperate = isMensajero || isAdminMensajeria;
 
   useEffect(() => {
     loadEncargos();
@@ -337,17 +333,16 @@ const PendingEncargosPage: React.FC = () => {
     if (!isMensajero) {
       opciones.push(iconBtn('Eliminar', <DeleteOutlined />, '#1976d2', () => handleDelete(record.id)));
     }
-    if (canOperate) {
-      if (record.estado === 1) {
-        opciones.push(iconBtn('Rechazar', <CloseOutlined />, '#dc3545', () => handleReject(record.id)));
-      }
-      if ([2, 5].includes(record.estado)) {
-        opciones.push(iconBtn('Entregado', <CheckSquareOutlined />, '#28a745', () => handleDeliver(record)));
-      }
-      opciones.push(iconBtn('Agregar incidencia', <BookOutlined />, '#6f42c1', () => handleIncidence(record.id)));
-      if ([1, 2].includes(record.estado)) {
-        opciones.push(iconBtn('Extraordinario', <WarningOutlined />, '#fd7e14', () => handleExtraordinario(record.id)));
-      }
+    // Todas las opciones del Django viejo, para todos los usuarios (2026-07-23)
+    if (record.estado === 1) {
+      opciones.push(iconBtn('Rechazar', <CloseOutlined />, '#dc3545', () => handleReject(record.id)));
+    }
+    if ([2, 5].includes(record.estado)) {
+      opciones.push(iconBtn('Entregado', <CheckSquareOutlined />, '#28a745', () => handleDeliver(record)));
+    }
+    opciones.push(iconBtn('Agregar incidencia', <BookOutlined />, '#6f42c1', () => handleIncidence(record.id)));
+    if ([1, 2].includes(record.estado)) {
+      opciones.push(iconBtn('Extraordinario', <WarningOutlined />, '#fd7e14', () => handleExtraordinario(record.id)));
     }
     return <Space size={2} wrap>{opciones}</Space>;
   };
@@ -537,7 +532,7 @@ const PendingEncargosPage: React.FC = () => {
           Iniciar envío
         </Button>
       )}
-      {[2, 5].includes(record.estado) && record.mensajero && canOperate && (
+      {[2, 5].includes(record.estado) && record.mensajero && (
         <Button
           size="large"
           type="primary"
@@ -556,12 +551,12 @@ const PendingEncargosPage: React.FC = () => {
           Eliminar
         </Button>
       )}
-      {canOperate && record.estado === 1 && (
+      {record.estado === 1 && (
         <Button size="large" danger icon={<CloseCircleOutlined />} onClick={() => handleReject(record.id)}>
           Rechazar
         </Button>
       )}
-      {canOperate && (
+      {(
         <Button size="large" icon={<WarningOutlined />} onClick={() => handleIncidence(record.id)}>
           Incidencia
         </Button>
@@ -624,20 +619,18 @@ const PendingEncargosPage: React.FC = () => {
               Crear Envio
             </Button>
           )}
-          {canOperate && (
-            <Dropdown
-              menu={{
-                items: [
-                  { key: '1', label: 'En proceso', onClick: () => handleCrearReporte(1) },
-                  { key: '2', label: 'General', onClick: () => handleCrearReporte(2) },
-                ],
-              }}
-            >
-              <Button style={BTN.warning} loading={exporting}>
-                Crear Reporte
-              </Button>
-            </Dropdown>
-          )}
+          <Dropdown
+            menu={{
+              items: [
+                { key: '1', label: 'En proceso', onClick: () => handleCrearReporte(1) },
+                { key: '2', label: 'General', onClick: () => handleCrearReporte(2) },
+              ],
+            }}
+          >
+            <Button style={BTN.warning} loading={exporting}>
+              Crear Reporte
+            </Button>
+          </Dropdown>
           <Button style={BTN.secondary} onClick={() => navigate('/dashboard/mensajeria/todos')}>
             Ver entregados
           </Button>
