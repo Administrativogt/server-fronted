@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
 import {
@@ -56,7 +56,9 @@ function GastosInmobiliarios() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<InmobiliarioExpense | null>(null);
   const [checkOptions, setCheckOptions] = useState<CheckRequest[]>([]);
+  const [searchedChecks, setSearchedChecks] = useState<CheckRequest[]>([]);
   const [checkOptionsLoading, setCheckOptionsLoading] = useState(false);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedCheck, setSelectedCheck] = useState<CheckRequest | null>(null);
   const [checkBalance, setCheckBalance] = useState<number | null>(null);
   const [parentWarning, setParentWarning] = useState<ParentCheckResponse | null>(null);
@@ -65,6 +67,7 @@ function GastosInmobiliarios() {
   const requestOptions = useMemo(() => {
     const map = new Map<number, CheckRequest>();
     checkOptions.forEach((item) => map.set(item.request_id, item));
+    searchedChecks.forEach((item) => map.set(item.request_id, item));
     if (selectedCheck) {
       map.set(selectedCheck.request_id, selectedCheck);
     }
@@ -72,7 +75,7 @@ function GastosInmobiliarios() {
       map.set(editing.request_id.request_id, editing.request_id as CheckRequest);
     }
     return Array.from(map.values());
-  }, [checkOptions, editing, selectedCheck]);
+  }, [checkOptions, searchedChecks, editing, selectedCheck]);
 
   const requestSelectOptions = useMemo(
     () =>
@@ -118,7 +121,7 @@ function GastosInmobiliarios() {
       // equipo; el resto solo lo suyo), no hace falta forzar responsible_id.
       const response = await getPendingLiquidation({
         page: 1,
-        per_page: 200,
+        per_page: 1000,
         equipo_id: 4,
       });
       setCheckOptions(response.data);
@@ -140,8 +143,44 @@ function GastosInmobiliarios() {
       setSelectedCheck(null);
       setCheckBalance(null);
       setParentWarning(null);
+      setSearchedChecks([]);
     }
   }, [modalOpen, fetchCheckOptions, form]);
+
+  // Si el usuario escribe un request_id que no está en la lista cargada
+  // (cheques viejos fuera del tope de la primera página), lo busca al backend.
+  const handleRequestSearch = useCallback(
+    (term: string) => {
+      const clean = term.trim();
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+      if (!/^\d{5,}$/.test(clean)) return;
+      const alreadyListed = requestOptions.some((c) =>
+        String(c.request_id).startsWith(clean),
+      );
+      if (alreadyListed) return;
+
+      searchTimer.current = setTimeout(async () => {
+        try {
+          const response = await getPendingLiquidation({
+            request_id: Number(clean),
+            page: 1,
+            per_page: 1,
+            equipo_id: 4,
+          });
+          if (response.data.length) {
+            setSearchedChecks((prev) => {
+              const map = new Map(prev.map((c) => [c.request_id, c]));
+              response.data.forEach((c) => map.set(c.request_id, c));
+              return Array.from(map.values());
+            });
+          }
+        } catch {
+          // silencioso: si no existe o no es visible, el dropdown queda igual
+        }
+      }, 400);
+    },
+    [requestOptions],
+  );
 
   const detectParentCheck = useCallback(async (requestId: number) => {
     try {
@@ -577,10 +616,11 @@ function GastosInmobiliarios() {
                 <Select<number>
                   showSearch
                   allowClear
-                  placeholder="Selecciona un request"
+                  placeholder="Selecciona o escribe el request_id"
                   loading={checkOptionsLoading || checkingRequest}
                   options={requestSelectOptions}
                   optionFilterProp="label"
+                  onSearch={handleRequestSearch}
                   onChange={(value) => handleRequestChange(value)}
                   onClear={() => handleRequestChange(undefined)}
                 />
