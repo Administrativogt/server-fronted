@@ -11,6 +11,7 @@ import {
 import { useParams, useNavigate } from 'react-router-dom';
 import type { CashReceipt } from '../../api/cashReceipts';
 import cashReceiptsApi from '../../api/cashReceipts';
+import useAuthStore from '../../auth/useAuthStore';
 
 type EditarReciboProps =
   | {
@@ -27,6 +28,11 @@ type EditarReciboProps =
 const EditarRecibo: React.FC<EditarReciboProps> = (props) => {
   const [form] = Form.useForm<Partial<CashReceipt>>();
   const [loading, setLoading] = useState(false);
+  const username = useAuthStore((s) => s.username);
+  const isSuperuser = useAuthStore((s) => s.is_superuser);
+  // Correlativo editable: solo Amanda (VAL002) y superusers (backend valida)
+  const canEditCorrelative =
+    isSuperuser || username?.toUpperCase() === 'VAL002';
 
   const params = useParams();
   const navigate = useNavigate();
@@ -98,8 +104,12 @@ const EditarRecibo: React.FC<EditarReciboProps> = (props) => {
         <Input disabled />
       </Form.Item>
 
-      <Form.Item name="correlative" label="Correlativo">
-        <Input disabled />
+      <Form.Item
+        name="correlative"
+        label="Correlativo"
+        extra={canEditCorrelative ? 'Puedes ajustarlo manualmente' : undefined}
+      >
+        <Input disabled={!canEditCorrelative} />
       </Form.Item>
 
       <Form.Item

@@ -45,6 +45,11 @@ const CrearRecibo: React.FC = () => {
   const [serieNumber, setSerieNumber] = useState<number | undefined>(undefined);
   const [correlative, setCorrelative] = useState<string>('');
 
+  // Correlativo editable: solo Amanda (VAL002) y superusers (el backend
+  // también lo valida — unicidad por serie incluida)
+  const canEditCorrelative =
+    isSuperuser || username?.toUpperCase() === 'VAL002';
+
   const SERIES_OPTIONS = [
     { label: 'A', value: 1 },
     { label: 'B', value: 2 },
@@ -128,6 +133,9 @@ const CrearRecibo: React.FC = () => {
         active: true,
         checks: cleanedChecks,
         ...(isSuperuser && serieNumber ? { serie: serieNumber } : {}),
+        ...(canEditCorrelative && /^\d+$/.test(correlative)
+          ? { correlative: String(Number(correlative)) }
+          : {}),
       };
 
       console.log('📦 Payload enviado:', payload);
@@ -222,9 +230,19 @@ const CrearRecibo: React.FC = () => {
             <Col span={12}>
               <Form.Item
                 label="Correlativo"
-                help={isSuperuser && !correlative && !loadingPreview ? 'Selecciona una serie primero' : undefined}
+                help={
+                  isSuperuser && !correlative && !loadingPreview
+                    ? 'Selecciona una serie primero'
+                    : canEditCorrelative && correlative
+                      ? 'Puedes ajustarlo manualmente'
+                      : undefined
+                }
               >
-                <Input value={loadingPreview ? '...' : (correlative || '—')} disabled />
+                <Input
+                  value={loadingPreview ? '...' : (correlative || (canEditCorrelative ? '' : '—'))}
+                  disabled={!canEditCorrelative || loadingPreview}
+                  onChange={(e) => setCorrelative(e.target.value.replace(/\D/g, ''))}
+                />
               </Form.Item>
             </Col>
           </Row>
