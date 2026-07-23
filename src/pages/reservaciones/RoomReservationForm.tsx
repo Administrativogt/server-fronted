@@ -363,7 +363,7 @@ export default function RoomReservationForm() {
         if (!data.available) {
           const conflictMessage = {
             message: "Horario no disponible",
-            description: `No hay horario disponible en la sala "${getRoomName(roomId)}" el ${formatted.date} de ${fmtHM(data.conflict.init_hour)} a ${fmtHM(data.conflict.end_hour)}.`,
+            description: `No hay horario disponible en la sala "${getRoomName(roomId)}" el ${formatted.date} de ${fmtHM(data.conflict.init_hour)} a ${fmtHM(data.conflict.end_hour)}. Si la reserva que choca es tuya y quieres ampliarla, edítala desde "Ver reservaciones" en lugar de crear otra.`,
           };
           setCurrentConflict(conflictMessage);
           if (!opts?.silent) {
