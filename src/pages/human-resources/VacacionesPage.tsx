@@ -437,6 +437,8 @@ const VacacionesPage: React.FC = () => {
   const [allLoading, setAllLoading] = useState(false);
   const [approvingId, setApprovingId] = useState<number | null>(null);
   const [resendingId, setResendingId] = useState<number | null>(null);
+  const [resendModalId, setResendModalId] = useState<number | null>(null);
+  const [resendApproverId, setResendApproverId] = useState<number | undefined>(undefined);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [rejectForm] = Form.useForm();
@@ -816,11 +818,17 @@ const VacacionesPage: React.FC = () => {
     }
   };
 
-  const handleResendApproval = async (id: number) => {
-    setResendingId(id);
+  const handleResendApproval = async () => {
+    if (!resendModalId) return;
+    setResendingId(resendModalId);
     try {
-      await resendVacationApprovalEmail(id);
-      message.success('Correo de aprobación reenviado al jefe inmediato actual');
+      await resendVacationApprovalEmail(resendModalId, resendApproverId);
+      message.success(
+        resendApproverId
+          ? 'Correo de aprobación enviado a la persona seleccionada'
+          : 'Correo de aprobación reenviado al jefe inmediato actual',
+      );
+      setResendModalId(null);
     } catch (error: any) {
       message.error(
         error?.response?.data?.message || 'No se pudo reenviar el correo',
@@ -1264,12 +1272,15 @@ const VacacionesPage: React.FC = () => {
                 >
                   Rechazar
                 </Button>
-                <Tooltip title="Reenviar correo de aprobación al jefe inmediato actual">
+                <Tooltip title="Reenviar correo de aprobación (al jefe actual o a otra persona)">
                   <Button
                     size="small"
                     icon={<MailOutlined />}
                     loading={resendingId === record.id}
-                    onClick={() => handleResendApproval(record.id)}
+                    onClick={() => {
+                      setResendApproverId(undefined);
+                      setResendModalId(record.id);
+                    }}
                     style={{ borderRadius: 6 }}
                   />
                 </Tooltip>
@@ -2777,6 +2788,36 @@ const VacacionesPage: React.FC = () => {
             />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title="Reenviar correo de aprobación"
+        open={resendModalId !== null}
+        onOk={handleResendApproval}
+        onCancel={() => setResendModalId(null)}
+        okText="Enviar"
+        cancelText="Cancelar"
+        confirmLoading={resendingId === resendModalId && resendingId !== null}
+        destroyOnClose
+      >
+        <Typography.Paragraph type="secondary">
+          Por defecto el correo se reenvía al <strong>jefe inmediato actual</strong> del
+          empleado. Si el empleado no tiene jefe asignado (o debe aprobarlo otra
+          persona), selecciónala aquí:
+        </Typography.Paragraph>
+        <Select<number>
+          allowClear
+          showSearch
+          style={{ width: '100%' }}
+          placeholder="Jefe inmediato actual (dejar vacío)"
+          value={resendApproverId}
+          onChange={(value) => setResendApproverId(value)}
+          options={allUsers.map((u) => ({
+            value: u.id,
+            label: `${u.first_name} ${u.last_name}`.trim(),
+          }))}
+          optionFilterProp="label"
+        />
       </Modal>
     </div>
   );

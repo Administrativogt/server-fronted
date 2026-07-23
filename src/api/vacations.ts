@@ -143,8 +143,14 @@ export async function approveVacationRequest(id: number): Promise<VacationReques
   return data;
 }
 
-export async function resendVacationApprovalEmail(id: number): Promise<{ sent: boolean }> {
-  const { data } = await api.post(`${BASE}/${id}/resend-approval`);
+export async function resendVacationApprovalEmail(
+  id: number,
+  approverId?: number,
+): Promise<{ sent: boolean }> {
+  const { data } = await api.post(
+    `${BASE}/${id}/resend-approval`,
+    approverId ? { approver_id: approverId } : {},
+  );
   return data;
 }
 
