@@ -8,6 +8,10 @@ const api = axios.create({
   // Sin timeout, una petición lenta/colgada (p.ej. sync con contención de locks)
   // deja la UI girando para siempre. 120s es holgado para syncs y reportes.
   timeout: 120_000,
+  // Arrays en query como claves repetidas (estados=2&estados=5), NO con
+  // corchetes (estados[]=2): el parser del backend no entiende corchetes y la
+  // ValidationPipe rechazaba con "property estados[] should not exist".
+  paramsSerializer: { indexes: null },
 });
 
 api.interceptors.request.use(async (config) => {
