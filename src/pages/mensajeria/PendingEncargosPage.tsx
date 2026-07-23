@@ -392,8 +392,7 @@ const PendingEncargosPage: React.FC = () => {
         if (record.mensajero) {
           return `${record.mensajero.first_name} ${record.mensajero.last_name}`;
         }
-        if (!canOperate) return 'Sin asignar';
-        // Select + botón azul "Asignar", como el viejo
+        // Select + botón azul "Asignar" — habilitado para todos (2026-07-23)
         return (
           <Space direction="vertical" size={4} style={{ width: '100%' }}>
             <Select
@@ -509,7 +508,7 @@ const PendingEncargosPage: React.FC = () => {
   // Acciones en tarjeta (móvil): botones con texto y tamaño táctil
   const renderCardActions = (record: Encargo) => (
     <>
-      {canOperate && !record.mensajero && (
+      {!record.mensajero && (
         <Select
           placeholder="Asignar mensajero…"
           size="large"
