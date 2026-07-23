@@ -36,6 +36,11 @@ export async function getMoneyRequirements(params?: Record<string, unknown>): Pr
 }
 
 // Actualizar
+export async function deleteMoneyRequirement(id: number) {
+  const { data } = await api.delete(`/money-requirements/${id}`);
+  return data;
+}
+
 export async function updateMoneyRequirement(id: number, payload: Partial<MoneyRequirement>) {
   const { data } = await api.patch(`/money-requirements/${id}`, payload);
   return data;

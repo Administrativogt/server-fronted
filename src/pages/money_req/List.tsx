@@ -15,7 +15,8 @@ import {
   Tooltip,
   message,
 } from 'antd';
-import { SearchOutlined, ClearOutlined, PrinterOutlined } from '@ant-design/icons';
+import { SearchOutlined, ClearOutlined, PrinterOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Form, InputNumber } from 'antd';
 import { printMoneyRequirement } from './printReceipt';
 import type { Dayjs } from 'dayjs';
 import {
@@ -23,6 +24,8 @@ import {
   authorizeMoneyRequirements,
   denyMoneyRequirements,
   sendAuthorizationEmail,
+  updateMoneyRequirement,
+  deleteMoneyRequirement,
   type MoneyRequirement,
 } from '../../api/moneyRequirements';
 import { fetchUsers, type UserLite, fullName } from '../../api/users';
@@ -62,6 +65,9 @@ const MoneyReqList: React.FC = () => {
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [filters, setFilters] = useState<Filters>(defaultFilters);
+  // Edición (solo NO aprobados; mismos campos editables que el Django viejo)
+  const [editRow, setEditRow] = useState<MoneyRequirement | null>(null);
+  const [editForm] = Form.useForm();
 
   const { hasPermission, isSuperUser } = usePermissions();
   const canAuthorize = isSuperUser() || hasPermission('money requirements authorizers');
@@ -135,6 +141,56 @@ const MoneyReqList: React.FC = () => {
     fetchRequirements();
   };
 
+  // Editable/eliminable solo si NO está aprobado/finalizado (regla nueva; el
+  // backend también la impone)
+  const canModify = (r: MoneyRequirement) => [1, 2, 4].includes(r.state);
+
+  const openEdit = (r: MoneyRequirement) => {
+    setEditRow(r);
+    editForm.setFieldsValue({
+      payableTo: r.payableTo,
+      description: r.description,
+      currency: Number(r.currency) === 2 || r.currency === 'USD' ? 2 : 1,
+      amount: Number(r.amount),
+      teamId: r.teamId ?? (r as any).equipo?.id ?? null,
+      responsibleForAuthorizingId:
+        r.responsibleForAuthorizingId ?? (r as any).responsibleForAuthorizing?.id ?? null,
+    });
+  };
+
+  const submitEdit = async () => {
+    if (!editRow) return;
+    try {
+      const values = await editForm.validateFields();
+      await updateMoneyRequirement(editRow.id, values);
+      message.success('Requerimiento actualizado');
+      setEditRow(null);
+      fetchRequirements();
+    } catch (err: any) {
+      if (err?.errorFields) return; // validación del form
+      message.error(err?.response?.data?.message || 'No se pudo actualizar');
+    }
+  };
+
+  const handleDelete = (r: MoneyRequirement) => {
+    Modal.confirm({
+      title: `¿Eliminar el requerimiento ${r.correlative}?`,
+      content: 'Dejará de aparecer en los listados. Esta acción no se puede deshacer desde la pantalla.',
+      okText: 'Sí, eliminar',
+      okType: 'danger',
+      cancelText: 'Cancelar',
+      onOk: async () => {
+        try {
+          await deleteMoneyRequirement(r.id);
+          message.success('Requerimiento eliminado');
+          fetchRequirements();
+        } catch (err: any) {
+          message.error(err?.response?.data?.message || 'No se pudo eliminar');
+        }
+      },
+    });
+  };
+
   const columns = [
     { title: 'Fecha', dataIndex: 'date', key: 'date', width: 110 },
     { title: 'A nombre de', dataIndex: 'payableTo', key: 'payableTo', width: 180 },
@@ -171,18 +227,30 @@ const MoneyReqList: React.FC = () => {
       },
     },
     {
-      title: 'Imprimir',
-      key: 'print',
-      width: 90,
+      title: 'Acciones',
+      key: 'acciones',
+      width: 140,
       fixed: 'right' as const,
       render: (_: unknown, record: MoneyRequirement) => (
-        <Tooltip title="Imprimir comprobante">
-          <Button
-            size="small"
-            icon={<PrinterOutlined />}
-            onClick={() => printMoneyRequirement(record)}
-          />
-        </Tooltip>
+        <Space size={4}>
+          <Tooltip title="Imprimir comprobante">
+            <Button
+              size="small"
+              icon={<PrinterOutlined />}
+              onClick={() => printMoneyRequirement(record)}
+            />
+          </Tooltip>
+          {canModify(record) && (
+            <>
+              <Tooltip title="Editar">
+                <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)} />
+              </Tooltip>
+              <Tooltip title="Eliminar">
+                <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record)} />
+              </Tooltip>
+            </>
+          )}
+        </Space>
       ),
     },
   ];
@@ -317,6 +385,59 @@ const MoneyReqList: React.FC = () => {
         <p style={{ marginTop: 8, color: '#888' }}>
           El requerimiento será enviado para autorización y su estado cambiará a <b>Pend. autorización</b>.
         </p>
+      </Modal>
+
+      {/* Editar requerimiento — mismos campos editables que el Django viejo:
+          a nombre de, descripción, moneda, monto, equipo y autorizador.
+          Fecha y correlativo NO se editan. */}
+      <Modal
+        title={editRow ? `Editar requerimiento ${editRow.correlative}` : 'Editar'}
+        open={!!editRow}
+        onCancel={() => setEditRow(null)}
+        onOk={submitEdit}
+        okText="Guardar"
+        cancelText="Cancelar"
+        destroyOnClose
+      >
+        <Form form={editForm} layout="vertical">
+          <Form.Item label="Cheque a nombre de" name="payableTo" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item label="Descripción" name="description" rules={[{ required: true }]}>
+            <Input.TextArea rows={3} />
+          </Form.Item>
+          <Form.Item label="Moneda" name="currency" rules={[{ required: true }]}>
+            <Select>
+              <Select.Option value={1}>Quetzales (Q)</Select.Option>
+              <Select.Option value={2}>Dólares ($)</Select.Option>
+            </Select>
+          </Form.Item>
+          <Form.Item label="Monto" name="amount" rules={[{ required: true }]}>
+            <InputNumber style={{ width: '100%' }} min={0.01} step={0.01} />
+          </Form.Item>
+          <Form.Item label="Equipo" name="teamId" rules={[{ required: true }]}>
+            <Select showSearch optionFilterProp="children">
+              {teams.map((t) => (
+                <Select.Option key={t.id} value={t.id}>
+                  {t.name}
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+          <Form.Item
+            label="Responsable de firmar"
+            name="responsibleForAuthorizingId"
+            rules={[{ required: true }]}
+          >
+            <Select showSearch optionFilterProp="children">
+              {users.map((u) => (
+                <Select.Option key={u.id} value={u.id}>
+                  {fullName(u)}
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+        </Form>
       </Modal>
     </Card>
   );
