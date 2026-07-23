@@ -325,11 +325,11 @@ export default function ReservationsList() {
       });
       if (deleteSeries) {
         // Quitar toda la serie del listado (padre + ocurrencias pendientes)
-        const rootId = deleteRow.parent_reservation_id ?? deleteRow.id;
+        const rootId = Number(deleteRow.parent_reservation_id ?? deleteRow.id);
         setRows(prev =>
           prev.filter(r =>
             r.id !== deleteRow.id &&
-            !((r.id === rootId || r.parent_reservation_id === rootId) && r.state === 0),
+            !((Number(r.id) === rootId || Number(r.parent_reservation_id) === rootId) && r.state === 0),
           ),
         );
       } else {
@@ -467,7 +467,8 @@ export default function ReservationsList() {
   };
 
   // permisos por fila
-  const isOwner       = (r: Reservation) => me && (r.request_user_id === me.id || r.user?.id === me.id);
+  // Number(): request_user_id llega como string (bigint de Postgres)
+  const isOwner       = (r: Reservation) => me && (Number(r.request_user_id) === Number(me.id) || Number(r.user?.id) === Number(me.id));
   const canEditRow    = (r: Reservation) => (canManageAll || isOwner(r)) && r.state === 0;
   const canDeleteRow  = (r: Reservation) => (canManageAll || isOwner(r)) && r.state === 0;
   const canCancelRow  = (r: Reservation) => isOwner(r) && (r.state === 0 || r.state === 1); // Puede cancelar si está pendiente o aceptada
