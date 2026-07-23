@@ -329,15 +329,17 @@ const PendingEncargosPage: React.FC = () => {
 
   const renderOpciones = (record: Encargo) => {
     const opciones: React.ReactNode[] = [];
-    // Editar: todos (los mensajeros lo pidieron explícitamente)
+    // Editar e Iniciar envío: habilitados para TODOS los usuarios (2026-07-23)
     opciones.push(iconBtn('Editar', <EditOutlined />, '#8d6e63', () => navigate(`/dashboard/mensajeria/editar/${record.id}`)));
+    if (record.estado === 1) {
+      opciones.push(iconBtn('Iniciar envío', <CheckOutlined />, '#212529', () => handleAceptar(record.id)));
+    }
     if (!isMensajero) {
       opciones.push(iconBtn('Eliminar', <DeleteOutlined />, '#1976d2', () => handleDelete(record.id)));
     }
     if (canOperate) {
       if (record.estado === 1) {
         opciones.push(iconBtn('Rechazar', <CloseOutlined />, '#dc3545', () => handleReject(record.id)));
-        opciones.push(iconBtn('Aceptar', <CheckOutlined />, '#212529', () => handleAceptar(record.id)));
       }
       if ([2, 5].includes(record.estado)) {
         opciones.push(iconBtn('Entregado', <CheckSquareOutlined />, '#28a745', () => handleDeliver(record)));
@@ -531,9 +533,9 @@ const PendingEncargosPage: React.FC = () => {
           ))}
         </Select>
       )}
-      {record.estado === 1 && record.mensajero && canOperate && (
+      {record.estado === 1 && (
         <Button size="large" type="primary" icon={<RocketOutlined />} onClick={() => handleAceptar(record.id)}>
-          Aceptar
+          Iniciar envío
         </Button>
       )}
       {[2, 5].includes(record.estado) && record.mensajero && canOperate && (
