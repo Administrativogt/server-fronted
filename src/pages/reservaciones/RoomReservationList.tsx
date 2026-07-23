@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import {
   Button, Modal, Select, Space, Table, Tag, Typography, message,
   notification, Tooltip, Switch, Form, DatePicker, TimePicker,
-  Input, InputNumber, Checkbox
+  Input, InputNumber, Checkbox, Radio
 } from 'antd';
 import {
   EditOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, 
@@ -146,6 +146,8 @@ export default function ReservationsList() {
   const [deleteVisible, setDeleteVisible] = useState(false);
   const [deleteRow, setDeleteRow] = useState<Reservation | null>(null);
   const [deleteReason, setDeleteReason] = useState('');
+  // Recurrentes: false = solo esta ocurrencia, true = toda la serie
+  const [deleteSeries, setDeleteSeries] = useState(false);
 
   // Cancel modal
   const [cancelVisible, setCancelVisible] = useState(false);
@@ -307,6 +309,7 @@ export default function ReservationsList() {
   const openDelete = (row: Reservation) => {
     setDeleteRow(row);
     setDeleteReason('');
+    setDeleteSeries(false);
     setDeleteVisible(true);
   };
 
@@ -314,9 +317,24 @@ export default function ReservationsList() {
     if (!deleteRow) return;
     if (!deleteReason.trim()) return message.warning('Ingrese un motivo.');
     try {
-      await api.delete(`/room-reservations/${deleteRow.id}`, { data: { delete_reason: deleteReason.trim() } });
-      notification.success({ message: 'Reservación eliminada' });
-      setRows(prev => prev.filter(r => r.id !== deleteRow.id));
+      await api.delete(`/room-reservations/${deleteRow.id}`, {
+        data: { delete_reason: deleteReason.trim(), ...(deleteSeries ? { series: true } : {}) },
+      });
+      notification.success({
+        message: deleteSeries ? 'Serie de reservaciones eliminada' : 'Reservación eliminada',
+      });
+      if (deleteSeries) {
+        // Quitar toda la serie del listado (padre + ocurrencias pendientes)
+        const rootId = deleteRow.parent_reservation_id ?? deleteRow.id;
+        setRows(prev =>
+          prev.filter(r =>
+            r.id !== deleteRow.id &&
+            !((r.id === rootId || r.parent_reservation_id === rootId) && r.state === 0),
+          ),
+        );
+      } else {
+        setRows(prev => prev.filter(r => r.id !== deleteRow.id));
+      }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
       message.error(error?.response?.data?.message || 'No se pudo eliminar.');
@@ -1034,9 +1052,22 @@ export default function ReservationsList() {
         onOk={submitDelete}
         okText="Eliminar"
         okButtonProps={{ danger: true }}
-        onCancel={() => { setDeleteVisible(false); setDeleteRow(null); }}
+        onCancel={() => { setDeleteVisible(false); setDeleteRow(null); setDeleteSeries(false); }}
         destroyOnClose
       >
+        {(deleteRow?.is_recurring || deleteRow?.parent_reservation_id) && (
+          <div style={{ marginBottom: 12 }}>
+            <Typography.Text strong>Esta reservación es recurrente:</Typography.Text>
+            <Radio.Group
+              value={deleteSeries}
+              onChange={(e) => setDeleteSeries(e.target.value)}
+              style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}
+            >
+              <Radio value={false}>Eliminar solo esta ocurrencia</Radio>
+              <Radio value={true}>Eliminar toda la serie (las demás fechas también)</Radio>
+            </Radio.Group>
+          </div>
+        )}
         <TextArea
           rows={4}
           placeholder="Motivo de la eliminación"
