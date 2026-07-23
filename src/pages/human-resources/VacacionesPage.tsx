@@ -37,6 +37,7 @@ import {
   HistoryOutlined,
   InfoCircleOutlined,
   PlusOutlined,
+  MailOutlined,
   ReloadOutlined,
   StopOutlined,
   TeamOutlined,
@@ -61,6 +62,7 @@ import {
   type VacationSettingsData,
   type VacationStatus,
   approveVacationRequest,
+  resendVacationApprovalEmail,
   cancelVacationRequest,
   createVacationRequest,
   downloadVacationBalancesExcel,
@@ -434,6 +436,7 @@ const VacacionesPage: React.FC = () => {
   const [allRequests, setAllRequests] = useState<VacationRequest[]>([]);
   const [allLoading, setAllLoading] = useState(false);
   const [approvingId, setApprovingId] = useState<number | null>(null);
+  const [resendingId, setResendingId] = useState<number | null>(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [rejectForm] = Form.useForm();
@@ -810,6 +813,20 @@ const VacacionesPage: React.FC = () => {
       message.error('No se pudo crear la solicitud');
     } finally {
       setHrRequesting(false);
+    }
+  };
+
+  const handleResendApproval = async (id: number) => {
+    setResendingId(id);
+    try {
+      await resendVacationApprovalEmail(id);
+      message.success('Correo de aprobación reenviado al jefe inmediato actual');
+    } catch (error: any) {
+      message.error(
+        error?.response?.data?.message || 'No se pudo reenviar el correo',
+      );
+    } finally {
+      setResendingId(null);
     }
   };
 
@@ -1247,6 +1264,15 @@ const VacacionesPage: React.FC = () => {
                 >
                   Rechazar
                 </Button>
+                <Tooltip title="Reenviar correo de aprobación al jefe inmediato actual">
+                  <Button
+                    size="small"
+                    icon={<MailOutlined />}
+                    loading={resendingId === record.id}
+                    onClick={() => handleResendApproval(record.id)}
+                    style={{ borderRadius: 6 }}
+                  />
+                </Tooltip>
               </>
             )}
             {record.estado === 'APROBADA' && (

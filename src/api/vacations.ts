@@ -143,6 +143,11 @@ export async function approveVacationRequest(id: number): Promise<VacationReques
   return data;
 }
 
+export async function resendVacationApprovalEmail(id: number): Promise<{ sent: boolean }> {
+  const { data } = await api.post(`${BASE}/${id}/resend-approval`);
+  return data;
+}
+
 export async function rejectVacationRequest(
   id: number,
   motivo_cancelacion?: string,
