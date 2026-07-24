@@ -353,6 +353,11 @@ const PendingEncargosPage: React.FC = () => {
     5: { label: 'Extraordinario', color: '#dc3545' },
   };
 
+  // Comparador de texto (numeric-aware) para los sorters de columnas
+  const byText = (get: (e: Encargo) => string | null | undefined) =>
+    (a: Encargo, b: Encargo) =>
+      (get(a) || '').localeCompare(get(b) || '', 'es', { numeric: true });
+
   const columns = [
     {
       title: '#',
@@ -372,13 +377,15 @@ const PendingEncargosPage: React.FC = () => {
       title: 'Solicitante',
       width: '8%',
       key: 'solicitante',
+      sorter: byText((e) =>
+        e.solicitante ? `${e.solicitante.first_name} ${e.solicitante.last_name}` : ''),
       render: (_: any, record: Encargo) =>
         record.solicitante ? `${record.solicitante.first_name} ${record.solicitante.last_name}` : '-'
     },
-    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: '8%' },
-    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: '7%' },
-    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: '14%' },
-    { title: 'Zona', dataIndex: 'zona', key: 'zona', width: '4%', align: 'center' as const },
+    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: '8%', sorter: byText((e) => e.destinatario) },
+    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: '7%', sorter: byText((e) => e.empresa) },
+    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: '14%', sorter: byText((e) => e.direccion) },
+    { title: 'Zona', dataIndex: 'zona', key: 'zona', width: '4%', align: 'center' as const, sorter: byText((e) => String(e.zona ?? '')) },
     {
       title: 'Mensajero',
       width: '9%',
@@ -419,6 +426,7 @@ const PendingEncargosPage: React.FC = () => {
       width: '7%',
       dataIndex: 'mensajeria_enviada',
       key: 'mensajeria_enviada',
+      sorter: byText((e) => e.mensajeria_enviada),
       render: (v: string) => v || '—',
     },
     {
@@ -426,6 +434,7 @@ const PendingEncargosPage: React.FC = () => {
       width: '4%',
       dataIndex: 'prioridad',
       key: 'prioridad',
+      sorter: (a: Encargo, b: Encargo) => (a.prioridad ?? 0) - (b.prioridad ?? 0),
       render: (p: number) => PRIORIDADES_TEXTO[p] || p,
     },
     {
@@ -433,6 +442,7 @@ const PendingEncargosPage: React.FC = () => {
       width: '7%',
       dataIndex: 'fecha_realizacion',
       key: 'fecha',
+      sorter: byText((e) => e.fecha_realizacion),
       render: (date: string) => ddmmyyyy(date),
     },
     {
@@ -459,6 +469,7 @@ const PendingEncargosPage: React.FC = () => {
       width: '5%',
       dataIndex: 'estado',
       key: 'estado',
+      sorter: (a: Encargo, b: Encargo) => (a.estado ?? 0) - (b.estado ?? 0),
       render: (estado: number) => {
         const cfg = ESTADO_TEXTO[estado];
         if (!cfg) return estado;
