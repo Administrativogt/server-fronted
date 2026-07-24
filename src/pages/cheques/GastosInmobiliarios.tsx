@@ -29,7 +29,6 @@ import {
   getCheckByRequestId,
   getInmobiliarioExpenses,
   getPendingLiquidation,
-  liquidateInmobiliarioExpense,
   updateInmobiliarioExpense,
   verifyParentCheck,
 } from '../../api/checks';
@@ -354,16 +353,6 @@ function GastosInmobiliarios() {
     }
   };
 
-  const handleLiquidateExpense = async (id: number) => {
-    try {
-      await liquidateInmobiliarioExpense(id);
-      message.success('Estado actualizado');
-      await loadData();
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || 'Error al cambiar estado');
-    }
-  };
-
   // ── Gastos recientes: modal con lo que el usuario creó, para bajar el
   //    Excel y enviárselo a los responsables que deben liquidar ──────────
   const [recentOpen, setRecentOpen] = useState(false);
@@ -529,12 +518,8 @@ function GastosInmobiliarios() {
           { title: 'ID', render: (_, row) => row.request_id?.request_id ?? '—', width: 90 },
           { title: 'Fecha', dataIndex: 'date', width: 120 },
           { title: 'NT', dataIndex: 'note_number', width: 90 },
-          { title: 'Cliente', dataIndex: 'client' },
-          { title: 'Documentos', dataIndex: 'documents' },
-          { title: 'No. de comprobante', dataIndex: 'receipt_number_reference', width: 170 },
-          { title: 'Comprobante a ingresar', dataIndex: 'receipt_number', width: 190 },
-          { title: 'Valor', dataIndex: 'receipt_value', render: (v) => Number(v).toFixed(2), width: 120 },
-          { title: 'Comentario', dataIndex: 'comment' },
+          { title: 'Serie', dataIndex: 'receipt_serie', width: 110 },
+          { title: 'Comprobante ingresado', dataIndex: 'receipt_number', width: 190 },
           {
             title: 'Entrega',
             width: 170,
@@ -545,32 +530,14 @@ function GastosInmobiliarios() {
                 : '—',
           },
           {
-            title: 'Estado',
-            dataIndex: 'state',
-            width: 120,
-            render: (state: number) => {
-              const map: Record<number, { color: string; label: string }> = {
-                1: { color: 'green', label: 'Aceptado' },
-                2: { color: 'red', label: 'Rechazado' },
-                3: { color: 'orange', label: 'Creado' },
-                4: { color: 'blue', label: 'Listo para liquidar' },
-              };
-              const { color, label } = map[state] ?? { color: 'default', label: `Estado ${state}` };
-              return <Tag color={color}>{label}</Tag>;
-            },
-          },
-          {
             title: 'Acciones',
-            width: 300,
+            width: 200,
             render: (_, record) => (
               <Space>
                 <Button onClick={() => openEdit(record)}>Editar</Button>
                 <Popconfirm title="¿Eliminar gasto?" onConfirm={() => handleDelete(record.id)}>
                   <Button danger>Eliminar</Button>
                 </Popconfirm>
-                <Button type="primary" onClick={() => handleLiquidateExpense(record.id)}>
-                  Marcar liquidado
-                </Button>
               </Space>
             ),
           },
