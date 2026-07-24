@@ -504,8 +504,9 @@ function GastosInmobiliarios() {
         rowKey="id"
         loading={loading}
         dataSource={data}
-        scroll={{ x: 'max-content' }}
-        sticky={{ offsetHeader: 64 }}
+        // Scroll interno: horizontal si no cabe, vertical adaptado a la
+        // pantalla con el encabezado siempre visible.
+        scroll={{ x: 'max-content', y: 'calc(100vh - 380px)' }}
         pagination={{
           current: pagination.page,
           pageSize: pagination.per_page,
