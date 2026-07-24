@@ -1070,8 +1070,8 @@ export default function ReservationsList() {
               onChange={(e) => setDeleteSeries(e.target.value)}
               style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}
             >
-              <Radio value={false}>Eliminar solo esta ocurrencia</Radio>
-              <Radio value={true}>Eliminar toda la serie (las demás fechas también)</Radio>
+              <Radio value={false}>Eliminar reserva sólo de este día (el resto de la serie continuará con la reserva)</Radio>
+              <Radio value={true}>Eliminar la serie completa (se eliminará la recurrencia completa a partir de esta fecha)</Radio>
             </Radio.Group>
           </div>
         )}
