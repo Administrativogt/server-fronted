@@ -87,6 +87,11 @@ const AssignedEncargosPage: React.FC = () => {
     </>
   );
 
+  // Comparador de texto (numeric-aware) para los sorters de columnas
+  const byText = (get: (e: Encargo) => string | null | undefined) =>
+    (a: Encargo, b: Encargo) =>
+      (get(a) || '').localeCompare(get(b) || '', 'es', { numeric: true });
+
   // Columnas en el orden exacto del Django viejo
   const columns = [
     { title: '#', key: 'num', width: '4%', render: (_: any, __: Encargo, index: number) => index + 1 },
@@ -94,17 +99,21 @@ const AssignedEncargosPage: React.FC = () => {
       title: 'Solicitante',
       width: '9%',
       key: 'solicitante',
+      sorter: byText((e) =>
+        e.solicitante ? `${e.solicitante.first_name} ${e.solicitante.last_name}` : ''),
       render: (_: any, record: Encargo) =>
         record.solicitante ? `${record.solicitante.first_name} ${record.solicitante.last_name}` : '-'
     },
-    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: '9%' },
-    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: '8%' },
-    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: '17%' },
-    { title: 'Zona', dataIndex: 'zona', key: 'zona', width: '4%' },
+    { title: 'Destinatario', dataIndex: 'destinatario', key: 'destinatario', width: '9%', sorter: byText((e) => e.destinatario) },
+    { title: 'Empresa', dataIndex: 'empresa', key: 'empresa', width: '8%', sorter: byText((e) => e.empresa) },
+    { title: 'Dirección', dataIndex: 'direccion', key: 'direccion', width: '17%', sorter: byText((e) => e.direccion) },
+    { title: 'Zona', dataIndex: 'zona', key: 'zona', width: '4%', sorter: byText((e) => String(e.zona ?? '')) },
     {
       title: 'Mensajero',
       width: '9%',
       key: 'mensajero',
+      sorter: byText((e) =>
+        e.mensajero ? `${e.mensajero.first_name} ${e.mensajero.last_name}` : ''),
       render: (_: any, record: Encargo) =>
         record.mensajero ? `${record.mensajero.first_name} ${record.mensajero.last_name}` : '-'
     },
@@ -113,6 +122,7 @@ const AssignedEncargosPage: React.FC = () => {
       width: '8%',
       dataIndex: 'mensajeria_enviada',
       key: 'mensajeria_enviada',
+      sorter: byText((e) => e.mensajeria_enviada),
       render: (v: string) => v || '—',
     },
     {
@@ -120,6 +130,7 @@ const AssignedEncargosPage: React.FC = () => {
       width: '5%',
       dataIndex: 'prioridad',
       key: 'prioridad',
+      sorter: (a: Encargo, b: Encargo) => (a.prioridad ?? 0) - (b.prioridad ?? 0),
       render: (p: number) => PRIORIDADES[p] || p,
     },
     {
@@ -127,6 +138,7 @@ const AssignedEncargosPage: React.FC = () => {
       width: '8%',
       dataIndex: 'fecha_realizacion',
       key: 'fecha',
+      sorter: byText((e) => e.fecha_realizacion),
       render: (date: string) => ddmmyyyy(date),
     },
     {
@@ -134,6 +146,7 @@ const AssignedEncargosPage: React.FC = () => {
       width: '7%',
       dataIndex: 'estado',
       key: 'estado',
+      sorter: (a: Encargo, b: Encargo) => (a.estado ?? 0) - (b.estado ?? 0),
       render: (estado: number) => {
         const config = ESTADOS[estado];
         return config ? <Tag color={config.color}>{config.label}</Tag> : estado;
