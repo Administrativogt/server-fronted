@@ -11,7 +11,8 @@ function ChequesPendientes() {
   const userId = useAuthStore((s) => s.userId);
   const tipoUsuario = useAuthStore((s) => s.tipo_usuario);
   const isSuperuser = useAuthStore((s) => s.is_superuser);
-  const canViewAll = isSuperuser || [1, 2, 10].includes(tipoUsuario || 0);
+  // 9 = Contabilidad: ve todos los cheques pendientes (espejo del backend isElevatedUser)
+  const canViewAll = isSuperuser || [1, 2, 9, 10].includes(tipoUsuario || 0);
 
   const [rows, setRows] = useState<CheckRequest[]>([]);
   const [users, setUsers] = useState<UserLite[]>([]);

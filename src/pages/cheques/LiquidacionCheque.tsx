@@ -37,7 +37,8 @@ function LiquidacionCheque() {
   const userId = useAuthStore((s) => s.userId);
   const tipoUsuario = useAuthStore((s) => s.tipo_usuario);
   const isSuperuser = useAuthStore((s) => s.is_superuser);
-  const canViewAll = isSuperuser || [1, 2, 10].includes(tipoUsuario || 0);
+  // 9 = Contabilidad: ve y liquida cualquier cheque (espejo del backend isElevatedUser)
+  const canViewAll = isSuperuser || [1, 2, 9, 10].includes(tipoUsuario || 0);
 
   const [data, setData] = useState<CheckRequest[]>([]);
   const [loading, setLoading] = useState(false);
