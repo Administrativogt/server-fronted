@@ -113,6 +113,47 @@ const MIN_DURATION_MIN = 15;
 const fmtHM = (s: string) => (s.length >= 5 ? s.slice(0, 5) : s);
 const parseHM = (s: string) => dayjs(fmtHM(s), "HH:mm");
 
+interface ConflictInfo {
+  init_hour: string;
+  end_hour: string;
+  /** true cuando la reserva que choca es del propio usuario */
+  is_mine?: boolean;
+  owner_name?: string | null;
+  reason?: string | null;
+}
+
+/**
+ * Arma el aviso de choque de horario.
+ *
+ * El caso `is_mine` existe por un incidente real: una persona reservó, volvió a
+ * consultar el mismo horario, vio "Horario no disponible" —que en realidad era
+ * SU PROPIA reserva— y la borró creyendo que alguien se le había adelantado.
+ * El mensaje ahora distingue si la reserva es tuya o de alguien más.
+ */
+const buildConflictMessage = (
+  conflict: ConflictInfo,
+  roomName: string,
+  date: string,
+) => {
+  const franja = `de ${fmtHM(conflict.init_hour)} a ${fmtHM(conflict.end_hour)}`;
+
+  if (conflict.is_mine) {
+    return {
+      message: "Ya reservaste esta sala",
+      description: `Tú ya tienes reservada la sala "${roomName}" el ${date} ${franja}${
+        conflict.reason ? ` ("${conflict.reason}")` : ""
+      }. No necesitas crearla de nuevo: si quieres cambiar la hora, edítala desde "Ver reservaciones".`,
+    };
+  }
+
+  return {
+    message: "Horario no disponible",
+    description: `La sala "${roomName}" ya está reservada el ${date} ${franja}${
+      conflict.owner_name ? ` por ${conflict.owner_name}` : ""
+    }. Cambia la hora o la sala.`,
+  };
+};
+
 export default function RoomReservationForm() {
   const [form] = Form.useForm<FormValues>();
   const [rooms, setRooms] = useState<Room[] | null>(null);
@@ -361,13 +402,14 @@ export default function RoomReservationForm() {
         if (mySeq !== checkSeqRef.current) return false;
 
         if (!data.available) {
-          const conflictMessage = {
-            message: "Horario no disponible",
-            description: `No hay horario disponible en la sala "${getRoomName(roomId)}" el ${formatted.date} de ${fmtHM(data.conflict.init_hour)} a ${fmtHM(data.conflict.end_hour)}. Si la reserva que choca es tuya y quieres ampliarla, edítala desde "Ver reservaciones" en lugar de crear otra.`,
-          };
+          const conflictMessage = buildConflictMessage(
+            data.conflict,
+            getRoomName(roomId),
+            formatted.date,
+          );
           setCurrentConflict(conflictMessage);
           if (!opts?.silent) {
-            notif.warning({ key: NOTIF_KEY, ...conflictMessage, duration: 4 });
+            notif.warning({ key: NOTIF_KEY, ...conflictMessage, duration: 5 });
           }
           return true;
         }
@@ -502,28 +544,42 @@ export default function RoomReservationForm() {
         const msg = response?.data?.message;
 
         if (status === 409) {
-          const list = await fetchDay(reservation_date, values.room);
-          const conflictRoomName = getRoomName(values.room);
-          const first = list.find(
-            (r) =>
-              r.room_name === conflictRoomName &&
-              overlaps(
-                payload.init_hour,
-                payload.end_hour,
-                r.init_hour,
-                r.end_hour,
-              ),
-          );
-          const desc = first
-            ? `No hay horario disponible en la sala "${getRoomName(values.room)}" de ${fmtHM(first.init_hour)} a ${fmtHM(first.end_hour)}. Cambia la hora o la sala.`
-            : typeof msg === "string"
-              ? msg
-              : "Ya existe una reservación en ese horario y sala.";
-          notif.warning({
-            key: NOTIF_KEY,
+          await fetchDay(reservation_date, values.room);
+
+          // Se le pregunta al backend quien tiene el choque: es la unica fuente
+          // que sabe si la reserva es del propio usuario. Reconstruirlo desde
+          // el listado del dia no permite distinguirlo.
+          let aviso = {
             message: "Horario no disponible",
-            description: desc,
-          });
+            description:
+              typeof msg === "string"
+                ? msg
+                : "Ya existe una reservación en ese horario y sala.",
+          };
+          try {
+            const { data } = await api.get(
+              "/room-reservations/check-availability",
+              {
+                params: {
+                  room_id: values.room,
+                  date: reservation_date,
+                  start: fmtHM(payload.init_hour),
+                  end: fmtHM(payload.end_hour),
+                },
+              },
+            );
+            if (!data.available && data.conflict) {
+              aviso = buildConflictMessage(
+                data.conflict,
+                getRoomName(values.room),
+                reservation_date,
+              );
+            }
+          } catch {
+            /* si falla, queda el aviso genérico de arriba */
+          }
+
+          notif.warning({ key: NOTIF_KEY, ...aviso });
         } else if (status === 400) {
           notif.error({
             message: "Datos inválidos",
