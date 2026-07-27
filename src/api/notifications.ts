@@ -101,6 +101,12 @@ export async function fetchDeliveredNotifications(params?: { sameMonth?: string 
   return data;
 }
 
+/** Entregadas HOY (día calculado en hora de Guatemala, no UTC). */
+export async function fetchDeliveredToday(): Promise<NotificationDto[]> {
+  const { data } = await api.get("/notifications/delivered", { params: { today: "true" } });
+  return data;
+}
+
 //
 // Filtrar notificaciones
 //
