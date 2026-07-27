@@ -13,8 +13,8 @@ import {
 } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { getTeams, type Team } from '../../api/teams';
-import { fetchUsers, type UserLite, fullName } from '../../api/users';
+import { getTeams, getAuthorizers, type Team } from '../../api/teams';
+import { type UserLite, fullName } from '../../api/users';
 import type { MoneyRequirement } from '../../api/moneyRequirements';
 import { createMoneyRequirement, sendAuthorizationEmail } from '../../api/moneyRequirements';
 
@@ -36,6 +36,7 @@ interface FormValues {
   description?: string;
   date?: dayjs.Dayjs;
   teamId: number;
+  areaIds?: number[];
   responsibleForAuthorizingId: number;
 }
 
@@ -45,12 +46,20 @@ const CreateMoneyRequirement: React.FC = () => {
   const [users, setUsers] = useState<UserLite[]>([]);
   const navigate = useNavigate();
 
+  // Las áreas dependen del equipo: /money-requirements/teams ya las trae
+  // anidadas, así que el combo cascada no necesita otra petición.
+  const teamId = Form.useWatch('teamId', form);
+  const teamAreas = useMemo(
+    () => teams.find((t) => t.id === teamId)?.areas ?? [],
+    [teams, teamId],
+  );
+
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [t, u] = await Promise.all([getTeams(), fetchUsers()]);
+        const [t, a] = await Promise.all([getTeams(), getAuthorizers()]);
         setTeams(t);
-        setUsers(u);
+        setUsers(a);
       } catch (err) {
         console.error('Error cargando datos', err);
       }
@@ -60,11 +69,7 @@ const CreateMoneyRequirement: React.FC = () => {
 
   // ⚙️ Opciones para el combo de autorizadores (con label string para filtrar)
   const userOptions = useMemo(
-    () =>
-      users.map((u) => ({
-        value: u.id,
-        label: `${fullName(u)}${u.email ? ` (${u.email})` : ''}`,
-      })),
+    () => users.map((u) => ({ value: u.id, label: fullName(u) })),
     [users],
   );
 
@@ -79,6 +84,7 @@ const CreateMoneyRequirement: React.FC = () => {
         description: values.description,
         date: values.date ? dayjs(values.date).format('YYYY-MM-DD') : undefined,
         teamId: values.teamId,
+        areaIds: values.areaIds,
         responsibleForAuthorizingId: values.responsibleForAuthorizingId,
       };
 
@@ -103,6 +109,7 @@ const CreateMoneyRequirement: React.FC = () => {
         description: values.description,
         date: values.date ? dayjs(values.date).format('YYYY-MM-DD') : undefined,
         teamId: values.teamId,
+        areaIds: values.areaIds,
         responsibleForAuthorizingId: values.responsibleForAuthorizingId,
       };
 
@@ -173,7 +180,12 @@ const CreateMoneyRequirement: React.FC = () => {
         </Form.Item>
 
         <Form.Item label="Equipo" name="teamId" rules={[{ required: true }]}>
-          <Select placeholder="Seleccione un equipo" showSearch optionFilterProp="children">
+          <Select
+            placeholder="Seleccione un equipo"
+            showSearch
+            optionFilterProp="children"
+            onChange={() => form.setFieldValue('areaIds', undefined)}
+          >
             {teams.map((t) => (
               <Select.Option key={t.id} value={t.id}>
                 {t.name}
@@ -183,13 +195,39 @@ const CreateMoneyRequirement: React.FC = () => {
         </Form.Item>
 
         <Form.Item
+          label="Área de práctica"
+          name="areaIds"
+          rules={[{ required: teamAreas.length > 0, message: 'Seleccione al menos un área' }]}
+          extra={
+            !teamId
+              ? undefined
+              : teamAreas.length === 0
+                ? 'Este equipo no tiene áreas configuradas'
+                : 'Puede seleccionar más de una'
+          }
+        >
+          <Select
+            mode="multiple"
+            allowClear
+            disabled={!teamId || teamAreas.length === 0}
+            placeholder={teamId ? 'Seleccione el área' : 'Primero seleccione el equipo'}
+            optionFilterProp="label"
+            options={teamAreas.map((a) => ({ value: a.id, label: a.name }))}
+          />
+        </Form.Item>
+
+        <Form.Item
           label="Responsable de firmar"
           name="responsibleForAuthorizingId"
           rules={[{ required: true }]}
         >
           <Select
             showSearch
-            placeholder="Seleccione un autorizador"
+            allowClear
+            placeholder={
+              users.length ? 'Seleccione quien autoriza' : 'Su equipo no tiene autorizadores'
+            }
+            notFoundContent="Su equipo no tiene autorizadores configurados"
             options={userOptions}
             optionFilterProp="label"
             filterSort={(a, b) =>

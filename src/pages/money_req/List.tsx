@@ -28,8 +28,8 @@ import {
   deleteMoneyRequirement,
   type MoneyRequirement,
 } from '../../api/moneyRequirements';
-import { fetchUsers, type UserLite, fullName } from '../../api/users';
-import { getTeams, type Team } from '../../api/teams';
+import { type UserLite, fullName } from '../../api/users';
+import { getTeams, getAuthorizers, type Team } from '../../api/teams';
 import { usePermissions } from '../../hooks/usePermissions';
 
 const { Title } = Typography;
@@ -94,7 +94,10 @@ const MoneyReqList: React.FC = () => {
 
   useEffect(() => {
     fetchRequirements(defaultFilters);
-    fetchUsers().then(setUsers).catch(() => {});
+    // Solo autorizadores (grupo "money requirements authorizers"), no las 295
+    // personas. Aquí sin acotar al equipo propio: contabilidad edita y envía
+    // requerimientos de cualquier equipo.
+    getAuthorizers(true).then(setUsers).catch(() => {});
     getTeams().then(setTeams).catch(() => {});
   }, []);
 
@@ -378,7 +381,8 @@ const MoneyReqList: React.FC = () => {
         >
           {users.map((u) => (
             <Select.Option key={u.id} value={u.id}>
-              {fullName(u)} ({u.email})
+              {fullName(u)}
+              {u.equipo?.nombre ? ` — ${u.equipo.nombre}` : ''}
             </Select.Option>
           ))}
         </Select>
@@ -433,6 +437,7 @@ const MoneyReqList: React.FC = () => {
               {users.map((u) => (
                 <Select.Option key={u.id} value={u.id}>
                   {fullName(u)}
+                  {u.equipo?.nombre ? ` — ${u.equipo.nombre}` : ''}
                 </Select.Option>
               ))}
             </Select>

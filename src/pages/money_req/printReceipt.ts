@@ -54,6 +54,16 @@ export function printMoneyRequirement(r: MoneyRequirement): void {
       : (CURRENCY_NAME[r.currency] ?? 'Quetzales');
   const stateLabel = STATE_LABEL[r.state] ?? '—';
 
+  // El backend manda las áreas como arreglo (areaNames) y como texto ya unido
+  // (areaName). Un requerimiento puede tener varias, por eso el rótulo cambia.
+  const areas = r.areaNames?.length
+    ? r.areaNames
+    : r.areaName
+      ? r.areaName.split(',').map((a) => a.trim()).filter(Boolean)
+      : [];
+  const areaLabel = areas.length > 1 ? 'Áreas' : 'Área';
+  const areaText = areas.join(' · ');
+
   const row = (label: string, value: string, opts?: { mono?: boolean; strong?: boolean }) => `
     <div class="row">
       <div class="label">${esc(label)}</div>
@@ -162,6 +172,7 @@ export function printMoneyRequirement(r: MoneyRequirement): void {
       ${r.workNoteNumber ? row('Nota de trabajo', esc(r.workNoteNumber), { mono: true }) : ''}
       ${row('Detalle', `<span class="desc">${esc(r.description)}</span>`)}
       ${row('Equipo', esc(r.teamName))}
+      ${row(areaLabel, esc(areaText))}
       ${row('Estado', `<span class="badge">${esc(stateLabel)}</span>`)}
     </div>
 
