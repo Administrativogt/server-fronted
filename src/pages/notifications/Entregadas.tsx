@@ -11,7 +11,12 @@ import {
 
 const { Title } = Typography;
 
-const Entregadas: React.FC = () => {
+/**
+ * Historial de entregadas/finalizadas con filtros.
+ * Con `embedded` se omite el título propio: así se incrusta como pestaña
+ * "Historial" en la pantalla de Notificaciones sin duplicar encabezados.
+ */
+const Entregadas: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
   const [notifications, setNotifications] = useState<NotificationDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -158,7 +163,7 @@ const Entregadas: React.FC = () => {
 
   return (
     <div>
-      <Title level={3}>Notificaciones entregadas</Title>
+      {!embedded && <Title level={3}>Notificaciones entregadas</Title>}
 
       <Row gutter={[16, 12]} style={{ marginBottom: 16 }} align="bottom">
         <Col xs={24} sm={8} md={6}>
