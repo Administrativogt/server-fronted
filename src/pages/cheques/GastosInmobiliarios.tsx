@@ -522,6 +522,17 @@ function GastosInmobiliarios() {
           { title: 'Serie', dataIndex: 'receipt_serie', width: 110 },
           { title: 'Comprobante ingresado', dataIndex: 'receipt_number', width: 190 },
           {
+            title: 'Valor',
+            dataIndex: 'receipt_value',
+            width: 130,
+            align: 'right',
+            render: (v) =>
+              `Q ${Number(v ?? 0).toLocaleString('es-GT', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}`,
+          },
+          {
             title: 'Entrega',
             width: 170,
             render: (_, row) =>
