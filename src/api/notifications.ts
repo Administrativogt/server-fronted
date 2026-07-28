@@ -204,6 +204,12 @@ export async function fetchPlaces(): Promise<PlaceDto[]> {
 //
 // Salas por entidad
 //
+/** ¿El usuario puede editar notificaciones? (superusuarios y recepción) */
+export async function fetchCanManageNotifications(): Promise<boolean> {
+  const { data } = await api.get("/notifications/can-manage");
+  return !!data?.canManage;
+}
+
 export async function fetchHallsByProvenience(provenienceId: number): Promise<HallDto[]> {
   const { data } = await api.get("/notifications/halls", {
     params: { provenienceId },

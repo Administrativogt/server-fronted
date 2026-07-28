@@ -1,13 +1,23 @@
 import React, { useEffect, useState } from "react";
-import { Table, Button, Space, Tabs, Typography, message } from "antd";
+import { Table, Button, Form, Input, Modal, Select, Space, Tabs, Typography, message } from "antd";
+import { EditOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import NotificationActions from "./NotificationActions";
 import Entregadas from "./Entregadas";
 import {
+  fetchCanManageNotifications,
   fetchDeliveredToday,
+  fetchHallsByProvenience,
   fetchPendingNotifications,
+  fetchProveniences,
+  updateNotification,
+  type HallDto,
   type NotificationDto,
+  type ProvenienceDto,
 } from "../../api/notifications";
+
+/** Sentinela para "Otra entidad" (texto libre), igual que en CrearNotificacion. */
+const OTRA_ENTIDAD = -1;
 
 const { Title } = Typography;
 
@@ -30,6 +40,17 @@ const Notificaciones: React.FC = () => {
 
   const [deliveredToday, setDeliveredToday] = useState<NotificationDto[]>([]);
   const [loadingToday, setLoadingToday] = useState(false);
+
+  /* Edición: superusuarios y recepción (el backend decide; aquí solo se
+     muestra u oculta el botón). */
+  const [canManage, setCanManage] = useState(false);
+  const [editRow, setEditRow] = useState<NotificationDto | null>(null);
+  const [proveniences, setProveniences] = useState<ProvenienceDto[]>([]);
+  const [halls, setHalls] = useState<HallDto[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [editForm] = Form.useForm();
+  const provElegida = Form.useWatch("provenience", editForm);
+  const esOtra = provElegida === OTRA_ENTIDAD;
 
   const loadNotifications = async () => {
     setLoading(true);
@@ -54,7 +75,80 @@ const Notificaciones: React.FC = () => {
 
   useEffect(() => {
     loadNotifications();
+    fetchCanManageNotifications().then(setCanManage).catch(() => {});
   }, []);
+
+  const abrirEdicion = async (record: NotificationDto) => {
+    setEditRow(record);
+    try {
+      if (!proveniences.length) setProveniences(await fetchProveniences());
+    } catch {
+      /* el select queda solo con "Otra entidad"; se puede guardar igual */
+    }
+
+    const provId = record.provenience?.id;
+    editForm.setFieldsValue({
+      provenience: provId ?? (record.otherProvenience ? OTRA_ENTIDAD : undefined),
+      otherProvenience: record.otherProvenience ?? undefined,
+      hall: record.hall?.id,
+      cedule: record.cedule,
+      expedientNum: record.expedientNum,
+      directedTo: record.directedTo,
+    });
+
+    if (provId) {
+      fetchHallsByProvenience(provId).then(setHalls).catch(() => setHalls([]));
+    } else {
+      setHalls([]);
+    }
+  };
+
+  const alCambiarProcedencia = (val: number) => {
+    editForm.setFieldsValue({ hall: undefined, otherProvenience: undefined });
+    if (val === OTRA_ENTIDAD) {
+      setHalls([]);
+      return;
+    }
+    fetchHallsByProvenience(val).then(setHalls).catch(() => setHalls([]));
+  };
+
+  const guardarEdicion = async () => {
+    if (!editRow) return;
+    try {
+      const v = await editForm.validateFields();
+      setSaving(true);
+
+      const payload =
+        v.provenience === OTRA_ENTIDAD
+          ? {
+              // removeProvenience limpia procedencia y sala en el backend
+              removeProvenience: true,
+              otherProvenience: v.otherProvenience,
+              cedule: v.cedule,
+              expedientNum: v.expedientNum,
+              directedTo: v.directedTo,
+            }
+          : {
+              provenience: v.provenience,
+              hall: v.hall ?? null,
+              otherProvenience: null,
+              cedule: v.cedule,
+              expedientNum: v.expedientNum,
+              directedTo: v.directedTo,
+            };
+
+      await updateNotification(editRow.id, payload as never);
+      message.success("Notificación actualizada");
+      setEditRow(null);
+      loadNotifications();
+    } catch (err: unknown) {
+      const e = err as { errorFields?: unknown; response?: { data?: { message?: string } } };
+      if (e?.errorFields) return;
+      message.error(e?.response?.data?.message || "Error al actualizar la notificación");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const pendingColumns = [
     {
@@ -95,6 +189,24 @@ const Notificaciones: React.FC = () => {
       dataIndex: "directedTo",
       width: 180,
     },
+    ...(canManage
+      ? [
+          {
+            title: "Acciones",
+            key: "acciones",
+            width: 90,
+            render: (_: unknown, record: NotificationDto) => (
+              <Button
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => abrirEdicion(record)}
+              >
+                Editar
+              </Button>
+            ),
+          },
+        ]
+      : []),
   ];
 
   const tabPendientes = (
@@ -200,6 +312,79 @@ const Notificaciones: React.FC = () => {
           },
         ]}
       />
+
+      <Modal
+        title={editRow ? `Editar notificación — cédula ${editRow.cedule}` : "Editar"}
+        open={!!editRow}
+        onCancel={() => setEditRow(null)}
+        onOk={guardarEdicion}
+        confirmLoading={saving}
+        okText="Guardar"
+        cancelText="Cancelar"
+        destroyOnClose
+      >
+        <Form form={editForm} layout="vertical">
+          <Form.Item
+            label="Procedencia"
+            name="provenience"
+            rules={[{ required: true, message: "Seleccione la procedencia" }]}
+          >
+            <Select
+              showSearch
+              optionFilterProp="label"
+              placeholder="Seleccione la entidad"
+              onChange={alCambiarProcedencia}
+              options={[
+                { value: OTRA_ENTIDAD, label: "Otra entidad (escribir manualmente)" },
+                ...proveniences.map((p) => ({ value: p.id, label: p.name })),
+              ]}
+            />
+          </Form.Item>
+
+          {esOtra ? (
+            <Form.Item
+              label="Nombre de la entidad"
+              name="otherProvenience"
+              rules={[{ required: true, message: "Escriba el nombre de la entidad" }]}
+            >
+              <Input placeholder="Ej. Ministerio de Salud" />
+            </Form.Item>
+          ) : (
+            <Form.Item label="Sala" name="hall">
+              <Select
+                allowClear
+                placeholder={halls.length ? "Seleccione la sala" : "La entidad no tiene salas"}
+                disabled={!halls.length}
+                options={halls.map((h) => ({ value: h.id, label: h.name }))}
+              />
+            </Form.Item>
+          )}
+
+          <Form.Item
+            label="Cédula"
+            name="cedule"
+            rules={[{ required: true, message: "Ingrese la cédula" }]}
+          >
+            <Input />
+          </Form.Item>
+
+          <Form.Item
+            label="No. Expediente"
+            name="expedientNum"
+            rules={[{ required: true, message: "Ingrese el expediente" }]}
+          >
+            <Input />
+          </Form.Item>
+
+          <Form.Item
+            label="Dirigida a"
+            name="directedTo"
+            rules={[{ required: true, message: "Indique a quién va dirigida" }]}
+          >
+            <Input />
+          </Form.Item>
+        </Form>
+      </Modal>
 
       <NotificationActions
         open={modalVisible}
