@@ -31,6 +31,9 @@ import {
   type InductionItem,
   type ProgramModule,
 } from '../../api/induction';
+import useThemeStore from '../../hooks/useThemeStore';
+import logoLight from '../../assets/logo-cosortium.png';
+import logoDark from '../../assets/logo-dark.png';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -126,6 +129,7 @@ const iconoDeItem = (t: InductionItem['item_type']) => {
  * liberado para consulta.
  */
 function InduccionPublic() {
+  const isDark = useThemeStore((s) => s.mode) === 'dark';
   const [programa, setPrograma] = useState<ProgramModule[]>([]);
   const [loading, setLoading] = useState(true);
   const [avance, setAvance] = useState<Avance>(leerAvance);
@@ -249,11 +253,26 @@ function InduccionPublic() {
 
   return (
     <div style={{ maxWidth: 1180, margin: '0 auto', padding: 24 }}>
-      <div style={{ marginBottom: 20 }}>
-        <Title level={3} style={{ marginBottom: 4 }}>
-          Programa de Inducción
-        </Title>
-        <Text type="secondary">Consortium Legal</Text>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          marginBottom: 20,
+          flexWrap: 'wrap',
+        }}
+      >
+        <img
+          src={isDark ? logoDark : logoLight}
+          alt="Consortium Legal"
+          style={{ height: 42, width: 'auto', display: 'block' }}
+        />
+        <div>
+          <Title level={3} style={{ marginBottom: 0 }}>
+            Programa de Inducción
+          </Title>
+          <Text type="secondary">Consortium Legal · Guatemala</Text>
+        </div>
       </div>
 
       <div
@@ -872,6 +891,7 @@ function Diploma(props: {
   faltan: number;
 }) {
   const { completo, unidades, nombre, onNombre, faltan } = props;
+  const isDark = useThemeStore((s) => s.mode) === 'dark';
 
   if (!completo) {
     return (
@@ -896,6 +916,11 @@ function Diploma(props: {
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <Card>
         <div style={{ border: '1.5px solid #8f6a2c', padding: '40px 44px', textAlign: 'center' }}>
+          <img
+            src={isDark ? logoDark : logoLight}
+            alt="Consortium Legal"
+            style={{ height: 46, width: 'auto', display: 'block', margin: '0 auto 14px' }}
+          />
           <Text style={{ fontSize: 10.5, letterSpacing: '.3em', color: '#8f6a2c' }}>
             CONSORTIUM LEGAL · GUATEMALA
           </Text>
