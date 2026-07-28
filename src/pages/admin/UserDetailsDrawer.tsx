@@ -65,7 +65,7 @@ const UserDetailsDrawer: React.FC<UserDetailsDrawerProps> = ({ open, user, onClo
           {user.equipo?.nombre || '-'}
         </Descriptions.Item>
         <Descriptions.Item label={<><ApartmentOutlined /> Área</>}>
-          {user.area?.nombre || '-'}
+          {user.area?.name || '-'}
         </Descriptions.Item>
         <Descriptions.Item label="Jefe Directo">
           {user.jefe 

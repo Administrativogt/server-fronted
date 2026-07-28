@@ -237,7 +237,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ open, user, onClose, onSu
               >
                 {areas.map((area) => (
                   <Option key={area.id} value={area.id}>
-                    {area.nombre}
+                    {area.name}
                   </Option>
                 ))}
               </Select>

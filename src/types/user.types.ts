@@ -53,7 +53,8 @@ export interface UpdateUserPayload {
 
 export interface UserArea {
   id: number;
-  nombre: string;
+  /** El catálogo users_area usa `name` (a diferencia de users_equipo, que usa `nombre`) */
+  name: string;
   descripcion?: string;
 }
 

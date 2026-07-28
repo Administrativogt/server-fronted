@@ -291,7 +291,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ open, onClose, onSucc
               >
                 {areas.map((area) => (
                   <Option key={area.id} value={area.id}>
-                    {area.nombre}
+                    {area.name}
                   </Option>
                 ))}
               </Select>

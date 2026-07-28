@@ -207,7 +207,7 @@ const UsersAdminPage: React.FC = () => {
       title: 'Área',
       dataIndex: 'area',
       key: 'area',
-      render: (area: UserArea) => area?.nombre || '-',
+      render: (area: UserArea) => area?.name || '-',
     },
     {
       title: 'Estado',
@@ -407,7 +407,7 @@ const UsersAdminPage: React.FC = () => {
                 >
                   {areas.map((area) => (
                     <Option key={area.id} value={area.id}>
-                      {area.nombre}
+                      {area.name}
                     </Option>
                   ))}
                 </Select>
