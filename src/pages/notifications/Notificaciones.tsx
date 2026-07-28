@@ -92,11 +92,12 @@ const Notificaciones: React.FC = () => {
       /* el select queda solo con "Otra entidad"; se puede guardar igual */
     }
 
-    // Una notificación entregada permite además corregir quién la recibió y
-    // quién la entregó; las listas se cargan solo la primera vez.
-    if (record.state !== 1) {
-      if (!usersAll.length) fetchUsers().then(setUsersAll).catch(() => {});
-      if (!receivers.length) fetchNotificationReceivers().then(setReceivers).catch(() => {});
+    // El receptor (quien recibió la cédula en recepción) se edita siempre;
+    // la lista se carga solo la primera vez.
+    if (!receivers.length) fetchNotificationReceivers().then(setReceivers).catch(() => {});
+    // Una notificación entregada permite además corregir a quién se entregó.
+    if (record.state !== 1 && !usersAll.length) {
+      fetchUsers().then(setUsersAll).catch(() => {});
     }
 
     const provId = record.provenience?.id;
@@ -107,6 +108,7 @@ const Notificaciones: React.FC = () => {
       cedule: record.cedule,
       expedientNum: record.expedientNum,
       directedTo: record.directedTo,
+      recepReceives: record.recepReceives?.id,
       deliverTo: record.deliverTo?.id,
       recepDelivery: record.recepDelivery?.id,
     });
@@ -136,8 +138,12 @@ const Notificaciones: React.FC = () => {
       /* Solo en entregadas: corregir a quién se entregó y quién entregó */
       const camposEntrega =
         editRow.state !== 1
-          ? { deliverTo: v.deliverTo, recepDelivery: v.recepDelivery }
-          : {};
+          ? {
+              recepReceives: v.recepReceives,
+              deliverTo: v.deliverTo,
+              recepDelivery: v.recepDelivery,
+            }
+          : { recepReceives: v.recepReceives };
 
       const payload =
         v.provenience === OTRA_ENTIDAD
@@ -425,6 +431,22 @@ const Notificaciones: React.FC = () => {
             rules={[{ required: true, message: "Indique a quién va dirigida" }]}
           >
             <Input />
+          </Form.Item>
+
+          <Form.Item
+            label="Receptor (usuario)"
+            name="recepReceives"
+            rules={[{ required: true, message: "Selecciona receptor" }]}
+          >
+            <Select
+              showSearch
+              optionFilterProp="label"
+              placeholder="Selecciona receptor"
+              options={receivers.map((r) => ({
+                value: r.id,
+                label: `${r.first_name} ${r.last_name}`.trim(),
+              }))}
+            />
           </Form.Item>
 
           {editRow && editRow.state !== 1 && (
