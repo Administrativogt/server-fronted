@@ -8,13 +8,16 @@ import {
   fetchCanManageNotifications,
   fetchDeliveredToday,
   fetchHallsByProvenience,
+  fetchNotificationReceivers,
   fetchPendingNotifications,
   fetchProveniences,
+  fetchUsers,
   updateNotification,
   type HallDto,
   type NotificationDto,
   type ProvenienceDto,
 } from "../../api/notifications";
+import type { User } from "../../types/user.types";
 
 /** Sentinela para "Otra entidad" (texto libre), igual que en CrearNotificacion. */
 const OTRA_ENTIDAD = -1;
@@ -47,6 +50,9 @@ const Notificaciones: React.FC = () => {
   const [editRow, setEditRow] = useState<NotificationDto | null>(null);
   const [proveniences, setProveniences] = useState<ProvenienceDto[]>([]);
   const [halls, setHalls] = useState<HallDto[]>([]);
+  /* Listas para editar una notificación ya entregada */
+  const [usersAll, setUsersAll] = useState<User[]>([]);
+  const [receivers, setReceivers] = useState<{ id: number; first_name: string; last_name: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [editForm] = Form.useForm();
   const provElegida = Form.useWatch("provenience", editForm);
@@ -86,6 +92,13 @@ const Notificaciones: React.FC = () => {
       /* el select queda solo con "Otra entidad"; se puede guardar igual */
     }
 
+    // Una notificación entregada permite además corregir quién la recibió y
+    // quién la entregó; las listas se cargan solo la primera vez.
+    if (record.state !== 1) {
+      if (!usersAll.length) fetchUsers().then(setUsersAll).catch(() => {});
+      if (!receivers.length) fetchNotificationReceivers().then(setReceivers).catch(() => {});
+    }
+
     const provId = record.provenience?.id;
     editForm.setFieldsValue({
       provenience: provId ?? (record.otherProvenience ? OTRA_ENTIDAD : undefined),
@@ -94,6 +107,8 @@ const Notificaciones: React.FC = () => {
       cedule: record.cedule,
       expedientNum: record.expedientNum,
       directedTo: record.directedTo,
+      deliverTo: record.deliverTo?.id,
+      recepDelivery: record.recepDelivery?.id,
     });
 
     if (provId) {
@@ -118,6 +133,12 @@ const Notificaciones: React.FC = () => {
       const v = await editForm.validateFields();
       setSaving(true);
 
+      /* Solo en entregadas: corregir a quién se entregó y quién entregó */
+      const camposEntrega =
+        editRow.state !== 1
+          ? { deliverTo: v.deliverTo, recepDelivery: v.recepDelivery }
+          : {};
+
       const payload =
         v.provenience === OTRA_ENTIDAD
           ? {
@@ -127,6 +148,7 @@ const Notificaciones: React.FC = () => {
               cedule: v.cedule,
               expedientNum: v.expedientNum,
               directedTo: v.directedTo,
+              ...camposEntrega,
             }
           : {
               provenience: v.provenience,
@@ -135,6 +157,7 @@ const Notificaciones: React.FC = () => {
               cedule: v.cedule,
               expedientNum: v.expedientNum,
               directedTo: v.directedTo,
+              ...camposEntrega,
             };
 
       await updateNotification(editRow.id, payload as never);
@@ -282,6 +305,20 @@ const Notificaciones: React.FC = () => {
           width: 160,
           render: (_: unknown, r: NotificationDto) => nombre(r.recepDelivery) || "—",
         },
+        ...(canManage
+          ? [
+              {
+                title: "Acciones",
+                key: "acciones",
+                width: 90,
+                render: (_: unknown, r: NotificationDto) => (
+                  <Button size="small" icon={<EditOutlined />} onClick={() => abrirEdicion(r)}>
+                    Editar
+                  </Button>
+                ),
+              },
+            ]
+          : []),
       ]}
       pagination={deliveredToday.length > 10 ? { pageSize: 10 } : false}
       scroll={{ x: 900 }}
@@ -383,6 +420,42 @@ const Notificaciones: React.FC = () => {
           >
             <Input />
           </Form.Item>
+
+          {editRow && editRow.state !== 1 && (
+            <>
+              <Form.Item
+                label="Entregada a"
+                name="deliverTo"
+                rules={[{ required: true, message: "Indique quién la recibió" }]}
+              >
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  placeholder="Seleccione a quién se entregó"
+                  options={usersAll.map((u) => ({
+                    value: u.id,
+                    label: `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim(),
+                  }))}
+                />
+              </Form.Item>
+
+              <Form.Item
+                label="Entregó (recepción)"
+                name="recepDelivery"
+                rules={[{ required: true, message: "Indique quién entregó" }]}
+              >
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  placeholder="Seleccione quién entregó"
+                  options={receivers.map((r) => ({
+                    value: r.id,
+                    label: `${r.first_name} ${r.last_name}`.trim(),
+                  }))}
+                />
+              </Form.Item>
+            </>
+          )}
         </Form>
       </Modal>
 
