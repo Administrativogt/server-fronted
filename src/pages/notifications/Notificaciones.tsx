@@ -378,24 +378,30 @@ const Notificaciones: React.FC = () => {
             />
           </Form.Item>
 
+          {/* Igual que CrearNotificacion: sin salas el campo NO se muestra;
+              con salas es obligatorio. */}
           {esOtra ? (
             <Form.Item
-              label="Nombre de la entidad"
+              label="Nombre de la otra entidad"
               name="otherProvenience"
-              rules={[{ required: true, message: "Escriba el nombre de la entidad" }]}
+              rules={[{ required: true, message: "Ingresa el nombre de la entidad" }]}
             >
-              <Input placeholder="Ej. Ministerio de Salud" />
+              <Input placeholder="Nombre de la entidad" />
             </Form.Item>
-          ) : (
-            <Form.Item label="Sala" name="hall">
+          ) : halls.length > 0 ? (
+            <Form.Item
+              label="Sala / Hall"
+              name="hall"
+              rules={[{ required: true, message: "Selecciona sala" }]}
+            >
               <Select
-                allowClear
-                placeholder={halls.length ? "Seleccione la sala" : "La entidad no tiene salas"}
-                disabled={!halls.length}
+                showSearch
+                optionFilterProp="label"
+                placeholder="Selecciona sala"
                 options={halls.map((h) => ({ value: h.id, label: h.name }))}
               />
             </Form.Item>
-          )}
+          ) : null}
 
           <Form.Item
             label="Cédula"
