@@ -16,6 +16,7 @@ import {
   Typography,
 } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
+import { formatDateGT } from '../../utils/date';
 import type { CheckRequest } from '../../types/checks.types';
 import {
   getPendingAuthorization,
@@ -479,7 +480,7 @@ function AutorizacionCheque() {
             title: 'Fecha',
             dataIndex: 'date',
             width: 108,
-            render: (value: string) => (value ? new Date(value).toLocaleDateString('es-GT') : '—'),
+            render: (value: string) => formatDateGT(value),
           },
           { title: 'ID', dataIndex: 'request_id', width: 95 },
           {

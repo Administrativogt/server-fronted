@@ -28,6 +28,7 @@ import {
   getLitigioExpenses,
 } from '../../api/checks';
 import { getEntities as getProcurationEntities } from '../../api/procuration';
+import { formatDateGT } from '../../utils/date';
 import type { CheckRequest, CheckEntity, InmobiliarioExpense, LitigioExpense } from '../../types/checks.types';
 import useAuthStore from '../../auth/useAuthStore';
 
@@ -378,8 +379,7 @@ function LiquidacionCheque() {
             title: 'Fecha',
             dataIndex: 'date',
             width: 108,
-            render: (value: string) =>
-              value ? new Date(value).toLocaleDateString('es-GT') : '—',
+            render: (value: string) => formatDateGT(value),
           },
           { title: 'Request ID', dataIndex: 'request_id', width: 120 },
           { title: 'NT', dataIndex: 'work_note_number', width: 110 },

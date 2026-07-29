@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Button, Card, Col, Row, Space, Table, Tag, Typography, Alert, Divider, Result } from 'antd';
 import { CheckCircleOutlined, CloseCircleOutlined, LoadingOutlined, CheckOutlined } from '@ant-design/icons';
 import { getAuthorizationDetails, batchDecision } from '../../api/checks';
+import { formatDateGT } from '../../utils/date';
 import type { CheckRequest } from '../../types/checks.types';
 
 const { Title, Text } = Typography;
@@ -204,7 +205,7 @@ function AutorizacionParcial() {
                       title: 'Fecha',
                       dataIndex: 'date',
                       width: 110,
-                      render: (v: string) => v ? new Date(v).toLocaleDateString('es-GT') : '—',
+                      render: (v: string) => formatDateGT(v),
                     },
                     {
                       title: 'Decisión',
@@ -300,7 +301,7 @@ function resultColumns(_color: string, _action: 'authorize' | 'deny') {
       title: 'Fecha',
       dataIndex: ['check', 'date'],
       width: 110,
-      render: (v: string) => v ? new Date(v).toLocaleDateString('es-GT') : '—',
+      render: (v: string) => formatDateGT(v),
     },
     {
       title: 'Estado',
