@@ -49,6 +49,8 @@ export interface UpdateUserPayload {
   is_staff?: boolean;
   estado?: number;
   send_checks?: boolean;
+  /** Fecha de contratación (YYYY-MM-DD). Actualiza/crea el saldo de vacaciones. */
+  fecha_ingreso?: string;
 }
 
 export interface UserArea {
@@ -82,6 +84,8 @@ export interface User {
   cambio_contrasena: number;
   date_joined: string;
   last_login?: string;
+  /** Fecha de ingreso a la empresa (YYYY-MM-DD), tomada del saldo de vacaciones */
+  fecha_ingreso?: string | null;
   equipo?: UserEquipo;
   area?: UserArea;
   jefe?: User;

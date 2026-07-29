@@ -125,6 +125,12 @@ const UserDetailsDrawer: React.FC<UserDetailsDrawerProps> = ({ open, user, onClo
             <Tag color="red" icon={<StopOutlined />}>Inactivo</Tag>
           )}
         </Descriptions.Item>
+        <Descriptions.Item label="Fecha de Ingreso a la Empresa">
+          {user.fecha_ingreso
+            ? dayjs(user.fecha_ingreso).format('DD/MM/YYYY')
+            : '-'
+          }
+        </Descriptions.Item>
         <Descriptions.Item label="Fecha de Registro">
           {dayjs(user.date_joined).format('DD/MM/YYYY HH:mm')}
         </Descriptions.Item>

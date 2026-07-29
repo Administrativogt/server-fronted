@@ -5,11 +5,13 @@ import {
   Input,
   Select,
   Checkbox,
+  DatePicker,
   message,
   Row,
   Col,
   Divider,
 } from 'antd';
+import dayjs, { Dayjs } from 'dayjs';
 import { updateUser } from '../../api/users';
 import { useReferenceData, invalidateReferenceData } from '../../hooks/useReferenceData';
 import { TIPOS_USUARIO } from '../../types/user.types';
@@ -31,6 +33,7 @@ interface EditUserFormValues {
   email: string;
   extension?: string;
   codigo_directorio?: string;
+  fecha_ingreso?: Dayjs;
   tipo_usuario?: number;
   equipo_id?: number;
   area_id?: number;
@@ -62,6 +65,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ open, user, onClose, onSu
       email: user.email,
       extension: user.extension,
       codigo_directorio: user.codigo_directorio,
+      fecha_ingreso: user.fecha_ingreso ? dayjs(user.fecha_ingreso) : undefined,
       tipo_usuario: user.tipo_usuario,
       equipo_id: user.equipo?.id,
       area_id: user.area?.id,
@@ -84,6 +88,9 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ open, user, onClose, onSu
         email: values.email,
         extension: values.extension,
         codigo_directorio: values.codigo_directorio || undefined,
+        fecha_ingreso: values.fecha_ingreso
+          ? values.fecha_ingreso.format('YYYY-MM-DD')
+          : undefined,
         tipo_usuario: values.tipo_usuario,
         equipo_id: values.equipo_id,
         area_id: values.area_id,
@@ -176,6 +183,20 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ open, user, onClose, onSu
           <Col xs={24} md={12}>
             <Form.Item name="codigo_directorio" label="Código de Directorio (Sirvo)">
               <Input placeholder="Ej. ABC123" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="fecha_ingreso"
+              label="Fecha de Ingreso"
+              tooltip="Fecha de contratación. Se guarda en el saldo de vacaciones del empleado; si aún no tiene saldo, se crea uno en 0 días."
+            >
+              <DatePicker
+                style={{ width: '100%' }}
+                format="DD/MM/YYYY"
+                placeholder="Seleccionar fecha"
+                disabledDate={(current) => current && current > dayjs().endOf('day')}
+              />
             </Form.Item>
           </Col>
         </Row>
