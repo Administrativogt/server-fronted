@@ -44,6 +44,7 @@ const stateMap: Record<number, { text: string; color: string }> = {
 
 interface Filters {
   payableTo: string;
+  correlative: string;
   teamId: number | null;
   state: number | null;
   dateRange: [Dayjs, Dayjs] | null;
@@ -51,6 +52,7 @@ interface Filters {
 
 const defaultFilters: Filters = {
   payableTo: '',
+  correlative: '',
   teamId: null,
   state: null,
   dateRange: null,
@@ -77,6 +79,7 @@ const MoneyReqList: React.FC = () => {
       setLoading(true);
       const params: Record<string, unknown> = {};
       if (activeFilters.payableTo) params.payableTo = activeFilters.payableTo;
+      if (activeFilters.correlative) params.correlative = activeFilters.correlative.trim();
       if (activeFilters.teamId) params.teamId = activeFilters.teamId;
       if (activeFilters.state !== null) params.state = activeFilters.state;
       if (activeFilters.dateRange) {
@@ -282,7 +285,7 @@ const MoneyReqList: React.FC = () => {
       {/* ── Filtros ── */}
       <Card size="small" style={{ marginBottom: 16, background: 'transparent' }} bordered>
         <Row gutter={[12, 12]} align="middle">
-          <Col xs={24} sm={12} md={6}>
+          <Col xs={24} sm={12} md={5}>
             <RangePicker
               style={{ width: '100%' }}
               format="DD/MM/YYYY"
@@ -293,7 +296,7 @@ const MoneyReqList: React.FC = () => {
               }
             />
           </Col>
-          <Col xs={24} sm={12} md={5}>
+          <Col xs={24} sm={12} md={4}>
             <Select
               style={{ width: '100%' }}
               placeholder="Equipo"
@@ -308,7 +311,7 @@ const MoneyReqList: React.FC = () => {
               ))}
             </Select>
           </Col>
-          <Col xs={24} sm={12} md={5}>
+          <Col xs={24} sm={12} md={4}>
             <Input
               placeholder="A nombre de"
               value={filters.payableTo}
@@ -318,6 +321,15 @@ const MoneyReqList: React.FC = () => {
             />
           </Col>
           <Col xs={24} sm={12} md={4}>
+            <Input
+              placeholder="Correlativo"
+              value={filters.correlative}
+              onChange={(e) => setFilters((f) => ({ ...f, correlative: e.target.value }))}
+              onPressEnter={handleSearch}
+              allowClear
+            />
+          </Col>
+          <Col xs={24} sm={12} md={3}>
             <Select
               style={{ width: '100%' }}
               placeholder="Estado"
