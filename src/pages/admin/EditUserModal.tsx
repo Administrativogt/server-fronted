@@ -69,7 +69,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ open, user, onClose, onSu
       tipo_usuario: user.tipo_usuario,
       equipo_id: user.equipo?.id,
       area_id: user.area?.id,
-      jefe_id: user.jefe?.id,
+      jefe_id: user.jefe?.id ?? user.jefe_inmediato ?? undefined,
       groupIds: user.groups?.map(g => g.id) || [],
       is_superuser: user.is_superuser,
       is_staff: user.is_staff,

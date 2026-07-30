@@ -89,6 +89,8 @@ export interface User {
   equipo?: UserEquipo;
   area?: UserArea;
   jefe?: User;
+  /** ID del jefe directo — el backend devuelve solo este número (no un objeto `jefe`) */
+  jefe_inmediato?: number | null;
   groups?: Group[];
   permissions?: Permission[];
 }

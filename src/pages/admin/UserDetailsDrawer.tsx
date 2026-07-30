@@ -18,6 +18,7 @@ import {
 } from '@ant-design/icons';
 import { getTipoUsuarioLabel } from '../../types/user.types';
 import type { User } from '../../types/user.types';
+import { useReferenceData } from '../../hooks/useReferenceData';
 import dayjs from 'dayjs';
 
 interface UserDetailsDrawerProps {
@@ -27,6 +28,15 @@ interface UserDetailsDrawerProps {
 }
 
 const UserDetailsDrawer: React.FC<UserDetailsDrawerProps> = ({ open, user, onClose }) => {
+  // El backend solo devuelve jefe_inmediato (ID); el nombre se resuelve
+  // contra la lista de usuarios cacheada del módulo de administración.
+  const { usuarios } = useReferenceData(open);
+  const jefe =
+    user.jefe ??
+    (user.jefe_inmediato
+      ? usuarios.find((u) => u.id === user.jefe_inmediato)
+      : undefined);
+
   return (
     <Drawer
       title={`Detalles de Usuario: ${user.username}`}
@@ -68,8 +78,8 @@ const UserDetailsDrawer: React.FC<UserDetailsDrawerProps> = ({ open, user, onClo
           {user.area?.name || '-'}
         </Descriptions.Item>
         <Descriptions.Item label="Jefe Directo">
-          {user.jefe 
-            ? `${user.jefe.first_name} ${user.jefe.last_name} (${user.jefe.username})`
+          {jefe
+            ? `${jefe.first_name} ${jefe.last_name} (${jefe.username})`
             : '-'
           }
         </Descriptions.Item>
