@@ -35,11 +35,16 @@ async function fetchReferenceData(): Promise<ReferenceData> {
   return {
     // users_area usa `name` (no `nombre`); el sort con el campo equivocado
     // lanzaba TypeError y tumbaba TODA la carga de referencia (filtros y
-    // selects de los modales quedaban vacíos).
-    areas: [...areasRes.data].sort((a: UserArea, b: UserArea) => a.name.localeCompare(b.name)),
-    equipos: [...equiposRes.data].sort((a: UserEquipo, b: UserEquipo) => a.nombre.localeCompare(b.nombre)),
-    groups: [...groupsRes.data].sort((a: Group, b: Group) => a.name.localeCompare(b.name)),
-    usuarios: [...usersRes.data].sort((a: User, b: User) => a.first_name.localeCompare(b.first_name)),
+    // selects de los modales quedaban vacíos, mostrando IDs numéricos).
+    // Sorts defensivos (?? ''): un campo faltante no debe tumbar la carga.
+    areas: [...areasRes.data].sort((a: UserArea, b: UserArea) =>
+      (a.name ?? '').localeCompare(b.name ?? '')),
+    equipos: [...equiposRes.data].sort((a: UserEquipo, b: UserEquipo) =>
+      (a.nombre ?? '').localeCompare(b.nombre ?? '')),
+    groups: [...groupsRes.data].sort((a: Group, b: Group) =>
+      (a.name ?? '').localeCompare(b.name ?? '')),
+    usuarios: [...usersRes.data].sort((a: User, b: User) =>
+      (a.first_name ?? '').localeCompare(b.first_name ?? '')),
   };
 }
 

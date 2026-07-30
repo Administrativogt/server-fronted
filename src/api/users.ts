@@ -127,11 +127,14 @@ export const getMensajeros = () => axios.get('/users/mensajeros');
  */
 export const getAreas = async () => {
   const response = await axios.get('/areas');
-  // El backend puede devolver 'name' o 'nombre', normalizamos a 'nombre'
+  // El catálogo users_area usa `name` (tipo UserArea y los selects lo leen así).
+  // Se expone también `nombre` por compatibilidad, pero `name` es el canónico:
+  // omitirlo dejaba los selects de área mostrando IDs (ver useReferenceData).
   return {
     ...response,
     data: response.data.map((item: any) => ({
       id: item.id,
+      name: item.name || item.nombre,
       nombre: item.nombre || item.name,
       descripcion: item.descripcion || item.description,
     }))
