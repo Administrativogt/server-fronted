@@ -12,6 +12,7 @@ import {
   Typography,
   DatePicker,
   Divider,
+  Modal,
 } from "antd";
 import { ArrowLeftOutlined, PlusOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
@@ -23,6 +24,7 @@ import {
   fetchNotificationReceivers,
   fetchHalls,
   createProvenience,
+  createHallForProvenience,
   fetchHallsByProvenience,
 } from "../../api/notifications";
 import { type ProvenienceDto, type HallDto } from "../../api/notifications";
@@ -57,12 +59,18 @@ const CrearNotificacion: React.FC = () => {
   const [allHalls, setAllHalls] = useState<HallDto[]>([]);
   const [showOther, setShowOther] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
+  const [hallModalOpen, setHallModalOpen] = useState(false);
+  const [newHallName, setNewHallName] = useState("");
+  const [creatingHall, setCreatingHall] = useState(false);
   const [loadingCatalogs, setLoadingCatalogs] = useState(true);
   const [loadingHalls, setLoadingHalls] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const userId = useAuthStore((s) => s.userId);
   const navigate = useNavigate();
+  const selectedProvenience = Form.useWatch("provenience", form);
+  const hasProvenience =
+    typeof selectedProvenience === "number" && selectedProvenience !== OTHER_PROVENIENCE;
 
   useEffect(() => {
     Promise.allSettled([
@@ -128,6 +136,36 @@ const CrearNotificacion: React.FC = () => {
     }
   };
 
+  const handleCreateHall = async () => {
+    const name = newHallName.trim();
+    if (!name) {
+      message.warning("Ingresa el nombre de la sala");
+      return;
+    }
+    if (!hasProvenience) {
+      message.warning("Selecciona primero una entidad");
+      return;
+    }
+    setCreatingHall(true);
+    try {
+      const hall = await createHallForProvenience({
+        provenienceId: selectedProvenience,
+        name,
+      });
+      setHalls((prev) =>
+        prev.some((h) => h.id === hall.id) ? prev : [...prev, hall],
+      );
+      form.setFieldsValue({ hall: hall.id });
+      setHallModalOpen(false);
+      setNewHallName("");
+      message.success(`Sala "${hall.name}" creada`);
+    } catch {
+      message.error("Error al crear la sala");
+    } finally {
+      setCreatingHall(false);
+    }
+  };
+
   const onFinish = async (values: NotificationFormValues) => {
     if (!userId) {
       message.error("No se pudo obtener el usuario logueado");
@@ -168,7 +206,7 @@ const CrearNotificacion: React.FC = () => {
   const hallPlaceholder = showOther
     ? "No aplica para entidad manual"
     : halls.length === 0
-      ? "Selecciona una entidad primero"
+      ? "Esta entidad no tiene salas — puedes crear una"
       : "Selecciona sala";
 
   return (
@@ -234,11 +272,15 @@ const CrearNotificacion: React.FC = () => {
                 >
                   <Input placeholder="Nombre de la entidad" />
                 </Form.Item>
-              ) : halls.length > 0 ? (
+              ) : hasProvenience ? (
                 <Form.Item
                   label="Sala / Hall"
                   name="hall"
-                  rules={[{ required: true, message: "Selecciona sala" }]}
+                  rules={
+                    halls.length > 0
+                      ? [{ required: true, message: "Selecciona sala" }]
+                      : []
+                  }
                 >
                   <Select
                     placeholder={hallPlaceholder}
@@ -246,6 +288,21 @@ const CrearNotificacion: React.FC = () => {
                     optionFilterProp="label"
                     loading={loadingHalls}
                     options={halls.map((h) => ({ value: h.id, label: h.name }))}
+                    popupRender={(menu) => (
+                      <>
+                        {menu}
+                        <Divider style={{ margin: "8px 0" }} />
+                        <Button
+                          type="text"
+                          icon={<PlusOutlined />}
+                          block
+                          style={{ textAlign: "left" }}
+                          onClick={() => setHallModalOpen(true)}
+                        >
+                          Agregar nueva sala
+                        </Button>
+                      </>
+                    )}
                   />
                 </Form.Item>
               ) : null}
@@ -350,6 +407,32 @@ const CrearNotificacion: React.FC = () => {
         onCancel={() => setModalVisible(false)}
         onCreate={handleCreateProvenience}
       />
+
+      <Modal
+        title="Agregar nueva sala"
+        open={hallModalOpen}
+        onCancel={() => {
+          setHallModalOpen(false);
+          setNewHallName("");
+        }}
+        onOk={handleCreateHall}
+        okText="Crear sala"
+        confirmLoading={creatingHall}
+      >
+        <p style={{ marginBottom: 8 }}>
+          Se agregará a la entidad{" "}
+          <strong>
+            {proveniences.find((p) => p.id === selectedProvenience)?.name ?? ""}
+          </strong>
+        </p>
+        <Input
+          placeholder="Nombre de la sala"
+          value={newHallName}
+          onChange={(e) => setNewHallName(e.target.value)}
+          onPressEnter={handleCreateHall}
+          autoFocus
+        />
+      </Modal>
     </div>
   );
 };
