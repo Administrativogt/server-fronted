@@ -42,6 +42,7 @@ const { RangePicker } = DatePicker;
 const AppointmentsList: React.FC = () => {
   const navigate = useNavigate();
   const modules = useAuthStore((s) => s.modules);
+  const isSuperuser = useAuthStore((s) => s.is_superuser);
   const hasActasModule = modules.some((m: { key: string }) => m.key === 'actas');
 
   // Permisos — cualquier usuario con acceso al módulo actas puede operar
@@ -259,7 +260,7 @@ const AppointmentsList: React.FC = () => {
               />
             </Tooltip>
           )}
-          {canUpdate && (
+          {isSuperuser && (
             <Popconfirm
               title="Reenviar recordatorio"
               description={`Se enviará el recordatorio de vencimiento a: ${record.clientEmail || '(sin correos)'}`}
