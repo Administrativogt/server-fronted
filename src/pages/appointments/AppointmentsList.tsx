@@ -13,6 +13,8 @@ import {
   message,
   Tooltip,
   Alert,
+  Popconfirm,
+  notification,
 } from 'antd';
 import {
   PlusOutlined,
@@ -22,12 +24,14 @@ import {
   ReloadOutlined,
   FilterOutlined,
   InfoCircleOutlined,
+  MailOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs, { Dayjs } from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
 import {
   getAppointments,
+  resendReminder,
 } from '../../api/appointments';
 import type { Appointment, AppointmentFilters } from '../../types/appointment.types';
 import EditAppointmentModal from './EditAppointmentModal';
@@ -119,6 +123,25 @@ const AppointmentsList: React.FC = () => {
     setEditModalVisible(true);
   };
 
+
+  const [resendingId, setResendingId] = useState<number | null>(null);
+
+  const handleResendReminder = async (record: Appointment) => {
+    setResendingId(record.id);
+    try {
+      const res = await resendReminder(record.id);
+      notification.success({
+        message: 'Recordatorio reenviado',
+        description: `Enviado a: ${res.recipients.join(', ')}`,
+        duration: 8,
+      });
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      message.error(error?.response?.data?.message || 'No se pudo reenviar el recordatorio.');
+    } finally {
+      setResendingId(null);
+    }
+  };
 
   const columns: ColumnsType<Appointment> = [
     {
@@ -235,6 +258,23 @@ const AppointmentsList: React.FC = () => {
                 onClick={() => handleEdit(record)}
               />
             </Tooltip>
+          )}
+          {canUpdate && (
+            <Popconfirm
+              title="Reenviar recordatorio"
+              description={`Se enviará el recordatorio de vencimiento a: ${record.clientEmail || '(sin correos)'}`}
+              okText="Enviar"
+              cancelText="Cancelar"
+              onConfirm={() => handleResendReminder(record)}
+            >
+              <Tooltip title="Reenviar recordatorio a los correos del cliente">
+                <Button
+                  icon={<MailOutlined />}
+                  size="small"
+                  loading={resendingId === record.id}
+                />
+              </Tooltip>
+            </Popconfirm>
           )}
         </Space>
       ),

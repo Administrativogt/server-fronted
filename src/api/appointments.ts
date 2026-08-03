@@ -112,3 +112,16 @@ export const sendReminders = async (): Promise<{ message: string; sent: number }
   );
   return data;
 };
+
+/**
+ * Reenviar el recordatorio de UNA acta a sus correos actuales
+ * (sin importar la ventana de fechas de los avisos automáticos)
+ */
+export const resendReminder = async (
+  id: number,
+): Promise<{ message: string; recipients: string[] }> => {
+  const { data } = await api.post<{ message: string; recipients: string[] }>(
+    `/appointments/reminder/send/${id}`,
+  );
+  return data;
+};
