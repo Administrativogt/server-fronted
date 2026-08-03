@@ -1062,6 +1062,14 @@ export default function ReservationsList() {
         onCancel={() => { setDeleteVisible(false); setDeleteRow(null); setDeleteSeries(false); }}
         destroyOnClose
       >
+        <div style={{ marginBottom: 16, padding: 12, background: '#fff2f0', border: '1px solid #ffccc7', borderRadius: 6 }}>
+          <Typography.Text strong>Está por eliminar esta reservación — verifique que sea la correcta:</Typography.Text>
+          <p style={{ margin: '8px 0 0' }}><strong>Motivo:</strong> {deleteRow?.reason}</p>
+          <p style={{ margin: 0 }}><strong>Sala:</strong> {deleteRow?.room?.name || deleteRow?.room_id}</p>
+          <p style={{ margin: 0 }}><strong>Fecha:</strong> {deleteRow && dayjs(deleteRow.reservation_date).format('DD/MM/YYYY')}</p>
+          <p style={{ margin: 0 }}><strong>Horario:</strong> {deleteRow && `${fmtTime(deleteRow.init_hour)} - ${fmtTime(deleteRow.end_hour)}`}</p>
+          <p style={{ margin: 0 }}><strong>Reservado por:</strong> {deleteRow?.user ? `${deleteRow.user.first_name} ${deleteRow.user.last_name}` : '-'}</p>
+        </div>
         {(deleteRow?.is_recurring || deleteRow?.parent_reservation_id) && (
           <div style={{ marginBottom: 12 }}>
             <Typography.Text strong>Esta reservación es recurrente:</Typography.Text>
