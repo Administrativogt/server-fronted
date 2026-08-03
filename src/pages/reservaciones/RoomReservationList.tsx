@@ -277,6 +277,7 @@ export default function ReservationsList() {
       await api.patch(`/room-reservations/${row.id}/accept`);
       notification.success({ message: 'Reservación aceptada' });
       setRows(prev => prev.map(r => (r.id === row.id ? { ...r, state: 1 } : r)));
+      loadData();
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
       message.error(error?.response?.data?.message || 'No se pudo aceptar.');
@@ -296,6 +297,7 @@ export default function ReservationsList() {
       await api.patch(`/room-reservations/${rejectRow.id}/reject`, { reject_reason: rejectReason.trim() });
       notification.success({ message: 'Reservación rechazada' });
       setRows(prev => prev.map(r => (r.id === rejectRow.id ? { ...r, state: 2 } : r)));
+      loadData();
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
       message.error(error?.response?.data?.message || 'No se pudo rechazar.');
@@ -335,6 +337,8 @@ export default function ReservationsList() {
       } else {
         setRows(prev => prev.filter(r => r.id !== deleteRow.id));
       }
+      // Recargar del servidor para que la tabla siempre refleje la BD
+      loadData();
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
       message.error(error?.response?.data?.message || 'No se pudo eliminar.');
@@ -358,6 +362,8 @@ export default function ReservationsList() {
       await api.patch(`/room-reservations/${cancelRow.id}/cancel`, { cancel_reason: cancelReason.trim() });
       notification.success({ message: 'Reservación cancelada' });
       setRows(prev => prev.map(r => (r.id === cancelRow.id ? { ...r, state: 3 } : r)));
+      // Recargar del servidor para que la tabla siempre refleje la BD
+      loadData();
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
       message.error(error?.response?.data?.message || 'No se pudo cancelar.');
