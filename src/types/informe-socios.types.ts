@@ -26,6 +26,8 @@ export interface CodigoDetectado {
   como_coordinador: number;
   clientes: number;
   tiene_socio: boolean;
+  /** Coordinador no-socio (GRENTE, JASC, RACSA...): sin correo individual */
+  excluido?: boolean;
 }
 
 export interface PreviewReporte {

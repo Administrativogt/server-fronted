@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Card, Button, DatePicker, Form, Select, Switch, message, Typography,
-  Alert, Row, Col, Statistic, Table, Tag, Collapse, Divider, Space, Badge,
+  Alert, Row, Col, Statistic, Table, Tag, Collapse, Divider, Space, Badge, Tooltip,
 } from 'antd';
 import {
   SendOutlined, SearchOutlined, CheckCircleOutlined, WarningOutlined,
@@ -189,8 +189,12 @@ const GenerarReportesPage: React.FC = () => {
       dataIndex: 'tiene_socio',
       align: 'center',
       width: 140,
-      render: (v: boolean) =>
-        v ? (
+      render: (v: boolean, record) =>
+        record.excluido ? (
+          <Tooltip title="Coordinador no-socio: no genera correo individual">
+            <Tag color="default">Excluido</Tag>
+          </Tooltip>
+        ) : v ? (
           <Tag color="green">Sí</Tag>
         ) : (
           <Tag color="red">No — registrar</Tag>
@@ -361,8 +365,8 @@ const GenerarReportesPage: React.FC = () => {
             <Col xs={12} sm={6}>
               <Statistic
                 title="Sin socio registrado"
-                value={preview.codigos_detectados.filter((c) => !c.tiene_socio).length}
-                valueStyle={{ fontSize: 20, color: preview.codigos_detectados.some((c) => !c.tiene_socio) ? '#ef4444' : '#999' }}
+                value={preview.codigos_detectados.filter((c) => !c.tiene_socio && !c.excluido).length}
+                valueStyle={{ fontSize: 20, color: preview.codigos_detectados.some((c) => !c.tiene_socio && !c.excluido) ? '#ef4444' : '#999' }}
               />
             </Col>
           </Row>
