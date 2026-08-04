@@ -32,6 +32,7 @@ import {
 } from "../../api/documents";
 import { fetchPlaces, type PlaceDto } from "../../api/notifications";
 import type { User } from "../../types/user.types";
+import useAuthStore from "../../auth/useAuthStore";
 
 const { Title, Text } = Typography;
 
@@ -46,10 +47,25 @@ const CreateDocumentForm: React.FC = () => {
   const [otroEntregadoPor, setOtroEntregadoPor] = useState(false);
   const [otroTipoDoc, setOtroTipoDoc] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const userId = useAuthStore((s) => s.userId);
+
+  // Predeterminados: quien entrega = usuario logueado; lugar = DIAGO 6
+  const applyDefaults = (usersList: User[], placesList: PlaceDto[]) => {
+    if (userId && usersList.some((u) => u.id === userId)) {
+      form.setFieldValue("documentDeliverBy", userId);
+    }
+    const diago = placesList.find((p) => /diago/i.test(p.name));
+    if (diago) form.setFieldValue("creationPlace", diago.id);
+  };
 
   useEffect(() => {
     fetchUsers()
-      .then(setUsers)
+      .then((list) => {
+        setUsers(list);
+        if (userId && list.some((u) => u.id === userId)) {
+          form.setFieldValue("documentDeliverBy", userId);
+        }
+      })
       .catch(() => message.error("Error cargando usuarios"));
 
     fetchDocumentReceivers()
@@ -57,8 +73,13 @@ const CreateDocumentForm: React.FC = () => {
       .catch(() => message.error("Error cargando receptores"));
 
     fetchPlaces()
-      .then(setPlaces)
+      .then((list) => {
+        setPlaces(list);
+        const diago = list.find((p) => /diago/i.test(p.name));
+        if (diago) form.setFieldValue("creationPlace", diago.id);
+      })
       .catch(() => message.error("Error cargando lugares"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onFinish = async (values: Record<string, unknown>) => {
@@ -85,6 +106,7 @@ const CreateDocumentForm: React.FC = () => {
       form.resetFields();
       setOtroEntregadoPor(false);
       setOtroTipoDoc(false);
+      applyDefaults(users, places);
     } catch (err: unknown) {
       message.error("Error al crear documento");
       console.error(err);
@@ -97,6 +119,7 @@ const CreateDocumentForm: React.FC = () => {
     form.resetFields();
     setOtroEntregadoPor(false);
     setOtroTipoDoc(false);
+    applyDefaults(users, places);
   };
 
   return (
