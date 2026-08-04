@@ -22,10 +22,21 @@ export const informeSociosApi = {
   // Stats
   getStats: () => api.get<InformeStats>('/api/informe-socios/stats'),
 
-  // Datos importados
-  getCasos: () => api.get<InformeCasoRow[]>('/api/informe-socios/casos'),
-  getClientes: () =>
-    api.get<InformeClienteRow[]>('/api/informe-socios/clientes'),
+  // Datos importados (opcionalmente filtrados por período)
+  getCasos: (fechaInicio?: string, fechaFin?: string) =>
+    api.get<InformeCasoRow[]>('/api/informe-socios/casos', {
+      params:
+        fechaInicio && fechaFin
+          ? { fecha_inicio: fechaInicio, fecha_fin: fechaFin }
+          : undefined,
+    }),
+  getClientes: (fechaInicio?: string, fechaFin?: string) =>
+    api.get<InformeClienteRow[]>('/api/informe-socios/clientes', {
+      params:
+        fechaInicio && fechaFin
+          ? { fecha_inicio: fechaInicio, fecha_fin: fechaFin }
+          : undefined,
+    }),
 
   // Import
   importarCasos: (file: File) => {

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Card, Button, DatePicker, Form, Select, Switch, message, Typography,
   Alert, Row, Col, Statistic, Table, Tag, Collapse, Divider, Space, Badge, Tooltip,
+  Modal,
 } from 'antd';
 import {
   SendOutlined, SearchOutlined, CheckCircleOutlined, WarningOutlined,
@@ -16,6 +17,8 @@ import type {
   CodigoDetectado,
   PreviewReporte,
   GenerarReporteResult,
+  InformeCasoRow,
+  InformeClienteRow,
 } from '../../types/informe-socios.types';
 
 const { Title, Paragraph, Text } = Typography;
@@ -41,6 +44,57 @@ const GenerarReportesPage: React.FC = () => {
   const [emailsAdmin, setEmailsAdmin] = useState<string[]>(DEFAULT_ADMIN_EMAILS);
   const [enviarEmail, setEnviarEmail] = useState(true);
 
+  // Detalle al hacer clic en los indicadores
+  const [codigosView, setCodigosView] = useState<'all' | 'sin_socio'>('all');
+  const [detailOpen, setDetailOpen] = useState<'casos' | 'clientes' | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailCasos, setDetailCasos] = useState<InformeCasoRow[]>([]);
+  const [detailClientes, setDetailClientes] = useState<InformeClienteRow[]>([]);
+
+  const openDetail = async (tipo: 'casos' | 'clientes') => {
+    if (!dateRange) return;
+    const [ini, fin] = dateRange;
+    setDetailOpen(tipo);
+    setDetailLoading(true);
+    try {
+      if (tipo === 'casos') {
+        const { data } = await informeSociosApi.getCasos(
+          ini.format('YYYY-MM-DD'),
+          fin.format('YYYY-MM-DD'),
+        );
+        setDetailCasos(data);
+      } else {
+        const { data } = await informeSociosApi.getClientes(
+          ini.format('YYYY-MM-DD'),
+          fin.format('YYYY-MM-DD'),
+        );
+        setDetailClientes(data);
+      }
+    } catch {
+      message.error('Error al cargar el detalle');
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const fmtFecha = (f?: string) => (f ? dayjs(f).format('DD/MM/YYYY') : '');
+
+  const casosDetailColumns: ColumnsType<InformeCasoRow> = [
+    { title: 'Directorio', dataIndex: 'directorio', width: 100 },
+    { title: 'Nombre', dataIndex: 'nombre', ellipsis: true },
+    { title: 'Caso', dataIndex: 'caso', width: 80, align: 'center' },
+    { title: 'Encargado', dataIndex: 'encargado', width: 110, align: 'center' },
+    { title: 'Coordinador', dataIndex: 'coordinador', width: 110, align: 'center' },
+    { title: 'Fecha', dataIndex: 'fecha', width: 110, render: fmtFecha },
+  ];
+
+  const clientesDetailColumns: ColumnsType<InformeClienteRow> = [
+    { title: 'Cliente', dataIndex: 'cliente', width: 100 },
+    { title: 'Razón social', dataIndex: 'razon_social', ellipsis: true },
+    { title: 'Socio', dataIndex: 'socio_encargado_cliente', width: 110, align: 'center' },
+    { title: 'Fecha', dataIndex: 'fecha', width: 110, render: fmtFecha },
+  ];
+
   const fetchStats = async () => {
     setLoadingStats(true);
     try {
@@ -61,6 +115,7 @@ const GenerarReportesPage: React.FC = () => {
     setLoadingPreview(true);
     setPreview(null);
     setResult(null);
+    setCodigosView('all');
     try {
       const { data } = await informeSociosApi.preview(
         ini.format('YYYY-MM-DD'),
@@ -345,35 +400,51 @@ const GenerarReportesPage: React.FC = () => {
         <Card style={{ borderRadius: 12, marginBottom: 20 }}>
           <Row gutter={[16, 8]} style={{ marginBottom: 16 }}>
             <Col xs={12} sm={6}>
-              <Statistic
-                title="Casos en período"
-                value={preview.casos_en_periodo}
-                prefix={<FolderOutlined />}
-                valueStyle={{ fontSize: 20 }}
-              />
+              <Tooltip title="Clic para ver los casos del período">
+                <div style={{ cursor: 'pointer' }} onClick={() => openDetail('casos')}>
+                  <Statistic
+                    title="Casos en período"
+                    value={preview.casos_en_periodo}
+                    prefix={<FolderOutlined />}
+                    valueStyle={{ fontSize: 20 }}
+                  />
+                </div>
+              </Tooltip>
             </Col>
             <Col xs={12} sm={6}>
-              <Statistic
-                title="Clientes en período"
-                value={preview.clientes_en_periodo}
-                prefix={<TeamOutlined />}
-                valueStyle={{ fontSize: 20 }}
-              />
+              <Tooltip title="Clic para ver los clientes del período">
+                <div style={{ cursor: 'pointer' }} onClick={() => openDetail('clientes')}>
+                  <Statistic
+                    title="Clientes en período"
+                    value={preview.clientes_en_periodo}
+                    prefix={<TeamOutlined />}
+                    valueStyle={{ fontSize: 20 }}
+                  />
+                </div>
+              </Tooltip>
             </Col>
             <Col xs={12} sm={6}>
-              <Statistic
-                title="Códigos detectados"
-                value={preview.codigos_detectados.length}
-                prefix={<UserOutlined />}
-                valueStyle={{ fontSize: 20 }}
-              />
+              <Tooltip title="Clic para ver todos los códigos en la tabla de abajo">
+                <div style={{ cursor: 'pointer' }} onClick={() => setCodigosView('all')}>
+                  <Statistic
+                    title="Códigos detectados"
+                    value={preview.codigos_detectados.length}
+                    prefix={<UserOutlined />}
+                    valueStyle={{ fontSize: 20 }}
+                  />
+                </div>
+              </Tooltip>
             </Col>
             <Col xs={12} sm={6}>
-              <Statistic
-                title="Sin socio registrado"
-                value={preview.codigos_detectados.filter((c) => !c.tiene_socio && !c.excluido && !c.reporte_especial).length}
-                valueStyle={{ fontSize: 20, color: preview.codigos_detectados.some((c) => !c.tiene_socio && !c.excluido && !c.reporte_especial) ? '#ef4444' : '#999' }}
-              />
+              <Tooltip title="Clic para ver solo los códigos sin socio registrado">
+                <div style={{ cursor: 'pointer' }} onClick={() => setCodigosView('sin_socio')}>
+                  <Statistic
+                    title="Sin socio registrado"
+                    value={preview.codigos_detectados.filter((c) => !c.tiene_socio && !c.excluido && !c.reporte_especial).length}
+                    valueStyle={{ fontSize: 20, color: preview.codigos_detectados.some((c) => !c.tiene_socio && !c.excluido && !c.reporte_especial) ? '#ef4444' : '#999' }}
+                  />
+                </div>
+              </Tooltip>
             </Col>
           </Row>
 
@@ -386,8 +457,29 @@ const GenerarReportesPage: React.FC = () => {
           <Text type="secondary" style={{ display: 'block', marginBottom: 12, fontSize: 12 }}>
             Los marcados en rojo no tienen socio registrado — ve a "Gestión de socios" para agregarlos antes de enviar.
           </Text>
+          {codigosView === 'sin_socio' && (
+            <Alert
+              type="warning"
+              showIcon
+              style={{ marginBottom: 12 }}
+              message={
+                <Space>
+                  Mostrando solo los códigos sin socio registrado
+                  <Button size="small" onClick={() => setCodigosView('all')}>
+                    Ver todos
+                  </Button>
+                </Space>
+              }
+            />
+          )}
           <Table<CodigoDetectado>
-            dataSource={preview.codigos_detectados}
+            dataSource={
+              codigosView === 'sin_socio'
+                ? preview.codigos_detectados.filter(
+                    (c) => !c.tiene_socio && !c.excluido && !c.reporte_especial,
+                  )
+                : preview.codigos_detectados
+            }
             columns={codigosColumns}
             rowKey="codigo"
             size="small"
@@ -467,6 +559,41 @@ const GenerarReportesPage: React.FC = () => {
           )}
         </Card>
       )}
+
+      {/* Detalle de casos / clientes del período */}
+      <Modal
+        title={
+          detailOpen === 'casos'
+            ? `Casos del período (${detailCasos.length})`
+            : `Clientes del período (${detailClientes.length})`
+        }
+        open={detailOpen !== null}
+        onCancel={() => setDetailOpen(null)}
+        footer={null}
+        width={900}
+      >
+        {detailOpen === 'casos' ? (
+          <Table<InformeCasoRow>
+            dataSource={detailCasos}
+            columns={casosDetailColumns}
+            rowKey="id"
+            size="small"
+            loading={detailLoading}
+            pagination={{ pageSize: 10, showSizeChanger: true }}
+            scroll={{ x: 800 }}
+          />
+        ) : (
+          <Table<InformeClienteRow>
+            dataSource={detailClientes}
+            columns={clientesDetailColumns}
+            rowKey="id"
+            size="small"
+            loading={detailLoading}
+            pagination={{ pageSize: 10, showSizeChanger: true }}
+            scroll={{ x: 700 }}
+          />
+        )}
+      </Modal>
     </div>
   );
 };
