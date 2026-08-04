@@ -75,7 +75,12 @@ const CrearNotificacion: React.FC = () => {
   useEffect(() => {
     Promise.allSettled([
       fetchProveniences().then(setProveniences),
-      fetchPlaces().then(setPlaces),
+      fetchPlaces().then((list) => {
+        setPlaces(list);
+        // Lugar de recepción por defecto: DIAGO 6
+        const diago = list.find((pl) => /diago/i.test(pl.name));
+        if (diago) form.setFieldsValue({ creationPlace: diago.id });
+      }),
       fetchNotificationReceivers().then((recs) => {
         setReceivers(recs);
         // Autocompletar con el usuario logueado si es un receptor válido.
