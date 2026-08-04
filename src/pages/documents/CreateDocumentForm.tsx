@@ -49,10 +49,10 @@ const CreateDocumentForm: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const userId = useAuthStore((s) => s.userId);
 
-  // Predeterminados: quien entrega = usuario logueado; lugar = DIAGO 6
-  const applyDefaults = (usersList: User[], placesList: PlaceDto[]) => {
-    if (userId && usersList.some((u) => u.id === userId)) {
-      form.setFieldValue("documentDeliverBy", userId);
+  // Predeterminados: recibido por = usuario logueado; lugar = DIAGO 6
+  const applyDefaults = (receiversList: User[], placesList: PlaceDto[]) => {
+    if (userId && receiversList.some((u) => u.id === userId)) {
+      form.setFieldValue("receivedBy", userId);
     }
     const diago = placesList.find((p) => /diago/i.test(p.name));
     if (diago) form.setFieldValue("creationPlace", diago.id);
@@ -60,16 +60,16 @@ const CreateDocumentForm: React.FC = () => {
 
   useEffect(() => {
     fetchUsers()
-      .then((list) => {
-        setUsers(list);
-        if (userId && list.some((u) => u.id === userId)) {
-          form.setFieldValue("documentDeliverBy", userId);
-        }
-      })
+      .then(setUsers)
       .catch(() => message.error("Error cargando usuarios"));
 
     fetchDocumentReceivers()
-      .then(setReceivers)
+      .then((recs) => {
+        setReceivers(recs);
+        if (userId && recs.some((u) => u.id === userId)) {
+          form.setFieldValue("receivedBy", userId);
+        }
+      })
       .catch(() => message.error("Error cargando receptores"));
 
     fetchPlaces()
@@ -106,7 +106,7 @@ const CreateDocumentForm: React.FC = () => {
       form.resetFields();
       setOtroEntregadoPor(false);
       setOtroTipoDoc(false);
-      applyDefaults(users, places);
+      applyDefaults(receivers, places);
     } catch (err: unknown) {
       message.error("Error al crear documento");
       console.error(err);
@@ -119,7 +119,7 @@ const CreateDocumentForm: React.FC = () => {
     form.resetFields();
     setOtroEntregadoPor(false);
     setOtroTipoDoc(false);
-    applyDefaults(users, places);
+    applyDefaults(receivers, places);
   };
 
   return (
