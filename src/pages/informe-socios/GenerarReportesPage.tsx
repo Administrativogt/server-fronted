@@ -190,7 +190,13 @@ const GenerarReportesPage: React.FC = () => {
       align: 'center',
       width: 140,
       render: (v: boolean, record) =>
-        record.excluido ? (
+        record.reporte_especial ? (
+          <Tooltip
+            title={`Reporte "${record.reporte_especial.etiqueta}" → ${record.reporte_especial.email}${record.reporte_especial.cc.length ? ` (CC: ${record.reporte_especial.cc.join(', ')})` : ''}`}
+          >
+            <Tag color="blue">Correo especial</Tag>
+          </Tooltip>
+        ) : record.excluido ? (
           <Tooltip title="Coordinador no-socio: no genera correo individual">
             <Tag color="default">Excluido</Tag>
           </Tooltip>
@@ -365,8 +371,8 @@ const GenerarReportesPage: React.FC = () => {
             <Col xs={12} sm={6}>
               <Statistic
                 title="Sin socio registrado"
-                value={preview.codigos_detectados.filter((c) => !c.tiene_socio && !c.excluido).length}
-                valueStyle={{ fontSize: 20, color: preview.codigos_detectados.some((c) => !c.tiene_socio && !c.excluido) ? '#ef4444' : '#999' }}
+                value={preview.codigos_detectados.filter((c) => !c.tiene_socio && !c.excluido && !c.reporte_especial).length}
+                valueStyle={{ fontSize: 20, color: preview.codigos_detectados.some((c) => !c.tiene_socio && !c.excluido && !c.reporte_especial) ? '#ef4444' : '#999' }}
               />
             </Col>
           </Row>

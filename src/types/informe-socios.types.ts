@@ -28,6 +28,12 @@ export interface CodigoDetectado {
   tiene_socio: boolean;
   /** Coordinador no-socio (GRENTE, JASC, RACSA...): sin correo individual */
   excluido?: boolean;
+  /** Código con reporte propio a destinatarios fijos (DNPAN, SOCIETARIO) */
+  reporte_especial?: {
+    etiqueta: string;
+    email: string;
+    cc: string[];
+  } | null;
 }
 
 export interface PreviewReporte {
