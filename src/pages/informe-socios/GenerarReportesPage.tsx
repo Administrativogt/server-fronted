@@ -252,7 +252,7 @@ const GenerarReportesPage: React.FC = () => {
             <Tag color="blue">Correo especial</Tag>
           </Tooltip>
         ) : record.excluido ? (
-          <Tooltip title="Coordinador no-socio: no genera correo individual">
+          <Tooltip title="No genera correo individual (excluido o recibe el reporte general)">
             <Tag color="default">Excluido</Tag>
           </Tooltip>
         ) : v ? (
