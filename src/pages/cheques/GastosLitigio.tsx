@@ -42,6 +42,10 @@ function GastosLitigio() {
   const tipoUsuario = useAuthStore((s) => s.tipo_usuario);
   const isSuperuser = useAuthStore((s) => s.is_superuser);
   const canViewAll = isSuperuser || [1, 2, 10].includes(tipoUsuario || 0);
+  // Secretarias (tipo 6, p. ej. Gladys): el backend define su alcance
+  // (códigos de Litigio + equipo); forzar responsible_id lo restringía a
+  // solo sus propios cheques y el selector no mostraba los de Christian.
+  const isSecretaria = tipoUsuario === 6;
 
   const [data, setData] = useState<LitigioExpense[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
@@ -80,17 +84,17 @@ function GastosLitigio() {
 
   const [filters, setFilters] = useState({
     request_id: undefined as number | undefined,
-    responsible_id: canViewAll ? (undefined as number | undefined) : (userId ?? undefined),
+    responsible_id: canViewAll || isSecretaria ? (undefined as number | undefined) : (userId ?? undefined),
     page: 1,
     per_page: 20,
   });
   const [pagination, setPagination] = useState({ total: 0, page: 1, per_page: 20 });
 
   useEffect(() => {
-    if (!canViewAll && userId) {
+    if (!canViewAll && !isSecretaria && userId) {
       setFilters((prev) => ({ ...prev, responsible_id: userId }));
     }
-  }, [canViewAll, userId]);
+  }, [canViewAll, isSecretaria, userId]);
 
   const fetchCheckOptions = useCallback(async () => {
     setCheckOptionsLoading(true);
@@ -99,7 +103,7 @@ function GastosLitigio() {
         page: 1,
         per_page: 200,
         equipo_id: 6,
-        ...(canViewAll ? {} : { responsible_id: userId ?? undefined }),
+        ...(canViewAll || isSecretaria ? {} : { responsible_id: userId ?? undefined }),
       });
       setCheckOptions(response.data);
     } catch (error: any) {
@@ -200,7 +204,7 @@ function GastosLitigio() {
       const response = await getLitigioExpenses({
         ...filters,
         request_id: filters.request_id || undefined,
-        responsible_id: canViewAll ? filters.responsible_id || undefined : userId || undefined,
+        responsible_id: canViewAll || isSecretaria ? filters.responsible_id || undefined : userId || undefined,
       });
       setData(response.data);
       setPagination({
@@ -347,12 +351,12 @@ function GastosLitigio() {
           value={filters.request_id}
           onChange={(value) => setFilters((prev) => ({ ...prev, request_id: value || undefined }))}
         />
-        {canViewAll ? (
+        {canViewAll || isSecretaria ? (
           <Select<number>
             allowClear
             showSearch
             style={{ width: 280 }}
-            placeholder="entregado por"
+            placeholder="solicitante"
             value={filters.responsible_id}
             onChange={(value) => setFilters((prev) => ({ ...prev, responsible_id: value }))}
             options={users.map((user) => ({
