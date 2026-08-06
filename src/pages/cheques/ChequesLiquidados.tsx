@@ -7,6 +7,7 @@ import {
   InputNumber,
   message,
   Modal,
+  Select,
   Space,
   Table,
   Tag,
@@ -22,12 +23,22 @@ import {
   getLiquidationDocumentUrl,
   revertLiquidation,
 } from '../../api/checks';
+import { fetchUsers, fullName, type UserLite } from '../../api/users';
+import useAuthStore from '../../auth/useAuthStore';
 
 const { Title } = Typography;
 
 function ChequesLiquidados() {
+  const tipoUsuario = useAuthStore((s) => s.tipo_usuario);
+  const isSuperuser = useAuthStore((s) => s.is_superuser);
+  // Elevados y secretarias pueden filtrar por solicitante; el backend limita
+  // el alcance real (equipo/códigos) por su cuenta.
+  const canFilterResponsible =
+    isSuperuser || [1, 2, 6, 9, 10].includes(tipoUsuario || 0);
+
   const [data, setData] = useState<CheckRequest[]>([]);
   const [loading, setLoading] = useState(false);
+  const [users, setUsers] = useState<UserLite[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [filters, setFilters] = useState({
     request_id: undefined as number | undefined,
@@ -36,6 +47,7 @@ function ChequesLiquidados() {
     invoice_number: '',
     init_date: '',
     end_date: '',
+    responsible_id: undefined as number | undefined,
     page: 1,
     per_page: 20,
   });
@@ -56,6 +68,9 @@ function ChequesLiquidados() {
         invoice_number: filters.invoice_number.trim() || undefined,
         init_date: filters.init_date || undefined,
         end_date: filters.end_date || undefined,
+        responsible_id: canFilterResponsible
+          ? filters.responsible_id || undefined
+          : undefined,
       });
       setData(response.data);
       setPagination({
@@ -74,6 +89,13 @@ function ChequesLiquidados() {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.page, filters.per_page]);
+
+  useEffect(() => {
+    if (canFilterResponsible) {
+      fetchUsers().then(setUsers).catch(() => setUsers([]));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canFilterResponsible]);
 
   const handleRevert = async (checkRequestId: number) => {
     let reason = '';
@@ -207,6 +229,21 @@ function ChequesLiquidados() {
           value={filters.end_date ? dayjs(filters.end_date) : null}
           onChange={(value) => setFilters((prev) => ({ ...prev, end_date: value ? value.format('YYYY-MM-DD') : '' }))}
         />
+        {canFilterResponsible ? (
+          <Select<number>
+            allowClear
+            showSearch
+            style={{ width: 260 }}
+            placeholder="solicitante"
+            value={filters.responsible_id}
+            onChange={(value) => setFilters((prev) => ({ ...prev, responsible_id: value }))}
+            options={users.map((user) => ({
+              label: `${fullName(user)} (${user.username})`,
+              value: user.id,
+            }))}
+            optionFilterProp="label"
+          />
+        ) : null}
         <Button
           type="primary"
           onClick={() => {
