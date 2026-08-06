@@ -40,6 +40,10 @@ function LiquidacionCheque() {
   const isSuperuser = useAuthStore((s) => s.is_superuser);
   // 9 = Contabilidad: ve y liquida cualquier cheque (espejo del backend isElevatedUser)
   const canViewAll = isSuperuser || [1, 2, 9, 10].includes(tipoUsuario || 0);
+  // Secretarias (tipo 6): el backend les da la vista de su equipo y acepta
+  // filtrar por solicitante dentro de ese alcance
+  const isSecretaria = tipoUsuario === 6;
+  const canFilterResponsible = canViewAll || isSecretaria;
 
   const [data, setData] = useState<CheckRequest[]>([]);
   const [loading, setLoading] = useState(false);
@@ -60,7 +64,7 @@ function LiquidacionCheque() {
     request_id: undefined as number | undefined,
     work_note_number: undefined as number | undefined,
     client: '',
-    responsible_id: canViewAll ? (undefined as number | undefined) : (userId ?? undefined),
+    responsible_id: canFilterResponsible ? (undefined as number | undefined) : (userId ?? undefined),
     page: 1,
     per_page: 20,
   });
@@ -69,10 +73,10 @@ function LiquidacionCheque() {
   const [liquidateForm] = Form.useForm();
 
   useEffect(() => {
-    if (!canViewAll && userId) {
+    if (!canFilterResponsible && userId) {
       setFilters((prev) => ({ ...prev, responsible_id: userId }));
     }
-  }, [canViewAll, userId]);
+  }, [canFilterResponsible, userId]);
 
   const loadData = async () => {
     setLoading(true);
@@ -82,7 +86,7 @@ function LiquidacionCheque() {
         request_id: filters.request_id || undefined,
         work_note_number: filters.work_note_number || undefined,
         client: filters.client || undefined,
-        responsible_id: canViewAll ? filters.responsible_id || undefined : userId || undefined,
+        responsible_id: canFilterResponsible ? filters.responsible_id || undefined : userId || undefined,
       });
       setData(response.data);
       setPagination({
@@ -335,12 +339,12 @@ function LiquidacionCheque() {
           onChange={(e) => setFilters((prev) => ({ ...prev, client: e.target.value }))}
           style={{ width: 220 }}
         />
-        {canViewAll ? (
+        {canFilterResponsible ? (
           <Select<number>
             allowClear
             showSearch
             style={{ width: 280 }}
-            placeholder="responsable"
+            placeholder="solicitante"
             value={filters.responsible_id}
             onChange={(value) => setFilters((prev) => ({ ...prev, responsible_id: value }))}
             options={users.map((user) => ({
