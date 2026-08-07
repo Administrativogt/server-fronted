@@ -22,6 +22,18 @@ export const informeSociosApi = {
   // Stats
   getStats: () => api.get<InformeStats>('/api/informe-socios/stats'),
 
+  // Último envío + período sugerido para encadenar el próximo
+  getUltimoEnvio: () =>
+    api.get<{
+      ultimo_envio: {
+        fecha_envio: string;
+        fecha_inicio: string;
+        fecha_fin: string;
+        emails_enviados: number;
+      } | null;
+      sugerido: { fecha_inicio: string | null; fecha_fin: string };
+    }>('/api/informe-socios/ultimo-envio'),
+
   // Datos importados (opcionalmente filtrados por período)
   getCasos: (fechaInicio?: string, fechaFin?: string) =>
     api.get<InformeCasoRow[]>('/api/informe-socios/casos', {

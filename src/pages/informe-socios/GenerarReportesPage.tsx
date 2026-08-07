@@ -107,7 +107,29 @@ const GenerarReportesPage: React.FC = () => {
     }
   };
 
+  const [ultimoEnvioInfo, setUltimoEnvioInfo] = useState<{
+    fecha_envio: string;
+    fecha_inicio: string;
+    fecha_fin: string;
+  } | null>(null);
+
   useEffect(() => { fetchStats(); }, []);
+
+  // Encadenar períodos: pre-cargar [día siguiente al último envío, ayer]
+  useEffect(() => {
+    informeSociosApi
+      .getUltimoEnvio()
+      .then(({ data }) => {
+        setUltimoEnvioInfo(data.ultimo_envio);
+        if (data.sugerido.fecha_inicio) {
+          setDateRange([
+            dayjs(data.sugerido.fecha_inicio),
+            dayjs(data.sugerido.fecha_fin),
+          ]);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handlePreview = async () => {
     if (!dateRange) return message.warning('Selecciona el rango de fechas');
@@ -320,11 +342,20 @@ const GenerarReportesPage: React.FC = () => {
         <Form layout="vertical">
           <Row gutter={[16, 0]}>
             <Col xs={24} md={10}>
-              <Form.Item label="Período del reporte" required>
+              <Form.Item
+                label="Período del reporte"
+                required
+                extra={
+                  ultimoEnvioInfo
+                    ? `Último envío: ${dayjs(ultimoEnvioInfo.fecha_envio).format('DD/MM/YYYY')} (período ${dayjs(ultimoEnvioInfo.fecha_inicio).format('DD/MM')} – ${dayjs(ultimoEnvioInfo.fecha_fin).format('DD/MM/YYYY')}). Período sugerido pre-cargado: del día siguiente al último envío hasta ayer.`
+                    : 'Primer envío: selecciona el período manualmente. Los siguientes se pre-cargarán solos (del último envío hasta ayer).'
+                }
+              >
                 <RangePicker
                   style={{ width: '100%' }}
                   format="DD/MM/YYYY"
                   placeholder={['Fecha inicio', 'Fecha fin']}
+                  value={dateRange}
                   onChange={(vals) =>
                     setDateRange(vals as [dayjs.Dayjs, dayjs.Dayjs] | null)
                   }
