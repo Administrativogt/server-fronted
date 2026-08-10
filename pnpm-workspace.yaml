@@ -1,0 +1,5 @@
+# Scripts de instalación permitidos (lista blanca). pnpm bloquea por defecto
+# los postinstall de dependencias — principal vector de ataques de cadena de
+# suministro. esbuild es el bundler de Vite y necesita enlazar su binario.
+allowBuilds:
+  esbuild: true
