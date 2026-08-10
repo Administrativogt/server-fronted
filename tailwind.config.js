@@ -1,54 +1,84 @@
+import animate from 'tailwindcss-animate';
+
 /** @type {import('tailwindcss').Config} */
 export default {
+  // Solo la superficie de inducción usa Tailwind/shadcn por ahora. Ampliar
+  // estos globs activaría clases latentes en páginas viejas (jurisprudence)
+  // que nunca se compilaron; hacerlo requiere revisarlas primero.
   content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
+    "./src/pages/induccion/**/*.{ts,tsx}",
+    "./src/components/ui/**/*.{ts,tsx}",
+    "./src/lib/**/*.{ts,tsx}",
   ],
+  // La clase `dark` se aplica en el wrapper de la página según useThemeStore.
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
-        navy: {
-          50:  '#f0f4ff',
-          100: '#dce6ff',
-          200: '#b9ceff',
-          300: '#86a7ff',
-          400: '#4d79ff',
-          500: '#1e3a8a',
-          600: '#1e40af',
-          700: '#1d3a9e',
-          800: '#1e3382',
-          900: '#0f1f5c',
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        primary: {
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))',
         },
+        secondary: {
+          DEFAULT: 'hsl(var(--secondary))',
+          foreground: 'hsl(var(--secondary-foreground))',
+        },
+        destructive: {
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))',
+        },
+        success: {
+          DEFAULT: 'hsl(var(--success))',
+          foreground: 'hsl(var(--success-foreground))',
+        },
+        muted: {
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--muted-foreground))',
+        },
+        accent: {
+          DEFAULT: 'hsl(var(--accent))',
+          foreground: 'hsl(var(--accent-foreground))',
+        },
+        card: {
+          DEFAULT: 'hsl(var(--card))',
+          foreground: 'hsl(var(--card-foreground))',
+        },
+        popover: {
+          DEFAULT: 'hsl(var(--popover))',
+          foreground: 'hsl(var(--popover-foreground))',
+        },
+        /* Dorado del diploma (única concesión fuera de la paleta del sistema) */
         gold: {
-          400: '#d97706',
-          500: '#b45309',
-          600: '#92400e',
+          DEFAULT: 'hsl(var(--gold))',
         },
-        slate: {
-          50:  '#f8fafc',
-          100: '#f1f5f9',
-          200: '#e2e8f0',
-          300: '#cbd5e1',
-          400: '#94a3b8',
-          500: '#64748b',
-          600: '#475569',
-          700: '#334155',
-          800: '#1e293b',
-          900: '#0f172a',
-        },
+      },
+      borderRadius: {
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
       },
       fontFamily: {
-        sans: ['Poppins', 'Inter', 'system-ui', 'sans-serif'],
+        sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+        serif: ['Georgia', 'serif'],
       },
-      boxShadow: {
-        'card': '0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.04)',
-        'card-hover': '0 4px 12px 0 rgba(0, 0, 0, 0.10), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-        'header': '0 1px 0 0 rgba(0, 0, 0, 0.06)',
+      keyframes: {
+        'fade-up': {
+          from: { opacity: '0', transform: 'translateY(10px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+      },
+      animation: {
+        'fade-up': 'fade-up .35s cubic-bezier(.22,1,.36,1) both',
       },
     },
   },
-  plugins: [],
+  plugins: [animate],
   corePlugins: {
-    preflight: false, // Disable preflight to avoid conflicts with antd
+    preflight: false, // El reset global chocaría con AntD; hay uno scoped en index.css
   },
 }

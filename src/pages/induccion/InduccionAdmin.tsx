@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import {
   Button,
   Card,
+  Empty,
   Form,
   Input,
   InputNumber,
   message,
   Modal,
   Popconfirm,
+  Progress,
   Radio,
   Select,
   Space,
@@ -18,6 +20,7 @@ import {
   Typography,
   Upload,
 } from 'antd';
+import dayjs from 'dayjs';
 import {
   DeleteOutlined,
   EditOutlined,
@@ -29,20 +32,27 @@ import {
 import type { UploadFile } from 'antd';
 import {
   createInductionItem,
+  createInductionModule,
   createInductionQuestion,
   deleteInductionItem,
+  deleteInductionModule,
   deleteInductionQuestion,
   fetchInductionItems,
   fetchInductionLimits,
   fetchInductionModules,
   fetchInductionQuestions,
+  fetchInductionResults,
+  fetchParticipantResults,
   fetchPublicInductionFileUrl,
   updateInductionItem,
+  updateInductionModule,
   updateInductionQuestion,
   type InductionItem,
   type InductionItemType,
   type InductionModule,
+  type InductionParticipantDetail,
   type InductionQuestion,
+  type InductionResultRow,
 } from '../../api/induction';
 
 const { Title, Text } = Typography;
@@ -86,13 +96,16 @@ function InduccionAdmin() {
     }
   };
 
+  const reloadModules = () =>
+    fetchInductionModules().then(setModules).catch(() => {});
+
   useEffect(() => {
     loadData();
     // El tope lo define el backend (y nginx); no lo hardcodeamos en la UI.
     fetchInductionLimits()
       .then((l) => setMaxUploadMb(l.max_upload_mb))
       .catch(() => {});
-    fetchInductionModules().then(setModules).catch(() => {});
+    reloadModules();
   }, []);
 
   /** Solo los módulos hoja llevan contenido y evaluación (3 agrupa a 3.1–3.4). */
@@ -199,6 +212,16 @@ function InduccionAdmin() {
           label: 'Evaluaciones',
           children: <Evaluaciones modulos={modulosHoja} />,
         },
+        {
+          key: 'modulos',
+          label: 'Módulos',
+          children: <Modulos modulos={modules} onChanged={reloadModules} />,
+        },
+        {
+          key: 'resultados',
+          label: 'Resultados',
+          children: <Resultados />,
+        },
       ]}
     />
   );
@@ -232,7 +255,8 @@ function InduccionAdmin() {
         rowKey="id"
         loading={loading}
         dataSource={data}
-        pagination={false}
+        pagination={{ pageSize: 20, hideOnSinglePage: true }}
+        scroll={{ x: 900 }}
         columns={[
           {
             title: 'Tipo',
@@ -271,18 +295,30 @@ function InduccionAdmin() {
                   '—'
                 )
               ) : record.file || v ? (
-                <a
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<FileTextOutlined />}
+                  style={{ padding: 0, maxWidth: 200 }}
                   onClick={async () => {
                     try {
                       const url = await fetchPublicInductionFileUrl(record.id);
-                      window.open(url, '_blank');
+                      window.open(url, '_blank', 'noopener');
                     } catch {
                       message.error('No se pudo abrir el archivo');
                     }
                   }}
                 >
-                  <FileTextOutlined /> {v || 'ver archivo'}
-                </a>
+                  <span
+                    style={{
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {v || 'ver archivo'}
+                  </span>
+                </Button>
               ) : (
                 '—'
               ),
@@ -299,7 +335,12 @@ function InduccionAdmin() {
             width: 110,
             render: (_, record) => (
               <Space>
-                <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)} />
+                <Button
+                  size="small"
+                  icon={<EditOutlined />}
+                  aria-label={`Editar ${record.title}`}
+                  onClick={() => openEdit(record)}
+                />
                 <Popconfirm
                   title={`¿Eliminar "${record.title}"?`}
                   okText="Eliminar"
@@ -307,7 +348,12 @@ function InduccionAdmin() {
                   okButtonProps={{ danger: true }}
                   onConfirm={() => handleDelete(record)}
                 >
-                  <Button size="small" danger icon={<DeleteOutlined />} />
+                  <Button
+                    size="small"
+                    danger
+                    icon={<DeleteOutlined />}
+                    aria-label={`Eliminar ${record.title}`}
+                  />
                 </Popconfirm>
               </Space>
             ),
@@ -323,7 +369,7 @@ function InduccionAdmin() {
         okText={editing ? 'Guardar cambios' : 'Crear'}
         cancelText="Cancelar"
         confirmLoading={saving}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical">
           <Form.Item name="item_type" label="Tipo de contenido" rules={[{ required: true }]}>
@@ -396,7 +442,7 @@ function InduccionAdmin() {
             </Form.Item>
           )}
 
-          <Space size="large">
+          <Space size="large" wrap>
             <Form.Item name="sort_order" label="Orden">
               <InputNumber min={0} />
             </Form.Item>
@@ -562,7 +608,8 @@ function Evaluaciones({ modulos }: { modulos: InductionModule[] }) {
         rowKey="id"
         loading={cargando}
         dataSource={preguntas}
-        pagination={false}
+        pagination={{ pageSize: 20, hideOnSinglePage: true }}
+        scroll={{ x: 800 }}
         columns={[
           { title: '#', dataIndex: 'sort_order', width: 60 },
           { title: 'Pregunta', dataIndex: 'text' },
@@ -587,9 +634,25 @@ function Evaluaciones({ modulos }: { modulos: InductionModule[] }) {
             width: 130,
             render: (_, q) => (
               <Space>
-                <Button size="small" icon={<EditOutlined />} onClick={() => abrirEditar(q)} />
-                <Popconfirm title="¿Eliminar la pregunta?" onConfirm={() => eliminar(q)}>
-                  <Button size="small" danger icon={<DeleteOutlined />} />
+                <Button
+                  size="small"
+                  icon={<EditOutlined />}
+                  aria-label="Editar pregunta"
+                  onClick={() => abrirEditar(q)}
+                />
+                <Popconfirm
+                  title="¿Eliminar la pregunta?"
+                  okText="Eliminar"
+                  cancelText="Cancelar"
+                  okButtonProps={{ danger: true }}
+                  onConfirm={() => eliminar(q)}
+                >
+                  <Button
+                    size="small"
+                    danger
+                    icon={<DeleteOutlined />}
+                    aria-label="Eliminar pregunta"
+                  />
                 </Popconfirm>
               </Space>
             ),
@@ -605,7 +668,7 @@ function Evaluaciones({ modulos }: { modulos: InductionModule[] }) {
         confirmLoading={guardando}
         okText="Guardar"
         cancelText="Cancelar"
-        destroyOnClose
+        destroyOnHidden
         width={640}
       >
         <Form form={form} layout="vertical">
@@ -618,15 +681,26 @@ function Evaluaciones({ modulos }: { modulos: InductionModule[] }) {
               <Form.Item label="Opciones" required>
                 <Space direction="vertical" style={{ width: '100%' }}>
                   {fields.map((field, i) => (
-                    <Space key={field.key} align="baseline" style={{ width: '100%' }}>
-                      <Text type="secondary" style={{ width: 20 }}>{i + 1}.</Text>
+                    <div
+                      key={field.key}
+                      style={{ display: 'flex', gap: 8, alignItems: 'center' }}
+                    >
+                      <Text type="secondary" style={{ width: 20, flexShrink: 0 }}>
+                        {i + 1}.
+                      </Text>
                       <Form.Item {...field} noStyle>
-                        <Input style={{ width: 420 }} placeholder={`Opción ${i + 1}`} />
+                        <Input style={{ flex: 1, minWidth: 0 }} placeholder={`Opción ${i + 1}`} />
                       </Form.Item>
                       {fields.length > 2 && (
-                        <Button size="small" danger icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
+                        <Button
+                          size="small"
+                          danger
+                          icon={<DeleteOutlined />}
+                          aria-label={`Eliminar opción ${i + 1}`}
+                          onClick={() => remove(field.name)}
+                        />
                       )}
-                    </Space>
+                    </div>
                   ))}
                   <Button size="small" icon={<PlusOutlined />} onClick={() => add('')}>
                     Agregar opción
@@ -658,7 +732,7 @@ function Evaluaciones({ modulos }: { modulos: InductionModule[] }) {
             <Input.TextArea rows={2} />
           </Form.Item>
 
-          <Space size={24}>
+          <Space size={24} wrap>
             <Form.Item name="sort_order" label="Orden">
               <InputNumber min={0} />
             </Form.Item>
@@ -668,6 +742,428 @@ function Evaluaciones({ modulos }: { modulos: InductionModule[] }) {
           </Space>
         </Form>
       </Modal>
+    </Card>
+  );
+}
+
+/* ── Módulos del programa ─────────────────────────────────────────────────── */
+
+/**
+ * CRUD de la estructura del programa (antes solo editable desde la BD).
+ * Un nivel de jerarquía: módulos raíz y submódulos (3 → 3.1, 3.2…). Un módulo
+ * con submódulos no lleva contenido ni evaluación propios: agrupa.
+ */
+function Modulos({
+  modulos,
+  onChanged,
+}: {
+  modulos: InductionModule[];
+  onChanged: () => void;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  const [editando, setEditando] = useState<InductionModule | null>(null);
+  const [guardando, setGuardando] = useState(false);
+  const [form] = Form.useForm();
+
+  const raices = modulos.filter((m) => !m.parent_id);
+  const hijosDe = (id: number) => modulos.filter((m) => m.parent_id === id);
+  const esHoja = (m: InductionModule) => hijosDe(m.id).length === 0;
+
+  /* Raíces con sus hijos debajo, como se ve en la página pública. */
+  const ordenados = raices.flatMap((r) => [r, ...hijosDe(r.id)]);
+
+  const abrirCrear = () => {
+    setEditando(null);
+    form.resetFields();
+    form.setFieldsValue({
+      passing_percentage: 100,
+      sort_order: (raices[raices.length - 1]?.sort_order ?? 0) + 1,
+      active: true,
+    });
+    setAbierto(true);
+  };
+
+  const abrirEditar = (m: InductionModule) => {
+    setEditando(m);
+    form.setFieldsValue({
+      code: m.code,
+      title: m.title,
+      parent_id: m.parent_id ?? undefined,
+      summary: m.summary ?? '',
+      duration: m.duration ?? '',
+      passing_percentage: m.passing_percentage,
+      sort_order: m.sort_order,
+      active: m.active,
+    });
+    setAbierto(true);
+  };
+
+  const guardar = async () => {
+    try {
+      const v = await form.validateFields();
+      setGuardando(true);
+      const payload = {
+        code: v.code.trim(),
+        title: v.title.trim(),
+        parent_id: v.parent_id ?? null,
+        summary: v.summary?.trim() || undefined,
+        duration: v.duration?.trim() || undefined,
+        passing_percentage: v.passing_percentage ?? 100,
+        sort_order: v.sort_order ?? 0,
+        active: v.active ?? true,
+      };
+      if (editando) {
+        await updateInductionModule(editando.id, payload);
+        message.success('Módulo actualizado');
+      } else {
+        await createInductionModule(payload);
+        message.success('Módulo creado');
+      }
+      setAbierto(false);
+      onChanged();
+    } catch (error: any) {
+      if (error?.errorFields) return;
+      message.error(error?.response?.data?.message || 'Error al guardar el módulo');
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const eliminar = async (m: InductionModule) => {
+    try {
+      await deleteInductionModule(m.id);
+      message.success('Módulo eliminado');
+      onChanged();
+    } catch (error: any) {
+      message.error(error?.response?.data?.message || 'Error al eliminar el módulo');
+    }
+  };
+
+  return (
+    <Card>
+      <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }} wrap>
+        <div>
+          <Title level={4} style={{ margin: 0 }}>
+            Estructura del programa
+          </Title>
+          <Text type="secondary">
+            Los módulos se cursan en el orden de esta lista. Uno con submódulos
+            solo agrupa: el contenido y la evaluación van en cada submódulo.
+          </Text>
+        </div>
+        <Button type="primary" icon={<PlusOutlined />} onClick={abrirCrear}>
+          Agregar módulo
+        </Button>
+      </Space>
+
+      <Table<InductionModule>
+        rowKey="id"
+        dataSource={ordenados}
+        pagination={false}
+        scroll={{ x: 900 }}
+        columns={[
+          { title: 'Código', dataIndex: 'code', width: 90 },
+          {
+            title: 'Título',
+            dataIndex: 'title',
+            render: (t: string, m) =>
+              m.parent_id ? (
+                <span style={{ paddingLeft: 18 }}>{t}</span>
+              ) : (
+                <Text strong>{t}</Text>
+              ),
+          },
+          { title: 'Duración', dataIndex: 'duration', width: 110, render: (v) => v || '—' },
+          {
+            title: 'Aprueba con',
+            dataIndex: 'passing_percentage',
+            width: 110,
+            render: (v: number, m) => (esHoja(m) ? `${v}%` : '—'),
+          },
+          {
+            title: 'Contenido',
+            dataIndex: 'item_count',
+            width: 100,
+            render: (v: number, m) => (esHoja(m) ? v : '—'),
+          },
+          {
+            title: 'Preguntas',
+            dataIndex: 'question_count',
+            width: 130,
+            render: (v: number, m) =>
+              !esHoja(m) ? (
+                '—'
+              ) : v === 0 ? (
+                <Tag color="orange" title="Sin preguntas nadie puede aprobar este módulo">
+                  0 · bloquea el programa
+                </Tag>
+              ) : (
+                v
+              ),
+          },
+          { title: 'Orden', dataIndex: 'sort_order', width: 80 },
+          {
+            title: 'Activo',
+            dataIndex: 'active',
+            width: 90,
+            render: (a: boolean) => (a ? <Tag color="green">Sí</Tag> : <Tag>No</Tag>),
+          },
+          {
+            title: 'Acciones',
+            width: 110,
+            render: (_, m) => (
+              <Space>
+                <Button
+                  size="small"
+                  icon={<EditOutlined />}
+                  aria-label={`Editar ${m.code}`}
+                  onClick={() => abrirEditar(m)}
+                />
+                <Popconfirm
+                  title={`¿Eliminar el módulo ${m.code} · ${m.title}?`}
+                  description="Su contenido queda suelto (no se borra); sus preguntas sí se eliminan."
+                  okText="Eliminar"
+                  cancelText="Cancelar"
+                  okButtonProps={{ danger: true }}
+                  onConfirm={() => eliminar(m)}
+                >
+                  <Button size="small" danger icon={<DeleteOutlined />} aria-label={`Eliminar ${m.code}`} />
+                </Popconfirm>
+              </Space>
+            ),
+          },
+        ]}
+      />
+
+      <Modal
+        open={abierto}
+        title={editando ? `Editar módulo ${editando.code}` : 'Nuevo módulo'}
+        onCancel={() => setAbierto(false)}
+        onOk={guardar}
+        confirmLoading={guardando}
+        okText="Guardar"
+        cancelText="Cancelar"
+        destroyOnHidden
+      >
+        <Form form={form} layout="vertical">
+          <Space size="large" align="start" wrap>
+            <Form.Item
+              name="code"
+              label="Código"
+              rules={[{ required: true, message: 'Ej. 3.1' }]}
+              extra="Numeración visible: 1, 2, 3.1…"
+            >
+              <Input style={{ width: 100 }} maxLength={10} placeholder="3.1" />
+            </Form.Item>
+            <Form.Item
+              name="title"
+              label="Título"
+              style={{ width: 300 }}
+              rules={[{ required: true, message: 'Ingresa el título' }]}
+            >
+              <Input maxLength={180} placeholder="Ej. Contabilidad" />
+            </Form.Item>
+          </Space>
+
+          <Form.Item
+            name="parent_id"
+            label="Módulo padre"
+            extra="Solo si es un submódulo (un nivel: 3 → 3.1). Vacío = módulo principal."
+          >
+            <Select
+              allowClear
+              placeholder="Ninguno (módulo principal)"
+              options={raices
+                .filter((r) => r.id !== editando?.id)
+                .map((r) => ({ value: r.id, label: etiquetaModulo(r) }))}
+            />
+          </Form.Item>
+
+          <Form.Item name="summary" label="Resumen (opcional)">
+            <Input.TextArea rows={2} placeholder="Qué cubre el módulo; se muestra bajo el título" />
+          </Form.Item>
+
+          <Space size="large" wrap>
+            <Form.Item name="duration" label="Duración (texto)">
+              <Input style={{ width: 130 }} maxLength={40} placeholder="Ej. 35 min" />
+            </Form.Item>
+            <Form.Item
+              name="passing_percentage"
+              label="Aprueba con"
+              rules={[{ required: true, message: 'Indique el %' }]}
+            >
+              <InputNumber min={1} max={100} suffix="%" />
+            </Form.Item>
+            <Form.Item name="sort_order" label="Orden">
+              <InputNumber min={0} />
+            </Form.Item>
+            <Form.Item name="active" label="Activo" valuePropName="checked">
+              <Switch />
+            </Form.Item>
+          </Space>
+        </Form>
+      </Modal>
+    </Card>
+  );
+}
+
+/* ── Resultados de participantes ──────────────────────────────────────────── */
+
+const fechaCorta = (v: string | null | undefined) =>
+  v ? dayjs(v).format('DD/MM/YYYY HH:mm') : '—';
+
+/**
+ * Quién se registró, cuánto lleva y cada intento de evaluación. El avance ya
+ * no vive en el navegador de la persona: esta pestaña es la constancia de RRHH.
+ */
+function Resultados() {
+  const [rows, setRows] = useState<InductionResultRow[]>([]);
+  const [cargando, setCargando] = useState(false);
+  const [detalles, setDetalles] = useState<Record<number, InductionParticipantDetail>>({});
+
+  const cargar = async () => {
+    setCargando(true);
+    try {
+      setRows(await fetchInductionResults());
+    } catch (error: any) {
+      message.error(error?.response?.data?.message || 'Error al cargar los resultados');
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  useEffect(() => {
+    cargar();
+  }, []);
+
+  const cargarDetalle = async (id: number) => {
+    if (detalles[id]) return;
+    try {
+      const d = await fetchParticipantResults(id);
+      setDetalles((prev) => ({ ...prev, [id]: d }));
+    } catch {
+      message.error('No se pudo cargar el detalle de intentos');
+    }
+  };
+
+  return (
+    <Card>
+      <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }} wrap>
+        <div>
+          <Title level={4} style={{ margin: 0 }}>
+            Resultados del programa
+          </Title>
+          <Text type="secondary">
+            Cada fila es una persona registrada; expándala para ver sus intentos módulo por módulo.
+          </Text>
+        </div>
+        <Button onClick={cargar} loading={cargando}>
+          Recargar
+        </Button>
+      </Space>
+
+      <Table<InductionResultRow>
+        rowKey="id"
+        loading={cargando}
+        dataSource={rows}
+        scroll={{ x: 900 }}
+        locale={{
+          emptyText: (
+            <Empty description="Nadie se ha registrado todavía en la página de inducción" />
+          ),
+        }}
+        expandable={{
+          onExpand: (expanded, record) => {
+            if (expanded) cargarDetalle(record.id);
+          },
+          expandedRowRender: (record) => {
+            const d = detalles[record.id];
+            if (!d) return <Text type="secondary">Cargando intentos…</Text>;
+            if (!d.attempts.length) {
+              return <Text type="secondary">Sin intentos de evaluación todavía.</Text>;
+            }
+            return (
+              <Table
+                rowKey="id"
+                size="small"
+                dataSource={d.attempts}
+                pagination={false}
+                columns={[
+                  {
+                    title: 'Módulo',
+                    render: (_, a) => `${a.module_code} · ${a.module_title}`,
+                  },
+                  {
+                    title: 'Resultado',
+                    width: 140,
+                    render: (_, a) => `${a.correct}/${a.total} (mín. ${a.required})`,
+                  },
+                  {
+                    title: 'Estado',
+                    width: 120,
+                    render: (_, a) =>
+                      a.passed ? <Tag color="green">Aprobado</Tag> : <Tag color="red">No aprobado</Tag>,
+                  },
+                  {
+                    title: 'Fecha',
+                    dataIndex: 'created',
+                    width: 150,
+                    render: fechaCorta,
+                  },
+                ]}
+              />
+            );
+          },
+        }}
+        columns={[
+          { title: 'Nombre', dataIndex: 'full_name', render: (v) => <Text strong>{v}</Text> },
+          { title: 'Correo', dataIndex: 'email', width: 220 },
+          {
+            title: 'Avance',
+            width: 170,
+            render: (_, r) => (
+              <Space size={8}>
+                <Progress
+                  percent={
+                    r.total_evaluable
+                      ? Math.round((r.approved_count / r.total_evaluable) * 100)
+                      : 0
+                  }
+                  size="small"
+                  style={{ width: 90 }}
+                  showInfo={false}
+                />
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {r.approved_count}/{r.total_evaluable}
+                </Text>
+              </Space>
+            ),
+          },
+          {
+            title: 'Estado',
+            width: 190,
+            render: (_, r) =>
+              r.completed_at ? (
+                <Tag color="green">Completado · {dayjs(r.completed_at).format('DD/MM/YYYY')}</Tag>
+              ) : (
+                <Tag>En curso</Tag>
+              ),
+          },
+          { title: 'Intentos', dataIndex: 'attempt_count', width: 90 },
+          {
+            title: 'Última actividad',
+            dataIndex: 'last_activity',
+            width: 150,
+            render: fechaCorta,
+          },
+          {
+            title: 'Registro',
+            dataIndex: 'created',
+            width: 150,
+            render: fechaCorta,
+          },
+        ]}
+      />
     </Card>
   );
 }

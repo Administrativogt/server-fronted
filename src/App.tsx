@@ -18,6 +18,7 @@ const InduccionAdmin = lazy(() => import('./pages/induccion/InduccionAdmin'));
 // Layout / Guards (shell — se mantienen eager)
 import PrivateRoute from './routes/PrivateRoute';
 import ModuleRoute from './routes/ModuleRoute';
+import InductionRoute from './routes/InductionRoute';
 import DashboardLayout from './pages/DashboardLayout';
 import DashboardPage from './pages/DashboardPage';
 
@@ -287,7 +288,9 @@ function AppInner() {
 
               {/* Recursos humanos */}
               {/* Inducción: gestión del contenido público (superusuarios + RRHH; el backend valida) */}
-              <Route path="/dashboard/induccion" element={<InduccionAdmin />} />
+              <Route element={<InductionRoute />}>
+                <Route path="/dashboard/induccion" element={<InduccionAdmin />} />
+              </Route>
 
               <Route element={<ModuleRoute moduleKey="recursos_humanos" />}>
                 <Route path="/dashboard/recursos-humanos" element={<HumanResourcesPage />} />

@@ -120,6 +120,53 @@ export interface EvaluationResult {
     ok: boolean;
     explanation?: string | null;
   }[];
+  /** Avance actualizado si el intento quedó registrado; null si el token no valió. */
+  participant?: {
+    approved_module_ids: number[];
+    completed_at: string | null;
+  } | null;
+}
+
+/** Persona registrada que cursa la inducción; el token autentica sus envíos. */
+export interface InductionParticipant {
+  id: number;
+  full_name: string;
+  email: string;
+  token: string;
+  completed_at: string | null;
+  approved_module_ids: number[];
+}
+
+/** Fila del listado de resultados (gestión). */
+export interface InductionResultRow {
+  id: number;
+  full_name: string;
+  email: string;
+  created: string;
+  completed_at: string | null;
+  approved_count: number;
+  total_evaluable: number;
+  attempt_count: number;
+  last_activity: string | null;
+}
+
+export interface InductionParticipantDetail {
+  id: number;
+  full_name: string;
+  email: string;
+  created: string;
+  completed_at: string | null;
+  attempts: {
+    id: number;
+    module_id: number;
+    module_code: string;
+    module_title: string;
+    correct: number;
+    total: number;
+    required: number;
+    passed: boolean;
+    created: string;
+  }[];
 }
 
 export interface InductionLimits {
@@ -199,11 +246,53 @@ export const fetchProgram = async (): Promise<ProgramModule[]> => {
 export const evaluateModule = async (
   moduleId: number,
   answers: number[],
+  participant?: { id: number; token: string },
 ): Promise<EvaluationResult> => {
   const { data } = await api.post(
     `/api/induction/public/modules/${moduleId}/evaluate`,
-    { answers },
+    {
+      answers,
+      ...(participant
+        ? { participant_id: participant.id, participant_token: participant.token }
+        : {}),
+    },
   );
+  return data;
+};
+
+/** Registra a la persona; con un correo ya usado recupera su avance. */
+export const registerParticipant = async (
+  fullName: string,
+  email: string,
+): Promise<InductionParticipant> => {
+  const { data } = await api.post('/api/induction/public/participants', {
+    full_name: fullName,
+    email,
+  });
+  return data;
+};
+
+export const fetchParticipantProgress = async (
+  id: number,
+  token: string,
+): Promise<InductionParticipant> => {
+  const { data } = await api.get(`/api/induction/public/participants/${id}`, {
+    params: { token },
+  });
+  return data;
+};
+
+// ─── Resultados (gestión) ───────────────────────────────────────────────────
+
+export const fetchInductionResults = async (): Promise<InductionResultRow[]> => {
+  const { data } = await api.get('/api/induction/results');
+  return data;
+};
+
+export const fetchParticipantResults = async (
+  id: number,
+): Promise<InductionParticipantDetail> => {
+  const { data } = await api.get(`/api/induction/results/${id}`);
   return data;
 };
 

@@ -1,3 +1,6 @@
+@tailwind components;
+@tailwind utilities;
+
 /* al inicio de index.css o App.css */
 html, body {
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
@@ -48,4 +51,99 @@ html, body {
 .ant-select-selector,
 .ant-picker {
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
+}
+
+/* ═══ shadcn/ui — superficie de inducción ═══════════════════════════════════
+   Tokens en HSL, mapeados 1:1 a la paleta de DESIGN.md (índigo #3C50E0,
+   neutrales fríos, dorado del diploma). Solo la página pública de inducción
+   los consume; el ERP sigue en AntD. El modo oscuro se activa poniendo la
+   clase `dark` en el wrapper (la maneja useThemeStore, no el sistema). */
+
+:root {
+  --background: 215 60% 96%;        /* #EFF4FB */
+  --foreground: 220 30% 16%;        /* #1C2434 */
+  --card: 0 0% 100%;                /* #FFFFFF */
+  --card-foreground: 220 30% 16%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 30% 16%;
+  --primary: 233 73% 56%;           /* #3C50E0 */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 40% 96%;         /* #F1F5F9 */
+  --secondary-foreground: 220 30% 16%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;  /* #64748B */
+  --accent: 233 73% 96%;            /* tinte índigo para hover/selección */
+  --accent-foreground: 233 73% 40%;
+  --destructive: 0 84% 60%;         /* #EF4444 */
+  --destructive-foreground: 0 0% 100%;
+  --success: 160 84% 30%;           /* verde legible sobre claro */
+  --success-foreground: 0 0% 100%;
+  --border: 214 32% 91%;            /* #E2E8F0 */
+  --input: 214 32% 91%;
+  --ring: 233 73% 56%;
+  --gold: 38 53% 37%;               /* #8F6A2C */
+  --radius: 0.625rem;
+}
+
+.dark {
+  --background: 231 24% 11%;        /* #161824 */
+  --foreground: 230 19% 94%;        /* #ECEDF2 */
+  --card: 231 19% 14%;              /* #1D1F2B */
+  --card-foreground: 230 19% 94%;
+  --popover: 231 19% 14%;
+  --popover-foreground: 230 19% 94%;
+  --primary: 233 73% 62%;           /* índigo un paso más claro sobre oscuro */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 231 15% 19%;         /* #232634 */
+  --secondary-foreground: 230 19% 94%;
+  --muted: 231 15% 19%;
+  --muted-foreground: 227 11% 66%;  /* #A0A4B3 */
+  --accent: 233 40% 26%;
+  --accent-foreground: 230 19% 94%;
+  --destructive: 0 74% 64%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 160 64% 52%;           /* verde legible sobre oscuro */
+  --success-foreground: 231 24% 11%;
+  --border: 231 19% 21%;            /* #2C2F40 */
+  --input: 231 19% 21%;
+  --ring: 233 73% 62%;
+  --gold: 40 50% 57%;               /* #C9A45C */
+}
+
+/* Mini-reset scoped: lo que preflight daría, pero solo dentro de la
+   superficie shadcn (preflight global chocaría con AntD). Todo va en
+   `:where()` para que tenga especificidad CERO y cualquier utilidad de
+   Tailwind (.bg-primary, .bg-accent…) lo pueda pisar. */
+:where(.induccion-ui),
+:where(.induccion-ui *),
+:where(.induccion-ui *)::before,
+:where(.induccion-ui *)::after {
+  box-sizing: border-box;
+  border-width: 0;
+  border-style: solid;
+  border-color: hsl(var(--border));
+}
+:where(.induccion-ui button) {
+  background-color: transparent;
+  background-image: none;
+  font-family: inherit;
+  font-size: 100%;
+  line-height: inherit;
+  color: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+:where(.induccion-ui input) {
+  font-family: inherit;
+  font-size: 100%;
+  line-height: inherit;
+  color: inherit;
+}
+:where(.induccion-ui) :where(h1, h2, h3, h4, p) {
+  margin: 0;
+}
+:where(.induccion-ui) {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  -webkit-font-smoothing: antialiased;
 }

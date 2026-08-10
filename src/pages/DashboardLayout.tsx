@@ -22,6 +22,7 @@ import type { ModuleKey } from '../types/module-access.types';
 import { getTipoUsuarioLabel, getTipoUsuarioColor } from '../types/user.types';
 import { MENU, buildMenuItems, type MenuCaps } from '../config/menu';
 import { PRIMARY } from './dashboard/theme';
+import { canManageInduction } from '../utils/induction';
 import ErrorBoundary from '../components/ErrorBoundary';
 import ContentSkeleton from '../components/ContentSkeleton';
 
@@ -137,9 +138,7 @@ const DashboardLayout: React.FC = () => {
     canSeeAsignados,
     canSeeReport: canSeeReport === true,
     canAccessUserAdmin,
-    // Espejo del backend (INDUCTION_ADMINS): superusuarios + RRHH (MEJ000)
-    canManageInduction:
-      isSuperuser || username?.toUpperCase() === 'MEJ000',
+    canManageInduction: canManageInduction(isSuperuser, username),
   };
 
   /* Mejora UX en modo colapsado:

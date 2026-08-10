@@ -2,12 +2,12 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Button, Modal, Select, Space, Table, Tag, Typography, message,
-  notification, Tooltip, Switch, Form, DatePicker, TimePicker,
-  Input, InputNumber, Checkbox, Radio
+  Button, Card, Empty, Modal, Select, Skeleton, Space, Table, Tag,
+  Typography, message, notification, Tooltip, Switch, Form, DatePicker,
+  TimePicker, Input, InputNumber, Checkbox, Radio
 } from 'antd';
 import {
-  EditOutlined, DeleteOutlined, CheckOutlined, CloseOutlined, 
+  EditOutlined, DeleteOutlined, CheckOutlined, CloseOutlined,
   ReloadOutlined, DownloadOutlined, StopOutlined,
   SyncOutlined
 } from '@ant-design/icons';
@@ -15,8 +15,9 @@ import dayjs, { Dayjs } from 'dayjs';
 import api from '../../api/axios';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import useThemeStore from '../../hooks/useThemeStore';
+import { makeTokens, makeCSS } from '../dashboard/theme';
 
-const { Title } = Typography;
 const { TextArea } = Input;
 
 type StateFilter = 'all' | 'pending' | 'accepted' | 'rejected' | 'canceled';
@@ -103,6 +104,10 @@ const recurrenceLabel = (pattern?: string) => {
 };
 
 export default function ReservationsList() {
+  // Tokens de tema (misma superficie/tabla que el resto de la app).
+  const isDark = useThemeStore((s) => s.mode === 'dark');
+  const tk = makeTokens(isDark);
+
   const [rows, setRows] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(false);
   const [stateFilter, setStateFilter] = useState<StateFilter>('all');
@@ -202,10 +207,12 @@ export default function ReservationsList() {
 
   // Función para limpiar todos los filtros
   const clearFilters = () => {
+    setStateFilter('all');
     setRoomFilter(null);
     setDateFilter(null);
     setUserFilter(null);
   };
+  const hasActiveFilters = stateFilter !== 'all' || !!roomFilter || !!dateFilter || !!userFilter;
 
   // Filtrar las reservas según los criterios seleccionados
   // Opciones para los desplegables de Sala y Usuario (derivadas de los datos)
@@ -573,7 +580,7 @@ export default function ReservationsList() {
       render: (_: unknown, r: Reservation) => (
         r.is_recurring ? (
           <Tooltip title={`Recurrencia ${recurrenceLabel(r.recurrence_pattern)}`}>
-            <Tag icon={<SyncOutlined spin />} color="blue">
+            <Tag icon={<SyncOutlined />}>
               {recurrenceLabel(r.recurrence_pattern)}
             </Tag>
           </Tooltip>
@@ -814,129 +821,144 @@ export default function ReservationsList() {
 
   return (
     <div>
-      <Title level={3}>Reservaciones</Title>
-
-      <Space style={{ marginBottom: 12, flexWrap: 'wrap' }}>
-        <span>Estado:</span>
-        <Select<StateFilter>
-          value={stateFilter}
-          style={{ width: 200 }}
-          onChange={setStateFilter}
-          options={[
-            { value: 'all', label: 'Todos' },
-            { value: 'pending', label: 'Pendientes' },
-            { value: 'accepted', label: 'Aceptadas' },
-            { value: 'rejected', label: 'Rechazadas' },
-            { value: 'canceled', label: 'Canceladas' },
-          ]}
-        />
-        <Button icon={<ReloadOutlined />} onClick={loadData}>Refrescar</Button>
-
-        {/* ---- Filtros y descarga de reporte ---- */}
-        <Space style={{ marginLeft: 16 }}>
-          <span>Reporte (mes):</span>
-          <DatePicker
-            picker="month"
-            value={dayjs(reportMonth + '-01')}
-            onChange={(d) => {
-              if (!d) return;
-              setReportMonth(d.format('YYYY-MM'));
-            }}
-            allowClear={false}
-          />
-          <Tooltip title="Descargar Excel (Equipo → Área → Persona)">
-            <Button
-              type="primary"
-              icon={<DownloadOutlined />}
-              loading={downloading}
-              onClick={downloadMonthlyReport}
-            >
-              Descargar Excel
-            </Button>
-          </Tooltip>
-        </Space>
-
-        {isSuperuser && (
-          <Space style={{ marginLeft: 16 }}>
-            <span>Solo mis reservas</span>
-            <Switch checked={onlyMine} onChange={setOnlyMine} />
+      <style>{makeCSS(tk)}</style>
+      <Card
+        title="Reservaciones"
+        extra={
+          <Space wrap>
+            <DatePicker
+              picker="month"
+              value={dayjs(reportMonth + '-01')}
+              onChange={(d) => {
+                if (!d) return;
+                setReportMonth(d.format('YYYY-MM'));
+              }}
+              allowClear={false}
+              aria-label="Mes del reporte"
+            />
+            <Tooltip title="Reporte mensual (Equipo → Área → Persona)">
+              <Button
+                type="primary"
+                icon={<DownloadOutlined />}
+                loading={downloading}
+                onClick={downloadMonthlyReport}
+              >
+                Descargar Excel
+              </Button>
+            </Tooltip>
           </Space>
-        )}
-      </Space>
-
-      {/* --- NUEVOS FILTROS ADICIONALES --- */}
-      <Space style={{ marginBottom: 16, flexWrap: 'wrap', background: '#f5f5f5', padding: '12px', borderRadius: '6px', width: '100%' }}>
-        <span style={{ fontWeight: 'bold' }}>Filtros adicionales:</span>
-        
-        {/* Filtro por Sala */}
-        <Space>
-          <span>Sala:</span>
+        }
+      >
+        {/* FILTROS — todos en una sola barra; Estado consulta al servidor,
+            Sala/Fecha/Usuario filtran en cliente */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <Select<StateFilter>
+            value={stateFilter}
+            style={{ width: 170 }}
+            onChange={setStateFilter}
+            aria-label="Filtrar por estado"
+            options={[
+              { value: 'all', label: 'Todos los estados' },
+              { value: 'pending', label: 'Pendientes' },
+              { value: 'accepted', label: 'Aceptadas' },
+              { value: 'rejected', label: 'Rechazadas' },
+              { value: 'canceled', label: 'Canceladas' },
+            ]}
+          />
           <Select
             placeholder="Todas las salas"
             value={roomFilter}
             onChange={(v) => setRoomFilter(v ?? null)}
             options={roomOptions}
-            style={{ width: 220 }}
+            style={{ width: 200 }}
             allowClear
             showSearch
             optionFilterProp="label"
+            aria-label="Filtrar por sala"
           />
-        </Space>
-
-        {/* Filtro por Fecha */}
-        <Space>
-          <span>Fecha:</span>
           <DatePicker
             value={dateFilter}
             onChange={setDateFilter}
             format="DD/MM/YYYY"
-            placeholder="Seleccionar fecha"
+            placeholder="Fecha"
             allowClear
+            style={{ width: 140 }}
+            aria-label="Filtrar por fecha"
           />
-        </Space>
-
-        {/* Filtro por Usuario */}
-        <Space>
-          <span>Usuario:</span>
           <Select
             placeholder="Todos los usuarios"
             value={userFilter}
             onChange={(v) => setUserFilter(v ?? null)}
             options={userOptions}
-            style={{ width: 240 }}
+            style={{ width: 220 }}
             allowClear
             showSearch
             optionFilterProp="label"
+            aria-label="Filtrar por usuario"
           />
-        </Space>
+          <Button onClick={clearFilters} disabled={!hasActiveFilters}>
+            Limpiar filtros
+          </Button>
+          <Tooltip title="Refrescar">
+            <Button icon={<ReloadOutlined />} onClick={loadData} aria-label="Refrescar lista" />
+          </Tooltip>
+          {isSuperuser && (
+            <Space size={8}>
+              <Switch
+                checked={onlyMine}
+                onChange={setOnlyMine}
+                id="only-mine-switch"
+                size="small"
+              />
+              <label htmlFor="only-mine-switch" style={{ cursor: 'pointer' }}>
+                Solo mis reservas
+              </label>
+            </Space>
+          )}
+          <span style={{ marginLeft: 'auto', color: tk.t2, fontSize: 13 }}>
+            {visibleRows.length} de {rows.length} reservaciones
+          </span>
+        </div>
 
-        {/* Botón para limpiar filtros */}
-        <Button 
-          onClick={clearFilters}
-          disabled={!roomFilter && !dateFilter && !userFilter}
-        >
-          Limpiar filtros
-        </Button>
-
-        {/* Contador de resultados */}
-        <span style={{ marginLeft: 'auto', color: '#666' }}>
-          {visibleRows.length} de {rows.length} reservaciones
-        </span>
-      </Space>
-
-      <Table
-        rowKey="id"
-        loading={loading}
-        dataSource={visibleRows}
-        columns={columns}
-        pagination={{ 
-          pageSize: 10,
-          showTotal: (total, range) => 
-            `${range[0]}-${range[1]} de ${total} reservaciones`,
-        }}
-        tableLayout="fixed"
-        scroll={{ x: 1200 }}
-      />
+        {/* TABLA — skeleton en la primera carga, spinner sutil en refrescos */}
+        {loading && rows.length === 0 ? (
+          <Skeleton active paragraph={{ rows: 8 }} />
+        ) : (
+          <Table
+            className="ta-table"
+            rowKey="id"
+            loading={loading}
+            dataSource={visibleRows}
+            columns={columns}
+            locale={{
+              emptyText: (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description={
+                    rows.length > 0 ? (
+                      <>
+                        Ninguna reservación coincide con los filtros.{' '}
+                        <Button type="link" size="small" onClick={clearFilters} style={{ padding: 0 }}>
+                          Limpiar filtros
+                        </Button>
+                      </>
+                    ) : (
+                      'Aún no hay reservaciones. Crea una desde el calendario de salas.'
+                    )
+                  }
+                />
+              ),
+            }}
+            pagination={{
+              pageSize: 10,
+              showTotal: (total, range) =>
+                `${range[0]}-${range[1]} de ${total} reservaciones`,
+            }}
+            tableLayout="fixed"
+            scroll={{ x: 1200 }}
+          />
+        )}
+      </Card>
 
       {/* Modal Editar */}
       <Modal
@@ -1068,7 +1090,15 @@ export default function ReservationsList() {
         onCancel={() => { setDeleteVisible(false); setDeleteRow(null); setDeleteSeries(false); }}
         destroyOnClose
       >
-        <div style={{ marginBottom: 16, padding: 12, background: '#fff2f0', border: '1px solid #ffccc7', borderRadius: 6 }}>
+        <div
+          style={{
+            marginBottom: 16,
+            padding: 12,
+            background: isDark ? 'rgba(239,68,68,.10)' : 'rgba(239,68,68,.06)',
+            border: `1px solid rgba(239,68,68,${isDark ? 0.4 : 0.25})`,
+            borderRadius: 6,
+          }}
+        >
           <Typography.Text strong>Está por eliminar esta reservación — verifique que sea la correcta:</Typography.Text>
           <p style={{ margin: '8px 0 0' }}><strong>Motivo:</strong> {deleteRow?.reason}</p>
           <p style={{ margin: 0 }}><strong>Sala:</strong> {deleteRow?.room?.name || deleteRow?.room_id}</p>
