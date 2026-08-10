@@ -1,5 +1,9 @@
-# Scripts de instalación permitidos (lista blanca). pnpm bloquea por defecto
-# los postinstall de dependencias — principal vector de ataques de cadena de
+# node_modules plano, por consistencia con el backend y para evitar problemas
+# con paquetes que asumen hoisting. En pnpm 11 esta opción va aquí, no en .npmrc.
+nodeLinker: hoisted
+
+# Scripts de instalación permitidos (lista blanca). pnpm bloquea por defecto los
+# postinstall de dependencias — vector principal de ataques de cadena de
 # suministro. esbuild es el bundler de Vite y necesita enlazar su binario.
 allowBuilds:
   esbuild: true
