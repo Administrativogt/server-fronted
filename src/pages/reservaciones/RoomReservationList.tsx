@@ -539,14 +539,14 @@ export default function ReservationsList() {
       title: 'Sala',
       dataIndex: ['room', 'name'],
       key: 'room',
-      width: 180,
+      width: 150,
       ellipsis: true,
       render: (_: unknown, r: Reservation) => r.room?.name || r.room_id,
     },
     {
       title: 'Reservado por',
       key: 'user',
-      width: 220,
+      width: 190,
       ellipsis: true,
       render: (_: unknown, r: Reservation) =>
         r.user ? `${r.user.first_name} ${r.user.last_name}` : '-',
@@ -561,7 +561,7 @@ export default function ReservationsList() {
     {
       title: 'Horario',
       key: 'schedule',
-      width: 140,
+      width: 115,
       render: (_: unknown, r: Reservation) =>
         `${fmtTime(r.init_hour)} - ${fmtTime(r.end_hour)}`,
     },
@@ -573,24 +573,24 @@ export default function ReservationsList() {
       ellipsis: true,
     },
     {
-      title: 'Participantes',
+      // Título corto para que el encabezado no se parta en dos líneas.
+      // Cuando la reserva es compartida, el detalle se muestra en tooltip
+      // (la columna "Compartido con" desperdiciaba 240px casi siempre en "-").
+      title: <Tooltip title="Participantes">Part.</Tooltip>,
       dataIndex: 'participants',
       key: 'participants',
-      width: 100,
+      width: 70,
       align: 'center' as const,
-    },
-    {
-      title: 'Compartido con',
-      key: 'shared',
-      width: 240,
-      render: (_: unknown, r: Reservation) =>
+      render: (p: number, r: Reservation) =>
         r.is_shared_cost && r.shared_with?.length ? (
-          <Space wrap>
-            {r.shared_with.map(id => (
-              <Tag key={id}>{partnersMap.get(id) || `ID ${id}`}</Tag>
-            ))}
-          </Space>
-        ) : <span>-</span>,
+          <Tooltip
+            title={`Compartido con: ${r.shared_with.map(id => partnersMap.get(id) || `ID ${id}`).join(', ')}`}
+          >
+            <span>{p} 🤝</span>
+          </Tooltip>
+        ) : (
+          p
+        ),
     },
     {
       title: 'Recurrente',
@@ -611,7 +611,7 @@ export default function ReservationsList() {
       title: 'Estado',
       dataIndex: 'state',
       key: 'state',
-      width: 120,
+      width: 100,
       align: 'center' as const,
       render: (s: 0|1|2|3) => (
         <Tag color={stateColor(s)}>{stateLabel(s)}</Tag>
@@ -620,7 +620,7 @@ export default function ReservationsList() {
     {
       title: 'Acciones',
       key: 'actions',
-      width: 240,
+      width: 150,
       render: (_: unknown, r: Reservation) => (
         <Space wrap>
           {canEditRow(r) && (
