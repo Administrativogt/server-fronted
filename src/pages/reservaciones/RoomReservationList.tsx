@@ -490,7 +490,8 @@ export default function ReservationsList() {
   // recepción/administración (canManageAll). El backend impone lo mismo.
   const canDeleteRow  = (r: Reservation) =>
     (canManageAll || (isOwner(r) && !hasStarted(r))) && r.state === 0;
-  const canCancelRow  = (r: Reservation) => isOwner(r) && (r.state === 0 || r.state === 1); // Puede cancelar si está pendiente o aceptada
+  // Cancelar: el dueño, o recepción/administración (el backend permite ambos)
+  const canCancelRow  = (r: Reservation) => (canManageAll || isOwner(r)) && (r.state === 0 || r.state === 1);
   const canApproveRow = (r: Reservation) => canApprove && r.state === 0;
 
   // Deep-link desde el calendario: /listar?editar=<id> abre el editor de esa
