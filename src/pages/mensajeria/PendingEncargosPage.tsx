@@ -104,7 +104,12 @@ const PendingEncargosPage: React.FC = () => {
 
   const userId = useAuthStore((state) => state.userId);
   const tipoUsuario = useAuthStore((state) => state.tipo_usuario);
+  const isSuperuser = useAuthStore((state) => state.is_superuser);
+  const permissions = useAuthStore((state) => state.permissions);
   const isMensajero = tipoUsuario === 8;
+  // Eliminar exige el permiso `delete_encargo` en el backend; sin él el botón
+  // solo producía un error. Para anular está "Rechazar", que sí es accesible.
+  const canDelete = isSuperuser || permissions.includes('delete_encargo');
 
   useEffect(() => {
     loadEncargos();
@@ -330,7 +335,7 @@ const PendingEncargosPage: React.FC = () => {
     if (record.estado === 1) {
       opciones.push(iconBtn('Iniciar envío', <CheckOutlined />, '#212529', () => handleAceptar(record.id)));
     }
-    if (!isMensajero) {
+    if (!isMensajero && canDelete) {
       opciones.push(iconBtn('Eliminar', <DeleteOutlined />, '#1976d2', () => handleDelete(record.id)));
     }
     // Todas las opciones del Django viejo, para todos los usuarios (2026-07-23)
@@ -559,7 +564,7 @@ const PendingEncargosPage: React.FC = () => {
       <Button size="large" icon={<EditOutlined />} onClick={() => navigate(`/dashboard/mensajeria/editar/${record.id}`)}>
         Editar
       </Button>
-      {!isMensajero && (
+      {!isMensajero && canDelete && (
         <Button size="large" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)}>
           Eliminar
         </Button>
