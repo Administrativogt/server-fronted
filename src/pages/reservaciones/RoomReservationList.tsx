@@ -956,6 +956,7 @@ export default function ReservationsList() {
           <Table
             className="ta-table"
             rowKey="id"
+            bordered
             loading={loading}
             dataSource={visibleRows}
             columns={columns}
