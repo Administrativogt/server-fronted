@@ -37,6 +37,7 @@ export interface MenuCaps {
   canSeeReport: boolean;
   canAccessUserAdmin: boolean;
   canManageInduction: boolean;
+  canAccessHorasSocios: boolean;
 }
 
 /**
@@ -189,12 +190,14 @@ export const MENU: NavItem[] = [
     key: 'informe-socios',
     label: 'Reportes socios',
     icon: <BarChartOutlined />,
-    visible: (c) => c.hasModule('informe_socios'),
+    visible: (c) => c.hasModule('informe_socios') || c.canAccessHorasSocios,
     children: [
-      { key: '/dashboard/informe-socios', label: 'Generar reportes' },
-      { key: '/dashboard/informe-socios/importar', label: 'Importar datos' },
-      { key: '/dashboard/informe-socios/datos', label: 'Datos importados' },
-      { key: '/dashboard/informe-socios/socios', label: 'Gestión de socios' },
+      { key: '/dashboard/informe-socios', label: 'Generar reportes', visible: (c) => c.hasModule('informe_socios') },
+      { key: '/dashboard/informe-socios/importar', label: 'Importar datos', visible: (c) => c.hasModule('informe_socios') },
+      { key: '/dashboard/informe-socios/datos', label: 'Datos importados', visible: (c) => c.hasModule('informe_socios') },
+      { key: '/dashboard/informe-socios/socios', label: 'Gestión de socios', visible: (c) => c.hasModule('informe_socios') },
+      { key: '/dashboard/horas-socios', label: 'Horas socios', visible: (c) => c.canAccessHorasSocios },
+      { key: '/dashboard/horas-socios/catalogos', label: 'Horas socios — catálogos', visible: (c) => c.canAccessHorasSocios },
     ],
   },
   {

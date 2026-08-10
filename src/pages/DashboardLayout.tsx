@@ -23,6 +23,7 @@ import { getTipoUsuarioLabel, getTipoUsuarioColor } from '../types/user.types';
 import { MENU, buildMenuItems, type MenuCaps } from '../config/menu';
 import { PRIMARY } from './dashboard/theme';
 import { canManageInduction } from '../utils/induction';
+import { canAccessHorasSocios } from '../routes/HorasSociosRoute';
 import ErrorBoundary from '../components/ErrorBoundary';
 import ContentSkeleton from '../components/ContentSkeleton';
 
@@ -139,6 +140,7 @@ const DashboardLayout: React.FC = () => {
     canSeeReport: canSeeReport === true,
     canAccessUserAdmin,
     canManageInduction: canManageInduction(isSuperuser, username),
+    canAccessHorasSocios: canAccessHorasSocios(isSuperuser, username),
   };
 
   /* Mejora UX en modo colapsado:

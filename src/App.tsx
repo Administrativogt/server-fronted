@@ -19,6 +19,7 @@ const InduccionAdmin = lazy(() => import('./pages/induccion/InduccionAdmin'));
 import PrivateRoute from './routes/PrivateRoute';
 import ModuleRoute from './routes/ModuleRoute';
 import InductionRoute from './routes/InductionRoute';
+import HorasSociosRoute from './routes/HorasSociosRoute';
 import DashboardLayout from './pages/DashboardLayout';
 import DashboardPage from './pages/DashboardPage';
 
@@ -86,6 +87,10 @@ const GenerarReportesPage = lazy(() => import('./pages/informe-socios/GenerarRep
 const ImportarDatosPage = lazy(() => import('./pages/informe-socios/ImportarDatosPage'));
 const GestionSociosPage = lazy(() => import('./pages/informe-socios/GestionSociosPage'));
 const DatosImportadosPage = lazy(() => import('./pages/informe-socios/DatosImportadosPage'));
+
+// Horas socios (submódulo de Reportes socios, acceso restringido)
+const HorasSociosPage = lazy(() => import('./pages/horas-socios/HorasSociosPage'));
+const HorasCatalogosPage = lazy(() => import('./pages/horas-socios/HorasCatalogosPage'));
 
 // Control de casos
 const CourtCasesPage = lazy(() => import('./pages/court-cases/CourtCasesPage'));
@@ -276,6 +281,12 @@ function AppInner() {
                 <Route path="/dashboard/informe-socios/importar" element={<ImportarDatosPage />} />
                 <Route path="/dashboard/informe-socios/socios" element={<GestionSociosPage />} />
                 <Route path="/dashboard/informe-socios/datos" element={<DatosImportadosPage />} />
+              </Route>
+
+              {/* Horas socios (restringido por usuario, no por módulo) */}
+              <Route element={<HorasSociosRoute />}>
+                <Route path="/dashboard/horas-socios" element={<HorasSociosPage />} />
+                <Route path="/dashboard/horas-socios/catalogos" element={<HorasCatalogosPage />} />
               </Route>
 
               {/* Control de casos */}
