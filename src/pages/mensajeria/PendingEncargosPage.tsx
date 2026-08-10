@@ -397,6 +397,10 @@ const PendingEncargosPage: React.FC = () => {
       title: 'Mensajero',
       width: '9%',
       key: 'mensajero',
+      // Los aún sin asignar quedan al final en orden ascendente
+      sorter: byText((e) =>
+        e.mensajero ? `${e.mensajero.first_name} ${e.mensajero.last_name}` : 'ZZZ',
+      ),
       render: (_: any, record: Encargo) => {
         if (record.mensajero) {
           return `${record.mensajero.first_name} ${record.mensajero.last_name}`;
@@ -456,6 +460,7 @@ const PendingEncargosPage: React.FC = () => {
       title: 'Hora',
       width: '6%',
       key: 'horario',
+      sorter: byText((e) => formatHorario(e) || ''),
       render: (_: any, record: Encargo) => formatHorario(record) || '',
     },
     {
@@ -469,6 +474,7 @@ const PendingEncargosPage: React.FC = () => {
       width: '8%',
       dataIndex: 'observaciones',
       key: 'observaciones',
+      sorter: byText((e) => e.observaciones),
       render: (v: string) => v || '',
     },
     {
