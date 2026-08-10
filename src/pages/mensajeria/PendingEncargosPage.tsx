@@ -108,7 +108,7 @@ const PendingEncargosPage: React.FC = () => {
   const permissions = useAuthStore((state) => state.permissions);
   const isMensajero = tipoUsuario === 8;
   // Eliminar exige el permiso `delete_encargo` en el backend; sin él el botón
-  // solo producía un error. Para anular está "Rechazar", que sí es accesible.
+  // solo producía un error. Para anular está el botón "Anular", sí accesible.
   const canDelete = isSuperuser || permissions.includes('delete_encargo');
 
   useEffect(() => {
@@ -296,7 +296,7 @@ const PendingEncargosPage: React.FC = () => {
     try {
       if (actionModal.type === 'reject') {
         await rejectEncargo(actionModal.encargoId, actionModal.reason);
-        message.success('Envío rechazado');
+        message.success('Envío anulado');
       } else if (actionModal.type === 'incidence') {
         await reportIncidence(actionModal.encargoId, actionModal.reason);
         message.success('Incidencia reportada');
@@ -342,7 +342,7 @@ const PendingEncargosPage: React.FC = () => {
     // Anular también cuando ya está en proceso (mensajero asignado): antes solo
     // se podía en estado Pendiente y quedaba bloqueado tras la asignación.
     if ([1, 2].includes(record.estado)) {
-      opciones.push(iconBtn('Rechazar', <CloseOutlined />, '#dc3545', () => handleReject(record.id)));
+      opciones.push(iconBtn('Anular', <CloseOutlined />, '#dc3545', () => handleReject(record.id)));
     }
     if ([2, 5].includes(record.estado)) {
       opciones.push(iconBtn('Entregado', <CheckSquareOutlined />, '#28a745', () => handleDeliver(record)));
@@ -571,7 +571,7 @@ const PendingEncargosPage: React.FC = () => {
       )}
       {[1, 2].includes(record.estado) && (
         <Button size="large" danger icon={<CloseCircleOutlined />} onClick={() => handleReject(record.id)}>
-          Rechazar
+          Anular
         </Button>
       )}
       {(
@@ -798,7 +798,7 @@ const PendingEncargosPage: React.FC = () => {
 
       {/* Modal razón de rechazo / incidencia */}
       <Modal
-        title={actionModal.type === 'reject' ? 'Razón del rechazo' : 'Razón de la incidencia'}
+        title={actionModal.type === 'reject' ? 'Razón de la anulación' : 'Razón de la incidencia'}
         open={actionModal.open}
         onCancel={() => setActionModal({ open: false, type: null, encargoId: null, reason: '' })}
         onOk={handleActionOk}

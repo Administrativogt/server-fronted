@@ -10,8 +10,11 @@ export const ESTADOS: Record<number, { label: string; color: string }> = {
   3: { label: 'Entregado', color: 'green' },
   4: { label: 'No entregado', color: 'red' },
   5: { label: 'Extraordinario', color: 'volcano' },
+  // 6 y 7 son el mismo concepto para el usuario: encargo anulado. El 6 viene de
+  // Django (1,460 registros) y el 7 es el que escribe el botón "Anular". Se
+  // muestran igual para no exponer esa diferencia interna.
   6: { label: 'Anulado', color: 'default' },
-  7: { label: 'Rechazado', color: 'magenta' },
+  7: { label: 'Anulado', color: 'default' },
   8: { label: 'Extra Entregado', color: 'purple' },
 };
 
