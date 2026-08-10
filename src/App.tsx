@@ -178,6 +178,14 @@ function AppInner() {
           borderRadius: 6,
           fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
         },
+        components: {
+          // Bordes de tablas más visibles en ambos temas (el default de AntD
+          // era casi invisible en modo oscuro; pedido de recepción en salas).
+          Table: {
+            colorBorderSecondary:
+              themeMode === 'dark' ? 'rgba(255, 255, 255, 0.26)' : 'rgba(15, 30, 70, 0.22)',
+          },
+        },
       }}
     >
       <AntdApp>
