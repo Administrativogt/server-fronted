@@ -115,6 +115,25 @@ export default function ReservationsList() {
   // Nuevos estados para los filtros
   const [roomFilter, setRoomFilter] = useState<string | null>(null);
   const [dateFilter, setDateFilter] = useState<Dayjs | null>(null);
+
+  // Orden "agenda": HOY primero (por hora), luego las próximas (la más cercana
+  // arriba) y al final las pasadas (la más reciente primero). Sin esto, las
+  // ocurrencias recurrentes de meses futuros enterraban las reservas del día.
+  const sortAgenda = (list: Reservation[]): Reservation[] => {
+    const hoy = dayjs().format('YYYY-MM-DD');
+    const fecha = (r: Reservation) => dayjs(r.reservation_date).format('YYYY-MM-DD');
+    const grupo = (r: Reservation) => {
+      const f = fecha(r);
+      return f === hoy ? 0 : f > hoy ? 1 : 2;
+    };
+    return [...list].sort((a, b) => {
+      const ga = grupo(a), gb = grupo(b);
+      if (ga !== gb) return ga - gb;
+      const fa = fecha(a), fb = fecha(b);
+      if (fa !== fb) return ga === 2 ? fb.localeCompare(fa) : fa.localeCompare(fb);
+      return (a.init_hour ?? '').localeCompare(b.init_hour ?? '');
+    });
+  };
   const [userFilter, setUserFilter] = useState<number | null>(null);
 
   const [partners, setPartners] = useState<Partner[]>([]);
@@ -194,7 +213,7 @@ export default function ReservationsList() {
 
       // 4) Traer reservas
       const res = await api.get<Reservation[]>('/room-reservations', { params });
-      setRows(res.data);
+      setRows(sortAgenda(res.data));
     } catch (err) {
       console.error(err);
       message.error('No se pudo cargar la lista.');
@@ -886,6 +905,15 @@ export default function ReservationsList() {
             style={{ width: 140 }}
             aria-label="Filtrar por fecha"
           />
+          <Button
+            type={dateFilter?.isSame(dayjs(), 'day') ? 'primary' : 'default'}
+            onClick={() =>
+              setDateFilter(dateFilter?.isSame(dayjs(), 'day') ? null : dayjs())
+            }
+            aria-label="Ver solo las reservas de hoy"
+          >
+            Hoy
+          </Button>
           <Select
             placeholder="Todos los usuarios"
             value={userFilter}
