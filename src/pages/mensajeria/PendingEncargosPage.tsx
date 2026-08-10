@@ -334,7 +334,9 @@ const PendingEncargosPage: React.FC = () => {
       opciones.push(iconBtn('Eliminar', <DeleteOutlined />, '#1976d2', () => handleDelete(record.id)));
     }
     // Todas las opciones del Django viejo, para todos los usuarios (2026-07-23)
-    if (record.estado === 1) {
+    // Anular también cuando ya está en proceso (mensajero asignado): antes solo
+    // se podía en estado Pendiente y quedaba bloqueado tras la asignación.
+    if ([1, 2].includes(record.estado)) {
       opciones.push(iconBtn('Rechazar', <CloseOutlined />, '#dc3545', () => handleReject(record.id)));
     }
     if ([2, 5].includes(record.estado)) {
@@ -562,7 +564,7 @@ const PendingEncargosPage: React.FC = () => {
           Eliminar
         </Button>
       )}
-      {record.estado === 1 && (
+      {[1, 2].includes(record.estado) && (
         <Button size="large" danger icon={<CloseCircleOutlined />} onClick={() => handleReject(record.id)}>
           Rechazar
         </Button>
