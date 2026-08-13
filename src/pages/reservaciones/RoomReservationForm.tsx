@@ -809,7 +809,27 @@ export default function RoomReservationForm() {
                   style={{ width: "100%" }}
                   disabledDate={disabledDate}
                   onChange={async (d) => {
-                    if (d) await fetchDay(d, form.getFieldValue("room"));
+                    if (d) {
+                      // Re-anclar horas ya elegidas a la nueva fecha; si no,
+                      // quedan amarradas a la fecha anterior y la validación
+                      // "las horas deben pertenecer al día" falla.
+                      const ih = form.getFieldValue("init_hour") as
+                        | Dayjs
+                        | undefined;
+                      const eh = form.getFieldValue("end_hour") as
+                        | Dayjs
+                        | undefined;
+                      form.setFieldsValue({
+                        ...(ih ? { init_hour: keepDate(d, ih) } : {}),
+                        ...(eh ? { end_hour: keepDate(d, eh) } : {}),
+                      } as Partial<FormValues>);
+                      if (ih || eh) {
+                        form
+                          .validateFields(["init_hour", "end_hour"])
+                          .catch(() => {});
+                      }
+                      await fetchDay(d, form.getFieldValue("room"));
+                    }
                   }}
                 />
               </Form.Item>
