@@ -26,6 +26,7 @@ import {
   ReadOutlined,
   CalendarOutlined,
   BarChartOutlined,
+  FieldTimeOutlined,
 } from '@ant-design/icons';
 import type { ModuleKey } from '../types/module-access.types';
 
@@ -188,16 +189,24 @@ export const MENU: NavItem[] = [
   },
   {
     key: 'informe-socios',
-    label: 'Reportes socios',
+    label: 'Socios y clientes',
     icon: <BarChartOutlined />,
-    visible: (c) => c.hasModule('informe_socios') || c.canAccessHorasSocios,
+    visible: (c) => c.hasModule('informe_socios'),
     children: [
-      { key: '/dashboard/informe-socios', label: 'Generar reportes', visible: (c) => c.hasModule('informe_socios') },
-      { key: '/dashboard/informe-socios/importar', label: 'Importar datos', visible: (c) => c.hasModule('informe_socios') },
-      { key: '/dashboard/informe-socios/datos', label: 'Datos importados', visible: (c) => c.hasModule('informe_socios') },
-      { key: '/dashboard/informe-socios/socios', label: 'Gestión de socios', visible: (c) => c.hasModule('informe_socios') },
-      { key: '/dashboard/horas-socios', label: 'Horas socios', visible: (c) => c.canAccessHorasSocios },
-      { key: '/dashboard/horas-socios/catalogos', label: 'Horas socios — catálogos', visible: (c) => c.canAccessHorasSocios },
+      { key: '/dashboard/informe-socios', label: 'Generar reportes' },
+      { key: '/dashboard/informe-socios/importar', label: 'Importar datos' },
+      { key: '/dashboard/informe-socios/datos', label: 'Datos importados' },
+      { key: '/dashboard/informe-socios/socios', label: 'Gestión de socios' },
+    ],
+  },
+  {
+    key: 'horas-socios',
+    label: 'Horas socios',
+    icon: <FieldTimeOutlined />,
+    visible: (c) => c.canAccessHorasSocios,
+    children: [
+      { key: '/dashboard/horas-socios', label: 'Mapa de horas' },
+      { key: '/dashboard/horas-socios/catalogos', label: 'Catálogos' },
     ],
   },
   {
