@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { Table, Form, Select, DatePicker, Button, Row, Col, Tag, Space, message, Modal } from "antd";
-import { CheckCircleOutlined, CloseCircleOutlined } from "@ant-design/icons";
+import { Table, Form, Select, DatePicker, Button, Row, Col, Tag, Space, message, Modal, Tooltip } from "antd";
+import { CheckCircleOutlined, CloseCircleOutlined, EditOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import {
   filterDocuments,
@@ -10,8 +10,13 @@ import {
   DOCUMENT_STATES,
 } from "../../api/documents";
 import type { User } from "../../types/user.types";
+import EditDocumentModal from "./EditDocumentModal";
+import useAuthStore from "../../auth/useAuthStore";
 
 const { Option } = Select;
+
+// Recepcionista (tipo 7). Debe coincidir con el backend (assertCanManage).
+const RECEPCIONISTA = 7;
 
 /** Resuelve un valor (string o number) a nombre de usuario si es un ID numérico */
 const resolveToUserName = (val: unknown, usersMap: Map<string, string>): string => {
@@ -31,6 +36,11 @@ const DocumentFilters: React.FC = () => {
   const [usersMap, setUsersMap] = useState<Map<string, string>>(new Map());
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [lastParams, setLastParams] = useState<Record<string, string>>({});
+  const [editingDoc, setEditingDoc] = useState<DocumentDto | null>(null);
+
+  const is_superuser = useAuthStore((s) => s.is_superuser);
+  const tipo_usuario = useAuthStore((s) => s.tipo_usuario);
+  const canManage = is_superuser === true || tipo_usuario === RECEPCIONISTA;
 
   const fetchFilteredDocs = async (params: Record<string, string> = {}) => {
     setLoading(true);
@@ -161,8 +171,26 @@ const DocumentFilters: React.FC = () => {
           return <Tag>{val}</Tag>;
         },
       },
+      ...(canManage
+        ? [
+            {
+              title: "Acciones",
+              key: "actions",
+              width: 70,
+              render: (_: unknown, record: DocumentDto) => (
+                <Tooltip title="Editar">
+                  <Button
+                    size="small"
+                    icon={<EditOutlined />}
+                    onClick={() => setEditingDoc(record)}
+                  />
+                </Tooltip>
+              ),
+            },
+          ]
+        : []),
     ],
-    [usersMap],
+    [usersMap, canManage],
   );
 
   return (
@@ -238,6 +266,15 @@ const DocumentFilters: React.FC = () => {
           }),
         }}
         pagination={{ pageSize: 10 }}
+      />
+
+      <EditDocumentModal
+        document={editingDoc}
+        onClose={() => setEditingDoc(null)}
+        onSuccess={() => {
+          setEditingDoc(null);
+          fetchFilteredDocs(lastParams);
+        }}
       />
     </>
   );

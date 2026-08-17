@@ -24,6 +24,7 @@ import {
   fetchDocumentReceivers,
   updateDocument,
   type DocumentDto,
+  DOCUMENT_STATES,
 } from "../../api/documents";
 import { fetchPlaces, type PlaceDto } from "../../api/notifications";
 import type { User } from "../../types/user.types";
@@ -46,7 +47,13 @@ const EditDocumentModal: React.FC<Props> = ({ document, onClose, onSuccess }) =>
   const [places, setPlaces] = useState<PlaceDto[]>([]);
   const [otroEntregadoPor, setOtroEntregadoPor] = useState(false);
   const [otroTipoDoc, setOtroTipoDoc] = useState(false);
+  const [otroEntregadoA, setOtroEntregadoA] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // En documentos ya entregados, deliverTo guarda quién lo recibió realmente
+  // (ID de usuario o texto libre) y se edita aparte; en pendientes sigue
+  // espejando submitTo.
+  const isDelivered = !!document && document.state !== DOCUMENT_STATES.PENDING;
 
   useEffect(() => {
     fetchUsers().then(setUsers).catch(() => {});
@@ -59,9 +66,11 @@ const EditDocumentModal: React.FC<Props> = ({ document, onClose, onSuccess }) =>
 
     const deliverByIsId = !!document.documentDeliverBy && /^\d+$/.test(document.documentDeliverBy);
     const typeInList = DOCUMENT_TYPES.includes(document.documentType);
+    const deliverToIsId = !!document.deliverTo && /^\d+$/.test(document.deliverTo);
 
     setOtroEntregadoPor(!deliverByIsId);
     setOtroTipoDoc(!typeInList);
+    setOtroEntregadoA(!deliverToIsId);
 
     form.setFieldsValue({
       documentDeliverBy: deliverByIsId ? Number(document.documentDeliverBy) : undefined,
@@ -72,6 +81,8 @@ const EditDocumentModal: React.FC<Props> = ({ document, onClose, onSuccess }) =>
       amount: document.amount,
       receivedBy: document.receivedBy?.id,
       creationPlace: document.creationPlace?.id,
+      deliverTo: deliverToIsId ? Number(document.deliverTo) : undefined,
+      deliverToOther: deliverToIsId ? undefined : document.deliverTo,
     });
   }, [document, form]);
 
@@ -87,12 +98,18 @@ const EditDocumentModal: React.FC<Props> = ({ document, onClose, onSuccess }) =>
         ? String(values.documentTypeOther)
         : String(values.documentType);
 
+      const deliverTo = isDelivered
+        ? otroEntregadoA
+          ? String(values.deliverToOther)
+          : String(values.deliverTo)
+        : values.submitTo;
+
       setSubmitting(true);
       await updateDocument(document.id, {
         documentDeliverBy,
         documentType,
         submitTo: values.submitTo,
-        deliverTo: values.submitTo,
+        deliverTo,
         amount: Number(values.amount),
         receivedBy: values.receivedBy,
         creationPlace: values.creationPlace,
@@ -263,6 +280,50 @@ const EditDocumentModal: React.FC<Props> = ({ document, onClose, onSuccess }) =>
             </Form.Item>
           </Col>
         </Row>
+
+        {isDelivered && (
+          <Row gutter={[16, 0]}>
+            <Col xs={24} md={12}>
+              <Form.Item
+                label="Entregado a"
+                name="deliverTo"
+                rules={[
+                  { required: !otroEntregadoA, message: "Selecciona quien recibió" },
+                ]}
+              >
+                <Select
+                  placeholder="Escribe para buscar..."
+                  disabled={otroEntregadoA}
+                  showSearch
+                  optionFilterProp="label"
+                  suffixIcon={<UserOutlined />}
+                  options={users.map((u) => ({
+                    value: u.id,
+                    label: `${u.first_name} ${u.last_name}`,
+                  }))}
+                />
+              </Form.Item>
+              {otroEntregadoA && (
+                <Form.Item
+                  name="deliverToOther"
+                  rules={[{ required: true, message: "Ingresa nombre" }]}
+                >
+                  <Input
+                    placeholder="Nombre de quien recibió"
+                    prefix={<UserOutlined style={{ color: "#94a3b8" }} />}
+                  />
+                </Form.Item>
+              )}
+              <Checkbox
+                checked={otroEntregadoA}
+                onChange={(e) => setOtroEntregadoA(e.target.checked)}
+                style={{ marginTop: -8 }}
+              >
+                <Text type="secondary">No está en la lista (otro)</Text>
+              </Checkbox>
+            </Col>
+          </Row>
+        )}
       </Form>
     </Modal>
   );
