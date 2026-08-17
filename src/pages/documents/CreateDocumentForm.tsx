@@ -33,6 +33,7 @@ import {
 import { fetchPlaces, type PlaceDto } from "../../api/notifications";
 import type { User } from "../../types/user.types";
 import useAuthStore from "../../auth/useAuthStore";
+import { buildReceiverOptions } from "./receiverOptions";
 
 const { Title, Text } = Typography;
 
@@ -322,10 +323,7 @@ const CreateDocumentForm: React.FC = () => {
                   showSearch
                   optionFilterProp="label"
                   suffixIcon={<InboxOutlined />}
-                  options={receivers.map((u) => ({
-                    value: u.id,
-                    label: `${u.first_name} ${u.last_name}`,
-                  }))}
+                  options={buildReceiverOptions(receivers, users)}
                 />
               </Form.Item>
             </Col>

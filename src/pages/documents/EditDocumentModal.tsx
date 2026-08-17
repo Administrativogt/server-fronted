@@ -27,6 +27,7 @@ import {
 } from "../../api/documents";
 import { fetchPlaces, type PlaceDto } from "../../api/notifications";
 import type { User } from "../../types/user.types";
+import { buildReceiverOptions } from "./receiverOptions";
 
 const { Text } = Typography;
 
@@ -241,10 +242,7 @@ const EditDocumentModal: React.FC<Props> = ({ document, onClose, onSuccess }) =>
                 showSearch
                 optionFilterProp="label"
                 suffixIcon={<InboxOutlined />}
-                options={receivers.map((u) => ({
-                  value: u.id,
-                  label: `${u.first_name} ${u.last_name}`,
-                }))}
+                options={buildReceiverOptions(receivers, users)}
               />
             </Form.Item>
           </Col>
