@@ -4,7 +4,7 @@
 // Solo estados 2 (En proceso) y 5 (Extraordinario), SIN filtro de fechas, y una
 // única acción por fila: el botón verde "Entregado" con confirmación y razón de
 // tardanza si la fecha de realización ya pasó.
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Table, Button, Space, Tag, message, Empty, Grid } from 'antd';
 import { CheckCircleOutlined, EditOutlined, LeftOutlined } from '@ant-design/icons';
@@ -16,6 +16,7 @@ import { ESTADOS, PRIORIDADES, formatFecha, hasDetalles } from './constants';
 import { confirmarEntrega } from './deliver';
 import useAuthStore from '../../auth/useAuthStore';
 import { useMensajeriaPermissions } from '../../hooks/usePermissions';
+import useAutoRefresh from '../../hooks/useAutoRefresh';
 
 /** "2026-07-20…" → "20/07/2026", como lo mostraba Django */
 const ddmmyyyy = (date?: string | null): string => {
@@ -39,8 +40,12 @@ const AssignedEncargosPage: React.FC = () => {
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
 
-  const loadEncargos = async () => {
-    setLoading(true);
+  // IDs ya vistos, para avisar solo por asignaciones que llegan estando la
+  // pantalla abierta (null hasta la primera carga: esa no genera aviso).
+  const knownIdsRef = useRef<Set<number> | null>(null);
+
+  const loadEncargos = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       // Igual que Django: estado__in=[2,5] del propio mensajero, sin fechas
       const params: any = { estados: [2, 5] };
@@ -49,13 +54,24 @@ const AssignedEncargosPage: React.FC = () => {
       }
       const res = await getAllEncargos(params);
       // Admin/coordinación ve la ruta activa de todos los mensajeros
-      setEncargos(res.data.filter((e) => e.mensajero != null));
+      const asignados = res.data.filter((e) => e.mensajero != null);
+      if (silent && knownIdsRef.current) {
+        const nuevos = asignados.filter((e) => !knownIdsRef.current!.has(e.id)).length;
+        if (nuevos > 0) {
+          message.info(nuevos === 1 ? 'Te asignaron 1 envío nuevo' : `Te asignaron ${nuevos} envíos nuevos`);
+        }
+      }
+      knownIdsRef.current = new Set(asignados.map((e) => e.id));
+      setEncargos(asignados);
       setLoadError(false);
     } catch {
-      setLoadError(true);
-      message.error('Error al cargar envíos asignados');
+      // En refresco de fondo no molestamos con toasts de error ni tocamos la tabla
+      if (!silent) {
+        setLoadError(true);
+        message.error('Error al cargar envíos asignados');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -63,6 +79,9 @@ const AssignedEncargosPage: React.FC = () => {
     loadEncargos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, isMensajero, isAdminMensajeria]);
+
+  // Los envíos asignados aparecen solos, sin recargar la aplicación
+  useAutoRefresh(() => loadEncargos(true));
 
   // Única acción del flujo viejo: botón verde "Entregado" (estados 2 y 5).
   // Editar se conserva por pedido de los mensajeros (2026-07-22).
@@ -162,7 +181,7 @@ const AssignedEncargosPage: React.FC = () => {
 
   const emptyContent = loadError ? (
     <Empty description="No se pudieron cargar los envíos asignados">
-      <Button type="primary" onClick={loadEncargos}>
+      <Button type="primary" onClick={() => loadEncargos()}>
         Reintentar
       </Button>
     </Empty>

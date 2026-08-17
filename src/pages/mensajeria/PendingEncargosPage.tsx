@@ -6,7 +6,7 @@
 // mensajeros, Filtrar encargos azul + reset rojo), tabla con las columnas y el
 // orden del viejo (Pr, Realización, Hora, Opciones con iconos, Observaciones,
 // Estado, comentarios) y filas azules cuando el envío tiene observaciones.
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Table, Button, Space, message, Modal, Input, Select, Tooltip, Empty, Grid, DatePicker, ConfigProvider, Dropdown } from 'antd';
 import dayjs from 'dayjs';
 import {
@@ -37,6 +37,7 @@ import {
 } from '../../api/encargos';
 import type { Encargo, Usuario } from '../../types/encargo';
 import CommentModal from './components/CommentModal';
+import useAutoRefresh from '../../hooks/useAutoRefresh';
 import EncargoCardList from './components/EncargoCardList';
 import { PRIORIDADES_TEXTO, formatFecha, formatHorario, saveExcelResponse } from './constants';
 import { confirmarEntrega } from './deliver';
@@ -124,22 +125,40 @@ const PendingEncargosPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, isMensajero]);
 
-  const loadEncargos = async () => {
-    setLoading(true);
+  // IDs ya vistos, para avisar solo por los envíos que ingresan estando la
+  // pantalla abierta (null hasta la primera carga: esa no genera aviso).
+  const knownIdsRef = useRef<Set<number> | null>(null);
+
+  const loadEncargos = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await getPendingEncargos();
       // Estados activos: Pendiente (1), En proceso (2), Extraordinario (5).
       // Los mensajeros ven TODOS los pendientes (como en el sistema viejo).
-      setEncargos(res.data.filter((e: Encargo) => [1, 2, 5].includes(e.estado)));
+      const activos = res.data.filter((e: Encargo) => [1, 2, 5].includes(e.estado));
+      if (silent && knownIdsRef.current) {
+        const nuevos = activos.filter((e: Encargo) => !knownIdsRef.current!.has(e.id)).length;
+        if (nuevos > 0) {
+          message.info(nuevos === 1 ? 'Ingresó 1 envío nuevo' : `Ingresaron ${nuevos} envíos nuevos`);
+        }
+      }
+      knownIdsRef.current = new Set(activos.map((e: Encargo) => e.id));
+      setEncargos(activos);
       setLoadError(false);
     } catch (error) {
-      console.error('Error al cargar encargos pendientes:', error);
-      setLoadError(true);
-      message.error('No se pudieron cargar los envíos pendientes');
+      // En refresco de fondo no molestamos con toasts de error ni tocamos la tabla
+      if (!silent) {
+        console.error('Error al cargar encargos pendientes:', error);
+        setLoadError(true);
+        message.error('No se pudieron cargar los envíos pendientes');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+
+  // Los envíos que van ingresando aparecen solos, sin recargar la aplicación
+  useAutoRefresh(() => loadEncargos(true));
 
   const filteredEncargos = encargos.filter((e) => {
     if (filterMensajero && e.mensajero?.id !== filterMensajero) return false;
@@ -510,7 +529,7 @@ const PendingEncargosPage: React.FC = () => {
 
   const emptyContent = loadError ? (
     <Empty description="No se pudieron cargar los envíos pendientes">
-      <Button type="primary" onClick={loadEncargos}>
+      <Button type="primary" onClick={() => loadEncargos()}>
         Reintentar
       </Button>
     </Empty>
