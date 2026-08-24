@@ -20,6 +20,7 @@ import PrivateRoute from './routes/PrivateRoute';
 import ModuleRoute from './routes/ModuleRoute';
 import InductionRoute from './routes/InductionRoute';
 import HorasSociosRoute from './routes/HorasSociosRoute';
+import VacationHrRoute from './routes/VacationHrRoute';
 import DashboardLayout from './pages/DashboardLayout';
 import DashboardPage from './pages/DashboardPage';
 
@@ -99,6 +100,7 @@ const CreateCourtCase = lazy(() => import('./pages/court-cases/CreateCourtCase')
 // Recursos humanos
 const HumanResourcesPage = lazy(() => import('./pages/human-resources/HumanResourcesPage'));
 const VacacionesPage = lazy(() => import('./pages/human-resources/VacacionesPage'));
+const LiquidacionesPage = lazy(() => import('./pages/human-resources/LiquidacionesPage'));
 
 // Appointments
 const AppointmentsList = lazy(() => import('./pages/appointments/AppointmentsList'));
@@ -314,6 +316,9 @@ function AppInner() {
               <Route element={<ModuleRoute moduleKey="recursos_humanos" />}>
                 <Route path="/dashboard/recursos-humanos" element={<HumanResourcesPage />} />
                 <Route path="/dashboard/recursos-humanos/vacaciones" element={<VacacionesPage />} />
+                <Route element={<VacationHrRoute />}>
+                  <Route path="/dashboard/recursos-humanos/liquidaciones" element={<LiquidacionesPage />} />
+                </Route>
               </Route>
 
               {/* ✨ NUEVO - Módulo Appointments (Actas de Nombramiento) */}

@@ -39,6 +39,7 @@ export interface MenuCaps {
   canAccessUserAdmin: boolean;
   canManageInduction: boolean;
   canAccessHorasSocios: boolean;
+  canAccessVacationHr: boolean;
 }
 
 /**
@@ -239,6 +240,12 @@ export const MENU: NavItem[] = [
     children: [
       { key: '/dashboard/recursos-humanos', label: 'General', icon: <SolutionOutlined /> },
       { key: '/dashboard/recursos-humanos/vacaciones', label: 'Vacaciones', icon: <CalendarOutlined /> },
+      {
+        key: '/dashboard/recursos-humanos/liquidaciones',
+        label: 'Liquidaciones',
+        icon: <FileDoneOutlined />,
+        visible: (c) => c.canAccessVacationHr,
+      },
     ],
   },
   {

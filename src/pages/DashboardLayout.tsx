@@ -24,6 +24,7 @@ import { MENU, buildMenuItems, type MenuCaps } from '../config/menu';
 import { PRIMARY } from './dashboard/theme';
 import { canManageInduction } from '../utils/induction';
 import { canAccessHorasSocios } from '../routes/HorasSociosRoute';
+import { canAccessVacationHr } from '../routes/VacationHrRoute';
 import ErrorBoundary from '../components/ErrorBoundary';
 import ContentSkeleton from '../components/ContentSkeleton';
 
@@ -141,6 +142,7 @@ const DashboardLayout: React.FC = () => {
     canAccessUserAdmin,
     canManageInduction: canManageInduction(isSuperuser, username),
     canAccessHorasSocios: canAccessHorasSocios(isSuperuser, username),
+    canAccessVacationHr: canAccessVacationHr(isSuperuser, username),
   };
 
   /* Mejora UX en modo colapsado:
