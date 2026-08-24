@@ -76,11 +76,21 @@ const ListarRecibos: React.FC = () => {
     return params;
   };
 
-  const fetchData = async () => {
+  // Paginación en servidor: antes se pedían los ~13k recibos de un golpe.
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [total, setTotal] = useState(0);
+
+  const fetchData = async (pageOverride?: number) => {
     setLoading(true);
     try {
-      const { data } = await cashReceiptsApi.getAll(buildFilters());
-      setData(data);
+      const { data } = await cashReceiptsApi.getPage(
+        buildFilters(),
+        pageOverride ?? page,
+        pageSize,
+      );
+      setData(data.items);
+      setTotal(data.total);
     } catch {
       message.error('Error al cargar los recibos');
     } finally {
@@ -88,10 +98,17 @@ const ListarRecibos: React.FC = () => {
     }
   };
 
+  // Recarga al cambiar página, tamaño o la vista activos/anulados.
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [page, pageSize, isDeletedView]);
+
+  /** Vuelve a la página 1 (los filtros cambiaron) y recarga. */
+  const reloadFromFirstPage = () => {
+    if (page !== 1) setPage(1); // el useEffect recarga
+    else fetchData(1);
+  };
 
   const handleDelete = async (id: number) => {
     let reason = '';
@@ -219,6 +236,7 @@ const ListarRecibos: React.FC = () => {
   const rowSelection = {
     selectedRowKeys,
     onChange: (keys: React.Key[]) => setSelectedRowKeys(keys),
+    preserveSelectedRowKeys: true, // conservar selección al cambiar de página
   };
 
   const serieToLetter = (serie?: string | number) => {
@@ -232,7 +250,7 @@ const ListarRecibos: React.FC = () => {
   };
 
   const applyFilters = () => {
-    fetchData();
+    reloadFromFirstPage();
     setFilterOpen(false);
   };
 
@@ -242,7 +260,9 @@ const ListarRecibos: React.FC = () => {
     setInitDate('');
     setEndDate('');
     filterForm.resetFields();
-    fetchData();
+    // Los setState de arriba aún no aplican en este closure: recargar en el
+    // siguiente tick para que buildFilters vea los filtros ya limpios.
+    setTimeout(reloadFromFirstPage, 0);
   };
 
   return (
@@ -258,7 +278,7 @@ const ListarRecibos: React.FC = () => {
 
         <Button
           icon={<ReloadOutlined />}
-          onClick={fetchData}
+          onClick={() => fetchData()}
           disabled={loading}
         >
           Actualizar
@@ -282,7 +302,7 @@ const ListarRecibos: React.FC = () => {
             checked={isDeletedView}
             onChange={(checked) => {
               setIsDeletedView(checked);
-              setTimeout(fetchData, 0);
+              setPage(1); // el useEffect recarga con la vista nueva
             }}
           />
         </Space>
@@ -369,6 +389,22 @@ const ListarRecibos: React.FC = () => {
             ),
           },
         ]}
+        pagination={{
+          current: page,
+          pageSize,
+          total,
+          showSizeChanger: true,
+          pageSizeOptions: [20, 50, 100, 200],
+          showTotal: (t, range) => `${range[0]}-${range[1]} de ${t} recibos`,
+          onChange: (p, ps) => {
+            if (ps !== pageSize) {
+              setPageSize(ps);
+              setPage(1);
+            } else {
+              setPage(p);
+            }
+          },
+        }}
       />
 
       <Modal

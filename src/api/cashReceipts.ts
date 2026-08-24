@@ -43,6 +43,13 @@ export interface CashReceiptFilters {
   is_active?: '0' | '1';
 }
 
+export interface PaginatedCashReceipts {
+  items: CashReceipt[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface CashReceiptPreview {
   serie: number;
   serie_letter: string;
@@ -56,9 +63,15 @@ const cashReceiptsApi = {
   // ✅ Crear recibo
   create: (data: CashReceipt) => api.post('/cash-receipts', data),
 
-  // ✅ Listar todos (con filtros opcionales)
+  // ✅ Listar todos (con filtros opcionales) — trae TODO; preferir getPage
   getAll: (params?: CashReceiptFilters) =>
     api.get<CashReceipt[]>('/cash-receipts', { params }),
+
+  // ✅ Listar paginado en servidor
+  getPage: (params: CashReceiptFilters, page: number, pageSize: number) =>
+    api.get<PaginatedCashReceipts>('/cash-receipts', {
+      params: { ...params, page, page_size: pageSize },
+    }),
 
   // ✅ Obtener uno por ID
   getById: (id: number) => api.get<CashReceipt>(`/cash-receipts/${id}`),
