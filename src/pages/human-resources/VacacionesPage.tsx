@@ -51,6 +51,11 @@ import useAuthStore from '../../auth/useAuthStore';
 import useThemeStore from '../../hooks/useThemeStore';
 import { fetchUsers } from '../../api/notifications';
 import {
+  type VacationReportGroup,
+  previewVacationReports,
+  sendVacationReports,
+} from '../../api/vacationReports';
+import {
   type BalanceLogType,
   type DaysUsedStats,
   type MyVacationsResponse,
@@ -477,6 +482,43 @@ const VacacionesPage: React.FC = () => {
   const [importingBalances, setImportingBalances] = useState(false);
   const [importResult, setImportResult] = useState<{ imported: number; skipped: string[] } | null>(null);
   const [importModalOpen, setImportModalOpen] = useState(false);
+
+  // ---- Reporte de vacaciones a jefes ----
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [reportGroups, setReportGroups] = useState<VacationReportGroup[] | null>(null);
+  const [reportSending, setReportSending] = useState<'test' | 'real' | null>(null);
+
+  const openReportModal = () => {
+    setReportModalOpen(true);
+    setReportGroups(null);
+    previewVacationReports()
+      .then(setReportGroups)
+      .catch(() => message.error('No se pudo cargar la vista previa del reporte'));
+  };
+
+  const handleSendReports = async (test: boolean) => {
+    setReportSending(test ? 'test' : 'real');
+    try {
+      const result = await sendVacationReports(test);
+      if (test) {
+        message.success(
+          `Prueba enviada: ${result.enviados} correo(s) redirigidos a tu bandeja`,
+        );
+      } else {
+        message.success(
+          `Reporte enviado a ${result.enviados} de ${result.jefes} jefes`,
+        );
+        setReportModalOpen(false);
+      }
+      if (result.omitidos.length) {
+        message.warning(`Omitidos: ${result.omitidos.join(' | ')}`, 8);
+      }
+    } catch (err: any) {
+      message.error(err?.response?.data?.message ?? 'No se pudo enviar el reporte');
+    } finally {
+      setReportSending(null);
+    }
+  };
   const [rollingOver, setRollingOver] = useState(false);
   const [creditingUserId, setCreditingUserId] = useState<number | null>(null);
 
@@ -2118,6 +2160,16 @@ const VacacionesPage: React.FC = () => {
                 Rollover año
               </Button>
             </Tooltip>
+            <Tooltip title="Enviar a cada jefe inmediato el estado de vacaciones de su gente (tabla + Excel)">
+              <Button
+                icon={<MailOutlined />}
+                onClick={openReportModal}
+                size="small"
+                style={{ borderRadius: 6 }}
+              >
+                Reporte a jefes
+              </Button>
+            </Tooltip>
             <Button icon={<ReloadOutlined />} onClick={loadBalances} size="small" style={{ borderRadius: 6 }}>
               Actualizar
             </Button>
@@ -2608,6 +2660,94 @@ const VacacionesPage: React.FC = () => {
       </div>
 
       <Tabs items={tabItems} />
+
+      {/* Modal - Reporte de vacaciones a jefes */}
+      <Modal
+        open={reportModalOpen}
+        onCancel={() => setReportModalOpen(false)}
+        width={640}
+        title={
+          <Space>
+            <MailOutlined style={{ color: '#0C1D3E' }} />
+            <span style={{ fontWeight: 600 }}>Reporte de vacaciones a jefes</span>
+          </Space>
+        }
+        footer={[
+          <Button key="cancel" onClick={() => setReportModalOpen(false)} style={{ borderRadius: 6 }}>
+            Cancelar
+          </Button>,
+          <Button
+            key="test"
+            loading={reportSending === 'test'}
+            disabled={reportSending === 'real'}
+            onClick={() => handleSendReports(true)}
+            style={{ borderRadius: 6 }}
+          >
+            Enviarme una prueba
+          </Button>,
+          <Popconfirm
+            key="real"
+            title="¿Enviar el reporte a todos los jefes?"
+            description="Cada jefe inmediato recibirá el correo con su gente."
+            okText="Sí, enviar"
+            cancelText="No"
+            onConfirm={() => handleSendReports(false)}
+          >
+            <Button
+              type="primary"
+              loading={reportSending === 'real'}
+              disabled={reportSending === 'test'}
+              style={{ borderRadius: 6, background: 'linear-gradient(135deg, #0C1D3E, #1D3D7A)', border: 'none', fontWeight: 600 }}
+            >
+              Enviar a jefes
+            </Button>
+          </Popconfirm>,
+        ]}
+      >
+        <p style={{ color: '#64748B', fontSize: 13, marginTop: 8 }}>
+          Cada jefe inmediato recibe un correo con el estado de vacaciones de sus subordinados
+          directos (saldo, gozados, pendientes de aprobación y próximas vacaciones) más un Excel
+          adjunto. También se envía solo, el día 1 de cada mes a las 8:00. «Enviarme una prueba»
+          genera los mismos correos pero todos llegan únicamente a tu bandeja.
+        </p>
+        {reportGroups === null ? (
+          <Alert type="info" showIcon message="Cargando vista previa…" style={{ borderRadius: 8 }} />
+        ) : reportGroups.length === 0 ? (
+          <Alert
+            type="warning"
+            showIcon
+            message="No hay empleados activos con jefe inmediato asignado"
+            style={{ borderRadius: 8 }}
+          />
+        ) : (
+          <>
+            <Alert
+              type="info"
+              showIcon
+              message={`Se enviarán ${reportGroups.length} correo(s)`}
+              style={{ borderRadius: 8, marginBottom: 12 }}
+            />
+            <div style={{ maxHeight: 260, overflowY: 'auto', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 12px' }}>
+              {reportGroups.map((g) => (
+                <div
+                  key={g.jefe.id}
+                  style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '7px 0', borderBottom: '1px solid #F1F5F9', fontSize: 13 }}
+                >
+                  <span>
+                    <strong>{g.jefe.nombre}</strong>{' '}
+                    <span style={{ color: '#94A3B8' }}>
+                      {g.jefe.email ?? 'SIN CORREO — se omite'}
+                    </span>
+                  </span>
+                  <span style={{ color: '#64748B', whiteSpace: 'nowrap' }}>
+                    {g.empleados.length} empleado(s)
+                  </span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </Modal>
 
       {/* Modal - Resultado import Excel */}
       <Modal
