@@ -2,8 +2,9 @@
 import { useEffect, useMemo, useState, useCallback, type JSX } from 'react';
 import {
   DatePicker, Select, Space, Button, Typography, Tooltip, message, Result, Spin,
-  Row, Col, Card, Statistic, Table, type TableProps, Modal, Input, Checkbox, Alert,
+  Row, Col, Card, Statistic, Table, type TableProps, Modal, Input, Checkbox, Alert, Tabs,
 } from 'antd';
+import CustomRoomReport from './CustomRoomReport';
 import { DownloadOutlined, ReloadOutlined, MailOutlined, FileExcelOutlined } from '@ant-design/icons';
 import {
   getRoomReportDefaults, downloadRoomReportExcel, sendRoomReport,
@@ -112,6 +113,7 @@ export default function ExclusiveMonthlyReport(): JSX.Element {
   const [stateFilter, setStateFilter] = useState<StateFilter>('all');
   const [rows, setRows] = useState<RowWithPct[]>([]);
   const [downloading, setDownloading] = useState(false);
+  const [tab, setTab] = useState<'mensual' | 'custom'>('mensual');
 
   // ---- Reporte oficial para contabilidad (Excel del servidor + correo desde buzón Socios)
   const [sendOpen, setSendOpen] = useState(false);
@@ -645,6 +647,19 @@ export default function ExclusiveMonthlyReport(): JSX.Element {
 
       <Title level={3} style={{ margin: 0, color: UI.primary }}>Reporte Mensual — Vista Exclusiva</Title>
 
+      <Tabs
+        activeKey={tab}
+        onChange={(k) => setTab(k as 'mensual' | 'custom')}
+        items={[
+          { key: 'mensual', label: 'Reporte mensual' },
+          { key: 'custom', label: 'Reporte personalizado' },
+        ]}
+        style={{ marginBottom: -12 }}
+      />
+
+      {tab === 'custom' && <CustomRoomReport primary={UI.primary} />}
+
+      {tab === 'mensual' && (<>
       {/* Filtros */}
       <Space wrap>
         <span>Mes:</span>
@@ -808,6 +823,7 @@ export default function ExclusiveMonthlyReport(): JSX.Element {
           }}
         />
       </Card>
+      </>)}
     </div>
   );
 }
