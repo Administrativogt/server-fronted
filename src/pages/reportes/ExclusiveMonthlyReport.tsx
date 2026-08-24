@@ -2,9 +2,12 @@
 import { useEffect, useMemo, useState, useCallback, type JSX } from 'react';
 import {
   DatePicker, Select, Space, Button, Typography, Tooltip, message, Result, Spin,
-  Row, Col, Card, Statistic, Table, type TableProps, 
+  Row, Col, Card, Statistic, Table, type TableProps, Modal, Input, Checkbox, Alert,
 } from 'antd';
-import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons';
+import { DownloadOutlined, ReloadOutlined, MailOutlined, FileExcelOutlined } from '@ant-design/icons';
+import {
+  getRoomReportDefaults, downloadRoomReportExcel, sendRoomReport,
+} from '../../api/roomReservationReports';
 import dayjs, { Dayjs } from 'dayjs';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -109,6 +112,71 @@ export default function ExclusiveMonthlyReport(): JSX.Element {
   const [stateFilter, setStateFilter] = useState<StateFilter>('all');
   const [rows, setRows] = useState<RowWithPct[]>([]);
   const [downloading, setDownloading] = useState(false);
+
+  // ---- Reporte oficial para contabilidad (Excel del servidor + correo desde buzón Socios)
+  const [sendOpen, setSendOpen] = useState(false);
+  const [sendTo, setSendTo] = useState<string[]>([]);
+  const [sendCc, setSendCc] = useState<string[]>([]);
+  const [sendFrom, setSendFrom] = useState('');
+  const [sendNota, setSendNota] = useState('');
+  const [includeCanceled, setIncludeCanceled] = useState(false);
+  const [sending, setSending] = useState<'real' | 'test' | 'download' | null>(null);
+
+  const openSendModal = useCallback(async () => {
+    setSendOpen(true);
+    try {
+      const d = await getRoomReportDefaults();
+      setSendTo(prev => (prev.length ? prev : d.to));
+      setSendCc(prev => (prev.length ? prev : d.cc));
+      setSendFrom(d.from);
+    } catch {
+      /* sin defaults: el usuario escribe los correos */
+    }
+  }, []);
+
+  const officialDownload = useCallback(async () => {
+    setSending('download');
+    try {
+      const { blob, filename } = await downloadRoomReportExcel(
+        reportMonth.year(), reportMonth.month() + 1, includeCanceled,
+      );
+      saveAs(blob, filename);
+    } catch (e: unknown) {
+      const err = e as AxiosError<{ message?: string }>;
+      message.error(err.response?.data?.message || 'No fue posible generar el Excel.');
+    } finally {
+      setSending(null);
+    }
+  }, [reportMonth, includeCanceled]);
+
+  const officialSend = useCallback(async (test: boolean) => {
+    if (!test && !sendTo.length) {
+      message.warning('Indica al menos un destinatario.');
+      return;
+    }
+    setSending(test ? 'test' : 'real');
+    try {
+      const r = await sendRoomReport(reportMonth.year(), reportMonth.month() + 1, {
+        to: sendTo.length ? sendTo : ['prueba@consortiumlegal.com'],
+        cc: sendCc,
+        nota: sendNota || undefined,
+        includeCanceled,
+        test,
+      });
+      message.success(
+        test
+          ? `Prueba enviada a tu correo (${r.reservaciones} reservaciones, $${r.totalValor.toFixed(2)}).`
+          : `Reporte de ${r.mes} enviado a ${r.to.join(', ')} (${r.reservaciones} reservaciones, $${r.totalValor.toFixed(2)}).`,
+      );
+      if (!test) setSendOpen(false);
+    } catch (e: unknown) {
+      const err = e as AxiosError<{ message?: string | string[] }>;
+      const msg = err.response?.data?.message;
+      message.error(Array.isArray(msg) ? msg.join(' · ') : msg || 'No fue posible enviar el reporte.');
+    } finally {
+      setSending(null);
+    }
+  }, [reportMonth, sendTo, sendCc, sendNota, includeCanceled]);
 
   // ---- Access check
   useEffect(() => {
@@ -594,7 +662,68 @@ export default function ExclusiveMonthlyReport(): JSX.Element {
             Exportar
           </Button>
         </Tooltip>
+        <Tooltip title="Excel oficial para contabilidad (RESUMEN POR EQUIPO + DETALLE) y envío por correo desde el buzón de Pedro Luis Toribio">
+          <Button icon={<MailOutlined />} onClick={openSendModal}>
+            Enviar a contabilidad
+          </Button>
+        </Tooltip>
       </Space>
+
+      <Modal
+        title={`Reporte de Reserva de Salas — ${reportMonth.format('MMMM YYYY')}`}
+        open={sendOpen}
+        onCancel={() => setSendOpen(false)}
+        width={640}
+        footer={[
+          <Button key="dl" icon={<FileExcelOutlined />} loading={sending === 'download'}
+            disabled={!!sending && sending !== 'download'} onClick={officialDownload}>
+            Descargar Excel
+          </Button>,
+          <Button key="test" loading={sending === 'test'}
+            disabled={!!sending && sending !== 'test'} onClick={() => officialSend(true)}>
+            Enviarme prueba
+          </Button>,
+          <Button key="send" type="primary" icon={<MailOutlined />} loading={sending === 'real'}
+            disabled={!!sending && sending !== 'real'} onClick={() => officialSend(false)}>
+            Enviar
+          </Button>,
+        ]}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <Alert
+            type="info"
+            showIcon
+            message={
+              <span>
+                Se genera el Excel oficial del mes seleccionado (hoja <b>RESUMEN POR EQUIPO</b>:
+                equipo → área → persona con horas y valor USD; hoja <b>DETALLE</b> con cada reserva)
+                y se envía {sendFrom ? <>desde <b>{sendFrom}</b></> : 'desde el buzón de Socios'}.
+                El filtro de estado de esta pantalla no aplica: el reporte oficial cobra las reservas
+                pendientes y aceptadas del mes.
+              </span>
+            }
+          />
+          <div>
+            <div style={{ marginBottom: 4 }}>Para</div>
+            <Select mode="tags" style={{ width: '100%' }} value={sendTo} onChange={setSendTo}
+              tokenSeparators={[',', ';', ' ']} placeholder="correo@dominio.com" open={false} />
+          </div>
+          <div>
+            <div style={{ marginBottom: 4 }}>CC</div>
+            <Select mode="tags" style={{ width: '100%' }} value={sendCc} onChange={setSendCc}
+              tokenSeparators={[',', ';', ' ']} placeholder="opcional" open={false} />
+          </div>
+          <div>
+            <div style={{ marginBottom: 4 }}>Nota adicional en el correo (opcional)</div>
+            <Input.TextArea rows={3} maxLength={2000} value={sendNota}
+              onChange={(e) => setSendNota(e.target.value)}
+              placeholder="Ej.: Le adjunto también los meses pendientes…" />
+          </div>
+          <Checkbox checked={includeCanceled} onChange={(e) => setIncludeCanceled(e.target.checked)}>
+            Incluir reservas canceladas / eliminadas (como el Excel manual anterior)
+          </Checkbox>
+        </Space>
+      </Modal>
 
       {/* KPIs + Resumen por equipo */}
       <Row gutter={[12, 12]}>
