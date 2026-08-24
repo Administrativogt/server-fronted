@@ -204,8 +204,8 @@ export default function CustomRoomReport({ primary }: { primary: string }): JSX.
             </Col>
           </Row>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            Sin estados seleccionados se toman pendientes + aceptadas. "Eliminadas" son las borradas
-            por el usuario o recepción; "Canceladas" las canceladas desde el sistema.
+            Sin estados seleccionados se toman pendientes + aceptadas. "Cancelada / Eliminada" agrupa las
+            canceladas y las borradas por el usuario o recepción.
           </Text>
         </Space>
       </Card>

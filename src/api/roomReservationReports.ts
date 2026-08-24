@@ -54,7 +54,7 @@ export async function downloadRoomReportExcel(
 
 // ─── Reporte personalizado ──────────────────────────────────────────────────
 
-export type EstadoKey = 'pending' | 'accepted' | 'rejected' | 'canceled' | 'deleted';
+export type EstadoKey = 'pending' | 'accepted' | 'rejected' | 'canceled';
 export type GroupKey = 'equipo' | 'area' | 'usuario' | 'sala' | 'estado' | 'mes';
 
 export interface CustomReportFilter {
