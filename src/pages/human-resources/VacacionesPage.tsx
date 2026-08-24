@@ -2707,8 +2707,8 @@ const VacacionesPage: React.FC = () => {
         <p style={{ color: '#64748B', fontSize: 13, marginTop: 8 }}>
           Cada jefe inmediato recibe un correo con el estado de vacaciones de sus subordinados
           directos (saldo, gozados, pendientes de aprobación y próximas vacaciones) más un Excel
-          adjunto. También se envía solo, el día 1 de cada mes a las 8:00. «Enviarme una prueba»
-          genera los mismos correos pero todos llegan únicamente a tu bandeja.
+          adjunto. «Enviarme una prueba» genera los mismos correos pero todos llegan únicamente
+          a tu bandeja.
         </p>
         {reportGroups === null ? (
           <Alert type="info" showIcon message="Cargando vista previa…" style={{ borderRadius: 8 }} />
