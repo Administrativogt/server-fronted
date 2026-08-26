@@ -30,6 +30,10 @@ import {
 import { type ProvenienceDto, type HallDto } from "../../api/notifications";
 import useAuthStore from "../../auth/useAuthStore";
 import AddProvenienceModal from "./AddProvenienceModal";
+import { fetchUsers as fetchAllUsers, fullName, type UserLite } from "../../api/users";
+
+/** tipo_usuario de clientes externos: no reciben notificaciones en mostrador */
+const TIPO_CLIENTE = 12;
 
 const { Title } = Typography;
 
@@ -65,6 +69,12 @@ const CrearNotificacion: React.FC = () => {
   const [loadingCatalogs, setLoadingCatalogs] = useState(true);
   const [loadingHalls, setLoadingHalls] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // "Agregar otro" receptor: lista completa de usuarios (carga perezosa)
+  const [otherReceiverOpen, setOtherReceiverOpen] = useState(false);
+  const [allUsers, setAllUsers] = useState<UserLite[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [pickedUserId, setPickedUserId] = useState<number | undefined>();
 
   const userId = useAuthStore((s) => s.userId);
   const navigate = useNavigate();
@@ -169,6 +179,36 @@ const CrearNotificacion: React.FC = () => {
     } finally {
       setCreatingHall(false);
     }
+  };
+
+  const openOtherReceiver = () => {
+    setPickedUserId(undefined);
+    setOtherReceiverOpen(true);
+    if (allUsers.length > 0) return;
+    setLoadingUsers(true);
+    fetchAllUsers()
+      .then((list) =>
+        setAllUsers(list.filter((u) => u.tipo_usuario !== TIPO_CLIENTE)),
+      )
+      .catch(() => message.error("Error al cargar la lista de usuarios"))
+      .finally(() => setLoadingUsers(false));
+  };
+
+  const handlePickOtherReceiver = () => {
+    if (!pickedUserId) {
+      message.warning("Selecciona un usuario");
+      return;
+    }
+    const u = allUsers.find((x) => x.id === pickedUserId);
+    if (!u) return;
+    // Lo agregamos a las opciones del combo para que el Select muestre su nombre
+    setReceivers((prev) =>
+      prev.some((r) => r.id === u.id)
+        ? prev
+        : [...prev, { id: u.id, first_name: u.first_name, last_name: u.last_name }],
+    );
+    form.setFieldsValue({ recepReceives: u.id });
+    setOtherReceiverOpen(false);
   };
 
   const onFinish = async (values: NotificationFormValues) => {
@@ -344,6 +384,21 @@ const CrearNotificacion: React.FC = () => {
                     value: u.id,
                     label: `${u.first_name} ${u.last_name}`,
                   }))}
+                  popupRender={(menu) => (
+                    <>
+                      {menu}
+                      <Divider style={{ margin: "8px 0" }} />
+                      <Button
+                        type="text"
+                        icon={<PlusOutlined />}
+                        block
+                        style={{ textAlign: "left" }}
+                        onClick={openOtherReceiver}
+                      >
+                        Agregar otro
+                      </Button>
+                    </>
+                  )}
                 />
               </Form.Item>
             </Col>
@@ -435,6 +490,30 @@ const CrearNotificacion: React.FC = () => {
           value={newHallName}
           onChange={(e) => setNewHallName(e.target.value)}
           onPressEnter={handleCreateHall}
+          autoFocus
+        />
+      </Modal>
+
+      <Modal
+        title="Agregar otro receptor"
+        open={otherReceiverOpen}
+        onCancel={() => setOtherReceiverOpen(false)}
+        onOk={handlePickOtherReceiver}
+        okText="Seleccionar"
+        okButtonProps={{ disabled: !pickedUserId }}
+      >
+        <p style={{ marginBottom: 8 }}>
+          Elige cualquier usuario activo del sistema como receptor de la notificación.
+        </p>
+        <Select
+          style={{ width: "100%" }}
+          placeholder="Busca por nombre"
+          showSearch
+          optionFilterProp="label"
+          loading={loadingUsers}
+          value={pickedUserId}
+          onChange={(v: number) => setPickedUserId(v)}
+          options={allUsers.map((u) => ({ value: u.id, label: fullName(u) }))}
           autoFocus
         />
       </Modal>
