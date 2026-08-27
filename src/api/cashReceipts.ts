@@ -43,6 +43,51 @@ export interface CashReceiptFilters {
   is_active?: '0' | '1';
 }
 
+/** Filtros combinables (GET /cash-receipts/search). Todos opcionales, se aplican con AND. */
+export interface CashReceiptSearchParams {
+  is_active?: '0' | '1' | 'all';
+  serie?: number;
+  correlative?: string;
+  correlative_from?: string;
+  correlative_to?: string;
+  received_from?: string;
+  concept?: string;
+  amount?: number;
+  amount_min?: number;
+  amount_max?: number;
+  currency?: number;
+  bill_number?: string;
+  work_note_number?: string;
+  check_number?: string;
+  bank?: string;
+  date_from?: string;
+  date_to?: string;
+  created_from?: string;
+  created_to?: string;
+  creator_id?: number;
+  q?: string;
+  sort?: 'id' | 'correlative' | 'date' | 'created' | 'amount' | 'received_from' | 'concept';
+  sort_dir?: 'asc' | 'desc';
+  page?: number;
+  page_size?: number;
+}
+
+export interface CashReceiptFilterOptions {
+  can_view_all: boolean;
+  series: { serie: number; letter: string; count: number }[];
+  currencies: { currency: number; count: number }[];
+  concepts: { value: string; count: number }[];
+  banks: { value: string; count: number }[];
+  creators: {
+    id: number;
+    username: string;
+    first_name?: string;
+    last_name?: string;
+    label: string;
+    count: number;
+  }[];
+}
+
 export interface PaginatedCashReceipts {
   items: CashReceipt[];
   total: number;
@@ -72,6 +117,14 @@ const cashReceiptsApi = {
     api.get<PaginatedCashReceipts>('/cash-receipts', {
       params: { ...params, page, page_size: pageSize },
     }),
+
+  // ✅ Búsqueda con filtros combinables, paginada y ordenada en el servidor
+  search: (params: CashReceiptSearchParams) =>
+    api.get<PaginatedCashReceipts>('/cash-receipts/search', { params }),
+
+  // ✅ Catálogos para el panel de filtros (series, conceptos, bancos, usuarios)
+  getFilterOptions: () =>
+    api.get<CashReceiptFilterOptions>('/cash-receipts/filter-options'),
 
   // ✅ Obtener uno por ID
   getById: (id: number) => api.get<CashReceipt>(`/cash-receipts/${id}`),
