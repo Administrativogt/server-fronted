@@ -10,6 +10,7 @@ import {
   Input,
   InputNumber,
   Row,
+  Segmented,
   Select,
   Space,
   Statistic,
@@ -42,11 +43,13 @@ import dayjs, { Dayjs } from 'dayjs';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../auth/useAuthStore';
 import useThemeStore from '../../hooks/useThemeStore';
-import { makeCSS, makeTokens } from '../dashboard/theme';
+import { ResponsiveBar } from '@nivo/bar';
+import { makeChartTheme, makeCSS, makeTokens } from '../dashboard/theme';
 import adminAuditApi from '../../api/adminAudit';
 import type {
   AppLogEntry,
   AuditCatalog,
+  AuditChartsResponse,
   AuditColumn,
   AuditModuleKey,
   AuditOverview,
@@ -272,6 +275,235 @@ const FEED: Record<AuditModuleKey, { queryKey: string; title: string; days: numb
   salas: { queryKey: 'salas.reservaciones', title: 'Últimas reservas (7 días)', days: 7, limit: 10 },
   cheques: { queryKey: 'cheques.bitacora', title: 'Últimos movimientos de cheques (autorizaciones, liquidaciones, rechazos)', days: 30, limit: 10 },
   notificaciones: { queryKey: 'notif.buscar', title: 'Últimas notificaciones recibidas (7 días)', days: 7, limit: 10 },
+};
+
+// ---------------------------------------------------------------------------
+// Gráficas (nivo). Paleta categórica validada (CVD + contraste) en claro y
+// oscuro; el color sigue a la entidad (misma serie = mismo color siempre).
+// ---------------------------------------------------------------------------
+const SERIES_COLOR: Record<'light' | 'dark', Record<string, string>> = {
+  light: {
+    Salas: '#2a78d6',
+    Cheques: '#eb6834',
+    Notificaciones: '#1baf7a',
+    Vigentes: '#2a78d6',
+    Canceladas: '#e34948',
+    Autorizado: '#2a78d6',
+    Rechazado: '#eb6834',
+    Liquidado: '#1baf7a',
+    'Revertido / anulado': '#eda100',
+    Recibidas: '#2a78d6',
+    Entregadas: '#1baf7a',
+    _single: '#2a78d6',
+  },
+  dark: {
+    Salas: '#3987e5',
+    Cheques: '#d95926',
+    Notificaciones: '#199e70',
+    Vigentes: '#3987e5',
+    Canceladas: '#e66767',
+    Autorizado: '#3987e5',
+    Rechazado: '#d95926',
+    Liquidado: '#199e70',
+    'Revertido / anulado': '#c98500',
+    Recibidas: '#3987e5',
+    Entregadas: '#199e70',
+    _single: '#3987e5',
+  },
+};
+
+const REPORT_STATUS_COLOR: Record<string, string> = { sent: '#10B981', failed: '#EF4444', alerted: '#F59E0B', pending: '#94A3B8' };
+
+interface BarCardProps {
+  title: string;
+  subtitle?: string;
+  data: Record<string, unknown>[];
+  keys: string[];
+  indexBy: string;
+  layout?: 'vertical' | 'horizontal';
+  groupMode?: 'stacked' | 'grouped';
+  height?: number;
+  isDark: boolean;
+  tk: ReturnType<typeof makeTokens>;
+  valueSuffix?: string;
+  loading?: boolean;
+}
+
+const BarCard: React.FC<BarCardProps> = ({ title, subtitle, data, keys, indexBy, layout = 'vertical', groupMode = 'stacked', height = 260, isDark, tk, valueSuffix = '', loading }) => {
+  const palette = SERIES_COLOR[isDark ? 'dark' : 'light'];
+  const horizontal = layout === 'horizontal';
+  const total = data.reduce((acc, row) => acc + keys.reduce((a, k) => a + (Number(row[k]) || 0), 0), 0);
+  // Eje X legible: como mucho ~10 etiquetas
+  const step = Math.max(1, Math.ceil(data.length / 10));
+  const tickValues = horizontal ? undefined : data.map((d) => String(d[indexBy])).filter((_, i) => i % step === 0);
+  const leftMargin = horizontal ? Math.min(220, 40 + Math.max(0, ...data.map((d) => String(d[indexBy]).length)) * 6.5) : 44;
+
+  return (
+    <Card size="small" title={title} extra={subtitle && <Text type="secondary" style={{ fontSize: 12 }}>{subtitle}</Text>} loading={loading} style={{ height: '100%' }}>
+      {!loading && total === 0 ? (
+        <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Text type="secondary">Sin datos en el período</Text>
+        </div>
+      ) : (
+        <div style={{ height }}>
+          <ResponsiveBar
+            data={data as any}
+            keys={keys}
+            indexBy={indexBy}
+            layout={layout}
+            groupMode={groupMode}
+            margin={{ top: 8, right: 16, bottom: keys.length > 1 ? 56 : 36, left: leftMargin }}
+            padding={0.3}
+            innerPadding={groupMode === 'grouped' ? 2 : 0}
+            borderRadius={3}
+            borderWidth={groupMode === 'stacked' && keys.length > 1 ? 1 : 0}
+            borderColor={tk.surface}
+            colors={({ id }) => palette[String(id)] ?? palette._single}
+            enableLabel={horizontal}
+            labelPosition="end"
+            labelOffset={6}
+            labelTextColor={tk.t1}
+            label={(d) => `${d.value}${valueSuffix}`}
+            enableGridX={horizontal}
+            enableGridY={!horizontal}
+            axisLeft={{ tickSize: 0, tickPadding: 8, format: (v) => (horizontal ? String(v) : Number.isInteger(Number(v)) ? String(v) : '') }}
+            axisBottom={{ tickSize: 0, tickPadding: 8, tickValues, format: (v) => (horizontal && !Number.isInteger(Number(v)) ? '' : String(v)) }}
+            theme={makeChartTheme(tk)}
+            legends={
+              keys.length > 1
+                ? [
+                    {
+                      dataFrom: 'keys',
+                      anchor: 'bottom',
+                      direction: 'row',
+                      translateY: 50,
+                      itemWidth: 130,
+                      itemHeight: 14,
+                      symbolSize: 10,
+                      symbolShape: 'circle',
+                    },
+                  ]
+                : []
+            }
+            tooltip={({ id, value, indexValue }) => (
+              <div style={{ background: tk.surface, border: tk.borderCss, borderRadius: 6, padding: '6px 10px', fontSize: 12, color: tk.t1, boxShadow: tk.shadow }}>
+                <div style={{ color: tk.t2 }}>{String(indexValue)}</div>
+                <div>
+                  <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 4, background: palette[String(id)] ?? palette._single, marginRight: 6 }} />
+                  {keys.length > 1 ? `${String(id)}: ` : ''}
+                  <strong>{NUM.format(Number(value))}{valueSuffix}</strong>
+                </div>
+              </div>
+            )}
+            role="img"
+            ariaLabel={title}
+          />
+        </div>
+      )}
+    </Card>
+  );
+};
+
+/** Tira de estado del reporte 5 PM: un cuadro por día hábil, con color de estado + leyenda. */
+const ReportStrip: React.FC<{ rows: NonNullable<AuditChartsResponse['reporte5pm']>; tk: ReturnType<typeof makeTokens>; loading?: boolean }> = ({ rows, tk, loading }) => (
+  <Card size="small" title="Reporte diario de las 5 PM" extra={<Text type="secondary" style={{ fontSize: 12 }}>un cuadro por día</Text>} loading={loading} style={{ height: '100%' }}>
+    {rows.length === 0 ? (
+      <Text type="secondary">Sin registros en el período</Text>
+    ) : (
+      <>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 12 }}>
+          {rows.map((r) => (
+            <Tooltip key={r.fecha} title={`${r.dia}: ${STATUS_ES[r.status] ?? r.status}${r.hora ? ` a las ${r.hora}` : ''} · ${r.attempts} intento(s)`}>
+              <div style={{ width: 22, height: 22, borderRadius: 4, background: REPORT_STATUS_COLOR[r.status] ?? '#94A3B8', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 9, fontWeight: 600 }}>
+                {r.status === 'sent' ? '✓' : r.status === 'failed' ? '✕' : r.status === 'alerted' ? '!' : '·'}
+              </div>
+            </Tooltip>
+          ))}
+        </div>
+        <Space size={12} wrap>
+          {(['sent', 'failed', 'alerted', 'pending'] as const).map((s) => (
+            <Space key={s} size={4}>
+              <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: REPORT_STATUS_COLOR[s] }} />
+              <Text style={{ fontSize: 12, color: tk.t2 }}>{STATUS_ES[s]}</Text>
+            </Space>
+          ))}
+        </Space>
+      </>
+    )}
+  </Card>
+);
+
+const ChartsPanel: React.FC<{ module: AuditModuleKey; isDark: boolean; tk: ReturnType<typeof makeTokens> }> = ({ module, isDark, tk }) => {
+  const [days, setDays] = useState(30);
+  const [data, setData] = useState<AuditChartsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    adminAuditApi
+      .getCharts(module, days)
+      .then(({ data }) => alive && setData(data))
+      .catch(() => alive && setData(null))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [module, days]);
+
+  const common = { isDark, tk, loading };
+  const porDia = data?.porDia ?? [];
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <Space style={{ marginBottom: 10 }} wrap>
+        <Text type="secondary">Período de las gráficas:</Text>
+        <Segmented value={days} onChange={(v) => setDays(Number(v))} options={[{ label: '7 días', value: 7 }, { label: '30 días', value: 30 }, { label: '90 días', value: 90 }]} />
+      </Space>
+      <Row gutter={[12, 12]}>
+        {module === 'general' && (
+          <>
+            <Col xs={24} lg={16}>
+              <BarCard {...common} title="Cancelaciones y eliminaciones por día" subtitle="por área" data={porDia} keys={['Salas', 'Cheques', 'Notificaciones']} indexBy="dia" />
+            </Col>
+            <Col xs={24} lg={8}>
+              <BarCard {...common} title="Quién cancela o elimina más" data={(data?.porPersona ?? []).slice().reverse()} keys={['total']} indexBy="quien" layout="horizontal" />
+            </Col>
+          </>
+        )}
+        {module === 'salas' && (
+          <>
+            <Col xs={24} lg={14}>
+              <BarCard {...common} title="Reservas por día" subtitle="vigentes vs canceladas" data={porDia} keys={['Vigentes', 'Canceladas']} indexBy="dia" />
+            </Col>
+            <Col xs={24} lg={10}>
+              <BarCard {...common} title="Horas de uso por sala" data={(data?.porSala ?? []).slice().reverse()} keys={['horas']} indexBy="sala" layout="horizontal" valueSuffix=" h" />
+            </Col>
+          </>
+        )}
+        {module === 'cheques' && (
+          <>
+            <Col xs={24} lg={14}>
+              <BarCard {...common} title="Movimientos de cheques por semana" subtitle="según la bitácora" data={data?.porSemana ?? []} keys={['Autorizado', 'Rechazado', 'Liquidado', 'Revertido / anulado']} indexBy="semana" />
+            </Col>
+            <Col xs={24} lg={10}>
+              <BarCard {...common} title="Cheques del período por estado actual" data={(data?.porEstado ?? []).slice().reverse()} keys={['n']} indexBy="estado" layout="horizontal" />
+            </Col>
+          </>
+        )}
+        {module === 'notificaciones' && (
+          <>
+            <Col xs={24} lg={14}>
+              <BarCard {...common} title="Notificaciones por día" subtitle="recibidas vs entregadas" data={porDia} keys={['Recibidas', 'Entregadas']} indexBy="dia" groupMode="grouped" />
+            </Col>
+            <Col xs={24} lg={10}>
+              <ReportStrip rows={data?.reporte5pm ?? []} tk={tk} loading={loading} />
+            </Col>
+          </>
+        )}
+      </Row>
+    </div>
+  );
 };
 
 // ---------------------------------------------------------------------------
@@ -1052,6 +1284,7 @@ const AuditoriaPage: React.FC = () => {
                         </>
                       )}
                     </Paragraph>
+                    <ChartsPanel module={m.key} isDark={isDark} tk={tk} />
                     <QueryPanel module={m.key} catalog={catalog} tech={tech} />
                   </>
                 ),

@@ -135,8 +135,22 @@ export interface LogQueryParams {
   file?: 'combined' | 'error';
 }
 
+/** Series agregadas para las gráficas de un módulo (filas ya listas para nivo). */
+export interface AuditChartsResponse {
+  module: AuditModuleKey;
+  days: number;
+  porDia?: Record<string, unknown>[];
+  porPersona?: { quien: string; total: number }[];
+  porSala?: { sala: string; reservas: number; horas: number }[];
+  porSemana?: Record<string, unknown>[];
+  porEstado?: { estado: string; n: number }[];
+  reporte5pm?: { dia: string; fecha: string; status: string; attempts: number; hora: string | null }[];
+}
+
 const adminAuditApi = {
   getCatalog: () => api.get<AuditCatalog>('/api/admin-audit/catalog'),
+  getCharts: (module: AuditModuleKey, days: number) =>
+    api.get<AuditChartsResponse>(`/api/admin-audit/charts/${module}`, { params: { days } }),
   getOverview: () => api.get<AuditOverview>('/api/admin-audit/overview'),
   runQuery: (key: string, params: Record<string, unknown>) =>
     api.get<AuditRunResult>(`/api/admin-audit/queries/${encodeURIComponent(key)}/run`, {
