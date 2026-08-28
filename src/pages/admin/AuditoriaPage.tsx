@@ -32,6 +32,7 @@ import {
   CodeOutlined,
   DownloadOutlined,
   ExclamationCircleOutlined,
+  FilterOutlined,
   PlayCircleOutlined,
   QuestionCircleOutlined,
   ReloadOutlined,
@@ -359,6 +360,7 @@ const QueryPanel: React.FC<{ module: AuditModuleKey; catalog: AuditCatalog; tech
   const [lastValues, setLastValues] = useState<Record<string, unknown>>({});
   const [showSql, setShowSql] = useState(false);
   const [preset, setPreset] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
 
   // Al abrir una pregunta se ejecuta sola con un período por defecto: el
   // usuario ve datos de inmediato y los filtros solo sirven para afinar.
@@ -366,6 +368,7 @@ const QueryPanel: React.FC<{ module: AuditModuleKey; catalog: AuditCatalog; tech
     form.resetFields();
     setResult(null);
     setShowSql(false);
+    setShowFilters(false);
     setLimit(query?.defaultLimit ?? catalog.limits.default);
     if (!query) {
       setPreset(null);
@@ -422,11 +425,10 @@ const QueryPanel: React.FC<{ module: AuditModuleKey; catalog: AuditCatalog; tech
     if (!queries.length) return <Empty description="No hay consultas para este módulo" />;
     return (
       <div>
-        <RecentActivity module={module} catalog={catalog} tech={tech} onOpen={(k) => setSelectedKey(k)} />
         <Paragraph type="secondary" style={{ marginBottom: 12 }}>
-          ¿Qué más quiere revisar? Elija una pregunta (se consulta de inmediato con los últimos 30 días):
+          Elija una pregunta y verá la respuesta de inmediato (últimos 30 días; puede cambiar el período después):
         </Paragraph>
-        <Row gutter={[12, 12]}>
+        <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
           {queries.map((q) => (
             <Col key={q.key} xs={24} md={12} xl={8}>
               <Card
@@ -449,6 +451,7 @@ const QueryPanel: React.FC<{ module: AuditModuleKey; catalog: AuditCatalog; tech
             </Col>
           ))}
         </Row>
+        <RecentActivity module={module} catalog={catalog} tech={tech} onOpen={(k) => setSelectedKey(k)} />
       </div>
     );
   }
@@ -518,37 +521,50 @@ const QueryPanel: React.FC<{ module: AuditModuleKey; catalog: AuditCatalog; tech
               </Space>
             </div>
           )}
-          <Row gutter={12}>
-            {query.params.map((p) => (
-              <Col key={p.key} xs={24} sm={12} lg={8}>
-                <div onChangeCapture={() => (p.key === 'from' || p.key === 'to') && setPreset(null)}>
-                  <ParamField p={p} />
-                </div>
-              </Col>
-            ))}
-            {tech && (
-              <Col xs={24} sm={12} lg={8}>
-                <Form.Item label="Máx. filas">
-                  <InputNumber style={{ width: '100%' }} min={1} max={catalog.limits.max} value={limit} onChange={(v) => setLimit(Number(v) || catalog.limits.default)} />
-                </Form.Item>
-              </Col>
-            )}
-          </Row>
-          <Space>
-            <Button type="primary" size="large" icon={<PlayCircleOutlined />} htmlType="submit" loading={running}>
-              Consultar
-            </Button>
-            <Button
-              icon={<ClearOutlined />}
-              onClick={() => {
-                form.resetFields();
-                setResult(null);
-                setPreset(null);
-              }}
-            >
-              Limpiar
-            </Button>
-          </Space>
+          {/* Los filtros son secundarios: la pregunta ya se respondió con el período por defecto. */}
+          <Button
+            type="link"
+            size="small"
+            icon={<FilterOutlined />}
+            onClick={() => setShowFilters((s) => !s)}
+            style={{ paddingInline: 0, marginBottom: showFilters ? 8 : 0 }}
+          >
+            {showFilters ? 'Ocultar filtros' : 'Afinar la búsqueda (filtros)'}
+          </Button>
+          {/* Los campos siguen montados (ocultos) para que el período rápido conserve sus valores. */}
+          <div style={{ display: showFilters ? 'block' : 'none' }}>
+            <Row gutter={12}>
+              {query.params.map((p) => (
+                <Col key={p.key} xs={24} sm={12} lg={8}>
+                  <div onChangeCapture={() => (p.key === 'from' || p.key === 'to') && setPreset(null)}>
+                    <ParamField p={p} />
+                  </div>
+                </Col>
+              ))}
+              {tech && (
+                <Col xs={24} sm={12} lg={8}>
+                  <Form.Item label="Máx. filas">
+                    <InputNumber style={{ width: '100%' }} min={1} max={catalog.limits.max} value={limit} onChange={(v) => setLimit(Number(v) || catalog.limits.default)} />
+                  </Form.Item>
+                </Col>
+              )}
+            </Row>
+            <Space>
+              <Button type="primary" icon={<PlayCircleOutlined />} htmlType="submit" loading={running}>
+                Consultar con estos filtros
+              </Button>
+              <Button
+                icon={<ClearOutlined />}
+                onClick={() => {
+                  form.resetFields();
+                  if (hasDateRange) applyPreset(DEFAULT_PRESET);
+                  else void run();
+                }}
+              >
+                Quitar filtros
+              </Button>
+            </Space>
+          </div>
         </Form>
 
         {result && (
