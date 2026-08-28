@@ -13,7 +13,6 @@ import {
   Segmented,
   Select,
   Space,
-  Statistic,
   Switch,
   Table,
   Tabs,
@@ -32,12 +31,13 @@ import {
   ClockCircleOutlined,
   CodeOutlined,
   DownloadOutlined,
-  ExclamationCircleOutlined,
   FilterOutlined,
   PlayCircleOutlined,
   QuestionCircleOutlined,
   ReloadOutlined,
   RightOutlined,
+  TableOutlined,
+  UnorderedListOutlined,
 } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import { useNavigate } from 'react-router-dom';
@@ -46,6 +46,9 @@ import useThemeStore from '../../hooks/useThemeStore';
 import { ResponsiveBar } from '@nivo/bar';
 import { makeChartTheme, makeCSS, makeTokens } from '../dashboard/theme';
 import adminAuditApi from '../../api/adminAudit';
+import ActivityFeed from './auditoria/ActivityFeed';
+import StatusHero from './auditoria/StatusHero';
+import { hasFeedShape } from './auditoria/feed';
 import type {
   AppLogEntry,
   AuditCatalog,
@@ -457,7 +460,7 @@ const ChartsPanel: React.FC<{ module: AuditModuleKey; isDark: boolean; tk: Retur
   return (
     <div style={{ marginBottom: 20 }}>
       <Space style={{ marginBottom: 10 }} wrap>
-        <Text type="secondary">Período de las gráficas:</Text>
+        <Text style={{ color: tk.t2 }}>Período de las gráficas:</Text>
         <Segmented value={days} onChange={(v) => setDays(Number(v))} options={[{ label: '7 días', value: 7 }, { label: '30 días', value: 30 }, { label: '90 días', value: 90 }]} />
       </Space>
       <Row gutter={[12, 12]}>
@@ -509,16 +512,32 @@ const ChartsPanel: React.FC<{ module: AuditModuleKey; isDark: boolean; tk: Retur
 // ---------------------------------------------------------------------------
 // Actividad reciente: tabla ya cargada al entrar al módulo
 // ---------------------------------------------------------------------------
+/** Selector Lista / Tabla compartido por la actividad reciente y los resultados. */
+const ViewToggle: React.FC<{ value: 'lista' | 'tabla'; onChange: (v: 'lista' | 'tabla') => void }> = ({ value, onChange }) => (
+  <Segmented
+    size="small"
+    value={value}
+    onChange={(v) => onChange(v as 'lista' | 'tabla')}
+    options={[
+      { label: 'Lista', value: 'lista', icon: <UnorderedListOutlined /> },
+      { label: 'Tabla', value: 'tabla', icon: <TableOutlined /> },
+    ]}
+  />
+);
+
 const RecentActivity: React.FC<{
   module: AuditModuleKey;
   catalog: AuditCatalog;
   tech: boolean;
+  tk: ReturnType<typeof makeTokens>;
+  isDark: boolean;
   onOpen: (queryKey: string) => void;
-}> = ({ module, catalog, tech, onOpen }) => {
+}> = ({ module, catalog, tech, tk, isDark, onOpen }) => {
   const feed = FEED[module];
   const def = catalog.queries.find((q) => q.key === feed.queryKey);
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState<AuditRunResult | null>(null);
+  const [view, setView] = useState<'lista' | 'tabla'>(hasFeedShape(feed.queryKey) ? 'lista' : 'tabla');
 
   useEffect(() => {
     let alive = true;
@@ -558,23 +577,33 @@ const RecentActivity: React.FC<{
         </Space>
       }
       extra={
-        <Button type="link" size="small" onClick={() => onOpen(feed.queryKey)}>
-          Ver más y filtrar <RightOutlined />
-        </Button>
+        <Space size="middle">
+          {hasFeedShape(feed.queryKey) && <ViewToggle value={view} onChange={setView} />}
+          <Button type="link" size="small" onClick={() => onOpen(feed.queryKey)} style={{ paddingInline: 0 }}>
+            Ver más y filtrar <RightOutlined />
+          </Button>
+        </Space>
       }
       style={{ marginBottom: 16 }}
+      loading={loading && !result}
     >
-      <Table
-        className="ta-table"
-        size="small"
-        loading={loading}
-        rowKey={(_, i) => String(i)}
-        columns={columns}
-        dataSource={result?.rows ?? []}
-        pagination={false}
-        scroll={{ x: Math.max(900, columns.length * 140) }}
-        locale={{ emptyText: loading ? ' ' : 'Sin movimientos en este período' }}
-      />
+      {view === 'lista' && result && result.rows.length > 0 ? (
+        <ActivityFeed rows={result.rows} queryKey={feed.queryKey} tk={tk} isDark={isDark} compact />
+      ) : view === 'lista' && result ? (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Sin movimientos en este período" />
+      ) : (
+        <Table
+          className="ta-table"
+          size="small"
+          loading={loading}
+          rowKey={(_, i) => String(i)}
+          columns={columns}
+          dataSource={result?.rows ?? []}
+          pagination={false}
+          scroll={{ x: Math.max(900, columns.length * 140) }}
+          locale={{ emptyText: loading ? ' ' : 'Sin movimientos en este período' }}
+        />
+      )}
     </Card>
   );
 };
@@ -582,9 +611,21 @@ const RecentActivity: React.FC<{
 // ---------------------------------------------------------------------------
 // Panel de un módulo: lista de preguntas → pantalla de la pregunta elegida
 // ---------------------------------------------------------------------------
-const QueryPanel: React.FC<{ module: AuditModuleKey; catalog: AuditCatalog; tech: boolean }> = ({ module, catalog, tech }) => {
+const QueryPanel: React.FC<{
+  module: AuditModuleKey;
+  catalog: AuditCatalog;
+  tech: boolean;
+  tk: ReturnType<typeof makeTokens>;
+  isDark: boolean;
+  /** Pregunta a abrir desde fuera (p. ej. "Ver quién, cuándo y por qué" en la cabecera). */
+  openKey?: string | null;
+}> = ({ module, catalog, tech, tk, isDark, openKey }) => {
   const queries = useMemo(() => catalog.queries.filter((q) => q.module === module), [catalog, module]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [view, setView] = useState<'lista' | 'tabla'>('lista');
+  useEffect(() => {
+    if (openKey && queries.some((q) => q.key === openKey)) setSelectedKey(openKey);
+  }, [openKey, queries]);
   const query: AuditQueryDef | undefined = queries.find((q) => q.key === selectedKey);
   const [form] = Form.useForm();
   const [limit, setLimit] = useState<number>(catalog.limits.default);
@@ -658,33 +699,34 @@ const QueryPanel: React.FC<{ module: AuditModuleKey; catalog: AuditCatalog; tech
     if (!queries.length) return <Empty description="No hay consultas para este módulo" />;
     return (
       <div>
-        <Paragraph type="secondary" style={{ marginBottom: 12 }}>
+        <Paragraph style={{ marginBottom: 12, color: tk.t2 }}>
           Elija una pregunta y verá la respuesta de inmediato (últimos 30 días; puede cambiar el período después):
         </Paragraph>
+        <style>{`
+          .audit-q { all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; width: 100%; height: 100%; min-height: 104px; padding: 14px 16px; border-radius: 10px; cursor: pointer; text-align: left;
+            background: ${tk.surface}; border: ${tk.borderCss}; transition: border-color .18s cubic-bezier(.22,1,.36,1), box-shadow .18s cubic-bezier(.22,1,.36,1), transform .18s cubic-bezier(.22,1,.36,1); }
+          .audit-q:hover { border-color: #3C50E0; box-shadow: ${tk.shadow}; transform: translateY(-1px); }
+          .audit-q:focus-visible { outline: 2px solid #3C50E0; outline-offset: 2px; }
+          .audit-q:hover .audit-q-arrow, .audit-q:focus-visible .audit-q-arrow { color: #3C50E0; transform: translateX(2px); }
+          .audit-q-arrow { color: ${tk.t3}; transition: transform .18s cubic-bezier(.22,1,.36,1), color .18s; }
+          @media (prefers-reduced-motion: reduce) { .audit-q, .audit-q-arrow { transition: none; } .audit-q:hover { transform: none; } }
+        `}</style>
         <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
           {queries.map((q) => (
             <Col key={q.key} xs={24} md={12} xl={8}>
-              <Card
-                hoverable
-                size="small"
-                onClick={() => setSelectedKey(q.key)}
-                style={{ height: '100%' }}
-                styles={{ body: { display: 'flex', flexDirection: 'column', gap: 6, minHeight: 110 } }}
-              >
-                <Space align="start" style={{ justifyContent: 'space-between', width: '100%' }}>
-                  <Text strong style={{ fontSize: 15 }}>
+              <button type="button" className="audit-q" onClick={() => setSelectedKey(q.key)} aria-label={q.title}>
+                <span style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+                  <Text strong style={{ fontSize: 15, color: tk.t1, lineHeight: 1.3 }}>
                     {q.title}
                   </Text>
-                  <RightOutlined style={{ color: '#999', marginTop: 4 }} />
-                </Space>
-                <Text type="secondary" style={{ fontSize: 13 }}>
-                  {q.description}
-                </Text>
-              </Card>
+                  <RightOutlined className="audit-q-arrow" style={{ marginTop: 4, flex: '0 0 auto' }} />
+                </span>
+                <Text style={{ fontSize: 13, color: tk.t2, lineHeight: 1.45 }}>{q.description}</Text>
+              </button>
             </Col>
           ))}
         </Row>
-        <RecentActivity module={module} catalog={catalog} tech={tech} onOpen={(k) => setSelectedKey(k)} />
+        <RecentActivity module={module} catalog={catalog} tech={tech} tk={tk} isDark={isDark} onOpen={(k) => setSelectedKey(k)} />
       </div>
     );
   }
@@ -827,31 +869,40 @@ const QueryPanel: React.FC<{ module: AuditModuleKey; catalog: AuditCatalog; tech
                       : undefined
                   }
                   action={
-                    <Button
-                      icon={<DownloadOutlined />}
-                      onClick={() =>
-                        downloadText(
-                          `auditoria_${query.key.replace(/\./g, '_')}_${dayjs().format('YYYYMMDD_HHmm')}.csv`,
-                          toCsv(result.columns, result.rows),
-                        )
-                      }
-                    >
-                      Descargar Excel
-                    </Button>
+                    <Space>
+                      {hasFeedShape(query.key) && <ViewToggle value={view} onChange={setView} />}
+                      <Tooltip title="Archivo CSV separado por comas; se abre en Excel">
+                        <Button
+                          icon={<DownloadOutlined />}
+                          onClick={() =>
+                            downloadText(
+                              `auditoria_${query.key.replace(/\./g, '_')}_${dayjs().format('YYYYMMDD_HHmm')}.csv`,
+                              toCsv(result.columns, result.rows),
+                            )
+                          }
+                        >
+                          Descargar (CSV)
+                        </Button>
+                      </Tooltip>
+                    </Space>
                   }
                   style={{ marginBottom: 12 }}
                 />
-                <Table
-                  className="ta-table"
-                  size="small"
-                  rowKey={(_, i) => String(i)}
-                  columns={columns}
-                  dataSource={result.rows}
-                  scroll={{ x: Math.max(900, columns.length * 150) }}
-                  pagination={{ pageSize: 25, showSizeChanger: true, pageSizeOptions: [25, 50, 100, 500], showTotal: (t) => `${NUM.format(t)} registros` }}
-                />
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  Las horas están en hora de Guatemala. Puede ordenar haciendo clic en el título de cada columna.
+                {view === 'lista' && hasFeedShape(query.key) ? (
+                  <ActivityFeed rows={result.rows} queryKey={query.key} tk={tk} isDark={isDark} />
+                ) : (
+                  <Table
+                    className="ta-table"
+                    size="small"
+                    rowKey={(_, i) => String(i)}
+                    columns={columns}
+                    dataSource={result.rows}
+                    scroll={{ x: Math.max(900, columns.length * 150) }}
+                    pagination={{ pageSize: 25, showSizeChanger: true, pageSizeOptions: [25, 50, 100, 500], showTotal: (t) => `${NUM.format(t)} registros` }}
+                  />
+                )}
+                <Text style={{ fontSize: 12, color: tk.t2 }}>
+                  Horas en hora de Guatemala.{view === 'tabla' ? ' Puede ordenar haciendo clic en el título de cada columna.' : ' La vista Tabla permite ordenar por columna.'}
                 </Text>
               </>
             )}
@@ -1043,126 +1094,6 @@ const LogsPanel: React.FC<{ catalog: AuditCatalog }> = ({ catalog }) => {
 };
 
 // ---------------------------------------------------------------------------
-// Tarjetas de estado (lenguaje llano)
-// ---------------------------------------------------------------------------
-const StatusCards: React.FC<{ overview: AuditOverview; tech: boolean }> = ({ overview, tech }) => {
-  const rep = overview.notificaciones.ultimoReporte5pm;
-  const repOk = rep?.status === 'sent';
-  return (
-    <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-      <Col xs={24}>
-        <Card
-          size="small"
-          title={
-            <Space>
-              <ExclamationCircleOutlined style={{ color: overview.cancelaciones7d.total ? '#EF4444' : '#10B981' }} />
-              Cancelaciones y eliminaciones en los últimos 7 días
-            </Space>
-          }
-        >
-          <Row gutter={8}>
-            <Col xs={12} md={6}>
-              <Statistic title="Total" value={overview.cancelaciones7d.total} valueStyle={{ color: overview.cancelaciones7d.total ? '#EF4444' : undefined }} />
-            </Col>
-            <Col xs={12} md={6}>
-              <Statistic title="Reservas de sala" value={overview.cancelaciones7d.salas} />
-            </Col>
-            <Col xs={12} md={6}>
-              <Statistic title="Cheques (rechazados, anulados, revertidos)" value={overview.cancelaciones7d.cheques} />
-            </Col>
-            <Col xs={12} md={6}>
-              <Statistic title="Notificaciones y documentos" value={overview.cancelaciones7d.notificaciones} />
-            </Col>
-          </Row>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            El detalle (quién, a qué hora y por qué) está en la pestaña "Cancelaciones y eliminaciones".
-          </Text>
-        </Card>
-      </Col>
-      <Col xs={24} md={8}>
-        <Card size="small" title="Salas de reuniones">
-          <Row gutter={8}>
-            <Col span={8}>
-              <Statistic title="Reuniones hoy" value={overview.salas.hoy} />
-            </Col>
-            <Col span={8}>
-              <Statistic title="Esperando aprobación" value={overview.salas.pendientesAprobacion} valueStyle={{ color: overview.salas.pendientesAprobacion ? '#F59E0B' : undefined }} />
-            </Col>
-            <Col span={8}>
-              <Statistic title="Canceladas (7 días)" value={overview.salas.canceladas7d} />
-            </Col>
-          </Row>
-        </Card>
-      </Col>
-      <Col xs={24} md={8}>
-        <Card size="small" title="Cheques">
-          <Row gutter={8}>
-            <Col span={8}>
-              <Statistic title="Esperando autorización" value={overview.cheques.pendientesAutorizar} />
-            </Col>
-            <Col span={8}>
-              <Statistic title="Pendientes de liquidar" value={overview.cheques.pendientesLiquidar} />
-            </Col>
-            <Col span={8}>
-              <Statistic title="Con error en Sirvo" value={overview.cheques.conErrorSirvo} valueStyle={{ color: overview.cheques.conErrorSirvo ? '#EF4444' : undefined }} />
-            </Col>
-          </Row>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            {NUM.format(overview.cheques.cambios24h)} movimientos (autorizaciones, liquidaciones…) en las últimas 24 h
-          </Text>
-        </Card>
-      </Col>
-      <Col xs={24} md={8}>
-        <Card size="small" title="Notificaciones">
-          <Row gutter={8}>
-            <Col span={12}>
-              <Statistic title="Sin entregar" value={overview.notificaciones.pendientes} valueStyle={{ color: overview.notificaciones.pendientes ? '#F59E0B' : undefined }} />
-            </Col>
-            <Col span={12}>
-              <Statistic title="Recibidas hoy" value={overview.notificaciones.hoy} />
-            </Col>
-          </Row>
-          <div style={{ marginTop: 8 }}>
-            {rep ? (
-              <Space size={6} wrap>
-                {repOk ? <CheckCircleOutlined style={{ color: '#10B981' }} /> : <ExclamationCircleOutlined style={{ color: '#EF4444' }} />}
-                <Text style={{ fontSize: 13 }}>
-                  Reporte de las 5 PM del {dayjs(rep.report_date).format('DD/MM/YYYY')}:{' '}
-                  <Text strong type={repOk ? 'success' : 'danger'}>
-                    {STATUS_ES[rep.status] ?? rep.status}
-                  </Text>
-                  {rep.sent_at && <Text type="secondary"> a las {rep.sent_at.slice(11, 16)}</Text>}
-                </Text>
-              </Space>
-            ) : (
-              <Text type="secondary">Sin registros del reporte de las 5 PM</Text>
-            )}
-          </div>
-        </Card>
-      </Col>
-      {tech && (
-        <Col xs={24}>
-          <Space wrap>
-            <Text type="secondary">Log de la aplicación (24 h):</Text>
-            {overview.logs.available ? (
-              <>
-                <Tag color={overview.logs.errores24h ? 'red' : 'green'}>{NUM.format(overview.logs.errores24h)} errores</Tag>
-                <Tag color={overview.logs.warnings24h ? 'orange' : 'default'}>{NUM.format(overview.logs.warnings24h)} warnings</Tag>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  {overview.logs.file} · {(overview.logs.fileSizeBytes / 1048576).toFixed(1)} MB
-                </Text>
-              </>
-            ) : (
-              <Tag>no disponible en este entorno</Tag>
-            )}
-          </Space>
-        </Col>
-      )}
-    </Row>
-  );
-};
-
-// ---------------------------------------------------------------------------
 // Página
 // ---------------------------------------------------------------------------
 const AuditoriaPage: React.FC = () => {
@@ -1174,6 +1105,8 @@ const AuditoriaPage: React.FC = () => {
   const [catalog, setCatalog] = useState<AuditCatalog | null>(null);
   const [overview, setOverview] = useState<AuditOverview | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<string>('general');
+  const [openKey, setOpenKey] = useState<string | null>(null);
   const [tech, setTech] = useState<boolean>(() => {
     try {
       return localStorage.getItem(TECH_MODE_KEY) === '1';
@@ -1234,7 +1167,7 @@ const AuditoriaPage: React.FC = () => {
                 Revisión de actividad
               </Title>
             </Space>
-            <Text type="secondary" style={{ fontSize: 13, fontWeight: 400 }}>
+            <Text style={{ fontSize: 13, fontWeight: 400, color: tk.t2 }}>
               Qué pasó, quién lo hizo y a qué hora — en salas, cheques y notificaciones
             </Text>
           </Space>
@@ -1261,11 +1194,40 @@ const AuditoriaPage: React.FC = () => {
         }
         loading={loading}
       >
-        {overview && <StatusCards overview={overview} tech={tech} />}
+        {overview && (
+          <StatusHero
+            overview={overview}
+            tk={tk}
+            onOpenCancelaciones={() => {
+              setActiveTab('general');
+              setOpenKey('general.cancelaciones');
+            }}
+          />
+        )}
+        {overview && tech && (
+          <Space wrap style={{ marginBottom: 12 }}>
+            <Text style={{ fontSize: 12, color: tk.t2 }}>Log de la aplicación (24 h):</Text>
+            {overview.logs.available ? (
+              <>
+                <Tag color={overview.logs.errores24h ? 'red' : 'green'}>{NUM.format(overview.logs.errores24h)} errores</Tag>
+                <Tag color={overview.logs.warnings24h ? 'orange' : 'default'}>{NUM.format(overview.logs.warnings24h)} warnings</Tag>
+                <Text style={{ fontSize: 12, color: tk.t2 }}>
+                  {overview.logs.file} · {(overview.logs.fileSizeBytes / 1048576).toFixed(1)} MB
+                </Text>
+              </>
+            ) : (
+              <Tag>no disponible en este entorno</Tag>
+            )}
+          </Space>
+        )}
 
         {catalog && (
           <Tabs
-            defaultActiveKey={catalog.modules[0]?.key ?? 'general'}
+            activeKey={activeTab}
+            onChange={(k) => {
+              setActiveTab(k);
+              setOpenKey(null);
+            }}
             size="large"
             items={[
               ...catalog.modules.map((m) => ({
@@ -1273,19 +1235,17 @@ const AuditoriaPage: React.FC = () => {
                 label: m.label,
                 children: (
                   <>
-                    <Paragraph type="secondary" style={{ marginBottom: 12 }}>
+                    <Paragraph style={{ marginBottom: 12, color: tk.t2 }}>
                       {m.description}
                       {tech && m.technicalNote && (
                         <>
                           {' '}
-                          <Text type="secondary" style={{ fontSize: 12 }}>
-                            ({m.technicalNote})
-                          </Text>
+                          <Text style={{ fontSize: 12, color: tk.t3 }}>({m.technicalNote})</Text>
                         </>
                       )}
                     </Paragraph>
                     <ChartsPanel module={m.key} isDark={isDark} tk={tk} />
-                    <QueryPanel module={m.key} catalog={catalog} tech={tech} />
+                    <QueryPanel module={m.key} catalog={catalog} tech={tech} tk={tk} isDark={isDark} openKey={activeTab === m.key ? openKey : null} />
                   </>
                 ),
               })),
