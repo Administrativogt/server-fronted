@@ -1,7 +1,7 @@
 // src/api/adminAudit.ts — Panel de auditoría (solo superusuarios)
 import api from './axios';
 
-export type AuditModuleKey = 'salas' | 'cheques' | 'notificaciones';
+export type AuditModuleKey = 'general' | 'salas' | 'cheques' | 'notificaciones';
 export type AuditParamType = 'date' | 'text' | 'int' | 'number' | 'select';
 export type AuditColumnType =
   | 'text'
@@ -95,6 +95,7 @@ export interface AuditOverview {
       last_error: string | null;
     } | null;
   };
+  cancelaciones7d: { total: number; salas: number; cheques: number; notificaciones: number };
   logs: {
     available: boolean;
     errores24h: number;

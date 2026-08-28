@@ -268,6 +268,7 @@ const DEFAULT_PRESET = '30d';
 
 /** Qué se muestra ya cargado al entrar a cada módulo ("Actividad reciente"). */
 const FEED: Record<AuditModuleKey, { queryKey: string; title: string; days: number; limit: number }> = {
+  general: { queryKey: 'general.cancelaciones', title: 'Lo último que se canceló o eliminó (7 días)', days: 7, limit: 12 },
   salas: { queryKey: 'salas.reservaciones', title: 'Últimas reservas (7 días)', days: 7, limit: 10 },
   cheques: { queryKey: 'cheques.bitacora', title: 'Últimos movimientos de cheques (autorizaciones, liquidaciones, rechazos)', days: 30, limit: 10 },
   notificaciones: { queryKey: 'notif.buscar', title: 'Últimas notificaciones recibidas (7 días)', days: 7, limit: 10 },
@@ -817,6 +818,35 @@ const StatusCards: React.FC<{ overview: AuditOverview; tech: boolean }> = ({ ove
   const repOk = rep?.status === 'sent';
   return (
     <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+      <Col xs={24}>
+        <Card
+          size="small"
+          title={
+            <Space>
+              <ExclamationCircleOutlined style={{ color: overview.cancelaciones7d.total ? '#EF4444' : '#10B981' }} />
+              Cancelaciones y eliminaciones en los últimos 7 días
+            </Space>
+          }
+        >
+          <Row gutter={8}>
+            <Col xs={12} md={6}>
+              <Statistic title="Total" value={overview.cancelaciones7d.total} valueStyle={{ color: overview.cancelaciones7d.total ? '#EF4444' : undefined }} />
+            </Col>
+            <Col xs={12} md={6}>
+              <Statistic title="Reservas de sala" value={overview.cancelaciones7d.salas} />
+            </Col>
+            <Col xs={12} md={6}>
+              <Statistic title="Cheques (rechazados, anulados, revertidos)" value={overview.cancelaciones7d.cheques} />
+            </Col>
+            <Col xs={12} md={6}>
+              <Statistic title="Notificaciones y documentos" value={overview.cancelaciones7d.notificaciones} />
+            </Col>
+          </Row>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            El detalle (quién, a qué hora y por qué) está en la pestaña "Cancelaciones y eliminaciones".
+          </Text>
+        </Card>
+      </Col>
       <Col xs={24} md={8}>
         <Card size="small" title="Salas de reuniones">
           <Row gutter={8}>
@@ -1003,7 +1033,7 @@ const AuditoriaPage: React.FC = () => {
 
         {catalog && (
           <Tabs
-            defaultActiveKey="salas"
+            defaultActiveKey={catalog.modules[0]?.key ?? 'general'}
             size="large"
             items={[
               ...catalog.modules.map((m) => ({
