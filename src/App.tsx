@@ -20,6 +20,7 @@ import PrivateRoute from './routes/PrivateRoute';
 import ModuleRoute from './routes/ModuleRoute';
 import InductionRoute from './routes/InductionRoute';
 import HorasSociosRoute from './routes/HorasSociosRoute';
+import SuperuserRoute from './routes/SuperuserRoute';
 import VacationHrRoute from './routes/VacationHrRoute';
 import DashboardLayout from './pages/DashboardLayout';
 import DashboardPage from './pages/DashboardPage';
@@ -126,6 +127,7 @@ const EditCasePage = lazy(() => import('./pages/client-creation/EditCasePage'));
 
 // Administración de Usuarios / Agendador
 const UsersAdminPage = lazy(() => import('./pages/admin/UsersAdminPage'));
+const AuditoriaPage = lazy(() => import('./pages/admin/AuditoriaPage'));
 const SchedulerList = lazy(() => import('./pages/agendador/SchedulerList'));
 const SchedulerForm = lazy(() => import('./pages/agendador/SchedulerForm'));
 const SchedulerCalendar = lazy(() => import('./pages/agendador/SchedulerCalendar'));
@@ -349,6 +351,13 @@ function AppInner() {
               {/* ✨ NUEVO - Módulo de Administración de Usuarios */}
               <Route element={<ModuleRoute moduleKey="usuarios" />}>
                 <Route path="/dashboard/admin/users" element={<UsersAdminPage />} />
+              </Route>
+
+              {/* Panel de Auditoría — solo superusuarios (backend: SuperuserGuard) */}
+              {/* Ruta corta pedida por el usuario: administrativogt.com/admin (dentro del layout) */}
+              <Route element={<SuperuserRoute />}>
+                <Route path="/admin" element={<AuditoriaPage />} />
+                <Route path="/dashboard/admin/auditoria" element={<Navigate to="/admin" replace />} />
               </Route>
               
               {/* Módulo Clientes y Casos */}

@@ -140,6 +140,7 @@ const DashboardLayout: React.FC = () => {
     canSeeAsignados,
     canSeeReport: canSeeReport === true,
     canAccessUserAdmin,
+    isSuperuser,
     canManageInduction: canManageInduction(isSuperuser, username),
     canAccessHorasSocios: canAccessHorasSocios(isSuperuser, username),
     canAccessVacationHr: canAccessVacationHr(isSuperuser, username),

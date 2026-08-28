@@ -37,6 +37,8 @@ export interface MenuCaps {
   canSeeAsignados: boolean;
   canSeeReport: boolean;
   canAccessUserAdmin: boolean;
+  /** Superusuario Django: habilita el panel de Auditoría. */
+  isSuperuser: boolean;
   canManageInduction: boolean;
   canAccessHorasSocios: boolean;
   canAccessVacationHr: boolean;
@@ -59,9 +61,22 @@ export const MENU: NavItem[] = [
     key: 'admin',
     label: 'Administración',
     icon: <SettingOutlined />,
-    visible: (c) => c.canAccessUserAdmin && c.hasModule('usuarios'),
+    // Superusuarios siempre ven Administración (por Auditoría), aunque no tengan
+    // el módulo 'usuarios' (ese lo controla module-access en backend).
+    visible: (c) => c.isSuperuser || (c.canAccessUserAdmin && c.hasModule('usuarios')),
     children: [
-      { key: '/dashboard/admin/users', label: 'Gestión de Usuarios', icon: <UserOutlined /> },
+      {
+        key: '/dashboard/admin/users',
+        label: 'Gestión de Usuarios',
+        icon: <UserOutlined />,
+        visible: (c) => c.canAccessUserAdmin && c.hasModule('usuarios'),
+      },
+      {
+        key: '/admin',
+        label: 'Auditoría',
+        icon: <AuditOutlined />,
+        visible: (c) => c.isSuperuser,
+      },
     ],
   },
   {
