@@ -134,7 +134,20 @@ const StatusHero: React.FC<Props> = ({ overview, tk, onOpenCancelaciones }) => {
             <div style={{ fontSize: 13, color: tk.t2, marginTop: 2 }}>
               {c.total === 0 ? 'Salas, cheques y notificaciones sin bajas desde hace 7 días.' : parts.join(' · ')}
             </div>
-            <Button type="link" size="small" style={{ paddingInline: 0, marginTop: 4 }} onClick={onOpenCancelaciones}>
+            {overview.hoy && (
+              <div style={{ fontSize: 13, color: tk.t2, marginTop: 4 }}>
+                <Text strong style={{ color: tk.t1 }}>Hoy:</Text>{' '}
+                {overview.hoy.total === 0 && overview.hoy.ingresos === 0
+                  ? 'sin movimientos registrados todavía'
+                  : [
+                      `${NUM.format(overview.hoy.creo)} creado${overview.hoy.creo === 1 ? '' : 's'}`,
+                      `${NUM.format(overview.hoy.modifico)} cambio${overview.hoy.modifico === 1 ? '' : 's'}`,
+                      `${NUM.format(overview.hoy.elimino)} cancelado${overview.hoy.elimino === 1 ? '' : 's'}/eliminado${overview.hoy.elimino === 1 ? '' : 's'}`,
+                      `${NUM.format(overview.hoy.ingresos)} inicio${overview.hoy.ingresos === 1 ? '' : 's'} de sesión`,
+                    ].join(' · ')}
+              </div>
+            )}
+            <Button type="link" size="small" style={{ paddingInline: 0, marginTop: 2 }} onClick={onOpenCancelaciones}>
               Ver quién, cuándo y por qué <RightOutlined />
             </Button>
           </div>

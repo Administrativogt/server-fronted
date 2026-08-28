@@ -96,6 +96,8 @@ export interface AuditOverview {
     } | null;
   };
   cancelaciones7d: { total: number; salas: number; cheques: number; notificaciones: number };
+  /** Actividad de hoy según la bitácora completa (admin_audit_event). */
+  hoy: { creo: number; modifico: number; elimino: number; ingresos: number; total: number };
   logs: {
     available: boolean;
     errores24h: number;

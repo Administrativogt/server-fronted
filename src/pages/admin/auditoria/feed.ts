@@ -44,7 +44,42 @@ export const toneFor = (label: string): FeedTone => {
 };
 
 /** Mapeadores por consulta. Devuelven null si la fila no se puede narrar. */
+const trailTone = (accion: string): FeedTone => {
+  const a = accion.toLowerCase();
+  if (/elimin|anul|cancel|rechaz|fallido/.test(a)) return 'bad';
+  if (/cre[oó]|ingres/.test(a)) return 'ok';
+  if (/modific|reasign|devolv/.test(a)) return 'warn';
+  if (/autoriz|liquid|entreg|acept/.test(a)) return 'info';
+  return 'neutral';
+};
+
 export const FEED_SHAPES: Record<string, (r: Row) => FeedItem> = {
+  'general.bitacora': (r) => ({
+    when: nz(r.cuando),
+    who: nz(r.quien),
+    title: `${s(r.accion).replace(/^\w/, (c) => c.toUpperCase())} · ${s(r.que) || s(r.referencia)}`,
+    meta: [nz(r.modulo), nz(r.referencia), nz(r.ip) ? `IP ${s(r.ip)}` : null],
+    note: nz(r.cambios),
+    badge: nz(r.accion),
+    tone: trailTone(s(r.accion)),
+  }),
+  'general.historia': (r) => ({
+    when: nz(r.cuando),
+    who: nz(r.quien),
+    title: `${s(r.accion).replace(/^\w/, (c) => c.toUpperCase())}`,
+    meta: [nz(r.que), nz(r.ip) ? `IP ${s(r.ip)}` : null],
+    note: nz(r.cambios),
+    badge: nz(r.accion),
+    tone: trailTone(s(r.accion)),
+  }),
+  'general.sesiones': (r) => ({
+    when: nz(r.cuando),
+    who: nz(r.quien),
+    title: s(r.accion) === 'ingresó' ? 'Inició sesión' : 'Intento de ingreso fallido',
+    meta: [nz(r.ip) ? `IP ${s(r.ip)}` : null],
+    badge: s(r.accion) === 'ingresó' ? 'Ingresó' : 'Fallido',
+    tone: s(r.accion) === 'ingresó' ? 'ok' : 'bad',
+  }),
   'general.cancelaciones': (r) => ({
     when: nz(r.cuando),
     who: nz(r.quien),
