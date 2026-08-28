@@ -28,6 +28,7 @@ import {
   CalendarOutlined,
   CheckCircleOutlined,
   ClearOutlined,
+  ClockCircleOutlined,
   CodeOutlined,
   DownloadOutlined,
   ExclamationCircleOutlined,
@@ -242,6 +243,108 @@ const describeFilters = (defs: AuditParam[], values: Record<string, unknown>) =>
   return parts.length ? parts.join(' · ') : 'sin filtros (todo lo registrado)';
 };
 
+/** Columnas de la tabla a partir del resultado; en vista sencilla oculta las vacías. */
+const buildColumns = (result: AuditRunResult | null, tech: boolean): ColumnsType<Record<string, unknown>> => {
+  if (!result) return [];
+  const defs: AuditColumn[] = result.columns.length
+    ? result.columns
+    : Object.keys(result.rows[0] ?? {}).map((k) => ({ key: k, title: k }));
+  const visible = tech ? defs : defs.filter((c) => result.rows.some((r) => r[c.key] !== null && r[c.key] !== undefined && r[c.key] !== ''));
+  return visible.map((c) => ({
+    key: c.key,
+    dataIndex: c.key,
+    title: c.title,
+    width: c.width,
+    ellipsis: !c.type || c.type === 'text',
+    align: c.type === 'money' || c.type === 'int' || c.type === 'number' ? 'right' : undefined,
+    sorter: (a, b) => compareValues(a[c.key], b[c.key]),
+    render: (v: unknown) => renderCell(c, v),
+  }));
+};
+
+/** Período por defecto con el que se ejecuta una pregunta al abrirla. */
+const DEFAULT_PRESET = '30d';
+
+/** Qué se muestra ya cargado al entrar a cada módulo ("Actividad reciente"). */
+const FEED: Record<AuditModuleKey, { queryKey: string; title: string; days: number; limit: number }> = {
+  salas: { queryKey: 'salas.reservaciones', title: 'Últimas reservas (7 días)', days: 7, limit: 10 },
+  cheques: { queryKey: 'cheques.bitacora', title: 'Últimos movimientos de cheques (autorizaciones, liquidaciones, rechazos)', days: 30, limit: 10 },
+  notificaciones: { queryKey: 'notif.buscar', title: 'Últimas notificaciones recibidas (7 días)', days: 7, limit: 10 },
+};
+
+// ---------------------------------------------------------------------------
+// Actividad reciente: tabla ya cargada al entrar al módulo
+// ---------------------------------------------------------------------------
+const RecentActivity: React.FC<{
+  module: AuditModuleKey;
+  catalog: AuditCatalog;
+  tech: boolean;
+  onOpen: (queryKey: string) => void;
+}> = ({ module, catalog, tech, onOpen }) => {
+  const feed = FEED[module];
+  const def = catalog.queries.find((q) => q.key === feed.queryKey);
+  const [loading, setLoading] = useState(true);
+  const [result, setResult] = useState<AuditRunResult | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const params: Record<string, unknown> = { limit: feed.limit };
+        if (def?.params.some((p) => p.key === 'from')) {
+          params.from = dayjs().subtract(feed.days, 'day').format('YYYY-MM-DD');
+          params.to = dayjs().format('YYYY-MM-DD');
+        }
+        const { data } = await adminAuditApi.runQuery(feed.queryKey, params);
+        if (alive) setResult(data);
+      } catch {
+        if (alive) setResult(null);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [feed, def]);
+
+  const columns = useMemo(() => buildColumns(result, tech), [result, tech]);
+
+  return (
+    <Card
+      size="small"
+      title={
+        <Space>
+          <ClockCircleOutlined />
+          <Text strong>Actividad reciente</Text>
+          <Text type="secondary" style={{ fontWeight: 400 }}>
+            — {feed.title}
+          </Text>
+        </Space>
+      }
+      extra={
+        <Button type="link" size="small" onClick={() => onOpen(feed.queryKey)}>
+          Ver más y filtrar <RightOutlined />
+        </Button>
+      }
+      style={{ marginBottom: 16 }}
+    >
+      <Table
+        className="ta-table"
+        size="small"
+        loading={loading}
+        rowKey={(_, i) => String(i)}
+        columns={columns}
+        dataSource={result?.rows ?? []}
+        pagination={false}
+        scroll={{ x: Math.max(900, columns.length * 140) }}
+        locale={{ emptyText: loading ? ' ' : 'Sin movimientos en este período' }}
+      />
+    </Card>
+  );
+};
+
 // ---------------------------------------------------------------------------
 // Panel de un módulo: lista de preguntas → pantalla de la pregunta elegida
 // ---------------------------------------------------------------------------
@@ -257,12 +360,27 @@ const QueryPanel: React.FC<{ module: AuditModuleKey; catalog: AuditCatalog; tech
   const [showSql, setShowSql] = useState(false);
   const [preset, setPreset] = useState<string | null>(null);
 
+  // Al abrir una pregunta se ejecuta sola con un período por defecto: el
+  // usuario ve datos de inmediato y los filtros solo sirven para afinar.
   useEffect(() => {
     form.resetFields();
     setResult(null);
-    setPreset(null);
     setShowSql(false);
     setLimit(query?.defaultLimit ?? catalog.limits.default);
+    if (!query) {
+      setPreset(null);
+      return;
+    }
+    const withDates = query.params.some((p) => p.key === 'from') && query.params.some((p) => p.key === 'to');
+    if (withDates) {
+      const p = DATE_PRESETS.find((x) => x.key === DEFAULT_PRESET)!;
+      const [a, b] = p.range();
+      form.setFieldsValue({ from: a, to: b });
+      setPreset(DEFAULT_PRESET);
+    } else {
+      setPreset(null);
+    }
+    void run(query.defaultLimit ?? catalog.limits.default);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedKey]);
 
@@ -274,14 +392,18 @@ const QueryPanel: React.FC<{ module: AuditModuleKey; catalog: AuditCatalog; tech
     const [a, b] = p.range();
     form.setFieldsValue({ from: a, to: b });
     setPreset(key);
+    void run(); // el período rápido consulta de inmediato
   };
 
-  const run = async () => {
+  const run = async (limitOverride?: number) => {
     if (!query) return;
     try {
       const values = await form.validateFields();
       setRunning(true);
-      const { data } = await adminAuditApi.runQuery(query.key, { ...serializeParams(query.params, values), limit });
+      const { data } = await adminAuditApi.runQuery(query.key, {
+        ...serializeParams(query.params, values),
+        limit: limitOverride ?? limit,
+      });
       setResult(data);
       setLastValues(values);
     } catch (err: any) {
@@ -293,32 +415,16 @@ const QueryPanel: React.FC<{ module: AuditModuleKey; catalog: AuditCatalog; tech
     }
   };
 
-  const columns: ColumnsType<Record<string, unknown>> = useMemo(() => {
-    if (!result) return [];
-    const defs: AuditColumn[] = result.columns.length
-      ? result.columns
-      : Object.keys(result.rows[0] ?? {}).map((k) => ({ key: k, title: k }));
-    // En vista sencilla se ocultan columnas totalmente vacías para no distraer.
-    const visible = tech ? defs : defs.filter((c) => result.rows.some((r) => r[c.key] !== null && r[c.key] !== undefined && r[c.key] !== ''));
-    return visible.map((c) => ({
-      key: c.key,
-      dataIndex: c.key,
-      title: c.title,
-      width: c.width,
-      ellipsis: !c.type || c.type === 'text',
-      align: c.type === 'money' || c.type === 'int' || c.type === 'number' ? 'right' : undefined,
-      sorter: (a, b) => compareValues(a[c.key], b[c.key]),
-      render: (v: unknown) => renderCell(c, v),
-    }));
-  }, [result, tech]);
+  const columns = useMemo(() => buildColumns(result, tech), [result, tech]);
 
   // --- Lista de preguntas -------------------------------------------------
   if (!query) {
     if (!queries.length) return <Empty description="No hay consultas para este módulo" />;
     return (
       <div>
+        <RecentActivity module={module} catalog={catalog} tech={tech} onOpen={(k) => setSelectedKey(k)} />
         <Paragraph type="secondary" style={{ marginBottom: 12 }}>
-          Elija qué quiere revisar:
+          ¿Qué más quiere revisar? Elija una pregunta (se consulta de inmediato con los últimos 30 días):
         </Paragraph>
         <Row gutter={[12, 12]}>
           {queries.map((q) => (
@@ -398,7 +504,7 @@ const QueryPanel: React.FC<{ module: AuditModuleKey; catalog: AuditCatalog; tech
           </pre>
         )}
 
-        <Form form={form} layout="vertical" onFinish={run} size="middle">
+        <Form form={form} layout="vertical" onFinish={() => run()} size="middle">
           {hasDateRange && (
             <div style={{ marginBottom: 8 }}>
               <Space size={[6, 6]} wrap>
