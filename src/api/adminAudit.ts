@@ -47,7 +47,10 @@ export interface AuditQueryDef {
 export interface AuditModuleDef {
   key: AuditModuleKey;
   label: string;
+  /** Explicación en lenguaje llano (vista sencilla). */
   description: string;
+  /** Tablas/bitácoras involucradas (solo vista técnica). */
+  technicalNote?: string;
   logContexts: string[];
 }
 

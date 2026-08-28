@@ -73,7 +73,7 @@ export const MENU: NavItem[] = [
       },
       {
         key: '/admin',
-        label: 'Auditoría',
+        label: 'Revisión de actividad',
         icon: <AuditOutlined />,
         visible: (c) => c.isSuperuser,
       },

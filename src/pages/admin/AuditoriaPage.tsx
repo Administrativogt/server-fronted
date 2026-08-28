@@ -5,12 +5,10 @@ import {
   Card,
   Col,
   DatePicker,
-  Descriptions,
   Empty,
   Form,
   Input,
   InputNumber,
-  Menu,
   Row,
   Select,
   Space,
@@ -25,13 +23,18 @@ import {
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
+  ArrowLeftOutlined,
   AuditOutlined,
+  CalendarOutlined,
+  CheckCircleOutlined,
   ClearOutlined,
   CodeOutlined,
   DownloadOutlined,
-  FileSearchOutlined,
+  ExclamationCircleOutlined,
   PlayCircleOutlined,
+  QuestionCircleOutlined,
   ReloadOutlined,
+  RightOutlined,
 } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import { useNavigate } from 'react-router-dom';
@@ -51,8 +54,10 @@ import type {
   LogQueryResult,
 } from '../../api/adminAudit';
 
-const { Text, Paragraph } = Typography;
+const { Text, Title, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
+
+const TECH_MODE_KEY = 'auditoria.vistaTecnica';
 
 // ---------------------------------------------------------------------------
 // Utilidades de presentación
@@ -68,14 +73,27 @@ const BADGE_COLORS: { test: RegExp; color: string }[] = [
 ];
 const badgeColor = (v: string) => BADGE_COLORS.find((b) => b.test.test(v))?.color ?? 'blue';
 
+const STATUS_ES: Record<string, string> = {
+  sent: 'Enviado',
+  pending: 'Pendiente',
+  failed: 'Falló',
+  alerted: 'Con alerta',
+};
+
 const LEVEL_COLOR: Record<string, string> = { error: 'red', warn: 'orange', info: 'blue', debug: 'default' };
+
+const fmtDateTime = (v: string) => {
+  // 'YYYY-MM-DD HH:mm:ss' (texto tal cual viene de la BD) → '28/08/2026 · 09:15:22'
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)/.exec(v);
+  return m ? `${m[3]}/${m[2]}/${m[1]} · ${m[4]}` : v;
+};
 
 const renderCell = (col: AuditColumn, v: unknown): React.ReactNode => {
   if (v === null || v === undefined || v === '') return <Text type="secondary">—</Text>;
   switch (col.type) {
     case 'money': {
       const n = Number(v);
-      return <span style={{ fontVariantNumeric: 'tabular-nums' }}>{Number.isFinite(n) ? MONEY.format(n) : String(v)}</span>;
+      return <span style={{ fontVariantNumeric: 'tabular-nums' }}>{Number.isFinite(n) ? `Q ${MONEY.format(n)}` : String(v)}</span>;
     }
     case 'int':
     case 'number': {
@@ -87,11 +105,13 @@ const renderCell = (col: AuditColumn, v: unknown): React.ReactNode => {
       return d.isValid() ? d.format('DD/MM/YYYY') : String(v);
     }
     case 'datetime':
-      return <code style={{ fontSize: 12 }}>{String(v)}</code>;
+      return <span style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmtDateTime(String(v))}</span>;
     case 'bool':
       return v === true || v === 'true' || v === 't' ? <Tag color="green">Sí</Tag> : <Tag>No</Tag>;
-    case 'badge':
-      return <Tag color={badgeColor(String(v))}>{String(v)}</Tag>;
+    case 'badge': {
+      const s = String(v);
+      return <Tag color={badgeColor(s)}>{STATUS_ES[s] ?? s}</Tag>;
+    }
     default: {
       const s = typeof v === 'object' ? JSON.stringify(v) : String(v);
       return s.length > 90 ? (
@@ -138,6 +158,17 @@ const downloadText = (filename: string, text: string, mime = 'text/csv;charset=u
   URL.revokeObjectURL(url);
 };
 
+/** Atajos de fechas para el par desde/hasta. */
+const DATE_PRESETS: { key: string; label: string; range: () => [Dayjs, Dayjs] }[] = [
+  { key: 'hoy', label: 'Hoy', range: () => [dayjs().startOf('day'), dayjs().endOf('day')] },
+  { key: 'ayer', label: 'Ayer', range: () => [dayjs().subtract(1, 'day').startOf('day'), dayjs().subtract(1, 'day').endOf('day')] },
+  { key: 'semana', label: 'Esta semana', range: () => [dayjs().startOf('week'), dayjs().endOf('week')] },
+  { key: 'mes', label: 'Este mes', range: () => [dayjs().startOf('month'), dayjs().endOf('month')] },
+  { key: 'mes-1', label: 'Mes anterior', range: () => [dayjs().subtract(1, 'month').startOf('month'), dayjs().subtract(1, 'month').endOf('month')] },
+  { key: '30d', label: 'Últimos 30 días', range: () => [dayjs().subtract(30, 'day').startOf('day'), dayjs().endOf('day')] },
+  { key: 'anio', label: 'Este año', range: () => [dayjs().startOf('year'), dayjs().endOf('year')] },
+];
+
 // ---------------------------------------------------------------------------
 // Formulario de parámetros generado desde el catálogo
 // ---------------------------------------------------------------------------
@@ -147,26 +178,24 @@ const ParamField: React.FC<{ p: AuditParam }> = ({ p }) => {
       {p.label}
       {p.help && (
         <Tooltip title={p.help}>
-          <Text type="secondary" style={{ cursor: 'help' }}>
-            ⓘ
-          </Text>
+          <QuestionCircleOutlined style={{ color: '#999' }} />
         </Tooltip>
       )}
     </Space>
   );
-  const rules = p.required ? [{ required: true, message: 'Obligatorio' }] : undefined;
+  const rules = p.required ? [{ required: true, message: 'Este dato es necesario' }] : undefined;
   switch (p.type) {
     case 'date':
       return (
         <Form.Item name={p.key} label={label} rules={rules}>
-          <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" allowClear />
+          <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" allowClear placeholder="Elegir fecha" />
         </Form.Item>
       );
     case 'int':
     case 'number':
       return (
         <Form.Item name={p.key} label={label} rules={rules} initialValue={p.default}>
-          <InputNumber style={{ width: '100%' }} controls={false} placeholder={p.placeholder} step={p.type === 'int' ? 1 : 0.01} />
+          <InputNumber style={{ width: '100%' }} controls={false} placeholder={p.placeholder ?? 'Número'} step={p.type === 'int' ? 1 : 0.01} />
         </Form.Item>
       );
     case 'select':
@@ -178,7 +207,7 @@ const ParamField: React.FC<{ p: AuditParam }> = ({ p }) => {
     default:
       return (
         <Form.Item name={p.key} label={label} rules={rules}>
-          <Input allowClear placeholder={p.placeholder ?? 'contiene…'} />
+          <Input allowClear placeholder={p.placeholder ?? 'Escriba parte del texto'} />
         </Form.Item>
       );
   }
@@ -195,25 +224,57 @@ const serializeParams = (defs: AuditParam[], values: Record<string, unknown>) =>
   return out;
 };
 
+/** Frase resumen de los filtros usados, para que el resultado se entienda solo. */
+const describeFilters = (defs: AuditParam[], values: Record<string, unknown>) => {
+  const parts: string[] = [];
+  const from = values.from as Dayjs | undefined;
+  const to = values.to as Dayjs | undefined;
+  if (from && to) parts.push(`del ${from.format('DD/MM/YYYY')} al ${to.format('DD/MM/YYYY')}`);
+  else if (from) parts.push(`desde el ${from.format('DD/MM/YYYY')}`);
+  else if (to) parts.push(`hasta el ${to.format('DD/MM/YYYY')}`);
+  for (const p of defs) {
+    if (p.key === 'from' || p.key === 'to') continue;
+    const v = values[p.key];
+    if (v === undefined || v === null || v === '') continue;
+    const label = p.options?.find((o) => String(o.value) === String(v))?.label ?? String(v);
+    parts.push(`${p.label.toLowerCase()}: ${label}`);
+  }
+  return parts.length ? parts.join(' · ') : 'sin filtros (todo lo registrado)';
+};
+
 // ---------------------------------------------------------------------------
-// Panel de consultas de un módulo
+// Panel de un módulo: lista de preguntas → pantalla de la pregunta elegida
 // ---------------------------------------------------------------------------
-const QueryPanel: React.FC<{ module: AuditModuleKey; catalog: AuditCatalog }> = ({ module, catalog }) => {
+const QueryPanel: React.FC<{ module: AuditModuleKey; catalog: AuditCatalog; tech: boolean }> = ({ module, catalog, tech }) => {
   const queries = useMemo(() => catalog.queries.filter((q) => q.module === module), [catalog, module]);
-  const [selectedKey, setSelectedKey] = useState<string>(queries[0]?.key ?? '');
-  const query: AuditQueryDef | undefined = queries.find((q) => q.key === selectedKey) ?? queries[0];
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const query: AuditQueryDef | undefined = queries.find((q) => q.key === selectedKey);
   const [form] = Form.useForm();
-  const [limit, setLimit] = useState<number>(query?.defaultLimit ?? catalog.limits.default);
+  const [limit, setLimit] = useState<number>(catalog.limits.default);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<AuditRunResult | null>(null);
+  const [lastValues, setLastValues] = useState<Record<string, unknown>>({});
   const [showSql, setShowSql] = useState(false);
+  const [preset, setPreset] = useState<string | null>(null);
 
   useEffect(() => {
     form.resetFields();
     setResult(null);
+    setPreset(null);
+    setShowSql(false);
     setLimit(query?.defaultLimit ?? catalog.limits.default);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedKey]);
+
+  const hasDateRange = !!query?.params.some((p) => p.key === 'from') && !!query?.params.some((p) => p.key === 'to');
+
+  const applyPreset = (key: string) => {
+    const p = DATE_PRESETS.find((x) => x.key === key);
+    if (!p) return;
+    const [a, b] = p.range();
+    form.setFieldsValue({ from: a, to: b });
+    setPreset(key);
+  };
 
   const run = async () => {
     if (!query) return;
@@ -222,10 +283,10 @@ const QueryPanel: React.FC<{ module: AuditModuleKey; catalog: AuditCatalog }> = 
       setRunning(true);
       const { data } = await adminAuditApi.runQuery(query.key, { ...serializeParams(query.params, values), limit });
       setResult(data);
-      if (data.rowCount === 0) message.info('La consulta no devolvió filas');
+      setLastValues(values);
     } catch (err: any) {
       if (err?.errorFields) return; // validación del form
-      const msg = err?.response?.data?.message ?? err?.message ?? 'Error al ejecutar la consulta';
+      const msg = err?.response?.data?.message ?? err?.message ?? 'No se pudo obtener la información';
       message.error(Array.isArray(msg) ? msg.join(', ') : String(msg));
     } finally {
       setRunning(false);
@@ -237,7 +298,9 @@ const QueryPanel: React.FC<{ module: AuditModuleKey; catalog: AuditCatalog }> = 
     const defs: AuditColumn[] = result.columns.length
       ? result.columns
       : Object.keys(result.rows[0] ?? {}).map((k) => ({ key: k, title: k }));
-    return defs.map((c) => ({
+    // En vista sencilla se ocultan columnas totalmente vacías para no distraer.
+    const visible = tech ? defs : defs.filter((c) => result.rows.some((r) => r[c.key] !== null && r[c.key] !== undefined && r[c.key] !== ''));
+    return visible.map((c) => ({
       key: c.key,
       dataIndex: c.key,
       title: c.title,
@@ -247,148 +310,205 @@ const QueryPanel: React.FC<{ module: AuditModuleKey; catalog: AuditCatalog }> = 
       sorter: (a, b) => compareValues(a[c.key], b[c.key]),
       render: (v: unknown) => renderCell(c, v),
     }));
-  }, [result]);
+  }, [result, tech]);
 
-  if (!query) return <Empty description="Sin consultas para este módulo" />;
-
-  return (
-    <Row gutter={16}>
-      <Col xs={24} md={7} lg={6}>
-        <Menu
-          mode="inline"
-          selectedKeys={[query.key]}
-          onClick={(e) => setSelectedKey(e.key)}
-          style={{ borderInlineEnd: 0 }}
-          items={queries.map((q) => ({
-            key: q.key,
-            icon: <FileSearchOutlined />,
-            label: (
-              <Tooltip title={q.description} placement="right" mouseEnterDelay={0.4}>
-                <span>{q.title}</span>
-              </Tooltip>
-            ),
-          }))}
-        />
-      </Col>
-      <Col xs={24} md={17} lg={18}>
-        <Card
-          size="small"
-          title={query.title}
-          extra={
-            <Space>
-              <Tooltip title="Ver el SQL que se ejecuta">
-                <Button size="small" icon={<CodeOutlined />} type={showSql ? 'primary' : 'default'} onClick={() => setShowSql((s) => !s)}>
-                  SQL
-                </Button>
-              </Tooltip>
-            </Space>
-          }
-        >
-          <Paragraph type="secondary" style={{ marginBottom: 4 }}>
-            {query.description}
-          </Paragraph>
-          {query.hint && (
-            <Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 12 }}>
-              {query.hint}
-            </Paragraph>
-          )}
-
-          {showSql && (
-            <pre
-              style={{
-                fontSize: 11,
-                maxHeight: 260,
-                overflow: 'auto',
-                padding: 12,
-                borderRadius: 6,
-                background: 'rgba(127,127,127,0.08)',
-                marginBottom: 12,
-              }}
-            >
-              {result?.sql ?? query.sql}
-              {result && `\n\n-- valores: ${JSON.stringify(result.values)}`}
-            </pre>
-          )}
-
-          <Form form={form} layout="vertical" onFinish={run} size="small">
-            <Row gutter={12}>
-              {query.params.map((p) => (
-                <Col key={p.key} xs={24} sm={12} lg={8}>
-                  <ParamField p={p} />
-                </Col>
-              ))}
-              <Col xs={24} sm={12} lg={8}>
-                <Form.Item label="Máx. filas">
-                  <InputNumber
-                    style={{ width: '100%' }}
-                    min={1}
-                    max={catalog.limits.max}
-                    value={limit}
-                    onChange={(v) => setLimit(Number(v) || catalog.limits.default)}
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
-            <Space>
-              <Button type="primary" icon={<PlayCircleOutlined />} htmlType="submit" loading={running}>
-                Ejecutar
-              </Button>
-              <Button
-                icon={<ClearOutlined />}
-                onClick={() => {
-                  form.resetFields();
-                  setResult(null);
-                }}
-              >
-                Limpiar
-              </Button>
-              {result && result.rowCount > 0 && (
-                <Button
-                  icon={<DownloadOutlined />}
-                  onClick={() =>
-                    downloadText(
-                      `auditoria_${query.key.replace(/\./g, '_')}_${dayjs().format('YYYYMMDD_HHmm')}.csv`,
-                      toCsv(result.columns, result.rows),
-                    )
-                  }
-                >
-                  Exportar CSV
-                </Button>
-              )}
-            </Space>
-          </Form>
-
-          {result && (
-            <div style={{ marginTop: 16 }}>
-              <Space wrap style={{ marginBottom: 8 }}>
-                <Text strong>{NUM.format(result.rowCount)} filas</Text>
-                <Text type="secondary">· {result.elapsedMs} ms</Text>
-                {result.truncated && (
-                  <Tag color="orange">Se alcanzó el límite de {NUM.format(result.limit)} — suba "Máx. filas" o acote los filtros</Tag>
-                )}
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  Horas en hora de Guatemala
-                </Text>
-              </Space>
-              <Table
-                className="ta-table"
+  // --- Lista de preguntas -------------------------------------------------
+  if (!query) {
+    if (!queries.length) return <Empty description="No hay consultas para este módulo" />;
+    return (
+      <div>
+        <Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          Elija qué quiere revisar:
+        </Paragraph>
+        <Row gutter={[12, 12]}>
+          {queries.map((q) => (
+            <Col key={q.key} xs={24} md={12} xl={8}>
+              <Card
+                hoverable
                 size="small"
-                rowKey={(_, i) => String(i)}
-                columns={columns}
-                dataSource={result.rows}
-                scroll={{ x: Math.max(900, columns.length * 150) }}
-                pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: [25, 50, 100, 500], showTotal: (t) => `${NUM.format(t)} filas` }}
-              />
+                onClick={() => setSelectedKey(q.key)}
+                style={{ height: '100%' }}
+                styles={{ body: { display: 'flex', flexDirection: 'column', gap: 6, minHeight: 110 } }}
+              >
+                <Space align="start" style={{ justifyContent: 'space-between', width: '100%' }}>
+                  <Text strong style={{ fontSize: 15 }}>
+                    {q.title}
+                  </Text>
+                  <RightOutlined style={{ color: '#999', marginTop: 4 }} />
+                </Space>
+                <Text type="secondary" style={{ fontSize: 13 }}>
+                  {q.description}
+                </Text>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+      </div>
+    );
+  }
+
+  // --- Pregunta elegida ---------------------------------------------------
+  return (
+    <div>
+      <Button type="link" icon={<ArrowLeftOutlined />} onClick={() => setSelectedKey(null)} style={{ paddingInline: 0, marginBottom: 4 }}>
+        Volver a la lista
+      </Button>
+      <Card
+        size="small"
+        title={
+          <Space direction="vertical" size={0}>
+            <Text strong style={{ fontSize: 16 }}>
+              {query.title}
+            </Text>
+            <Text type="secondary" style={{ fontSize: 13, fontWeight: 400 }}>
+              {query.description}
+            </Text>
+          </Space>
+        }
+        extra={
+          tech && (
+            <Tooltip title="Ver la consulta SQL que se ejecuta">
+              <Button size="small" icon={<CodeOutlined />} type={showSql ? 'primary' : 'default'} onClick={() => setShowSql((s) => !s)}>
+                SQL
+              </Button>
+            </Tooltip>
+          )
+        }
+      >
+        {tech && query.hint && (
+          <Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 12 }}>
+            {query.hint}
+          </Paragraph>
+        )}
+
+        {tech && showSql && (
+          <pre
+            style={{
+              fontSize: 11,
+              maxHeight: 260,
+              overflow: 'auto',
+              padding: 12,
+              borderRadius: 6,
+              background: 'rgba(127,127,127,0.08)',
+              marginBottom: 12,
+            }}
+          >
+            {result?.sql ?? query.sql}
+            {result && `\n\n-- valores: ${JSON.stringify(result.values)}`}
+          </pre>
+        )}
+
+        <Form form={form} layout="vertical" onFinish={run} size="middle">
+          {hasDateRange && (
+            <div style={{ marginBottom: 8 }}>
+              <Space size={[6, 6]} wrap>
+                <CalendarOutlined style={{ color: '#999' }} />
+                <Text type="secondary">Período rápido:</Text>
+                {DATE_PRESETS.map((p) => (
+                  <Button key={p.key} size="small" type={preset === p.key ? 'primary' : 'default'} onClick={() => applyPreset(p.key)}>
+                    {p.label}
+                  </Button>
+                ))}
+              </Space>
             </div>
           )}
-        </Card>
-      </Col>
-    </Row>
+          <Row gutter={12}>
+            {query.params.map((p) => (
+              <Col key={p.key} xs={24} sm={12} lg={8}>
+                <div onChangeCapture={() => (p.key === 'from' || p.key === 'to') && setPreset(null)}>
+                  <ParamField p={p} />
+                </div>
+              </Col>
+            ))}
+            {tech && (
+              <Col xs={24} sm={12} lg={8}>
+                <Form.Item label="Máx. filas">
+                  <InputNumber style={{ width: '100%' }} min={1} max={catalog.limits.max} value={limit} onChange={(v) => setLimit(Number(v) || catalog.limits.default)} />
+                </Form.Item>
+              </Col>
+            )}
+          </Row>
+          <Space>
+            <Button type="primary" size="large" icon={<PlayCircleOutlined />} htmlType="submit" loading={running}>
+              Consultar
+            </Button>
+            <Button
+              icon={<ClearOutlined />}
+              onClick={() => {
+                form.resetFields();
+                setResult(null);
+                setPreset(null);
+              }}
+            >
+              Limpiar
+            </Button>
+          </Space>
+        </Form>
+
+        {result && (
+          <div style={{ marginTop: 20 }}>
+            {result.rowCount === 0 ? (
+              <Alert type="info" showIcon message="No se encontró nada con esos filtros" description={`Buscado: ${describeFilters(query.params, lastValues)}. Pruebe ampliar el período o quitar algún filtro.`} />
+            ) : (
+              <>
+                <Alert
+                  type="success"
+                  showIcon
+                  icon={<CheckCircleOutlined />}
+                  message={
+                    <Space wrap>
+                      <Text strong>
+                        {result.truncated
+                          ? `Se muestran los primeros ${NUM.format(result.rowCount)} resultados`
+                          : `${NUM.format(result.rowCount)} resultado${result.rowCount === 1 ? '' : 's'}`}
+                      </Text>
+                      <Text type="secondary">({describeFilters(query.params, lastValues)})</Text>
+                      {tech && <Text type="secondary">· {result.elapsedMs} ms</Text>}
+                    </Space>
+                  }
+                  description={
+                    result.truncated
+                      ? 'Hay más registros de los que se muestran. Acote el período o los filtros para ver el resto.'
+                      : undefined
+                  }
+                  action={
+                    <Button
+                      icon={<DownloadOutlined />}
+                      onClick={() =>
+                        downloadText(
+                          `auditoria_${query.key.replace(/\./g, '_')}_${dayjs().format('YYYYMMDD_HHmm')}.csv`,
+                          toCsv(result.columns, result.rows),
+                        )
+                      }
+                    >
+                      Descargar Excel
+                    </Button>
+                  }
+                  style={{ marginBottom: 12 }}
+                />
+                <Table
+                  className="ta-table"
+                  size="small"
+                  rowKey={(_, i) => String(i)}
+                  columns={columns}
+                  dataSource={result.rows}
+                  scroll={{ x: Math.max(900, columns.length * 150) }}
+                  pagination={{ pageSize: 25, showSizeChanger: true, pageSizeOptions: [25, 50, 100, 500], showTotal: (t) => `${NUM.format(t)} registros` }}
+                />
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Las horas están en hora de Guatemala. Puede ordenar haciendo clic en el título de cada columna.
+                </Text>
+              </>
+            )}
+          </div>
+        )}
+      </Card>
+    </div>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Visor de logs de la aplicación
+// Registro técnico del sistema (solo vista técnica)
 // ---------------------------------------------------------------------------
 const LogsPanel: React.FC<{ catalog: AuditCatalog }> = ({ catalog }) => {
   const [module, setModule] = useState<AuditModuleKey | 'todos'>('todos');
@@ -475,14 +595,7 @@ const LogsPanel: React.FC<{ catalog: AuditCatalog }> = ({ catalog }) => {
         </Col>
         <Col xs={12} sm={6} lg={3}>
           <Text type="secondary">Nivel</Text>
-          <Select
-            allowClear
-            style={{ width: '100%' }}
-            placeholder="Todos"
-            value={level}
-            onChange={setLevel}
-            options={['error', 'warn', 'info', 'debug'].map((l) => ({ value: l, label: l }))}
-          />
+          <Select allowClear style={{ width: '100%' }} placeholder="Todos" value={level} onChange={setLevel} options={['error', 'warn', 'info', 'debug'].map((l) => ({ value: l, label: l }))} />
         </Col>
         <Col xs={12} sm={6} lg={3}>
           <Text type="secondary">Archivo</Text>
@@ -575,6 +688,97 @@ const LogsPanel: React.FC<{ catalog: AuditCatalog }> = ({ catalog }) => {
 };
 
 // ---------------------------------------------------------------------------
+// Tarjetas de estado (lenguaje llano)
+// ---------------------------------------------------------------------------
+const StatusCards: React.FC<{ overview: AuditOverview; tech: boolean }> = ({ overview, tech }) => {
+  const rep = overview.notificaciones.ultimoReporte5pm;
+  const repOk = rep?.status === 'sent';
+  return (
+    <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+      <Col xs={24} md={8}>
+        <Card size="small" title="Salas de reuniones">
+          <Row gutter={8}>
+            <Col span={8}>
+              <Statistic title="Reuniones hoy" value={overview.salas.hoy} />
+            </Col>
+            <Col span={8}>
+              <Statistic title="Esperando aprobación" value={overview.salas.pendientesAprobacion} valueStyle={{ color: overview.salas.pendientesAprobacion ? '#F59E0B' : undefined }} />
+            </Col>
+            <Col span={8}>
+              <Statistic title="Canceladas (7 días)" value={overview.salas.canceladas7d} />
+            </Col>
+          </Row>
+        </Card>
+      </Col>
+      <Col xs={24} md={8}>
+        <Card size="small" title="Cheques">
+          <Row gutter={8}>
+            <Col span={8}>
+              <Statistic title="Esperando autorización" value={overview.cheques.pendientesAutorizar} />
+            </Col>
+            <Col span={8}>
+              <Statistic title="Pendientes de liquidar" value={overview.cheques.pendientesLiquidar} />
+            </Col>
+            <Col span={8}>
+              <Statistic title="Con error en Sirvo" value={overview.cheques.conErrorSirvo} valueStyle={{ color: overview.cheques.conErrorSirvo ? '#EF4444' : undefined }} />
+            </Col>
+          </Row>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {NUM.format(overview.cheques.cambios24h)} movimientos (autorizaciones, liquidaciones…) en las últimas 24 h
+          </Text>
+        </Card>
+      </Col>
+      <Col xs={24} md={8}>
+        <Card size="small" title="Notificaciones">
+          <Row gutter={8}>
+            <Col span={12}>
+              <Statistic title="Sin entregar" value={overview.notificaciones.pendientes} valueStyle={{ color: overview.notificaciones.pendientes ? '#F59E0B' : undefined }} />
+            </Col>
+            <Col span={12}>
+              <Statistic title="Recibidas hoy" value={overview.notificaciones.hoy} />
+            </Col>
+          </Row>
+          <div style={{ marginTop: 8 }}>
+            {rep ? (
+              <Space size={6} wrap>
+                {repOk ? <CheckCircleOutlined style={{ color: '#10B981' }} /> : <ExclamationCircleOutlined style={{ color: '#EF4444' }} />}
+                <Text style={{ fontSize: 13 }}>
+                  Reporte de las 5 PM del {dayjs(rep.report_date).format('DD/MM/YYYY')}:{' '}
+                  <Text strong type={repOk ? 'success' : 'danger'}>
+                    {STATUS_ES[rep.status] ?? rep.status}
+                  </Text>
+                  {rep.sent_at && <Text type="secondary"> a las {rep.sent_at.slice(11, 16)}</Text>}
+                </Text>
+              </Space>
+            ) : (
+              <Text type="secondary">Sin registros del reporte de las 5 PM</Text>
+            )}
+          </div>
+        </Card>
+      </Col>
+      {tech && (
+        <Col xs={24}>
+          <Space wrap>
+            <Text type="secondary">Log de la aplicación (24 h):</Text>
+            {overview.logs.available ? (
+              <>
+                <Tag color={overview.logs.errores24h ? 'red' : 'green'}>{NUM.format(overview.logs.errores24h)} errores</Tag>
+                <Tag color={overview.logs.warnings24h ? 'orange' : 'default'}>{NUM.format(overview.logs.warnings24h)} warnings</Tag>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {overview.logs.file} · {(overview.logs.fileSizeBytes / 1048576).toFixed(1)} MB
+                </Text>
+              </>
+            ) : (
+              <Tag>no disponible en este entorno</Tag>
+            )}
+          </Space>
+        </Col>
+      )}
+    </Row>
+  );
+};
+
+// ---------------------------------------------------------------------------
 // Página
 // ---------------------------------------------------------------------------
 const AuditoriaPage: React.FC = () => {
@@ -586,10 +790,26 @@ const AuditoriaPage: React.FC = () => {
   const [catalog, setCatalog] = useState<AuditCatalog | null>(null);
   const [overview, setOverview] = useState<AuditOverview | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tech, setTech] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(TECH_MODE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleTech = (v: boolean) => {
+    setTech(v);
+    try {
+      localStorage.setItem(TECH_MODE_KEY, v ? '1' : '0');
+    } catch {
+      /* sin almacenamiento: se mantiene solo en memoria */
+    }
+  };
 
   useEffect(() => {
     if (!isSuperuser) {
-      message.error('El panel de auditoría es solo para superusuarios');
+      message.error('Esta sección es solo para administradores');
       navigate('/dashboard');
     }
   }, [isSuperuser, navigate]);
@@ -610,7 +830,7 @@ const AuditoriaPage: React.FC = () => {
         const { data } = await adminAuditApi.getCatalog();
         setCatalog(data);
       } catch (err: any) {
-        message.error(err?.response?.data?.message ?? 'No se pudo cargar el catálogo de auditoría');
+        message.error(err?.response?.data?.message ?? 'No se pudo cargar la sección de administración');
       } finally {
         setLoading(false);
       }
@@ -618,142 +838,81 @@ const AuditoriaPage: React.FC = () => {
     })();
   }, [loadOverview]);
 
-  const rep = overview?.notificaciones.ultimoReporte5pm;
-
   return (
     <div style={{ padding: 24 }}>
       <style>{makeCSS(tk)}</style>
       <Card
         title={
-          <Space>
-            <AuditOutlined />
-            Auditoría — Salas · Cheques · Notificaciones
+          <Space direction="vertical" size={0}>
+            <Space>
+              <AuditOutlined />
+              <Title level={4} style={{ margin: 0 }}>
+                Revisión de actividad
+              </Title>
+            </Space>
+            <Text type="secondary" style={{ fontSize: 13, fontWeight: 400 }}>
+              Qué pasó, quién lo hizo y a qué hora — en salas, cheques y notificaciones
+            </Text>
           </Space>
         }
         extra={
-          <Space>
+          <Space size="middle">
             {overview && (
               <Text type="secondary" style={{ fontSize: 12 }}>
-                Resumen: {dayjs(overview.generatedAt).format('DD/MM/YYYY HH:mm:ss')}
+                Actualizado {dayjs(overview.generatedAt).format('DD/MM/YYYY HH:mm')}
               </Text>
             )}
             <Button icon={<ReloadOutlined />} size="small" onClick={loadOverview}>
-              Actualizar resumen
+              Actualizar
             </Button>
+            <Tooltip title="Muestra la consulta SQL, el registro técnico del sistema y opciones avanzadas">
+              <Space size={4}>
+                <Switch size="small" checked={tech} onChange={toggleTech} />
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Vista técnica
+                </Text>
+              </Space>
+            </Tooltip>
           </Space>
         }
         loading={loading}
       >
-        <Paragraph type="secondary" style={{ marginTop: 0 }}>
-          Consultas de solo lectura sobre la base de datos (las mismas que antes se hacían por SQL) y el log de la
-          aplicación. Cada consulta corre en una transacción <code>READ ONLY</code> con timeout de{' '}
-          {catalog?.limits.statementTimeout ?? '25s'}; las horas se muestran en hora de Guatemala.
-        </Paragraph>
-
-        {overview && (
-          <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-            <Col xs={24} md={8}>
-              <Card size="small" title="Reservación de salas">
-                <Row gutter={8}>
-                  <Col span={8}>
-                    <Statistic title="Hoy" value={overview.salas.hoy} />
-                  </Col>
-                  <Col span={8}>
-                    <Statistic title="Por aprobar" value={overview.salas.pendientesAprobacion} valueStyle={{ color: overview.salas.pendientesAprobacion ? '#F59E0B' : undefined }} />
-                  </Col>
-                  <Col span={8}>
-                    <Statistic title="Canceladas 7d" value={overview.salas.canceladas7d} />
-                  </Col>
-                </Row>
-              </Card>
-            </Col>
-            <Col xs={24} md={8}>
-              <Card size="small" title="Gestión de cheques">
-                <Row gutter={8}>
-                  <Col span={6}>
-                    <Statistic title="Por autorizar" value={overview.cheques.pendientesAutorizar} />
-                  </Col>
-                  <Col span={6}>
-                    <Statistic title="Por liquidar" value={overview.cheques.pendientesLiquidar} />
-                  </Col>
-                  <Col span={6}>
-                    <Statistic title="Error Sirvo" value={overview.cheques.conErrorSirvo} valueStyle={{ color: overview.cheques.conErrorSirvo ? '#EF4444' : undefined }} />
-                  </Col>
-                  <Col span={6}>
-                    <Statistic title="Cambios 24h" value={overview.cheques.cambios24h} />
-                  </Col>
-                </Row>
-              </Card>
-            </Col>
-            <Col xs={24} md={8}>
-              <Card size="small" title="Notificaciones">
-                <Row gutter={8}>
-                  <Col span={8}>
-                    <Statistic title="Pendientes" value={overview.notificaciones.pendientes} />
-                  </Col>
-                  <Col span={8}>
-                    <Statistic title="Recibidas hoy" value={overview.notificaciones.hoy} />
-                  </Col>
-                  <Col span={8}>
-                    <Statistic title="Cambios 24h" value={overview.notificaciones.cambios24h} />
-                  </Col>
-                </Row>
-                <Descriptions size="small" column={1} style={{ marginTop: 8 }}>
-                  <Descriptions.Item label="Último reporte 5 PM">
-                    {rep ? (
-                      <Space size={4} wrap>
-                        <Tag color={badgeColor(rep.status)}>{rep.status}</Tag>
-                        <Text>{dayjs(rep.report_date).format('DD/MM/YYYY')}</Text>
-                        {rep.sent_at && <Text type="secondary">enviado {rep.sent_at}</Text>}
-                        <Text type="secondary">· {rep.attempts} intento(s)</Text>
-                      </Space>
-                    ) : (
-                      <Text type="secondary">sin registros</Text>
-                    )}
-                  </Descriptions.Item>
-                </Descriptions>
-              </Card>
-            </Col>
-            <Col xs={24}>
-              <Space wrap>
-                <Text type="secondary">Log de la aplicación (24 h):</Text>
-                {overview.logs.available ? (
-                  <>
-                    <Tag color={overview.logs.errores24h ? 'red' : 'green'}>{NUM.format(overview.logs.errores24h)} errores</Tag>
-                    <Tag color={overview.logs.warnings24h ? 'orange' : 'default'}>{NUM.format(overview.logs.warnings24h)} warnings</Tag>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      {overview.logs.file} · {(overview.logs.fileSizeBytes / 1048576).toFixed(1)} MB
-                    </Text>
-                  </>
-                ) : (
-                  <Tag>no disponible en este entorno</Tag>
-                )}
-              </Space>
-            </Col>
-          </Row>
-        )}
+        {overview && <StatusCards overview={overview} tech={tech} />}
 
         {catalog && (
           <Tabs
             defaultActiveKey="salas"
+            size="large"
             items={[
               ...catalog.modules.map((m) => ({
                 key: m.key,
                 label: m.label,
                 children: (
                   <>
-                    <Paragraph type="secondary" style={{ fontSize: 12 }}>
+                    <Paragraph type="secondary" style={{ marginBottom: 12 }}>
                       {m.description}
+                      {tech && m.technicalNote && (
+                        <>
+                          {' '}
+                          <Text type="secondary" style={{ fontSize: 12 }}>
+                            ({m.technicalNote})
+                          </Text>
+                        </>
+                      )}
                     </Paragraph>
-                    <QueryPanel module={m.key} catalog={catalog} />
+                    <QueryPanel module={m.key} catalog={catalog} tech={tech} />
                   </>
                 ),
               })),
-              {
-                key: 'logs',
-                label: 'Logs de la aplicación',
-                children: <LogsPanel catalog={catalog} />,
-              },
+              ...(tech
+                ? [
+                    {
+                      key: 'logs',
+                      label: 'Registro técnico del sistema',
+                      children: <LogsPanel catalog={catalog} />,
+                    },
+                  ]
+                : []),
             ]}
           />
         )}
