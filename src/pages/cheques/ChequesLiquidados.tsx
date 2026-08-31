@@ -26,7 +26,14 @@ import {
 import { fetchUsers, fullName, type UserLite } from '../../api/users';
 import useAuthStore from '../../auth/useAuthStore';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
+
+// Cheques en estado "No disponible" (7): Sirvo dejó de reportarlos como
+// pendientes porque los liquidaron fuera de la app. No hay comprobante,
+// historial ni detalle local que mostrar.
+const EXTERNAL_LIQUIDATION_MSG =
+  'Este cheque fue liquidado en contabilidad o directamente en Sirvo. ' +
+  'La aplicación no tiene información de esta liquidación (sin comprobante ni historial).';
 
 function ChequesLiquidados() {
   const tipoUsuario = useAuthStore((s) => s.tipo_usuario);
@@ -264,6 +271,10 @@ function ChequesLiquidados() {
         rowSelection={{
           selectedRowKeys,
           onChange: setSelectedRowKeys,
+          // Sin liquidación local no hay comprobante ni fila para el Excel.
+          getCheckboxProps: (record: any) => ({
+            disabled: !!record.liquidated_externally,
+          }),
         }}
         pagination={{
           current: pagination.page,
@@ -286,6 +297,18 @@ function ChequesLiquidados() {
               const liquidated = Number(
                 record.liquidated_amount ?? record.total_value ?? 0,
               );
+              if (record.liquidated_externally) {
+                return (
+                  <Space direction="vertical" size={2}>
+                    <span>{liquidated.toFixed(2)}</span>
+                    <Tooltip title={EXTERNAL_LIQUIDATION_MSG}>
+                      <Tag color="purple" style={{ marginInlineEnd: 0 }}>
+                        Liquidado en contabilidad / Sirvo
+                      </Tag>
+                    </Tooltip>
+                  </Space>
+                );
+              }
               if (!record.is_partial_liquidation) {
                 return liquidated.toFixed(2);
               }
@@ -311,27 +334,38 @@ function ChequesLiquidados() {
             title: 'Acciones',
             width: 230,
             fixed: 'right',
-            render: (_: unknown, record: any) => (
-              <Space>
-                {record.liquidation_id && (
-                  <Button
-                    onClick={async () => {
-                      try {
-                        const url = await getLiquidationDocumentUrl(record.liquidation_id);
-                        window.open(url, '_blank');
-                      } catch {
-                        message.error('No se pudo obtener el documento');
-                      }
-                    }}
-                  >
-                    Ver documento
+            render: (_: unknown, record: any) => {
+              if (record.liquidated_externally) {
+                return (
+                  <Tooltip title={EXTERNAL_LIQUIDATION_MSG}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      Sin información en la app
+                    </Text>
+                  </Tooltip>
+                );
+              }
+              return (
+                <Space>
+                  {record.liquidation_id && (
+                    <Button
+                      onClick={async () => {
+                        try {
+                          const url = await getLiquidationDocumentUrl(record.liquidation_id);
+                          window.open(url, '_blank');
+                        } catch {
+                          message.error('No se pudo obtener el documento');
+                        }
+                      }}
+                    >
+                      Ver documento
+                    </Button>
+                  )}
+                  <Button danger onClick={() => handleRevert(record.request_id)}>
+                    Revertir
                   </Button>
-                )}
-                <Button danger onClick={() => handleRevert(record.request_id)}>
-                  Revertir
-                </Button>
-              </Space>
-            ),
+                </Space>
+              );
+            },
           },
         ]}
       />
