@@ -40,6 +40,20 @@ export async function broadcastCredentialsTest(): Promise<BroadcastTestResult> {
   return data;
 }
 
+export interface SendCredentialsResult {
+  sent: boolean;
+  username: string;
+  email: string;
+}
+
+/** Reinicio de credenciales a UN solo usuario (solo superusuario). */
+export async function sendCredentialsToUser(username: string): Promise<SendCredentialsResult> {
+  const { data } = await api.post<SendCredentialsResult>(
+    `/auth/send-credentials/${encodeURIComponent(username)}`,
+  );
+  return data;
+}
+
 export interface SociosBroadcastResult {
   dryRun: boolean;
   sharedPassword: string | null;
