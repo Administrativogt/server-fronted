@@ -89,6 +89,7 @@ function GastosInmobiliarios() {
   const [pendingDownloading, setPendingDownloading] = useState(false);
   const [filters, setFilters] = useState({
     request_id: undefined as number | undefined,
+    note_number: undefined as number | undefined,
     // El scope lo aplica el backend según el usuario; el front solo manda una
     // persona cuando se filtra explícitamente por "entregado por".
     responsible_id: undefined as number | undefined,
@@ -258,6 +259,7 @@ function GastosInmobiliarios() {
       const response = await getInmobiliarioExpenses({
         ...filters,
         request_id: filters.request_id || undefined,
+        note_number: filters.note_number || undefined,
         responsible_id: filters.responsible_id || undefined,
         state: filters.state ?? undefined,
       });
@@ -460,6 +462,12 @@ function GastosInmobiliarios() {
           placeholder="request_id"
           value={filters.request_id}
           onChange={(value) => setFilters((prev) => ({ ...prev, request_id: value || undefined }))}
+        />
+        <InputNumber
+          placeholder="nota de trabajo"
+          style={{ width: 150 }}
+          value={filters.note_number}
+          onChange={(value) => setFilters((prev) => ({ ...prev, note_number: value || undefined }))}
         />
         {canViewAll ? (
           <Select<number>
