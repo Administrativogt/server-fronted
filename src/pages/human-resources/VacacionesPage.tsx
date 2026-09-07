@@ -19,6 +19,7 @@ import {
   Table,
   Tabs,
   Tag,
+  Popover,
   Timeline,
   TimePicker,
   Tooltip,
@@ -36,6 +37,7 @@ import {
   GiftOutlined,
   HistoryOutlined,
   InfoCircleOutlined,
+  ClockCircleOutlined,
   PlusOutlined,
   MailOutlined,
   ReloadOutlined,
@@ -59,6 +61,7 @@ import {
   type BalanceLogType,
   type DaysUsedStats,
   type MyVacationsResponse,
+  type TeamBalanceRow,
   type TimeOffTypeValue,
   type VacationBalance,
   type VacationBalanceLogEntry,
@@ -76,6 +79,7 @@ import {
   creditAnniversaryDays,
   downloadVacationIcs,
   fetchCalendar,
+  fetchTeamBalances,
   fetchDaysUsedStats,
   fetchMyBalanceLog,
   fetchMyVacations,
@@ -262,6 +266,7 @@ const VAC_STYLES = `
     margin-bottom: 2px; white-space: nowrap;
     overflow: hidden; text-overflow: ellipsis;
   }
+  .vac-cal-more:hover { background: #E5E7EB !important; color: #374151 !important; text-decoration: underline; }
 
   .vac-page .ant-tabs-tab { font-family: 'DM Sans', sans-serif; font-weight: 500; }
   .vac-page .ant-tabs-tab-active .ant-tabs-tab-btn { color: #0C1D3E !important; font-weight: 600; }
@@ -432,6 +437,14 @@ const VacacionesPage: React.FC = () => {
 
   // ---- Mis Vacaciones ----
   const [myData, setMyData] = useState<MyVacationsResponse | null>(null);
+  // Calendario: RR.HH. ve todo; un jefe (con subordinados) ve solo a su equipo.
+  const canSeeCalendar = isHR || Boolean(myData?.es_jefe);
+  const isJefe = Boolean(myData?.es_jefe);
+
+  // ---- Mi equipo (jefes): saldo de cada integrante ----
+  const [teamBalances, setTeamBalances] = useState<TeamBalanceRow[]>([]);
+  const [teamLoading, setTeamLoading] = useState(false);
+  const [teamSearch, setTeamSearch] = useState('');
   const [myLoading, setMyLoading] = useState(false);
   const [requestForm] = Form.useForm();
   const [requesting, setRequesting] = useState(false);
@@ -602,7 +615,7 @@ const VacacionesPage: React.FC = () => {
   }, []);
 
   const loadCalendar = useCallback(async (date: typeof calendarDate) => {
-    if (!isHR) return;
+    if (!canSeeCalendar) return;
     setCalendarLoading(true);
     try {
       const data = await fetchCalendar(date.year(), date.month() + 1);
@@ -612,7 +625,22 @@ const VacacionesPage: React.FC = () => {
     } finally {
       setCalendarLoading(false);
     }
-  }, [isHR]);
+  }, [canSeeCalendar]);
+
+  // Jefes que no son RR.HH.: cargar el calendario de su equipo cuando se confirme es_jefe
+  useEffect(() => {
+    if (!isHR && canSeeCalendar) loadCalendar(calendarDate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHR, canSeeCalendar]);
+
+  useEffect(() => {
+    if (!isJefe) return;
+    setTeamLoading(true);
+    fetchTeamBalances()
+      .then(setTeamBalances)
+      .catch(() => message.error('Error al cargar los saldos de tu equipo'))
+      .finally(() => setTeamLoading(false));
+  }, [isJefe]);
 
   useEffect(() => {
     loadMyVacations();
@@ -2361,11 +2389,176 @@ const VacacionesPage: React.FC = () => {
   );
 
   // ============================================
+  // RENDER - TAB MI EQUIPO (jefes)
+  // ============================================
+
+  const renderTeamTab = () => {
+    const rows = teamBalances.filter((r) => {
+      if (!teamSearch) return true;
+      const q = teamSearch.toLowerCase();
+      return (
+        `${r.user.first_name} ${r.user.last_name}`.toLowerCase().includes(q) ||
+        (r.user.username ?? '').toLowerCase().includes(q)
+      );
+    });
+    const totalDisponible = teamBalances.reduce((acc, r) => acc + (r.available ?? 0), 0);
+    const conPendientes = teamBalances.filter((r) => r.pending_requests > 0).length;
+    const sinSaldo = teamBalances.filter((r) => !r.has_balance).length;
+    const year = new Date().getFullYear();
+
+    const num = (v: number | null, color: string) =>
+      v === null ? (
+        <Text type="secondary">—</Text>
+      ) : (
+        <span style={{ fontWeight: 600, color }}>{v}</span>
+      );
+
+    const teamColumns = [
+      {
+        title: 'Integrante',
+        dataIndex: 'user',
+        render: (v: TeamBalanceRow['user']) => {
+          const name = getUserName(v);
+          return (
+            <div className="vac-emp-cell">
+              <Avatar size={30} style={{ background: getAvatarColor(name), fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                {getInitials(v)}
+              </Avatar>
+              <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+                <span className="vac-emp-name">{name}</span>
+                <Text type="secondary" style={{ fontSize: 11 }}>{v.username}</Text>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        title: `Período ${year - 1}`,
+        dataIndex: 'previous_year',
+        width: 120,
+        render: (v: number | null) => num(v, v !== null && v < 0 ? '#DC2626' : '#3B82F6'),
+      },
+      {
+        title: `Período ${year}`,
+        dataIndex: 'earned_this_year',
+        width: 120,
+        render: (v: number | null) => num(v, '#059669'),
+      },
+      {
+        title: 'Usado',
+        dataIndex: 'used_this_year',
+        width: 90,
+        render: (v: number | null) => num(v, '#DC2626'),
+      },
+      {
+        title: 'Disponible',
+        dataIndex: 'available',
+        width: 130,
+        sorter: (a: TeamBalanceRow, b: TeamBalanceRow) => (a.available ?? -999) - (b.available ?? -999),
+        render: (v: number | null, r: TeamBalanceRow) => {
+          if (v === null) {
+            return (
+              <Tooltip title="RR.HH. aún no ha registrado el saldo de esta persona">
+                <Tag style={{ borderRadius: 6, fontSize: 11 }}>Sin saldo</Tag>
+              </Tooltip>
+            );
+          }
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{
+                fontFamily: "'Playfair Display', serif",
+                fontWeight: 700, fontSize: 17,
+                color: v < 0 ? '#DC2626' : v < 5 ? '#D97706' : '#0C1D3E',
+              }}>
+                {v}
+              </span>
+              <Text type="secondary" style={{ fontSize: 11 }}>días</Text>
+              {r.pending_requests > 0 && (
+                <Tooltip title={`${r.pending_requests} solicitud(es) pendiente(s) de aprobación; los días ya están descontados de este saldo`}>
+                  <Tag color="gold" style={{ borderRadius: 6, fontSize: 10, marginLeft: 4 }}>
+                    {r.pending_requests} pend.
+                  </Tag>
+                </Tooltip>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        title: 'Fecha ingreso',
+        dataIndex: 'fecha_ingreso',
+        width: 120,
+        render: (v: string | null) =>
+          v ? <Text style={{ fontWeight: 500, fontSize: 12 }}>{dayjs(v).format('DD/MM/YYYY')}</Text>
+            : <Text type="secondary" style={{ fontSize: 12 }}>—</Text>,
+      },
+    ];
+
+    return (
+      <Card
+        className="vac-section-card"
+        title={
+          <Space>
+            <TeamOutlined style={{ color: '#C9A84C' }} />
+            <span>Saldo de vacaciones de tu equipo</span>
+          </Space>
+        }
+        extra={
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Solo lectura · personas que te reportan directamente
+          </Typography.Text>
+        }
+      >
+        <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+          {[
+            { label: 'Integrantes', value: teamBalances.length, cls: 'total', color: '#4338CA', icon: <TeamOutlined /> },
+            { label: 'Días disponibles (suma)', value: totalDisponible, cls: 'approved', color: '#059669', icon: <CalendarOutlined /> },
+            { label: 'Con solicitudes pendientes', value: conPendientes, cls: 'pending', color: '#D97706', icon: <ClockCircleOutlined /> },
+            { label: 'Sin saldo registrado', value: sinSaldo, cls: 'rejected', color: '#DC2626', icon: <InfoCircleOutlined /> },
+          ].map((s) => (
+            <Col xs={12} md={6} key={s.label}>
+              <Card className={`vac-stat-card vac-stat-card--${s.cls}`} size="small">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 500 }}>{s.label}</div>
+                    <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, fontWeight: 700, color: s.color }}>{s.value}</div>
+                  </div>
+                  <span style={{ fontSize: 20, color: s.color, opacity: 0.7 }}>{s.icon}</span>
+                </div>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+        <Input.Search
+          placeholder="Buscar integrante..."
+          allowClear
+          value={teamSearch}
+          onChange={(e) => setTeamSearch(e.target.value)}
+          style={{ marginBottom: 14, maxWidth: 320, borderRadius: 8 }}
+        />
+        <Table
+          rowKey={(r: TeamBalanceRow) => r.user.id}
+          loading={teamLoading}
+          dataSource={rows}
+          columns={teamColumns as any}
+          pagination={rows.length > 25 ? { pageSize: 25, size: 'small' } : false}
+          size="middle"
+          scroll={{ x: 700 }}
+          locale={{ emptyText: 'No tienes personas asignadas como jefe inmediato' }}
+        />
+      </Card>
+    );
+  };
+
+  // ============================================
   // RENDER - TAB CALENDARIO (HR)
   // ============================================
 
   const vacationDayMap = useMemo(() => {
-    const map = new Map<string, { name: string; id: number }[]>();
+    const map = new Map<
+      string,
+      { name: string; id: number; fecha_inicio: string; fecha_fin: string; dias: number }[]
+    >();
     for (const req of calendarRequests) {
       if (!req.user) continue;
       let current = dayjs(req.fecha_inicio);
@@ -2373,7 +2566,13 @@ const VacacionesPage: React.FC = () => {
       while (current.isBefore(end) || current.isSame(end, 'day')) {
         const key = current.format('YYYY-MM-DD');
         if (!map.has(key)) map.set(key, []);
-        map.get(key)!.push({ name: getUserName(req.user), id: req.id });
+        map.get(key)!.push({
+          name: getUserName(req.user),
+          id: req.id,
+          fecha_inicio: req.fecha_inicio,
+          fecha_fin: req.fecha_fin,
+          dias: Number(req.dias_solicitados),
+        });
         current = current.add(1, 'day');
       }
     }
@@ -2387,8 +2586,15 @@ const VacacionesPage: React.FC = () => {
       title={
         <Space>
           <CalendarOutlined style={{ color: '#C9A84C' }} />
-          <span>Vacaciones aprobadas del equipo</span>
+          <span>{isHR ? 'Vacaciones aprobadas del equipo' : 'Vacaciones aprobadas de tu equipo'}</span>
         </Space>
+      }
+      extra={
+        !isHR ? (
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Solo se muestran las personas que te reportan directamente
+          </Typography.Text>
+        ) : undefined
       }
     >
       <Calendar
@@ -2420,9 +2626,44 @@ const VacacionesPage: React.FC = () => {
               })}
               {people.length > 3 && (
                 <li>
-                  <span className="vac-cal-chip" style={{ background: '#F3F4F6', color: '#6B7280' }}>
-                    +{people.length - 3} más
-                  </span>
+                  <Popover
+                    trigger="click"
+                    placement="right"
+                    title={`${date.format('DD/MM/YYYY')} · ${people.length} personas`}
+                    content={
+                      <ul style={{ margin: 0, padding: 0, listStyle: 'none', minWidth: 260 }}>
+                        {people.map((p, idx) => {
+                          const c = CALENDAR_COLORS[p.id % CALENDAR_COLORS.length];
+                          return (
+                            <li
+                              key={`${p.id}-${idx}`}
+                              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}
+                            >
+                              <span
+                                className="vac-cal-chip"
+                                style={{ background: c.bg, color: c.color, marginBottom: 0, flex: 1 }}
+                              >
+                                {p.name}
+                              </span>
+                              <Typography.Text type="secondary" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>
+                                {dayjs(p.fecha_inicio).format('DD/MM')}
+                                {p.fecha_fin !== p.fecha_inicio ? ` – ${dayjs(p.fecha_fin).format('DD/MM')}` : ''}
+                                {` · ${p.dias} ${p.dias === 1 ? 'día' : 'días'}`}
+                              </Typography.Text>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    }
+                  >
+                    <span
+                      className="vac-cal-chip vac-cal-more"
+                      style={{ background: '#F3F4F6', color: '#6B7280', cursor: 'pointer' }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      +{people.length - 3} más · ver todos
+                    </span>
+                  </Popover>
                 </li>
               )}
             </ul>
@@ -2621,6 +2862,24 @@ const VacacionesPage: React.FC = () => {
             ),
             children: renderGestionTab(),
           },
+        ]
+      : []),
+    ...(isJefe
+      ? [
+          {
+            key: 'mi-equipo',
+            label: (
+              <Space size={6}>
+                <TeamOutlined />
+                <span>Mi equipo</span>
+              </Space>
+            ),
+            children: renderTeamTab(),
+          },
+        ]
+      : []),
+    ...(canSeeCalendar
+      ? [
           {
             key: 'calendario',
             label: (
@@ -2631,6 +2890,10 @@ const VacacionesPage: React.FC = () => {
             ),
             children: renderCalendarTab(),
           },
+        ]
+      : []),
+    ...(isHR
+      ? [
           {
             key: 'asuetos',
             label: (

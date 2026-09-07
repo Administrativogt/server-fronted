@@ -74,8 +74,25 @@ export interface BalanceBreakdown {
 export interface MyVacationsResponse {
   saldo_dias: number | null;
   fecha_ingreso: string | null;
+  /** true si el usuario tiene subordinados activos (jefe_inmediato) → ve el Calendario de su equipo */
+  es_jefe?: boolean;
   balances: BalanceBreakdown[];
   solicitudes: VacationRequest[];
+}
+
+/** Fila de GET /team-balances: saldo de vacaciones de un integrante del equipo del jefe */
+export interface TeamBalanceRow {
+  user: VacationUser;
+  equipo: string | null;
+  has_balance: boolean;
+  fecha_ingreso: string | null;
+  previous_year: number | null;
+  earned_this_year: number | null;
+  used_this_year: number | null;
+  available: number | null;
+  pending_requests: number;
+  current_period: string;
+  previous_period: string;
 }
 
 export interface DaysUsedTeamRow {
@@ -238,6 +255,11 @@ export async function downloadVacationIcs(id: number): Promise<void> {
 
 export async function fetchMyBalanceLog(): Promise<VacationBalanceLogEntry[]> {
   const { data } = await api.get(`${BASE}/my-balance-log`);
+  return data;
+}
+
+export async function fetchTeamBalances(): Promise<TeamBalanceRow[]> {
+  const { data } = await api.get(`${BASE}/team-balances`);
   return data;
 }
 
