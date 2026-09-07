@@ -62,6 +62,7 @@ import {
   type DaysUsedStats,
   type MyVacationsResponse,
   type TeamBalanceRow,
+  type JefeOption,
   type TimeOffTypeValue,
   type VacationBalance,
   type VacationBalanceLogEntry,
@@ -80,6 +81,7 @@ import {
   downloadVacationIcs,
   fetchCalendar,
   fetchTeamBalances,
+  fetchJefes,
   fetchDaysUsedStats,
   fetchMyBalanceLog,
   fetchMyVacations,
@@ -440,11 +442,17 @@ const VacacionesPage: React.FC = () => {
   // Calendario: RR.HH. ve todo; un jefe (con subordinados) ve solo a su equipo.
   const canSeeCalendar = isHR || Boolean(myData?.es_jefe);
   const isJefe = Boolean(myData?.es_jefe);
+  // Mi equipo: jefes ven el suyo; RR.HH. elige de qué jefe ver el equipo
+  const canSeeTeam = isJefe || isHR;
 
   // ---- Mi equipo (jefes): saldo de cada integrante ----
   const [teamBalances, setTeamBalances] = useState<TeamBalanceRow[]>([]);
   const [teamLoading, setTeamLoading] = useState(false);
   const [teamSearch, setTeamSearch] = useState('');
+  // RR.HH. "ver como jefe": catálogo de jefes y jefe elegido para equipo / calendario
+  const [jefes, setJefes] = useState<JefeOption[]>([]);
+  const [selectedJefeId, setSelectedJefeId] = useState<number | null>(null);
+  const [calendarJefeId, setCalendarJefeId] = useState<number | null>(null);
   const [myLoading, setMyLoading] = useState(false);
   const [requestForm] = Form.useForm();
   const [requesting, setRequesting] = useState(false);
@@ -618,29 +626,51 @@ const VacacionesPage: React.FC = () => {
     if (!canSeeCalendar) return;
     setCalendarLoading(true);
     try {
-      const data = await fetchCalendar(date.year(), date.month() + 1);
+      const data = await fetchCalendar(
+        date.year(),
+        date.month() + 1,
+        isHR ? calendarJefeId : null,
+      );
       setCalendarRequests(data);
     } catch {
       message.error('Error al cargar el calendario');
     } finally {
       setCalendarLoading(false);
     }
-  }, [canSeeCalendar]);
+  }, [canSeeCalendar, isHR, calendarJefeId]);
 
-  // Jefes que no son RR.HH.: cargar el calendario de su equipo cuando se confirme es_jefe
+  // Jefes que no son RR.HH.: cargar el calendario de su equipo cuando se confirme es_jefe.
+  // RR.HH.: recargar cuando cambia el filtro por jefe.
   useEffect(() => {
-    if (!isHR && canSeeCalendar) loadCalendar(calendarDate);
+    if (canSeeCalendar) loadCalendar(calendarDate);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHR, canSeeCalendar]);
+  }, [isHR, canSeeCalendar, calendarJefeId]);
 
+  // Catálogo de jefes (solo RR.HH.)
   useEffect(() => {
-    if (!isJefe) return;
+    if (!isHR) return;
+    fetchJefes().then(setJefes).catch(() => {});
+  }, [isHR]);
+
+  // Saldos del equipo: jefe → el suyo; RR.HH. → el del jefe elegido (o el suyo si también es jefe)
+  useEffect(() => {
+    if (!canSeeTeam) return;
+    const jefeId = isHR ? selectedJefeId : null;
+    if (isHR && !jefeId && !isJefe) {
+      setTeamBalances([]);
+      return;
+    }
     setTeamLoading(true);
-    fetchTeamBalances()
+    fetchTeamBalances(jefeId)
       .then(setTeamBalances)
-      .catch(() => message.error('Error al cargar los saldos de tu equipo'))
+      .catch(() => message.error('Error al cargar los saldos del equipo'))
       .finally(() => setTeamLoading(false));
-  }, [isJefe]);
+  }, [canSeeTeam, isHR, isJefe, selectedJefeId]);
+
+  const jefeLabel = (j: JefeOption) =>
+    `${j.first_name} ${j.last_name}`.trim() + ` (${j.username}) · ${j.subordinados}`;
+
+  const selectedJefe = jefes.find((j) => j.id === selectedJefeId) ?? null;
 
   useEffect(() => {
     loadMyVacations();
@@ -2494,21 +2524,48 @@ const VacacionesPage: React.FC = () => {
       },
     ];
 
+    const hrSinJefe = isHR && !selectedJefeId && !isJefe;
+
     return (
       <Card
         className="vac-section-card"
         title={
           <Space>
             <TeamOutlined style={{ color: '#C9A84C' }} />
-            <span>Saldo de vacaciones de tu equipo</span>
+            <span>
+              {isHR && selectedJefe
+                ? `Equipo de ${selectedJefe.first_name} ${selectedJefe.last_name}`.trim()
+                : 'Saldo de vacaciones de tu equipo'}
+            </span>
           </Space>
         }
         extra={
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Solo lectura · personas que te reportan directamente
-          </Typography.Text>
+          isHR ? (
+            <Space size={8} wrap>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>Ver equipo de:</Typography.Text>
+              <Select
+                showSearch
+                allowClear
+                placeholder="Elegí un jefe…"
+                value={selectedJefeId ?? undefined}
+                onChange={(v) => setSelectedJefeId(v ?? null)}
+                style={{ minWidth: 320 }}
+                optionFilterProp="label"
+                options={jefes.map((j) => ({ value: j.id, label: jefeLabel(j) }))}
+              />
+            </Space>
+          ) : (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Solo lectura · personas que te reportan directamente
+            </Typography.Text>
+          )
         }
       >
+        {hrSinJefe && (
+          <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+            Elegí un jefe en el selector para ver el saldo de vacaciones de su equipo, tal como lo ve ese jefe.
+          </Typography.Paragraph>
+        )}
         <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
           {[
             { label: 'Integrantes', value: teamBalances.length, cls: 'total', color: '#4338CA', icon: <TeamOutlined /> },
@@ -2544,7 +2601,11 @@ const VacacionesPage: React.FC = () => {
           pagination={rows.length > 25 ? { pageSize: 25, size: 'small' } : false}
           size="middle"
           scroll={{ x: 700 }}
-          locale={{ emptyText: 'No tienes personas asignadas como jefe inmediato' }}
+          locale={{
+            emptyText: hrSinJefe
+              ? 'Seleccioná un jefe para ver su equipo'
+              : 'No tienes personas asignadas como jefe inmediato',
+          }}
         />
       </Card>
     );
@@ -2594,7 +2655,21 @@ const VacacionesPage: React.FC = () => {
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             Solo se muestran las personas que te reportan directamente
           </Typography.Text>
-        ) : undefined
+        ) : (
+          <Space size={8} wrap>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>Ver como jefe:</Typography.Text>
+            <Select
+              showSearch
+              allowClear
+              placeholder="Todos los equipos"
+              value={calendarJefeId ?? undefined}
+              onChange={(v) => setCalendarJefeId(v ?? null)}
+              style={{ minWidth: 300 }}
+              optionFilterProp="label"
+              options={jefes.map((j) => ({ value: j.id, label: jefeLabel(j) }))}
+            />
+          </Space>
+        )
       }
     >
       <Calendar
@@ -2864,7 +2939,7 @@ const VacacionesPage: React.FC = () => {
           },
         ]
       : []),
-    ...(isJefe
+    ...(canSeeTeam
       ? [
           {
             key: 'mi-equipo',

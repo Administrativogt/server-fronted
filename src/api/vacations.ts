@@ -258,13 +258,36 @@ export async function fetchMyBalanceLog(): Promise<VacationBalanceLogEntry[]> {
   return data;
 }
 
-export async function fetchTeamBalances(): Promise<TeamBalanceRow[]> {
-  const { data } = await api.get(`${BASE}/team-balances`);
+/** jefeId solo lo respeta el backend si quien llama es RR.HH.; el resto ve su propio equipo */
+export async function fetchTeamBalances(jefeId?: number | null): Promise<TeamBalanceRow[]> {
+  const { data } = await api.get(`${BASE}/team-balances`, {
+    params: jefeId ? { jefe_id: jefeId } : undefined,
+  });
   return data;
 }
 
-export async function fetchCalendar(year: number, month: number): Promise<VacationRequest[]> {
-  const { data } = await api.get(`${BASE}/calendar`, { params: { year, month } });
+export interface JefeOption {
+  id: number;
+  username: string;
+  first_name: string;
+  last_name: string;
+  subordinados: number;
+}
+
+/** [RR.HH.] Jefes con subordinados activos */
+export async function fetchJefes(): Promise<JefeOption[]> {
+  const { data } = await api.get(`${BASE}/jefes`);
+  return data;
+}
+
+export async function fetchCalendar(
+  year: number,
+  month: number,
+  jefeId?: number | null,
+): Promise<VacationRequest[]> {
+  const { data } = await api.get(`${BASE}/calendar`, {
+    params: { year, month, ...(jefeId ? { jefe_id: jefeId } : {}) },
+  });
   return data;
 }
 
