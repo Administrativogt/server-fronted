@@ -164,6 +164,15 @@ const HorasCatalogosPage: React.FC = () => {
       onFilter: (v, r) => r.equipo?.id === v,
     },
     { title: 'Socio', width: 80, render: (_, r) => <Tag>{r.equipo?.socio_codigo ?? '?'}</Tag> },
+    {
+      title: 'Detalle individual',
+      dataIndex: 'detalle_individual',
+      width: 130,
+      render: (v: boolean) =>
+        v ? <Tag color="purple">Adjunta Excel propio</Tag> : <Text type="secondary">—</Text>,
+      filters: [{ text: 'Con detalle individual', value: true }],
+      onFilter: (v, r) => r.detalle_individual === v,
+    },
     activoCol,
     accionesCol('timekeeper'),
   ];
@@ -291,6 +300,14 @@ const HorasCatalogosPage: React.FC = () => {
                   optionFilterProp="label"
                   options={equipos.map((e) => ({ value: e.id, label: `${e.nombre} (${e.socio_codigo})` }))}
                 />
+              </Form.Item>
+              <Form.Item
+                name="detalle_individual"
+                label="Detalle individual"
+                valuePropName="checked"
+                tooltip='Al correo de su socio se adjunta además el libro "Horas <usuario>.xlsx" con el resumen por cliente y los registros cobrables / no cobrables (caso: quien apoya a OMMA)'
+              >
+                <Switch checkedChildren="Adjunta Excel propio" unCheckedChildren="No" />
               </Form.Item>
             </>
           )}

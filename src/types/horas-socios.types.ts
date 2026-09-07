@@ -12,6 +12,15 @@ export interface HorasTimekeeper {
   nombre: string; // nombre EXACTO del Usuario en Time Manager
   equipo: HorasEquipo;
   activo: boolean;
+  /** Adjuntar al correo de su socio el libro "Horas <usuario>.xlsx" (detalle individual). */
+  detalle_individual: boolean;
+}
+
+/** Usuario con detalle individual presente en el reporte. */
+export interface DetalleIndividual {
+  usuario: string;
+  equipo: string;
+  socio: string;
 }
 
 export type CategoriaNF =
@@ -86,7 +95,9 @@ export interface ReporteHoras {
   meses: number[];
   mesesNombres: string[];
   mesesCompletos: string[];
-  mesParcial: string | null;
+  mesesParciales: string[];
+  /** Texto del periodo tal como irá en el correo, según fecha de envío. */
+  periodoTexto: string;
   filas: FilaReporte[];
   totales: FilaReporte;
   usuariosSinEquipo: string[];
@@ -95,6 +106,7 @@ export interface ReporteHoras {
   /** Sin coincidencia en usuarios del sistema: se mantienen, solo se señalan. */
   usuariosNoEncontrados: UsuarioFueraFirma[];
   socios: string[];
+  detallesIndividuales: DetalleIndividual[];
 }
 
 export interface ImportarResult {
@@ -107,6 +119,7 @@ export interface EnvioResultado {
   destinatario?: string;
   cc?: string;
   estado: string;
+  adjuntos?: string[];
 }
 
 export interface EnviarResult {

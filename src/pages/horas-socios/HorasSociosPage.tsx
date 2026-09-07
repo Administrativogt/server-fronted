@@ -25,7 +25,7 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Link } from 'react-router-dom';
-import { horasSociosApi, minutosAHoras } from '../../api/horas-socios';
+import { horasSociosApi, minutosAHoras, nombrePropio } from '../../api/horas-socios';
 import type {
   EnvioResultado,
   FilaReporte,
@@ -321,7 +321,29 @@ const HorasSociosPage: React.FC = () => {
         </Tag>
       ),
     },
+    {
+      title: 'Adjuntos',
+      dataIndex: 'adjuntos',
+      render: (v?: string[]) =>
+        v?.length ? (
+          <Space size={4} wrap>
+            {v.map((a) => (
+              <Tag key={a} icon={<FileExcelOutlined />} color={a.startsWith('Horas ') ? 'purple' : 'default'}>
+                {a}
+              </Tag>
+            ))}
+          </Space>
+        ) : (
+          <Text type="secondary">—</Text>
+        ),
+    },
   ];
+
+  /** Detalles individuales (flag en catálogo) del socio de la pestaña activa. */
+  const detallesTab = useMemo(
+    () => (reporte?.detallesIndividuales ?? []).filter((d) => d.socio === tabSocio),
+    [reporte, tabSocio],
+  );
 
   return (
     <div style={{ padding: 24 }}>
@@ -412,14 +434,7 @@ const HorasSociosPage: React.FC = () => {
             <>
               Reporte {periodoLabel(reporte.importacion)} —{' '}
               <Text type="secondary" style={{ fontWeight: 'normal' }}>
-                {reporte.mesesCompletos.length > 0 &&
-                  `${reporte.mesesCompletos[0].toLowerCase()}${
-                    reporte.mesesCompletos.length > 1
-                      ? ` a ${reporte.mesesCompletos[reporte.mesesCompletos.length - 1].toLowerCase()}`
-                      : ''
-                  } completo`}
-                {reporte.mesParcial &&
-                  `, ${reporte.mesParcial.toLowerCase()} parcial al ${reporte.importacion.fecha_max}`}
+                {reporte.periodoTexto}
               </Text>
             </>
           }
@@ -446,6 +461,19 @@ const HorasSociosPage: React.FC = () => {
                   {tabSocio}.xlsx
                 </Button>
               )}
+              {detallesTab.map((d) => (
+                <Button
+                  key={d.usuario}
+                  icon={<DownloadOutlined />}
+                  style={{ borderColor: '#722ed1', color: '#722ed1' }}
+                  title={`Detalle individual de ${d.usuario} (se adjunta al correo de ${d.socio})`}
+                  onClick={() =>
+                    horasSociosApi.descargarDetalleIndividual(reporte.importacion.id, d.usuario)
+                  }
+                >
+                  Horas {nombrePropio(d.usuario).split(' ')[0]}.xlsx
+                </Button>
+              ))}
               <Button type="primary" icon={<MailOutlined />} onClick={abrirEnvio}>
                 Enviar a socios
               </Button>

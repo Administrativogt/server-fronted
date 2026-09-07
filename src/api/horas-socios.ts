@@ -53,6 +53,13 @@ export const horasSociosApi = {
     );
     descargarBlob(data, `${socio}.xlsx`);
   },
+  descargarDetalleIndividual: async (id: number, usuario: string) => {
+    const { data } = await api.get(
+      `${BASE}/importaciones/${id}/detalle/${encodeURIComponent(usuario)}`,
+      { responseType: 'blob' },
+    );
+    descargarBlob(data, `Horas ${nombrePropio(usuario)}.xlsx`);
+  },
 
   // Envío de correos
   enviar: (id: number, body: { socios?: string[]; dryRun?: boolean }) =>
@@ -71,10 +78,16 @@ export const horasSociosApi = {
     nombre: string;
     equipo_id: number;
     activo?: boolean;
+    detalle_individual?: boolean;
   }) => api.post<HorasTimekeeper>(`${BASE}/timekeepers`, data),
   updateTimekeeper: (
     id: number,
-    data: { nombre?: string; equipo_id?: number; activo?: boolean },
+    data: {
+      nombre?: string;
+      equipo_id?: number;
+      activo?: boolean;
+      detalle_individual?: boolean;
+    },
   ) => api.patch<HorasTimekeeper>(`${BASE}/timekeepers/${id}`, data),
   deleteTimekeeper: (id: number) => api.delete(`${BASE}/timekeepers/${id}`),
 
@@ -100,6 +113,13 @@ export const horasSociosApi = {
   deleteDestinatario: (id: number) =>
     api.delete(`${BASE}/destinatarios/${id}`),
 };
+
+/** "IVONNE COLLOY MALDONADO" → "Ivonne Colloy Maldonado" (mismo criterio que el backend). */
+export const nombrePropio = (nombre: string): string =>
+  nombre
+    .trim()
+    .toLowerCase()
+    .replace(/(^|\s|-)([a-záéíóúñü])/g, (_, sep: string, ch: string) => sep + ch.toUpperCase());
 
 /** 6786 minutos → "113:06" */
 export const minutosAHoras = (min: number): string => {
