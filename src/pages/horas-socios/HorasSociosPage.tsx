@@ -366,6 +366,28 @@ const HorasSociosPage: React.FC = () => {
             }
           />
         )}
+        {reporte && reporte.usuariosInactivos?.length > 0 && (
+          <Alert
+            style={{ marginTop: 12 }}
+            type="info"
+            showIcon
+            message={`${reporte.usuariosInactivos.length} usuario(s) inactivo(s) en la firma — excluidos del reporte, las hojas de socio y los correos`}
+            description={reporte.usuariosInactivos
+              .map((u) => `${u.name} (${minutosAHoras(u.minutes)})`)
+              .join(', ')}
+          />
+        )}
+        {reporte && reporte.usuariosNoEncontrados?.length > 0 && (
+          <Alert
+            style={{ marginTop: 12 }}
+            type="warning"
+            showIcon
+            message={`${reporte.usuariosNoEncontrados.length} usuario(s) del export sin coincidencia en usuarios del sistema — se mantienen en el reporte`}
+            description={reporte.usuariosNoEncontrados
+              .map((u) => `${u.name} (${minutosAHoras(u.minutes)})`)
+              .join(', ')}
+          />
+        )}
       </Card>
 
       <Card

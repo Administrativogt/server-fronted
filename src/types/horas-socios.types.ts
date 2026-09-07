@@ -50,10 +50,19 @@ export interface HorasImportacion {
   creado_por_nombre?: string;
 }
 
+export type EstadoFirma = 'activo' | 'inactivo' | 'no_encontrado';
+
+export interface UsuarioFueraFirma {
+  name: string;
+  minutes: number;
+  hours: number;
+}
+
 export interface FilaReporte {
   usuario: string;
   equipo: string;
   socio: string;
+  estadoFirma: EstadoFirma;
   totalMes: number[]; // minutos por mes [6]
   totalHoras: number;
   factMes: number[];
@@ -81,6 +90,10 @@ export interface ReporteHoras {
   filas: FilaReporte[];
   totales: FilaReporte;
   usuariosSinEquipo: string[];
+  /** Inactivos en la firma: EXCLUIDOS del reporte (filas, totales, correos). */
+  usuariosInactivos: UsuarioFueraFirma[];
+  /** Sin coincidencia en usuarios del sistema: se mantienen, solo se señalan. */
+  usuariosNoEncontrados: UsuarioFueraFirma[];
   socios: string[];
 }
 
