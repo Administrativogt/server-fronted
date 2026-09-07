@@ -41,6 +41,18 @@ export const sendEmailLiquidationChecks = async (
   );
 };
 
+/** Edición puntual de un cheque de liquidación (monto, o active=false para eliminarlo de la lista) */
+export const updateLiquidationCheck = async (
+  id: number,
+  data: { amount?: string; active?: boolean; description?: string },
+): Promise<AccountingCheck> => {
+  const { data: res } = await api.patch<AccountingCheck>(
+    `/checks/liquidation-checks/${id}`,
+    data,
+  );
+  return res;
+};
+
 export const updateLiquidationCheckComment = async (
   id: number,
   comments: string | null,

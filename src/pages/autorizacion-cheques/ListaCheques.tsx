@@ -3,6 +3,7 @@ import {
   Table, Button, Input, Space, Tag, Typography,
   Modal, message, Collapse, Statistic, Row, Col, Card,
   Segmented, Select, Skeleton, Empty, Tooltip, Popover,
+  Popconfirm, Alert, Descriptions,
 } from 'antd';
 import {
   SearchOutlined, MailOutlined, WarningOutlined,
@@ -10,7 +11,8 @@ import {
   TeamOutlined, FileTextOutlined, AlertOutlined,
   ReloadOutlined, FilterOutlined, ClockCircleOutlined,
   MessageOutlined, EditOutlined, CheckOutlined, CloseOutlined,
-  SendOutlined,
+  SendOutlined, EyeOutlined, DeleteOutlined, MinusCircleOutlined,
+  CheckCircleOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { AccountingCheck } from '../../types/accounting-checks.types';
@@ -18,6 +20,7 @@ import {
   listLiquidationChecks,
   sendEmailLiquidationChecks,
   updateLiquidationCheckComment,
+  updateLiquidationCheck,
   getCommentsSummary,
   sendCommentsDigest,
   type CommentsSummary,
@@ -55,6 +58,12 @@ const ListaCheques: React.FC = () => {
   const [savingComment, setSavingComment] = useState(false);
   const [commentsSummary, setCommentsSummary] = useState<CommentsSummary | null>(null);
   const [sendingDigest, setSendingDigest] = useState(false);
+  // Vista previa del correo por usuario: ids que irán en el envío (editable antes de enviar)
+  const [preview, setPreview] = useState<{ user: string; ids: number[] } | null>(null);
+  const [editingAmountId, setEditingAmountId] = useState<number | null>(null);
+  const [amountDraft, setAmountDraft] = useState('');
+  const [savingAmount, setSavingAmount] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const isDark = useThemeStore((s) => s.mode === 'dark');
 
   const palette = isDark
@@ -187,26 +196,162 @@ const ListaCheques: React.FC = () => {
   const warningUsers  = severityCounts.warning;
   
 
-  const handleSendEmail = (user: string, checkIds: number[]) => {
-    confirm({
-      title: '¿Enviar correo de recordatorio?',
-      content: `Se enviarán ${checkIds.length} cheque(s) al usuario ${user}.`,
-      okText: 'Enviar',
-      cancelText: 'Cancelar',
-      onOk: async () => {
-        setSendingUser(user);
-        try {
-          await sendEmailLiquidationChecks(user, checkIds);
-          message.success('Correo enviado exitosamente');
-          setSelectedIds((prev) => ({ ...prev, [user]: [] }));
-        } catch (error: any) {
-          message.error(error.response?.data?.message || 'Error al enviar el correo');
-        } finally {
-          setSendingUser(null);
-        }
-      },
-    });
+  /** Abre la vista previa: con selección usa esos cheques; sin selección, todos los del usuario. */
+  const openPreview = (user: string, selected: number[], allUserChecks: AccountingCheck[]) => {
+    const ids = selected.length > 0 ? selected : allUserChecks.map((c) => c.id);
+    setEditingAmountId(null);
+    setPreview({ user, ids });
   };
+
+  const closePreview = () => {
+    setPreview(null);
+    setEditingAmountId(null);
+  };
+
+  const handleSendEmail = async (user: string, checkIds: number[]) => {
+    setSendingUser(user);
+    try {
+      await sendEmailLiquidationChecks(user, checkIds);
+      message.success('Correo enviado exitosamente');
+      setSelectedIds((prev) => ({ ...prev, [user]: [] }));
+      // Reflejar el estado "enviado" sin recargar toda la lista
+      setChecks((prev) => prev.map((c) => (c.user === user ? { ...c, user_send_checks: true } : c)));
+      closePreview();
+    } catch (error: any) {
+      message.error(error.response?.data?.message || 'Error al enviar el correo');
+    } finally {
+      setSendingUser(null);
+    }
+  };
+
+  const startEditAmount = (record: AccountingCheck) => {
+    setEditingAmountId(record.id);
+    setAmountDraft(String(record.amount ?? ''));
+  };
+
+  const saveAmount = async (record: AccountingCheck) => {
+    const n = Number(String(amountDraft).replace(/,/g, '').trim());
+    if (!Number.isFinite(n) || n < 0) {
+      message.error('Monto inválido');
+      return;
+    }
+    const formatted = n.toFixed(2);
+    setSavingAmount(true);
+    try {
+      await updateLiquidationCheck(record.id, { amount: formatted });
+      setChecks((prev) => prev.map((c) => (c.id === record.id ? { ...c, amount: formatted } : c)));
+      message.success(`Monto del cheque ${record.check_number} actualizado a Q. ${formatted}`);
+      setEditingAmountId(null);
+    } catch (error: any) {
+      message.error(error?.response?.data?.message || 'Error al actualizar el monto');
+    } finally {
+      setSavingAmount(false);
+    }
+  };
+
+  /** Quita el cheque solo de este correo (no toca la base de datos). */
+  const removeFromPreview = (id: number) => {
+    setPreview((prev) => (prev ? { ...prev, ids: prev.ids.filter((x) => x !== id) } : prev));
+  };
+
+  /** Elimina el cheque de la lista de pendientes (active=false en BD). */
+  const deleteCheck = async (record: AccountingCheck) => {
+    setDeletingId(record.id);
+    try {
+      await updateLiquidationCheck(record.id, { active: false });
+      setChecks((prev) => prev.filter((c) => c.id !== record.id));
+      removeFromPreview(record.id);
+      message.success(`Cheque ${record.check_number} eliminado de la lista`);
+    } catch (error: any) {
+      message.error(error?.response?.data?.message || 'Error al eliminar el cheque');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const previewChecks = useMemo(() => {
+    if (!preview) return [];
+    const set = new Set(preview.ids);
+    return checks
+      .filter((c) => set.has(c.id))
+      .sort((a, b) => b.announcements - a.announcements);
+  }, [preview, checks]);
+
+  const previewMeta = useMemo(() => {
+    if (!preview) return null;
+    const any = checks.find((c) => c.user === preview.user);
+    return {
+      fullName: any?.user_full_name ?? null,
+      email: any?.user_email ?? null,
+      alreadySent: Boolean(any?.user_send_checks),
+    };
+  }, [preview, checks]);
+
+  const previewTotal = previewChecks.reduce((acc, c) => acc + (Number(c.amount) || 0), 0);
+
+  const renderAmountCell = (record: AccountingCheck) => {
+    if (editingAmountId === record.id) {
+      return (
+        <Space.Compact style={{ width: 170 }}>
+          <Input
+            size="small"
+            prefix="Q."
+            value={amountDraft}
+            autoFocus
+            onChange={(e) => setAmountDraft(e.target.value)}
+            onPressEnter={() => saveAmount(record)}
+            style={{ textAlign: 'right' }}
+          />
+          <Button size="small" type="primary" icon={<CheckOutlined />} loading={savingAmount} onClick={() => saveAmount(record)} />
+          <Button size="small" icon={<CloseOutlined />} onClick={() => setEditingAmountId(null)} />
+        </Space.Compact>
+      );
+    }
+    return (
+      <Space size={6}>
+        <Text strong>Q. {record.amount}</Text>
+        <Tooltip title="Modificar monto">
+          <Button size="small" type="text" icon={<EditOutlined />} onClick={() => startEditAmount(record)} />
+        </Tooltip>
+      </Space>
+    );
+  };
+
+  const previewColumns: ColumnsType<AccountingCheck> = [
+    { title: 'Fecha', dataIndex: 'date', width: 100, render: (v) => new Date(v).toLocaleDateString('es-GT') },
+    { title: 'Tipo/Doc', dataIndex: 'document_type', width: 90 },
+    { title: 'No. Cheque', dataIndex: 'check_number', width: 110 },
+    {
+      title: 'Descripción',
+      dataIndex: 'description',
+      render: (v: string) => <span style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{v}</span>,
+    },
+    { title: 'Antigüedad', dataIndex: 'announcements', width: 120, render: (v) => announcementTag(v) },
+    { title: 'Monto', dataIndex: 'amount', width: 200, align: 'right', render: (_v, r) => renderAmountCell(r) },
+    {
+      title: '',
+      width: 90,
+      render: (_v, r) => (
+        <Space size={0}>
+          <Tooltip title="Quitar de este correo (el cheque sigue en la lista)">
+            <Button size="small" type="text" icon={<MinusCircleOutlined />} onClick={() => removeFromPreview(r.id)} />
+          </Tooltip>
+          <Popconfirm
+            title="¿Eliminar este cheque?"
+            description="Dejará de aparecer como pendiente para este usuario."
+            okText="Eliminar"
+            okButtonProps={{ danger: true }}
+            cancelText="Cancelar"
+            onConfirm={() => deleteCheck(r)}
+          >
+            <Tooltip title="Eliminar cheque de la lista">
+              <Button size="small" type="text" danger icon={<DeleteOutlined />} loading={deletingId === r.id} />
+            </Tooltip>
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ];
 
   const openCommentEditor = (record: AccountingCheck) => {
     setEditingCommentId(record.id);
@@ -336,6 +481,7 @@ const ListaCheques: React.FC = () => {
     const fullName     = userChecks.find((c) => c.user_full_name)?.user_full_name ?? null;
     const isCritical   = severity === 'critical';
     const isWarning    = severity === 'warning';
+    const alreadySent  = Boolean(userChecks[0]?.user_send_checks);
 
     return {
       key: user,
@@ -426,18 +572,25 @@ const ListaCheques: React.FC = () => {
             <Text style={{ fontSize: 12, color: palette.textMuted }}>
               Máx. <Text strong style={{ color: palette.textPrimary }}>{maxMonths}</Text> mes{maxMonths !== 1 ? 'es' : ''}
             </Text>
+
+            {alreadySent ? (
+              <Tooltip title="Ya se envió el correo de liquidación a este usuario en el período actual">
+                <Tag color="success" icon={<CheckCircleOutlined />} style={{ margin: 0 }}>Correo enviado</Tag>
+              </Tooltip>
+            ) : (
+              <Tag style={{ margin: 0, color: palette.textMuted }}>Sin enviar</Tag>
+            )}
           </Space>
 
           <div onClick={(e) => e.stopPropagation()} style={{ paddingRight: 4 }}>
             <Button
               type="primary"
               size="middle"
-              icon={<MailOutlined />}
+              icon={<EyeOutlined />}
               loading={sendingUser === user}
-              disabled={selected.length === 0}
-              onClick={() => handleSendEmail(user, selected as number[])}
+              onClick={() => openPreview(user, selected as number[], userChecks)}
             >
-              Enviar correo {selected.length > 0 ? `(${selected.length})` : ''}
+              Vista previa {selected.length > 0 ? `(${selected.length})` : `(${userChecks.length})`}
             </Button>
           </div>
         </div>
@@ -857,6 +1010,76 @@ const ListaCheques: React.FC = () => {
           style={{ background: 'transparent' }}
         />
       )}
+
+      {/* Vista previa del correo de liquidación */}
+      <Modal
+        open={!!preview}
+        onCancel={closePreview}
+        width={1000}
+        destroyOnClose
+        title={
+          <Space>
+            <MailOutlined />
+            <span>Vista previa del correo · {preview?.user}</span>
+            {previewMeta?.fullName && <Text type="secondary">· {previewMeta.fullName}</Text>}
+          </Space>
+        }
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text>
+              {previewChecks.length} cheque{previewChecks.length !== 1 ? 's' : ''} · Total{' '}
+              <Text strong>Q. {previewTotal.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+            </Text>
+            <Space>
+              <Button onClick={closePreview}>Cancelar</Button>
+              <Tooltip title={previewMeta?.alreadySent ? 'Ya se envió el correo a este usuario en este período' : undefined}>
+                <Button
+                  type="primary"
+                  icon={<SendOutlined />}
+                  loading={!!preview && sendingUser === preview.user}
+                  disabled={previewChecks.length === 0 || !!previewMeta?.alreadySent}
+                  onClick={() => preview && handleSendEmail(preview.user, previewChecks.map((c) => c.id))}
+                >
+                  Enviar correo ({previewChecks.length})
+                </Button>
+              </Tooltip>
+            </Space>
+          </div>
+        }
+      >
+        {previewMeta?.alreadySent && (
+          <Alert
+            type="success"
+            showIcon
+            icon={<CheckCircleOutlined />}
+            style={{ marginBottom: 12 }}
+            message="Correo ya enviado a este usuario en el período actual"
+            description="Se vuelve a habilitar cuando contabilidad cargue el siguiente reporte de saldos."
+          />
+        )}
+        <Descriptions size="small" column={2} style={{ marginBottom: 12 }}>
+          <Descriptions.Item label="Para">
+            {previewMeta?.fullName ?? preview?.user}{previewMeta?.email ? ` <${previewMeta.email}>` : ''}
+          </Descriptions.Item>
+          <Descriptions.Item label="Estado">
+            {previewMeta?.alreadySent
+              ? <Tag color="success" icon={<CheckCircleOutlined />}>Enviado</Tag>
+              : <Tag>Pendiente de envío</Tag>}
+          </Descriptions.Item>
+        </Descriptions>
+        <Text type="secondary" style={{ display: 'block', marginBottom: 8, fontSize: 12 }}>
+          Podés modificar el monto, quitar un cheque solo de este correo o eliminarlo de la lista de pendientes antes de enviar.
+        </Text>
+        <Table
+          dataSource={previewChecks}
+          columns={previewColumns}
+          rowKey="id"
+          size="small"
+          pagination={false}
+          scroll={{ y: 420 }}
+          locale={{ emptyText: 'No quedan cheques en este correo' }}
+        />
+      </Modal>
     </div>
   );
 };
