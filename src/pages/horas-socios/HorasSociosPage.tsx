@@ -344,6 +344,11 @@ const HorasSociosPage: React.FC = () => {
     () => (reporte?.detallesIndividuales ?? []).filter((d) => d.socio === tabSocio),
     [reporte, tabSocio],
   );
+  /** Coordinadores (flag en catálogo) del socio de la pestaña activa. */
+  const coordinadoresTab = useMemo(
+    () => (reporte?.coordinadores ?? []).filter((c) => c.socio === tabSocio),
+    [reporte, tabSocio],
+  );
 
   return (
     <div style={{ padding: 24 }}>
@@ -474,6 +479,20 @@ const HorasSociosPage: React.FC = () => {
                   Horas {nombrePropio(d.usuario).split(' ')[0]}.xlsx
                 </Button>
               ))}
+              {coordinadoresTab.length > 0 && (
+                <Button
+                  icon={<DownloadOutlined />}
+                  style={{ borderColor: '#d4b106', color: '#ad8b00' }}
+                  title={`Horas de todos los usuarios en casos coordinados por ${coordinadoresTab
+                    .map((c) => nombrePropio(c.usuario))
+                    .join(', ')} (otros equipos en amarillo, con hoja propia)`}
+                  onClick={() =>
+                    horasSociosApi.descargarDetalleCoordinador(reporte.importacion.id, tabSocio)
+                  }
+                >
+                  Detalle Coordinador {tabSocio}.xlsx
+                </Button>
+              )}
               <Button type="primary" icon={<MailOutlined />} onClick={abrirEnvio}>
                 Enviar a socios
               </Button>

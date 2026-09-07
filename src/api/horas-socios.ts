@@ -60,6 +60,13 @@ export const horasSociosApi = {
     );
     descargarBlob(data, `Horas ${nombrePropio(usuario)}.xlsx`);
   },
+  descargarDetalleCoordinador: async (id: number, socio: string) => {
+    const { data } = await api.get(
+      `${BASE}/importaciones/${id}/coordinador/${socio}`,
+      { responseType: 'blob' },
+    );
+    descargarBlob(data, `Detalle horas Coordinador ${socio}.xlsx`);
+  },
 
   // Envío de correos
   enviar: (id: number, body: { socios?: string[]; dryRun?: boolean }) =>
@@ -79,6 +86,7 @@ export const horasSociosApi = {
     equipo_id: number;
     activo?: boolean;
     detalle_individual?: boolean;
+    coordinador_reporte?: boolean;
   }) => api.post<HorasTimekeeper>(`${BASE}/timekeepers`, data),
   updateTimekeeper: (
     id: number,
@@ -87,6 +95,7 @@ export const horasSociosApi = {
       equipo_id?: number;
       activo?: boolean;
       detalle_individual?: boolean;
+      coordinador_reporte?: boolean;
     },
   ) => api.patch<HorasTimekeeper>(`${BASE}/timekeepers/${id}`, data),
   deleteTimekeeper: (id: number) => api.delete(`${BASE}/timekeepers/${id}`),

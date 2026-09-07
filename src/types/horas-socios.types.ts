@@ -14,6 +14,15 @@ export interface HorasTimekeeper {
   activo: boolean;
   /** Adjuntar al correo de su socio el libro "Horas <usuario>.xlsx" (detalle individual). */
   detalle_individual: boolean;
+  /** Coordinador: adjuntar "Detalle horas Coordinador <SOCIO>.xlsx" (horas de todos en sus casos). */
+  coordinador_reporte: boolean;
+}
+
+/** Coordinador (flag en catálogo) presente en el reporte. */
+export interface CoordinadorReporte {
+  usuario: string;
+  equipo: string;
+  socio: string;
 }
 
 /** Usuario con detalle individual presente en el reporte. */
@@ -107,6 +116,7 @@ export interface ReporteHoras {
   usuariosNoEncontrados: UsuarioFueraFirma[];
   socios: string[];
   detallesIndividuales: DetalleIndividual[];
+  coordinadores: CoordinadorReporte[];
 }
 
 export interface ImportarResult {

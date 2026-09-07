@@ -173,6 +173,15 @@ const HorasCatalogosPage: React.FC = () => {
       filters: [{ text: 'Con detalle individual', value: true }],
       onFilter: (v, r) => r.detalle_individual === v,
     },
+    {
+      title: 'Coordinador',
+      dataIndex: 'coordinador_reporte',
+      width: 120,
+      render: (v: boolean) =>
+        v ? <Tag color="gold">Reporte coordinador</Tag> : <Text type="secondary">—</Text>,
+      filters: [{ text: 'Coordinadores', value: true }],
+      onFilter: (v, r) => r.coordinador_reporte === v,
+    },
     activoCol,
     accionesCol('timekeeper'),
   ];
@@ -308,6 +317,14 @@ const HorasCatalogosPage: React.FC = () => {
                 tooltip='Al correo de su socio se adjunta además el libro "Horas <usuario>.xlsx" con el resumen por cliente y los registros cobrables / no cobrables (caso: quien apoya a OMMA)'
               >
                 <Switch checkedChildren="Adjunta Excel propio" unCheckedChildren="No" />
+              </Form.Item>
+              <Form.Item
+                name="coordinador_reporte"
+                label="Coordinador"
+                valuePropName="checked"
+                tooltip='Al correo de su socio se adjunta "Detalle horas Coordinador <SOCIO>.xlsx": horas de TODOS los usuarios en casos donde este usuario es el Responsable Facturación; los de otros equipos van en amarillo y con hoja propia (caso: Elías / EAS)'
+              >
+                <Switch checkedChildren="Reporte coordinador" unCheckedChildren="No" />
               </Form.Item>
             </>
           )}
