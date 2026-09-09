@@ -92,6 +92,12 @@ export const updateUser = (id: number, data: UpdateUserPayload) => axios.patch(`
 export const deactivateUser = (id: number) => axios.delete(`/users/${id}`);
 
 /**
+ * Reactivar usuario — deja la cuenta lista para iniciar sesion otra vez
+ * (repone estado=1 e is_active=true, los dos campos que valida el login)
+ */
+export const activateUser = (id: number) => axios.patch(`/users/${id}/activate`);
+
+/**
  * Resetear contraseña de usuario
  */
 export const resetUserPassword = (id: number, newPassword: string, forceChange: boolean = false) =>

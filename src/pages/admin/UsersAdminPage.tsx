@@ -17,6 +17,7 @@ import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
+  UndoOutlined,
   EyeOutlined,
   KeyOutlined,
   CheckCircleOutlined,
@@ -26,7 +27,7 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { useUserAdminPermissions } from '../../hooks/usePermissions';
-import { getAllUsersIncludingInactive, deactivateUser } from '../../api/users';
+import { getAllUsersIncludingInactive, deactivateUser, activateUser } from '../../api/users';
 import { useReferenceData } from '../../hooks/useReferenceData';
 import useThemeStore from '../../hooks/useThemeStore';
 import { TIPOS_USUARIO, getTipoUsuarioLabel } from '../../types/user.types';
@@ -154,6 +155,17 @@ const UsersAdminPage: React.FC = () => {
     }
   };
 
+  const handleActivateUser = async (userId: number) => {
+    try {
+      await activateUser(userId);
+      message.success('Usuario reactivado exitosamente');
+      loadUsers();
+    } catch (error) {
+      message.error('Error al reactivar usuario');
+      console.error(error);
+    }
+  };
+
   const handleResetFilters = () => {
     setFilters({});
   };
@@ -212,16 +224,43 @@ const UsersAdminPage: React.FC = () => {
       title: 'Estado',
       dataIndex: 'estado',
       key: 'estado',
-      render: (estado) => (
-        <Tag color={estado === 1 ? 'green' : 'red'} icon={estado === 1 ? <CheckCircleOutlined /> : <StopOutlined />}>
-          {estado === 1 ? 'Activo' : 'Inactivo'}
-        </Tag>
-      ),
+      // El login exige estado=1 Y is_active (auth.service + jwt.strategy), asi
+      // que la etiqueta muestra el acceso REAL. Antes miraba solo `estado` y
+      // las cuentas con los campos en desacuerdo (heredadas de Django) se
+      // veian "Activo" aunque no pudieran entrar.
+      render: (_estado, record) => {
+        if (record.estado === 1 && record.is_active) {
+          return (
+            <Tag color="green" icon={<CheckCircleOutlined />}>
+              Activo
+            </Tag>
+          );
+        }
+        if (record.estado === 1 && !record.is_active) {
+          return (
+            <Tooltip title="Marcada como activa pero con is_active=false heredado: NO puede iniciar sesion. Usar Reactivar para corregirla.">
+              <Tag color="orange" icon={<WarningOutlined />}>
+                Bloqueado
+              </Tag>
+            </Tooltip>
+          );
+        }
+        return (
+          <Tag color="red" icon={<StopOutlined />}>
+            Inactivo
+          </Tag>
+        );
+      },
       filters: [
-        { text: 'Activo', value: 1 },
-        { text: 'Inactivo', value: 0 },
+        { text: 'Activo', value: 'activo' },
+        { text: 'Inactivo', value: 'inactivo' },
+        { text: 'Bloqueado (inconsistente)', value: 'bloqueado' },
       ],
-      onFilter: (value, record) => record.estado === value,
+      onFilter: (value, record) => {
+        if (value === 'activo') return record.estado === 1 && record.is_active;
+        if (value === 'bloqueado') return record.estado === 1 && !record.is_active;
+        return record.estado !== 1;
+      },
     },
     {
       title: 'Acciones',
@@ -298,7 +337,7 @@ const UsersAdminPage: React.FC = () => {
                   }}
                 />
               </Tooltip>
-              {record.estado === 1 && (
+              {record.estado === 1 && record.is_active ? (
                 <Popconfirm
                   title="¿Desactivar este usuario?"
                   description="El usuario no podrá iniciar sesión"
@@ -312,6 +351,23 @@ const UsersAdminPage: React.FC = () => {
                       danger
                       aria-label={`Desactivar a ${record.username}`}
                       icon={<DeleteOutlined />}
+                      size="small"
+                    />
+                  </Tooltip>
+                </Popconfirm>
+              ) : (
+                <Popconfirm
+                  title="¿Reactivar este usuario?"
+                  description="El usuario podrá iniciar sesión de nuevo"
+                  onConfirm={() => handleActivateUser(record.id)}
+                  okText="Sí, reactivar"
+                  cancelText="Cancelar"
+                >
+                  <Tooltip title="Reactivar">
+                    <Button
+                      type="text"
+                      aria-label={`Reactivar a ${record.username}`}
+                      icon={<UndoOutlined />}
                       size="small"
                     />
                   </Tooltip>
