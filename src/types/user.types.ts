@@ -33,6 +33,8 @@ export interface CreateUserPayload {
 }
 
 export interface UpdateUserPayload {
+  /** Credencial de inicio de sesion: cambiarlo cambia con que usuario entra */
+  username?: string;
   first_name?: string;
   last_name?: string;
   email?: string;

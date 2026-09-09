@@ -28,6 +28,7 @@ interface EditUserModalProps {
 
 /** Valores crudos del formulario de edición. */
 interface EditUserFormValues {
+  username: string;
   first_name: string;
   last_name: string;
   email: string;
@@ -60,6 +61,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ open, user, onClose, onSu
 
   const populateForm = () => {
     form.setFieldsValue({
+      username: user.username,
       first_name: user.first_name,
       last_name: user.last_name,
       email: user.email,
@@ -83,6 +85,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ open, user, onClose, onSu
       setLoading(true);
 
       const payload: UpdateUserPayload = {
+        username: values.username,
         first_name: values.first_name,
         last_name: values.last_name,
         email: values.email,
@@ -137,6 +140,28 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ open, user, onClose, onSu
         onFinish={handleSubmit}
       >
         <Divider orientation="left">Información Básica</Divider>
+
+        <Row gutter={16}>
+          <Col xs={24} md={12}>
+            {/* El username es la credencial de inicio de sesion: si se cambia,
+                la persona entra con el nuevo. Por eso el aviso explicito. */}
+            <Form.Item
+              name="username"
+              label="Username (usuario de inicio de sesión)"
+              extra="Si lo cambias, la persona deberá iniciar sesión con el nuevo username."
+              rules={[
+                { required: true, message: 'Username es requerido' },
+                { min: 3, message: 'Mínimo 3 caracteres' },
+                {
+                  pattern: /^[A-Za-z0-9._-]+$/,
+                  message: 'Solo letras, números, punto, guion y guion bajo',
+                },
+              ]}
+            >
+              <Input placeholder="ABC001" />
+            </Form.Item>
+          </Col>
+        </Row>
 
         <Row gutter={16}>
           <Col xs={24} md={12}>
