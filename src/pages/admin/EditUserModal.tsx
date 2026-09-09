@@ -10,9 +10,11 @@ import {
   Row,
   Col,
   Divider,
+  Alert,
 } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
-import { updateUser } from '../../api/users';
+import { updateUser, getUsernameUsage } from '../../api/users';
+import type { UsernameUsage } from '../../api/users';
 import { useReferenceData, invalidateReferenceData } from '../../hooks/useReferenceData';
 import { TIPOS_USUARIO } from '../../types/user.types';
 import type { UpdateUserPayload, User } from '../../types/user.types';
@@ -49,6 +51,9 @@ interface EditUserFormValues {
 const EditUserModal: React.FC<EditUserModalProps> = ({ open, user, onClose, onSuccess }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  // Lo que arrastra el username: renombrarlo rompe el join con Sirvo y deja
+  // huerfanas las filas de cargabilidad, sin lanzar ningun error.
+  const [usage, setUsage] = useState<UsernameUsage | null>(null);
 
   // Datos de referencia compartidos y cacheados (áreas, equipos, grupos, jefes).
   const { areas, equipos, groups, usuarios } = useReferenceData(open);
@@ -56,6 +61,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ open, user, onClose, onSu
   useEffect(() => {
     if (open && user) {
       populateForm();
+      setUsage(null);
+      getUsernameUsage(user.id)
+        .then((res) => setUsage(res.data))
+        .catch(() => setUsage(null)); // best-effort: no bloquea la edicion
     }
   }, [open, user]);
 
@@ -141,10 +150,63 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ open, user, onClose, onSu
       >
         <Divider orientation="left">Información Básica</Divider>
 
+        {/* El username es la credencial de inicio de sesion: si se cambia, la
+            persona entra con el nuevo. Y ademas es llave de datos (Sirvo,
+            cargabilidad), por eso los avisos. */}
+        {usage && usage.bloqueado && (
+          <Alert
+            type="error"
+            showIcon
+            style={{ marginBottom: 12 }}
+            message="Este username no se puede cambiar"
+            description={usage.motivoBloqueo}
+          />
+        )}
+        {usage &&
+          !usage.bloqueado &&
+          (usage.cheques > 0 ||
+            usage.cargabilidad > 0 ||
+            usage.historialCheques > 0) && (
+            <Alert
+              type="warning"
+              showIcon
+              style={{ marginBottom: 12 }}
+              message="Cuidado al cambiar el username"
+              description={
+                <>
+                  El username es llave de datos, no solo la credencial. Esta
+                  persona arrastra:
+                  <ul style={{ margin: '6px 0 6px 18px' }}>
+                    {usage.cheques > 0 && (
+                      <li>
+                        <strong>{usage.cheques}</strong> cheques — el sync de
+                        Sirvo busca al responsable por username y dejaria de
+                        encontrarlo
+                      </li>
+                    )}
+                    {usage.cargabilidad > 0 && (
+                      <li>
+                        <strong>{usage.cargabilidad}</strong> registros de
+                        cargabilidad, guardados por username (quedarian
+                        huérfanos)
+                      </li>
+                    )}
+                    {usage.historialCheques > 0 && (
+                      <li>
+                        <strong>{usage.historialCheques}</strong> entradas de
+                        historial de cheques
+                      </li>
+                    )}
+                  </ul>
+                  Si igual hay que renombrarlo, hay que actualizar esos datos
+                  también.
+                </>
+              }
+            />
+          )}
+
         <Row gutter={16}>
           <Col xs={24} md={12}>
-            {/* El username es la credencial de inicio de sesion: si se cambia,
-                la persona entra con el nuevo. Por eso el aviso explicito. */}
             <Form.Item
               name="username"
               label="Username (usuario de inicio de sesión)"

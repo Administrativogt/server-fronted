@@ -92,6 +92,23 @@ export const updateUser = (id: number, data: UpdateUserPayload) => axios.patch(`
 export const deactivateUser = (id: number) => axios.delete(`/users/${id}`);
 
 /**
+ * Que arrastra el username de un usuario antes de renombrarlo:
+ * cheques (el sync de Sirvo hace join por username), filas de cargabilidad
+ * y entradas de historial. Sirve para advertir en el modal de edicion.
+ */
+export interface UsernameUsage {
+  username: string;
+  bloqueado: boolean;
+  motivoBloqueo: string | null;
+  cheques: number;
+  cargabilidad: number;
+  historialCheques: number;
+}
+
+export const getUsernameUsage = (id: number) =>
+  axios.get<UsernameUsage>(`/users/${id}/username-usage`);
+
+/**
  * Reactivar usuario — deja la cuenta lista para iniciar sesion otra vez
  * (repone estado=1 e is_active=true, los dos campos que valida el login)
  */
