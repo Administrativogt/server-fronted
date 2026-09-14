@@ -294,48 +294,72 @@ const VAC_STYLES = `
     padding: 0 24px !important;
   }
 
-  /* ===== Overrides para modo oscuro ===== */
+  /* ===== Overrides para modo oscuro (paleta del sistema: #161824 / #1D1F2B / #232634 / #2C2F40) ===== */
   .vac-page[data-theme="dark"] .ant-table-thead > tr > th {
-    background: #1f1f1f !important;
-    color: #cfcfcf !important;
+    background: #232634 !important;
+    color: #A0A4B3 !important;
   }
   .vac-page[data-theme="dark"] .ant-table-tbody > tr:hover > td {
-    background: #262626 !important;
+    background: #262A3A !important;
   }
-  .vac-page[data-theme="dark"] .ant-tabs-tab-active .ant-tabs-tab-btn {
-    color: #91caff !important;
-  }
-  .vac-page[data-theme="dark"] .ant-tabs-ink-bar {
-    background: #91caff !important;
-  }
-  .vac-page[data-theme="dark"] .vac-timeline-entry {
-    background: #1f1f1f;
-    border-color: #303030;
-  }
-  .vac-page[data-theme="dark"] .vac-timeline-date { color: #8c8c8c; }
-  .vac-page[data-theme="dark"] .vac-timeline-flow { color: #9ca3af; }
-  .vac-page[data-theme="dark"] .vac-timeline-flow strong { color: #e5e7eb; }
-  .vac-page[data-theme="dark"] .vac-emp-name { color: #e5e7eb; }
+  .vac-page[data-theme="dark"] .ant-tabs-tab-active .ant-tabs-tab-btn { color: #8B9AF5 !important; }
+  .vac-page[data-theme="dark"] .ant-tabs-ink-bar { background: #8B9AF5 !important; }
 
-  /* ===== Contraste en modo oscuro: hero, secciones y formulario ===== */
-  /* El número, la unidad y la fecha usaban navy (#0C1D3E) → invisibles en oscuro */
+  .vac-page[data-theme="dark"] .vac-timeline-entry { background: #232634; border-color: #2C2F40; }
+  .vac-page[data-theme="dark"] .vac-timeline-date { color: #8A8F9E; }
+  .vac-page[data-theme="dark"] .vac-timeline-flow { color: #A0A4B3; }
+  .vac-page[data-theme="dark"] .vac-timeline-flow strong { color: #E5E7EB; }
+  .vac-page[data-theme="dark"] .vac-emp-name { color: #E5E7EB; }
+
+  /* Hero: número, unidad y fecha usaban navy → invisibles en oscuro */
+  .vac-page[data-theme="dark"] .vac-hero-card {
+    border-color: rgba(217,184,106,0.30) !important;
+    box-shadow: none !important;
+  }
   .vac-page[data-theme="dark"] .vac-hero-number { color: #F1F5F9; }
-  .vac-page[data-theme="dark"] .vac-hero-number--low { color: #FF6B6B; }
+  .vac-page[data-theme="dark"] .vac-hero-number--low { color: #F87171; }
   .vac-page[data-theme="dark"] .vac-hero-label,
   .vac-page[data-theme="dark"] .vac-hero-unit,
   .vac-page[data-theme="dark"] .vac-hero-entry-date { color: #AAB3C7; }
   .vac-page[data-theme="dark"] .vac-hero-entry-date strong { color: #E8EDF6; }
-  /* Trail de la barra de progreso: evita la barra clara sobre fondo oscuro */
   .vac-page[data-theme="dark"] .vac-hero-card .ant-progress-inner { background: #2C2F40 !important; }
-  /* Títulos y bordes de tarjetas de sección / formulario */
+
+  /* Tarjetas de estadísticas: de pastel claro a tinte translúcido sobre oscuro */
+  .vac-page[data-theme="dark"] .vac-stat-card {
+    box-shadow: none !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+  }
+  .vac-page[data-theme="dark"] .vac-stat-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.35) !important; }
+  .vac-page[data-theme="dark"] .vac-stat-card--pending  { background: linear-gradient(135deg, rgba(217,119,6,0.18), rgba(217,119,6,0.05)); }
+  .vac-page[data-theme="dark"] .vac-stat-card--approved { background: linear-gradient(135deg, rgba(5,150,105,0.20), rgba(5,150,105,0.05)); }
+  .vac-page[data-theme="dark"] .vac-stat-card--rejected { background: linear-gradient(135deg, rgba(220,38,38,0.20), rgba(220,38,38,0.05)); }
+  .vac-page[data-theme="dark"] .vac-stat-card--total    { background: linear-gradient(135deg, rgba(99,102,241,0.24), rgba(99,102,241,0.06)); }
+
+  /* Badges de estado */
+  .vac-page[data-theme="dark"] .vac-badge--PENDIENTE  { background: rgba(217,119,6,0.18); color: #FCD34D; }
+  .vac-page[data-theme="dark"] .vac-badge--APROBADA   { background: rgba(5,150,105,0.20); color: #6EE7B7; }
+  .vac-page[data-theme="dark"] .vac-badge--RECHAZADA  { background: rgba(220,38,38,0.20); color: #FCA5A5; }
+  .vac-page[data-theme="dark"] .vac-badge--CANCELADA  { background: rgba(255,255,255,0.08); color: #A0A4B3; }
+  .vac-page[data-theme="dark"] .vac-badge--CANCELADA  .vac-badge-dot { background: #6B7280; }
+
+  /* Tarjetas de sección y formulario */
+  .vac-page[data-theme="dark"] .vac-section-card,
+  .vac-page[data-theme="dark"] .vac-form-card { box-shadow: none !important; }
   .vac-page[data-theme="dark"] .vac-section-card .ant-card-head-title { color: #ECEDF2; }
   .vac-page[data-theme="dark"] .vac-section-card { border-color: rgba(255,255,255,0.10) !important; }
   .vac-page[data-theme="dark"] .vac-section-card .ant-card-head { border-bottom-color: rgba(255,255,255,0.08); }
   .vac-page[data-theme="dark"] .vac-form-card {
+    border-left-color: #D9B86A !important;
     border-top-color: rgba(255,255,255,0.10) !important;
     border-right-color: rgba(255,255,255,0.10) !important;
     border-bottom-color: rgba(255,255,255,0.10) !important;
   }
+
+  /* Botón principal: índigo del sistema en vez de navy (se perdía sobre oscuro) */
+  .vac-page[data-theme="dark"] .vac-primary-btn { background: linear-gradient(135deg, #3C50E0, #5B6DF0) !important; }
+
+  /* Calendario: chip "+N más" */
+  .vac-page[data-theme="dark"] .vac-cal-more:hover { background: #2C2F40 !important; color: #E5E7EB !important; }
 `;
 
 // ============================================
@@ -356,6 +380,76 @@ const CALENDAR_COLORS = [
   { bg: '#FEE2E2', color: '#991B1B' },
   { bg: '#ECFDF5', color: '#064E3B' },
   { bg: '#FFF7ED', color: '#9A3412' },
+];
+
+// ============================================
+// PALETA CLARO / OSCURO
+// Los colores inline del JSX salen de aquí (P.*) para que el modo oscuro
+// no herede navy/grises pensados para fondo blanco. El CSS de VAC_STYLES
+// usa [data-theme="dark"] para lo que va por clase.
+// ============================================
+
+const VAC_LIGHT = {
+  navy: '#0C1D3E',
+  label: '#374151',
+  textStrong: '#1F2937',
+  textMuted: '#6B7280',
+  green: '#059669',
+  red: '#DC2626',
+  amber: '#D97706',
+  blue: '#3B82F6',
+  gold: '#C9A84C',
+  indigoText: '#3730A3',
+  indigoSoft: '#EEF2FF',
+  warnBg: '#FEF3C7',
+  warnText: '#92400E',
+  surfaceSoft: '#F9FAFB',
+  neutralChipBg: '#F3F4F6',
+  border: '#E5E7EB',
+  borderSoft: '#F1F5F9',
+  divider: 'rgba(12,29,62,0.07)',
+  trail: '#EEF2FF',
+  progressEnd: '#0C1D3E',
+  btnBg: '#0C1D3E',
+  greenBtn: '#059669',
+  primaryGradient: 'linear-gradient(135deg, #0C1D3E, #1D3D7A)',
+};
+
+const VAC_DARK: typeof VAC_LIGHT = {
+  navy: '#E8EDF6',
+  label: '#C5CAD6',
+  textStrong: '#E5E7EB',
+  textMuted: '#A0A4B3',
+  green: '#34D399',
+  red: '#F87171',
+  amber: '#FBBF24',
+  blue: '#60A5FA',
+  gold: '#D9B86A',
+  indigoText: '#A5B4FC',
+  indigoSoft: 'rgba(99,102,241,0.18)',
+  warnBg: 'rgba(217,119,6,0.16)',
+  warnText: '#FCD34D',
+  surfaceSoft: '#232634',
+  neutralChipBg: '#2C2F40',
+  border: '#2C2F40',
+  borderSoft: '#2C2F40',
+  divider: 'rgba(255,255,255,0.08)',
+  trail: '#2C2F40',
+  progressEnd: '#818CF8',
+  btnBg: '#3C50E0',
+  greenBtn: '#059669',
+  primaryGradient: 'linear-gradient(135deg, #3C50E0, #5B6DF0)',
+};
+
+const CALENDAR_COLORS_DARK = [
+  { bg: 'rgba(59,130,246,0.22)',  color: '#93C5FD' },
+  { bg: 'rgba(16,185,129,0.22)',  color: '#6EE7B7' },
+  { bg: 'rgba(236,72,153,0.22)',  color: '#F9A8D4' },
+  { bg: 'rgba(245,158,11,0.22)',  color: '#FCD34D' },
+  { bg: 'rgba(139,92,246,0.22)',  color: '#C4B5FD' },
+  { bg: 'rgba(239,68,68,0.22)',   color: '#FCA5A5' },
+  { bg: 'rgba(5,150,105,0.22)',   color: '#A7F3D0' },
+  { bg: 'rgba(249,115,22,0.22)',  color: '#FDBA74' },
 ];
 
 // ============================================
@@ -433,6 +527,9 @@ const VacacionesPage: React.FC = () => {
   const isSuperuser = useAuthStore((s) => s.is_superuser);
   const username = useAuthStore((s) => s.username);
   const themeMode = useThemeStore((s) => s.mode);
+  const isDark = themeMode === 'dark';
+  const P = isDark ? VAC_DARK : VAC_LIGHT;
+  const calColors = isDark ? CALENDAR_COLORS_DARK : CALENDAR_COLORS;
 
   const isHR =
     isSuperuser || ['MEJ000', 'TOR002', 'BAR000'].includes(username);
@@ -1204,7 +1301,7 @@ const VacacionesPage: React.FC = () => {
         dataIndex: 'dias_solicitados',
         width: 70,
         render: (v: number) => (
-          <span style={{ fontWeight: 600, color: '#0C1D3E' }}>{v}</span>
+          <span style={{ fontWeight: 600, color: P.navy }}>{v}</span>
         ),
       },
       {
@@ -1262,7 +1359,7 @@ const VacacionesPage: React.FC = () => {
         ),
       },
     ],
-    [cancelingId],
+    [cancelingId, isDark],
   );
 
   const allRequestColumns = useMemo(
@@ -1332,7 +1429,7 @@ const VacacionesPage: React.FC = () => {
         dataIndex: 'dias_solicitados',
         width: 65,
         render: (v: number) => (
-          <span style={{ fontWeight: 600, color: '#0C1D3E' }}>{v}</span>
+          <span style={{ fontWeight: 600, color: P.navy }}>{v}</span>
         ),
       },
       {
@@ -1359,7 +1456,7 @@ const VacacionesPage: React.FC = () => {
                   icon={<CheckCircleOutlined />}
                   loading={approvingId === record.id}
                   onClick={() => handleApprove(record.id)}
-                  style={{ borderRadius: 6, background: '#059669', border: 'none', fontWeight: 600 }}
+                  style={{ borderRadius: 6, background: P.greenBtn, border: 'none', fontWeight: 600 }}
                 >
                   Aprobar
                 </Button>
@@ -1421,7 +1518,7 @@ const VacacionesPage: React.FC = () => {
         ),
       },
     ],
-    [approvingId],
+    [approvingId, isDark],
   );
 
   const balanceColumns = useMemo(
@@ -1454,7 +1551,7 @@ const VacacionesPage: React.FC = () => {
         dataIndex: 'previous_year',
         width: 120,
         render: (v: number) => (
-          <span style={{ fontWeight: 600, color: Number(v) < 0 ? '#DC2626' : '#3B82F6' }}>
+          <span style={{ fontWeight: 600, color: Number(v) < 0 ? P.red : P.blue }}>
             {Number(v)}
           </span>
         ),
@@ -1464,7 +1561,7 @@ const VacacionesPage: React.FC = () => {
         dataIndex: 'earned_this_year',
         width: 120,
         render: (v: number) => (
-          <span style={{ fontWeight: 600, color: '#059669' }}>{Number(v)}</span>
+          <span style={{ fontWeight: 600, color: P.green }}>{Number(v)}</span>
         ),
       },
       {
@@ -1472,7 +1569,7 @@ const VacacionesPage: React.FC = () => {
         dataIndex: 'used_this_year',
         width: 80,
         render: (v: number) => (
-          <span style={{ fontWeight: 600, color: '#DC2626' }}>{Number(v)}</span>
+          <span style={{ fontWeight: 600, color: P.red }}>{Number(v)}</span>
         ),
       },
       {
@@ -1486,7 +1583,7 @@ const VacacionesPage: React.FC = () => {
               <span style={{
                 fontFamily: "'Playfair Display', serif",
                 fontWeight: 700, fontSize: 17,
-                color: val < 0 ? '#DC2626' : val < 5 ? '#D97706' : '#0C1D3E',
+                color: val < 0 ? P.red : val < 5 ? P.amber : P.navy,
               }}>
                 {val}
               </span>
@@ -1522,7 +1619,7 @@ const VacacionesPage: React.FC = () => {
                   icon={<GiftOutlined />}
                   loading={creditingUserId === record.user?.id}
                   onClick={() => record.user && handleCreditAnniversary(record.user.id, getUserName(record.user))}
-                  style={{ borderRadius: 6, color: '#059669', borderColor: '#059669' }}
+                  style={{ borderRadius: 6, color: P.green, borderColor: P.green }}
                 />
               </Tooltip>
             )}
@@ -1530,7 +1627,7 @@ const VacacionesPage: React.FC = () => {
         ),
       },
     ],
-    [creditingUserId],
+    [creditingUserId, isDark],
   );
 
   // ============================================
@@ -1562,8 +1659,8 @@ const VacacionesPage: React.FC = () => {
               <Progress
                 percent={progressPercent}
                 showInfo={false}
-                strokeColor={isLow ? '#DC2626' : { '0%': '#C9A84C', '100%': '#0C1D3E' }}
-                trailColor="#EEF2FF"
+                strokeColor={isLow ? P.red : { '0%': P.gold, '100%': P.progressEnd }}
+                trailColor={P.trail}
                 strokeWidth={7}
                 style={{ marginBottom: 10 }}
               />
@@ -1571,8 +1668,8 @@ const VacacionesPage: React.FC = () => {
               {pendingDays > 0 && (
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 6,
-                  background: '#FEF3C7', borderRadius: 8, padding: '6px 10px',
-                  marginBottom: 10, fontSize: 12, color: '#92400E',
+                  background: P.warnBg, borderRadius: 8, padding: '6px 10px',
+                  marginBottom: 10, fontSize: 12, color: P.warnText,
                 }}>
                   <span style={{ fontWeight: 700 }}>⏳ {pendingDays} día{pendingDays !== 1 ? 's' : ''}</span>
                   <span>reservado{pendingDays !== 1 ? 's' : ''} en solicitudes pendientes</span>
@@ -1584,12 +1681,12 @@ const VacacionesPage: React.FC = () => {
                 <div style={{
                   display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
                   gap: '8px', marginBottom: 12,
-                  padding: '10px 0', borderTop: '1px solid rgba(12,29,62,0.07)',
+                  padding: '10px 0', borderTop: `1px solid ${P.divider}`,
                 }}>
                   {[
-                    { label: `Período ${vacBalance.previous_period ?? ''}`, value: vacBalance.previous_year, color: '#3B82F6' },
-                    { label: `Período ${vacBalance.current_period ?? ''}`, value: vacBalance.earned_this_year, color: '#059669' },
-                    { label: 'Usado', value: vacBalance.used_this_year, color: '#DC2626' },
+                    { label: `Período ${vacBalance.previous_period ?? ''}`, value: vacBalance.previous_year, color: P.blue },
+                    { label: `Período ${vacBalance.current_period ?? ''}`, value: vacBalance.earned_this_year, color: P.green },
+                    { label: 'Usado', value: vacBalance.used_this_year, color: P.red },
                   ].map((item) => (
                     <div key={item.label} style={{ textAlign: 'center' }}>
                       <div style={{ fontSize: 18, fontWeight: 700, color: item.color, fontFamily: "'Playfair Display', serif" }}>
@@ -1604,7 +1701,7 @@ const VacacionesPage: React.FC = () => {
               )}
               {myData?.fecha_ingreso ? (
                 <div className="vac-hero-entry-date">
-                  <CalendarOutlined style={{ marginRight: 5, color: '#C9A84C' }} />
+                  <CalendarOutlined style={{ marginRight: 5, color: P.gold }} />
                   Ingreso: <strong>{dayjs(myData.fecha_ingreso).format('DD/MM/YYYY')}</strong>
                 </div>
               ) : (
@@ -1633,15 +1730,15 @@ const VacacionesPage: React.FC = () => {
                 <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#8895B8', marginBottom: 6 }}>
                   {b.time_off_label}
                 </div>
-                <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 40, fontWeight: 700, color: b.available < 0 ? '#DC2626' : '#0C1D3E', lineHeight: 1 }}>
+                <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 40, fontWeight: 700, color: b.available < 0 ? P.red : P.navy, lineHeight: 1 }}>
                   {Number(b.available)}
                 </div>
                 <div style={{ fontSize: 12, color: '#8895B8', marginBottom: 10 }}>días disponibles</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
                   {[
-                    { label: b.previous_period ?? 'Anterior', value: b.previous_year, color: '#3B82F6' },
-                    { label: b.current_period ?? 'Actual', value: b.earned_this_year, color: '#059669' },
-                    { label: 'Usado', value: b.used_this_year, color: '#DC2626' },
+                    { label: b.previous_period ?? 'Anterior', value: b.previous_year, color: P.blue },
+                    { label: b.current_period ?? 'Actual', value: b.earned_this_year, color: P.green },
+                    { label: 'Usado', value: b.used_this_year, color: P.red },
                   ].map((item) => (
                     <div key={item.label} style={{ textAlign: 'center' }}>
                       <div style={{ fontSize: 15, fontWeight: 700, color: item.color }}>{Number(item.value)}</div>
@@ -1683,7 +1780,7 @@ const VacacionesPage: React.FC = () => {
             {/* Tipo de ausencia */}
             <Form.Item
               name="time_off_type"
-              label={<span style={{ fontWeight: 600, color: '#374151' }}>Tipo de solicitud</span>}
+              label={<span style={{ fontWeight: 600, color: P.label }}>Tipo de solicitud</span>}
               rules={[{ required: true, message: 'Selecciona el tipo' }]}
             >
               <Select
@@ -1696,7 +1793,7 @@ const VacacionesPage: React.FC = () => {
             {/* Duración */}
             <Form.Item
               name="request_type"
-              label={<span style={{ fontWeight: 600, color: '#374151' }}>Duración</span>}
+              label={<span style={{ fontWeight: 600, color: P.label }}>Duración</span>}
               rules={[{ required: true, message: 'Selecciona la duración' }]}
             >
               <Select options={REQUEST_TYPE_OPTIONS} style={{ borderRadius: 8 }} />
@@ -1712,7 +1809,7 @@ const VacacionesPage: React.FC = () => {
                     <Col span={12}>
                       <Form.Item
                         name="fecha_inicio"
-                        label={<span style={{ fontWeight: 600, color: '#374151' }}>Fecha</span>}
+                        label={<span style={{ fontWeight: 600, color: P.label }}>Fecha</span>}
                         rules={[{ required: true, message: 'Selecciona la fecha' }]}
                       >
                         <DatePicker
@@ -1725,7 +1822,7 @@ const VacacionesPage: React.FC = () => {
                     <Col span={12}>
                       <Form.Item
                         name="hora_inicio"
-                        label={<span style={{ fontWeight: 600, color: '#374151' }}>Hora de inicio</span>}
+                        label={<span style={{ fontWeight: 600, color: P.label }}>Hora de inicio</span>}
                         rules={[{ required: true, message: 'Selecciona la hora' }]}
                       >
                         <TimePicker
@@ -1740,7 +1837,7 @@ const VacacionesPage: React.FC = () => {
                 ) : (
                   <Form.Item
                     name="rango"
-                    label={<span style={{ fontWeight: 600, color: '#374151' }}>Rango de fechas</span>}
+                    label={<span style={{ fontWeight: 600, color: P.label }}>Rango de fechas</span>}
                     rules={[{ required: true, message: 'Selecciona las fechas' }]}
                     extra={
                       <Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
@@ -1761,7 +1858,7 @@ const VacacionesPage: React.FC = () => {
             <Form.Item
               name="comentarios"
               label={
-                <span style={{ fontWeight: 600, color: '#374151' }}>
+                <span style={{ fontWeight: 600, color: P.label }}>
                   Comentarios <Text type="secondary" style={{ fontWeight: 400 }}>(opcional)</Text>
                 </span>
               }
@@ -1793,7 +1890,7 @@ const VacacionesPage: React.FC = () => {
           className="vac-section-card"
           title={
             <Space>
-              <UserOutlined style={{ color: '#C9A84C' }} />
+              <UserOutlined style={{ color: P.gold }} />
               <span>Mis solicitudes</span>
             </Space>
           }
@@ -1820,7 +1917,7 @@ const VacacionesPage: React.FC = () => {
           className="vac-section-card"
           title={
             <Space>
-              <HistoryOutlined style={{ color: '#C9A84C' }} />
+              <HistoryOutlined style={{ color: P.gold }} />
               <span>Historial de mi saldo</span>
             </Space>
           }
@@ -1845,7 +1942,7 @@ const VacacionesPage: React.FC = () => {
                   ANIVERSARIO:   { color: '#C9A84C', label: 'Aniversario'  },
                   AJUSTE_MANUAL: { color: '#3B82F6', label: 'Ajuste manual'},
                 };
-                const cfg = LOG_CONFIG[entry.tipo] ?? { color: '#6B7280', label: entry.tipo };
+                const cfg = LOG_CONFIG[entry.tipo] ?? { color: P.textMuted, label: entry.tipo };
                 const isPositive = Number(entry.dias) >= 0;
                 return {
                   color: cfg.color,
@@ -1856,11 +1953,11 @@ const VacacionesPage: React.FC = () => {
                         {entry.solicitud && (
                           <span style={{
                             marginLeft: 8,
-                            background: '#EEF2FF',
+                            background: P.indigoSoft,
                             borderRadius: 4,
                             padding: '1px 7px',
                             fontSize: 11,
-                            color: '#3730A3',
+                            color: P.indigoText,
                             fontWeight: 500,
                           }}>
                             Solicitud #{entry.solicitud.id}
@@ -1901,10 +1998,10 @@ const VacacionesPage: React.FC = () => {
       {/* Stats cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: 28 }}>
         {[
-          { label: 'Pendientes',       value: hrStats.pending,  cls: 'pending',  color: '#D97706', icon: <CalendarOutlined /> },
-          { label: 'Aprobadas',        value: hrStats.approved, cls: 'approved', color: '#059669', icon: <CheckCircleOutlined /> },
-          { label: 'Rechazadas',       value: hrStats.rejected, cls: 'rejected', color: '#DC2626', icon: <CloseCircleOutlined /> },
-          { label: 'Total solicitudes',value: hrStats.total,    cls: 'total',    color: '#3730A3', icon: <TeamOutlined /> },
+          { label: 'Pendientes',       value: hrStats.pending,  cls: 'pending',  color: P.amber, icon: <CalendarOutlined /> },
+          { label: 'Aprobadas',        value: hrStats.approved, cls: 'approved', color: P.green, icon: <CheckCircleOutlined /> },
+          { label: 'Rechazadas',       value: hrStats.rejected, cls: 'rejected', color: P.red, icon: <CloseCircleOutlined /> },
+          { label: 'Total solicitudes',value: hrStats.total,    cls: 'total',    color: P.indigoText, icon: <TeamOutlined /> },
         ].map((s) => (
           <Col xs={12} md={6} key={s.label}>
             <Card className={`vac-stat-card vac-stat-card--${s.cls}`} size="small">
@@ -1931,7 +2028,7 @@ const VacacionesPage: React.FC = () => {
         className="vac-section-card"
         title={
           <Space>
-            <CalendarOutlined style={{ color: '#C9A84C' }} />
+            <CalendarOutlined style={{ color: P.gold }} />
             <span>Días de vacaciones gozados</span>
           </Space>
         }
@@ -1979,7 +2076,7 @@ const VacacionesPage: React.FC = () => {
             </div>
             <div style={{
               fontFamily: "'Playfair Display', serif",
-              fontSize: 64, fontWeight: 700, color: '#0C1D3E', lineHeight: 1,
+              fontSize: 64, fontWeight: 700, color: P.navy, lineHeight: 1,
             }}>
               {daysUsedLoading ? '—' : (daysUsedStats?.total_days ?? 0)}
             </div>
@@ -1996,11 +2093,11 @@ const VacacionesPage: React.FC = () => {
                 return (
                   <div key={row.equipo_id ?? 'sin-equipo'} style={{ marginBottom: 12 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <Text style={{ fontSize: 13, fontWeight: 500, color: '#1F2937' }}>
+                      <Text style={{ fontSize: 13, fontWeight: 500, color: P.textStrong }}>
                         {row.equipo_nombre}
                       </Text>
                       <Space size={12}>
-                        <Text style={{ fontSize: 13, fontWeight: 700, color: '#0C1D3E' }}>
+                        <Text style={{ fontSize: 13, fontWeight: 700, color: P.navy }}>
                           {row.total_days} días
                         </Text>
                         <Text type="secondary" style={{ fontSize: 11 }}>
@@ -2011,8 +2108,8 @@ const VacacionesPage: React.FC = () => {
                     <Progress
                       percent={pct}
                       showInfo={false}
-                      strokeColor={{ '0%': '#C9A84C', '100%': '#0C1D3E' }}
-                      trailColor="#EEF2FF"
+                      strokeColor={{ '0%': P.gold, '100%': P.progressEnd }}
+                      trailColor={P.trail}
                       strokeWidth={6}
                     />
                   </div>
@@ -2053,7 +2150,7 @@ const VacacionesPage: React.FC = () => {
         >
           <Form.Item
             name="user_id"
-            label={<span style={{ fontWeight: 600, color: '#374151' }}>Empleado</span>}
+            label={<span style={{ fontWeight: 600, color: P.label }}>Empleado</span>}
             rules={[{ required: true, message: 'Selecciona un empleado' }]}
           >
             <Select
@@ -2070,7 +2167,7 @@ const VacacionesPage: React.FC = () => {
 
           <Form.Item
             name="time_off_type"
-            label={<span style={{ fontWeight: 600, color: '#374151' }}>Tipo de solicitud</span>}
+            label={<span style={{ fontWeight: 600, color: P.label }}>Tipo de solicitud</span>}
             rules={[{ required: true }]}
           >
             <Select options={TIME_OFF_OPTIONS} style={{ borderRadius: 8 }} />
@@ -2078,7 +2175,7 @@ const VacacionesPage: React.FC = () => {
 
           <Form.Item
             name="request_type"
-            label={<span style={{ fontWeight: 600, color: '#374151' }}>Duración</span>}
+            label={<span style={{ fontWeight: 600, color: P.label }}>Duración</span>}
             rules={[{ required: true }]}
           >
             <Select options={REQUEST_TYPE_OPTIONS} style={{ borderRadius: 8 }} />
@@ -2109,7 +2206,7 @@ const VacacionesPage: React.FC = () => {
             }}
           </Form.Item>
 
-          <Form.Item name="comentarios" label={<span style={{ fontWeight: 600, color: '#374151' }}>Comentarios <Text type="secondary" style={{ fontWeight: 400 }}>(opcional)</Text></span>}>
+          <Form.Item name="comentarios" label={<span style={{ fontWeight: 600, color: P.label }}>Comentarios <Text type="secondary" style={{ fontWeight: 400 }}>(opcional)</Text></span>}>
             <Input.TextArea rows={2} maxLength={500} showCount style={{ borderRadius: 8 }} />
           </Form.Item>
 
@@ -2132,7 +2229,7 @@ const VacacionesPage: React.FC = () => {
         className="vac-section-card"
         title={
           <Space>
-            <TeamOutlined style={{ color: '#C9A84C' }} />
+            <TeamOutlined style={{ color: P.gold }} />
             <span>Solicitudes de empleados</span>
           </Space>
         }
@@ -2170,7 +2267,7 @@ const VacacionesPage: React.FC = () => {
         className="vac-section-card"
         title={
           <Space>
-            <WalletOutlined style={{ color: '#C9A84C' }} />
+            <WalletOutlined style={{ color: P.gold }} />
             <span>Saldos de vacaciones</span>
           </Space>
         }
@@ -2181,7 +2278,7 @@ const VacacionesPage: React.FC = () => {
               icon={<UserAddOutlined />}
               onClick={() => setAddModalOpen(true)}
               size="small"
-              style={{ borderRadius: 6, background: 'linear-gradient(135deg, #0C1D3E, #1D3D7A)', border: 'none', fontWeight: 600 }}
+              style={{ borderRadius: 6, background: P.primaryGradient, border: 'none', fontWeight: 600 }}
             >
               Registrar
             </Button>
@@ -2213,7 +2310,7 @@ const VacacionesPage: React.FC = () => {
                 loading={rollingOver}
                 onClick={handleRollover}
                 size="small"
-                style={{ borderRadius: 6, color: '#D97706', borderColor: '#D97706' }}
+                style={{ borderRadius: 6, color: P.amber, borderColor: P.amber }}
               >
                 Rollover año
               </Button>
@@ -2237,8 +2334,8 @@ const VacacionesPage: React.FC = () => {
         {editingBalance !== null && (
           <Card
             size="small"
-            style={{ marginBottom: 16, background: '#F9FAFB', borderRadius: 10, border: '1px solid #E5E7EB' }}
-            title={<span style={{ fontSize: 13, fontWeight: 600, color: '#0C1D3E' }}>Editar saldo</span>}
+            style={{ marginBottom: 16, background: P.surfaceSoft, borderRadius: 10, border: `1px solid ${P.border}` }}
+            title={<span style={{ fontSize: 13, fontWeight: 600, color: P.navy }}>Editar saldo</span>}
           >
             <Form form={balanceForm} layout="inline" style={{ flexWrap: 'wrap', gap: 8 }}>
               <Form.Item name="fecha_ingreso" label="Fecha ingreso" rules={[{ required: true, message: 'Requerido' }]}>
@@ -2259,7 +2356,7 @@ const VacacionesPage: React.FC = () => {
               <Form.Item>
                 <Space>
                   <Button type="primary" loading={savingBalance} onClick={() => handleSaveBalance(editingBalance)}
-                    style={{ borderRadius: 6, background: '#0C1D3E', border: 'none', fontWeight: 600 }}>
+                    style={{ borderRadius: 6, background: P.btnBg, border: 'none', fontWeight: 600 }}>
                     Guardar
                   </Button>
                   <Button onClick={() => { setEditingBalance(null); balanceForm.resetFields(); }} style={{ borderRadius: 6 }}>
@@ -2322,7 +2419,7 @@ const VacacionesPage: React.FC = () => {
                 name="max_days_request"
                 label={
                   <Space direction="vertical" size={0}>
-                    <span style={{ fontWeight: 600, color: '#374151' }}>Máximo días por solicitud</span>
+                    <span style={{ fontWeight: 600, color: P.label }}>Máximo días por solicitud</span>
                     <Text type="secondary" style={{ fontSize: 11, fontWeight: 400 }}>
                       Días hábiles que puede pedir un empleado en una sola solicitud
                     </Text>
@@ -2348,7 +2445,7 @@ const VacacionesPage: React.FC = () => {
               loading={savingSettings}
               onClick={handleSaveSettings}
               style={{
-                background: 'linear-gradient(135deg, #0C1D3E, #1D3D7A)',
+                background: P.primaryGradient,
                 border: 'none', borderRadius: 8, fontWeight: 600, height: 38,
               }}
             >
@@ -2362,7 +2459,7 @@ const VacacionesPage: React.FC = () => {
       <Modal
         title={
           <Space>
-            <UserAddOutlined style={{ color: '#C9A84C' }} />
+            <UserAddOutlined style={{ color: P.gold }} />
             <span style={{ fontWeight: 600 }}>Registrar empleado en vacaciones</span>
           </Space>
         }
@@ -2373,7 +2470,7 @@ const VacacionesPage: React.FC = () => {
         okText="Registrar"
         cancelText="Cancelar"
         destroyOnClose
-        okButtonProps={{ style: { background: '#0C1D3E', border: 'none', borderRadius: 6, fontWeight: 600 } }}
+        okButtonProps={{ style: { background: P.btnBg, border: 'none', borderRadius: 6, fontWeight: 600 } }}
         cancelButtonProps={{ style: { borderRadius: 6 } }}
       >
         <Form form={addForm} layout="vertical" style={{ marginTop: 16 }}
@@ -2466,19 +2563,19 @@ const VacacionesPage: React.FC = () => {
         title: `Período ${year - 1}`,
         dataIndex: 'previous_year',
         width: 120,
-        render: (v: number | null) => num(v, v !== null && v < 0 ? '#DC2626' : '#3B82F6'),
+        render: (v: number | null) => num(v, v !== null && v < 0 ? P.red : P.blue),
       },
       {
         title: `Período ${year}`,
         dataIndex: 'earned_this_year',
         width: 120,
-        render: (v: number | null) => num(v, '#059669'),
+        render: (v: number | null) => num(v, P.green),
       },
       {
         title: 'Usado',
         dataIndex: 'used_this_year',
         width: 90,
-        render: (v: number | null) => num(v, '#DC2626'),
+        render: (v: number | null) => num(v, P.red),
       },
       {
         title: 'Disponible',
@@ -2498,7 +2595,7 @@ const VacacionesPage: React.FC = () => {
               <span style={{
                 fontFamily: "'Playfair Display', serif",
                 fontWeight: 700, fontSize: 17,
-                color: v < 0 ? '#DC2626' : v < 5 ? '#D97706' : '#0C1D3E',
+                color: v < 0 ? P.red : v < 5 ? P.amber : P.navy,
               }}>
                 {v}
               </span>
@@ -2531,7 +2628,7 @@ const VacacionesPage: React.FC = () => {
         className="vac-section-card"
         title={
           <Space>
-            <TeamOutlined style={{ color: '#C9A84C' }} />
+            <TeamOutlined style={{ color: P.gold }} />
             <span>
               {isHR && selectedJefe
                 ? `Equipo de ${selectedJefe.first_name} ${selectedJefe.last_name}`.trim()
@@ -2568,16 +2665,16 @@ const VacacionesPage: React.FC = () => {
         )}
         <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
           {[
-            { label: 'Integrantes', value: teamBalances.length, cls: 'total', color: '#4338CA', icon: <TeamOutlined /> },
-            { label: 'Días disponibles (suma)', value: totalDisponible, cls: 'approved', color: '#059669', icon: <CalendarOutlined /> },
-            { label: 'Con solicitudes pendientes', value: conPendientes, cls: 'pending', color: '#D97706', icon: <ClockCircleOutlined /> },
-            { label: 'Sin saldo registrado', value: sinSaldo, cls: 'rejected', color: '#DC2626', icon: <InfoCircleOutlined /> },
+            { label: 'Integrantes', value: teamBalances.length, cls: 'total', color: P.indigoText, icon: <TeamOutlined /> },
+            { label: 'Días disponibles (suma)', value: totalDisponible, cls: 'approved', color: P.green, icon: <CalendarOutlined /> },
+            { label: 'Con solicitudes pendientes', value: conPendientes, cls: 'pending', color: P.amber, icon: <ClockCircleOutlined /> },
+            { label: 'Sin saldo registrado', value: sinSaldo, cls: 'rejected', color: P.red, icon: <InfoCircleOutlined /> },
           ].map((s) => (
             <Col xs={12} md={6} key={s.label}>
               <Card className={`vac-stat-card vac-stat-card--${s.cls}`} size="small">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 500 }}>{s.label}</div>
+                    <div style={{ fontSize: 11, color: P.textMuted, fontWeight: 500 }}>{s.label}</div>
                     <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, fontWeight: 700, color: s.color }}>{s.value}</div>
                   </div>
                   <span style={{ fontSize: 20, color: s.color, opacity: 0.7 }}>{s.icon}</span>
@@ -2646,7 +2743,7 @@ const VacacionesPage: React.FC = () => {
       loading={calendarLoading}
       title={
         <Space>
-          <CalendarOutlined style={{ color: '#C9A84C' }} />
+          <CalendarOutlined style={{ color: P.gold }} />
           <span>{isHR ? 'Vacaciones aprobadas del equipo' : 'Vacaciones aprobadas de tu equipo'}</span>
         </Space>
       }
@@ -2685,7 +2782,7 @@ const VacacionesPage: React.FC = () => {
           return (
             <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
               {people.slice(0, 3).map((p, idx) => {
-                const chipColor = CALENDAR_COLORS[p.id % CALENDAR_COLORS.length];
+                const chipColor = calColors[p.id % calColors.length];
                 return (
                   <Tooltip key={`${p.id}-${idx}`} title={p.name}>
                     <li>
@@ -2708,7 +2805,7 @@ const VacacionesPage: React.FC = () => {
                     content={
                       <ul style={{ margin: 0, padding: 0, listStyle: 'none', minWidth: 260 }}>
                         {people.map((p, idx) => {
-                          const c = CALENDAR_COLORS[p.id % CALENDAR_COLORS.length];
+                          const c = calColors[p.id % calColors.length];
                           return (
                             <li
                               key={`${p.id}-${idx}`}
@@ -2733,7 +2830,7 @@ const VacacionesPage: React.FC = () => {
                   >
                     <span
                       className="vac-cal-chip vac-cal-more"
-                      style={{ background: '#F3F4F6', color: '#6B7280', cursor: 'pointer' }}
+                      style={{ background: P.neutralChipBg, color: P.textMuted, cursor: 'pointer' }}
                       onClick={(e) => e.stopPropagation()}
                     >
                       +{people.length - 3} más · ver todos
@@ -2761,7 +2858,7 @@ const VacacionesPage: React.FC = () => {
         key: 'fecha',
         width: 120,
         render: (_: unknown, r: Holiday) => (
-          <span style={{ fontWeight: 600, color: '#0C1D3E' }}>
+          <span style={{ fontWeight: 600, color: P.navy }}>
             {String(r.day).padStart(2, '0')} {MONTHS[r.month - 1]}
             {r.year !== 0 && (
               <Text type="secondary" style={{ fontWeight: 400, marginLeft: 4, fontSize: 12 }}>
@@ -2774,7 +2871,7 @@ const VacacionesPage: React.FC = () => {
       {
         title: 'Nombre',
         dataIndex: 'name',
-        render: (v: string) => <span style={{ color: '#374151' }}>{v}</span>,
+        render: (v: string) => <span style={{ color: P.label }}>{v}</span>,
       },
       {
         title: 'Tipo',
@@ -2852,8 +2949,8 @@ const VacacionesPage: React.FC = () => {
               <Input placeholder="ej. Día de la Independencia" style={{ width: 240, borderRadius: 8 }} maxLength={150} />
             </Form.Item>
             <Form.Item name="recurrente" valuePropName="checked">
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 500, color: '#374151' }}>
-                <input type="checkbox" style={{ width: 15, height: 15, accentColor: '#0C1D3E' }} />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 500, color: P.label }}>
+                <input type="checkbox" style={{ width: 15, height: 15, accentColor: P.btnBg }} />
                 Se repite cada año
               </label>
             </Form.Item>
@@ -2863,7 +2960,7 @@ const VacacionesPage: React.FC = () => {
                 loading={addingHoliday}
                 onClick={handleAddHoliday}
                 icon={<PlusOutlined />}
-                style={{ background: 'linear-gradient(135deg, #0C1D3E, #1D3D7A)', border: 'none', borderRadius: 8, fontWeight: 600 }}
+                style={{ background: P.primaryGradient, border: 'none', borderRadius: 8, fontWeight: 600 }}
               >
                 Agregar
               </Button>
@@ -2876,7 +2973,7 @@ const VacacionesPage: React.FC = () => {
           className="vac-section-card"
           title={
             <Space>
-              <InfoCircleOutlined style={{ color: '#C9A84C' }} />
+              <InfoCircleOutlined style={{ color: P.gold }} />
               <span>Asuetos registrados</span>
             </Space>
           }
@@ -3006,7 +3103,7 @@ const VacacionesPage: React.FC = () => {
         width={640}
         title={
           <Space>
-            <MailOutlined style={{ color: '#0C1D3E' }} />
+            <MailOutlined style={{ color: P.navy }} />
             <span style={{ fontWeight: 600 }}>Reporte de vacaciones a jefes</span>
           </Space>
         }
@@ -3035,7 +3132,7 @@ const VacacionesPage: React.FC = () => {
               type="primary"
               loading={reportSending === 'real'}
               disabled={reportSending === 'test'}
-              style={{ borderRadius: 6, background: 'linear-gradient(135deg, #0C1D3E, #1D3D7A)', border: 'none', fontWeight: 600 }}
+              style={{ borderRadius: 6, background: P.primaryGradient, border: 'none', fontWeight: 600 }}
             >
               Enviar a jefes
             </Button>
@@ -3065,11 +3162,11 @@ const VacacionesPage: React.FC = () => {
               message={`Se enviarán ${reportGroups.length} correo(s)`}
               style={{ borderRadius: 8, marginBottom: 12 }}
             />
-            <div style={{ maxHeight: 260, overflowY: 'auto', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 12px' }}>
+            <div style={{ maxHeight: 260, overflowY: 'auto', border: `1px solid ${P.border}`, borderRadius: 8, padding: '4px 12px' }}>
               {reportGroups.map((g) => (
                 <div
                   key={g.jefe.id}
-                  style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '7px 0', borderBottom: '1px solid #F1F5F9', fontSize: 13 }}
+                  style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '7px 0', borderBottom: `1px solid ${P.borderSoft}`, fontSize: 13 }}
                 >
                   <span>
                     <strong>{g.jefe.nombre}</strong>{' '}
@@ -3094,10 +3191,10 @@ const VacacionesPage: React.FC = () => {
         onCancel={() => setImportModalOpen(false)}
         cancelButtonProps={{ style: { display: 'none' } }}
         okText="Cerrar"
-        okButtonProps={{ style: { borderRadius: 6, background: '#0C1D3E', border: 'none', fontWeight: 600 } }}
+        okButtonProps={{ style: { borderRadius: 6, background: P.btnBg, border: 'none', fontWeight: 600 } }}
         title={
           <Space>
-            <UploadOutlined style={{ color: '#059669' }} />
+            <UploadOutlined style={{ color: P.green }} />
             <span style={{ fontWeight: 600 }}>Resultado del import</span>
           </Space>
         }
@@ -3114,7 +3211,7 @@ const VacacionesPage: React.FC = () => {
                   message={`${importResult.skipped.length} fila(s) no se pudieron importar:`}
                   type="warning" showIcon style={{ borderRadius: 8, marginBottom: 8 }}
                 />
-                <ul style={{ paddingLeft: 20, margin: 0, fontSize: 12, color: '#6B7280' }}>
+                <ul style={{ paddingLeft: 20, margin: 0, fontSize: 12, color: P.textMuted }}>
                   {importResult.skipped.map((s, i) => <li key={i}>{s}</li>)}
                 </ul>
               </>
@@ -3138,7 +3235,7 @@ const VacacionesPage: React.FC = () => {
         confirmLoading={rejectingLoading}
         title={
           <Space>
-            <CloseCircleOutlined style={{ color: '#DC2626' }} />
+            <CloseCircleOutlined style={{ color: P.red }} />
             <span style={{ fontWeight: 600 }}>Rechazar solicitud</span>
           </Space>
         }
@@ -3171,7 +3268,7 @@ const VacacionesPage: React.FC = () => {
         confirmLoading={editingLoading}
         title={
           <Space>
-            <EditOutlined style={{ color: '#C9A84C' }} />
+            <EditOutlined style={{ color: P.gold }} />
             <span style={{ fontWeight: 600 }}>
               Editar solicitud
               {editingRequest?.user
@@ -3187,7 +3284,7 @@ const VacacionesPage: React.FC = () => {
         <Form form={editForm} layout="vertical" style={{ maxWidth: 560 }}>
           <Form.Item
             name="time_off_type"
-            label={<span style={{ fontWeight: 600, color: '#374151' }}>Tipo de solicitud</span>}
+            label={<span style={{ fontWeight: 600, color: P.label }}>Tipo de solicitud</span>}
             rules={[{ required: true }]}
           >
             <Select options={TIME_OFF_OPTIONS} style={{ borderRadius: 8 }} />
@@ -3195,7 +3292,7 @@ const VacacionesPage: React.FC = () => {
 
           <Form.Item
             name="request_type"
-            label={<span style={{ fontWeight: 600, color: '#374151' }}>Duración</span>}
+            label={<span style={{ fontWeight: 600, color: P.label }}>Duración</span>}
             rules={[{ required: true }]}
           >
             <Select options={REQUEST_TYPE_OPTIONS} style={{ borderRadius: 8 }} />
@@ -3226,7 +3323,7 @@ const VacacionesPage: React.FC = () => {
             }}
           </Form.Item>
 
-          <Form.Item name="comentarios" label={<span style={{ fontWeight: 600, color: '#374151' }}>Comentarios <Text type="secondary" style={{ fontWeight: 400 }}>(opcional)</Text></span>}>
+          <Form.Item name="comentarios" label={<span style={{ fontWeight: 600, color: P.label }}>Comentarios <Text type="secondary" style={{ fontWeight: 400 }}>(opcional)</Text></span>}>
             <Input.TextArea rows={2} maxLength={500} showCount style={{ borderRadius: 8 }} />
           </Form.Item>
         </Form>
@@ -3247,7 +3344,7 @@ const VacacionesPage: React.FC = () => {
         confirmLoading={hrCancelingLoading}
         title={
           <Space>
-            <StopOutlined style={{ color: '#DC2626' }} />
+            <StopOutlined style={{ color: P.red }} />
             <span style={{ fontWeight: 600 }}>Anular solicitud</span>
           </Space>
         }
