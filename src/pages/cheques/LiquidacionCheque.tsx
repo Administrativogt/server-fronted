@@ -31,6 +31,7 @@ import { getEntities as getProcurationEntities } from '../../api/procuration';
 import { formatDateGT } from '../../utils/date';
 import type { CheckRequest, CheckEntity, InmobiliarioExpense, LitigioExpense } from '../../types/checks.types';
 import useAuthStore from '../../auth/useAuthStore';
+import { MAX_UPLOAD_MB, MENSAJE_413, validarPesoArchivo } from '../../utils/upload';
 
 const { Title } = Typography;
 
@@ -247,6 +248,9 @@ function LiquidacionCheque() {
       if (!error?.response) {
         // Error de red / timeout
         message.error('No se pudo conectar al servidor. Verifique su conexión e intente nuevamente.', 6);
+      } else if (error.response.status === 413) {
+        // nginx rechazó el archivo por tamaño antes de llegar al backend
+        message.error(MENSAJE_413, 10);
       } else if (msg.includes('gladys')) {
         // Validación litigio — el gasto no está en el listado de Gladys
         message.error(
@@ -594,6 +598,11 @@ function LiquidacionCheque() {
                     );
                     return Upload.LIST_IGNORE;
                   }
+                  const errorPeso = validarPesoArchivo(file);
+                  if (errorPeso) {
+                    message.error(errorPeso, 10);
+                    return Upload.LIST_IGNORE;
+                  }
                   return false; // válido: no subir automático, se envía con el formulario
                 }}
                 fileList={fileList}
@@ -603,7 +612,7 @@ function LiquidacionCheque() {
                 <Button icon={<UploadOutlined />}>Elija un documento</Button>
               </Upload>
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                Formatos permitidos: PDF, PNG, JPG o JPEG (las imágenes se convierten a PDF automáticamente)
+                Formatos permitidos: PDF, PNG, JPG o JPEG (las imágenes se convierten a PDF automáticamente). Tamaño máximo: {MAX_UPLOAD_MB} MB.
               </Typography.Text>
               <Button type="link" size="small" onClick={clearFile} style={{ padding: 0 }}>
                 Limpiar

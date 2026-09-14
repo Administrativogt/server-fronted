@@ -1,6 +1,7 @@
 import axios from 'axios';
 import useAuthStore from '../auth/useAuthStore';
 import { isValidJwt, isTokenExpired } from '../utils/auth';
+import { MENSAJE_413 } from '../utils/upload';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
@@ -47,6 +48,12 @@ api.interceptors.request.use(async (config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
+    // 413 lo devuelve nginx (client_max_body_size) con una página HTML, no el
+    // backend. Se reemplaza por un mensaje entendible para que ninguna pantalla
+    // muestre el HTML crudo al usuario.
+    if (err.response?.status === 413) {
+      err.response.data = { statusCode: 413, message: MENSAJE_413 };
+    }
     // Solo hacer logout si es 401 Y hay un token guardado (sesión expirada)
     // No hacer logout si no hay token (usuario no autenticado intentando acceder a ruta protegida)
     const token = sessionStorage.getItem('token');
