@@ -106,6 +106,11 @@ import {
 
 const MAX_DAYS_REQUEST = 15;
 
+/** Copias por defecto de la prueba del reporte a jefes (además de quien lo dispara). */
+const VAC_REPORT_TEST_CC_DEFAULT = ['ermejia@consortiumlegal.com'];
+const VAC_REPORT_TEST_CC_KEY = 'vac-report-test-cc';
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const { Text } = Typography;
 const { RangePicker } = DatePicker;
 
@@ -605,6 +610,23 @@ const VacacionesPage: React.FC = () => {
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportGroups, setReportGroups] = useState<VacationReportGroup[] | null>(null);
   const [reportSending, setReportSending] = useState<'test' | 'real' | null>(null);
+  const [reportTestCc, setReportTestCc] = useState<string[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(VAC_REPORT_TEST_CC_KEY) ?? 'null');
+      if (Array.isArray(saved)) return saved.filter((e) => typeof e === 'string');
+    } catch { /* sin guardado previo */ }
+    return VAC_REPORT_TEST_CC_DEFAULT;
+  });
+  const updateReportTestCc = (values: string[]) => {
+    const clean = [...new Set(values.map((v) => v.trim().toLowerCase()).filter(Boolean))];
+    const bad = clean.filter((v) => !EMAIL_RE.test(v));
+    if (bad.length) {
+      message.warning(`Correo inválido: ${bad.join(', ')}`);
+    }
+    const ok = clean.filter((v) => EMAIL_RE.test(v));
+    setReportTestCc(ok);
+    try { localStorage.setItem(VAC_REPORT_TEST_CC_KEY, JSON.stringify(ok)); } catch { /* ignore */ }
+  };
 
   const openReportModal = () => {
     setReportModalOpen(true);
@@ -617,10 +639,10 @@ const VacacionesPage: React.FC = () => {
   const handleSendReports = async (test: boolean) => {
     setReportSending(test ? 'test' : 'real');
     try {
-      const result = await sendVacationReports(test);
+      const result = await sendVacationReports(test, test ? reportTestCc : []);
       if (test) {
         message.success(
-          `Prueba enviada: ${result.enviados} correo(s) redirigidos a tu bandeja`,
+          `Prueba enviada: ${result.enviados} correo(s) redirigidos a tu bandeja${reportTestCc.length ? ` y a ${reportTestCc.join(', ')}` : ''}`,
         );
       } else {
         message.success(
@@ -3145,6 +3167,21 @@ const VacacionesPage: React.FC = () => {
           adjunto. «Enviarme una prueba» genera los mismos correos pero todos llegan únicamente
           a tu bandeja.
         </p>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: P.label, marginBottom: 4 }}>
+            Copias de la prueba <Text type="secondary" style={{ fontWeight: 400 }}>(además de tu correo)</Text>
+          </div>
+          <Select
+            mode="tags"
+            style={{ width: '100%' }}
+            placeholder="Escribe un correo y presiona Enter"
+            value={reportTestCc}
+            onChange={updateReportTestCc}
+            tokenSeparators={[',', ';', ' ']}
+            open={false}
+            suffixIcon={null}
+          />
+        </div>
         {reportGroups === null ? (
           <Alert type="info" showIcon message="Cargando vista previa…" style={{ borderRadius: 8 }} />
         ) : reportGroups.length === 0 ? (

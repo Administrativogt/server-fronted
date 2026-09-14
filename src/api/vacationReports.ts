@@ -30,10 +30,17 @@ export async function previewVacationReports(): Promise<VacationReportGroup[]> {
   return data;
 }
 
-/** test=true: todos los correos van solo al usuario que lo dispara. */
+/**
+ * test=true: todos los correos van al usuario que lo dispara más `testEmails`
+ * (copias de prueba); nunca a los jefes.
+ */
 export async function sendVacationReports(
   test: boolean,
+  testEmails: string[] = [],
 ): Promise<SendVacationReportResult> {
-  const { data } = await api.post(`${BASE}/send`, { test });
+  const { data } = await api.post(`${BASE}/send`, {
+    test,
+    ...(test ? { testEmails } : {}),
+  });
   return data;
 }
