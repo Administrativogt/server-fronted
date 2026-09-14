@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  Checkbox,
   Avatar,
   Button,
   Calendar,
@@ -109,6 +110,8 @@ const MAX_DAYS_REQUEST = 15;
 /** Copias por defecto de la prueba del reporte a jefes (además de quien lo dispara). */
 const VAC_REPORT_TEST_CC_DEFAULT = ['ermejia@consortiumlegal.com'];
 const VAC_REPORT_TEST_CC_KEY = 'vac-report-test-cc';
+/** Copia fija del envío real (la define el backend: VACATION_REPORT_CC). Solo informativo aquí. */
+const VAC_REPORT_REAL_CC = 'ermejia@consortiumlegal.com';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const { Text } = Typography;
@@ -628,18 +631,34 @@ const VacacionesPage: React.FC = () => {
     try { localStorage.setItem(VAC_REPORT_TEST_CC_KEY, JSON.stringify(ok)); } catch { /* ignore */ }
   };
 
+  const [reportSelected, setReportSelected] = useState<number[]>([]);
+
   const openReportModal = () => {
     setReportModalOpen(true);
     setReportGroups(null);
+    setReportSelected([]);
     previewVacationReports()
-      .then(setReportGroups)
+      .then((groups) => {
+        setReportGroups(groups);
+        // Por defecto van marcados todos los jefes con correo.
+        setReportSelected(groups.filter((g) => g.jefe.email).map((g) => g.jefe.id));
+      })
       .catch(() => message.error('No se pudo cargar la vista previa del reporte'));
   };
 
+  const reportSelectableIds = (reportGroups ?? []).filter((g) => g.jefe.email).map((g) => g.jefe.id);
+  const reportAllSelected = reportSelectableIds.length > 0 && reportSelected.length === reportSelectableIds.length;
+  const toggleReportJefe = (id: number, checked: boolean) =>
+    setReportSelected((prev) => (checked ? [...new Set([...prev, id])] : prev.filter((x) => x !== id)));
+
   const handleSendReports = async (test: boolean) => {
+    if (!reportSelected.length) {
+      message.warning('Marca al menos un jefe');
+      return;
+    }
     setReportSending(test ? 'test' : 'real');
     try {
-      const result = await sendVacationReports(test, test ? reportTestCc : []);
+      const result = await sendVacationReports(test, test ? reportTestCc : [], reportSelected);
       if (test) {
         message.success(
           `Prueba enviada: ${result.enviados} correo(s) redirigidos a tu bandeja${reportTestCc.length ? ` y a ${reportTestCc.join(', ')}` : ''}`,
@@ -3136,7 +3155,7 @@ const VacacionesPage: React.FC = () => {
           <Button
             key="test"
             loading={reportSending === 'test'}
-            disabled={reportSending === 'real'}
+            disabled={reportSending === 'real' || !reportSelected.length}
             onClick={() => handleSendReports(true)}
             style={{ borderRadius: 6 }}
           >
@@ -3144,8 +3163,8 @@ const VacacionesPage: React.FC = () => {
           </Button>,
           <Popconfirm
             key="real"
-            title="¿Enviar el reporte a todos los jefes?"
-            description="Cada jefe inmediato recibirá el correo con su gente."
+            title={`¿Enviar el reporte a ${reportSelected.length} jefe(s)?`}
+            description={`Cada jefe marcado recibirá el correo con su gente, con copia a ${VAC_REPORT_REAL_CC}.`}
             okText="Sí, enviar"
             cancelText="No"
             onConfirm={() => handleSendReports(false)}
@@ -3153,10 +3172,10 @@ const VacacionesPage: React.FC = () => {
             <Button
               type="primary"
               loading={reportSending === 'real'}
-              disabled={reportSending === 'test'}
+              disabled={reportSending === 'test' || !reportSelected.length}
               style={{ borderRadius: 6, background: P.primaryGradient, border: 'none', fontWeight: 600 }}
             >
-              Enviar a jefes
+              Enviar a {reportSelected.length} jefe(s)
             </Button>
           </Popconfirm>,
         ]}
@@ -3164,8 +3183,9 @@ const VacacionesPage: React.FC = () => {
         <p style={{ color: '#64748B', fontSize: 13, marginTop: 8 }}>
           Cada jefe inmediato recibe un correo con el estado de vacaciones de sus subordinados
           directos (saldo, gozados, pendientes de aprobación y próximas vacaciones) más un Excel
-          adjunto. «Enviarme una prueba» genera los mismos correos pero todos llegan únicamente
-          a tu bandeja.
+          adjunto, con copia a <strong>{VAC_REPORT_REAL_CC}</strong>. Marca a qué jefes enviar.
+          «Enviarme una prueba» genera los mismos correos pero todos llegan únicamente a tu
+          bandeja y a las copias de prueba.
         </p>
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: P.label, marginBottom: 4 }}>
@@ -3193,29 +3213,46 @@ const VacacionesPage: React.FC = () => {
           />
         ) : (
           <>
-            <Alert
-              type="info"
-              showIcon
-              message={`Se enviarán ${reportGroups.length} correo(s)`}
-              style={{ borderRadius: 8, marginBottom: 12 }}
-            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Alert
+                type={reportSelected.length ? 'info' : 'warning'}
+                showIcon
+                message={`Se enviarán ${reportSelected.length} de ${reportSelectableIds.length} correo(s)`}
+                style={{ borderRadius: 8, flex: 1, marginRight: 12 }}
+              />
+              <Checkbox
+                checked={reportAllSelected}
+                indeterminate={reportSelected.length > 0 && !reportAllSelected}
+                onChange={(e) => setReportSelected(e.target.checked ? reportSelectableIds : [])}
+              >
+                Todos
+              </Checkbox>
+            </div>
             <div style={{ maxHeight: 260, overflowY: 'auto', border: `1px solid ${P.border}`, borderRadius: 8, padding: '4px 12px' }}>
-              {reportGroups.map((g) => (
-                <div
-                  key={g.jefe.id}
-                  style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '7px 0', borderBottom: `1px solid ${P.borderSoft}`, fontSize: 13 }}
-                >
-                  <span>
-                    <strong>{g.jefe.nombre}</strong>{' '}
-                    <span style={{ color: '#94A3B8' }}>
-                      {g.jefe.email ?? 'SIN CORREO — se omite'}
+              {reportGroups.map((g) => {
+                const disabled = !g.jefe.email;
+                return (
+                  <label
+                    key={g.jefe.id}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: `1px solid ${P.borderSoft}`, fontSize: 13, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.6 : 1 }}
+                  >
+                    <Checkbox
+                      disabled={disabled}
+                      checked={reportSelected.includes(g.jefe.id)}
+                      onChange={(e) => toggleReportJefe(g.jefe.id, e.target.checked)}
+                    />
+                    <span style={{ flex: 1 }}>
+                      <strong>{g.jefe.nombre}</strong>{' '}
+                      <span style={{ color: '#94A3B8' }}>
+                        {g.jefe.email ?? 'SIN CORREO — se omite'}
+                      </span>
                     </span>
-                  </span>
-                  <span style={{ color: '#64748B', whiteSpace: 'nowrap' }}>
-                    {g.empleados.length} empleado(s)
-                  </span>
-                </div>
-              ))}
+                    <span style={{ color: '#64748B', whiteSpace: 'nowrap' }}>
+                      {g.empleados.length} empleado(s)
+                    </span>
+                  </label>
+                );
+              })}
             </div>
           </>
         )}
