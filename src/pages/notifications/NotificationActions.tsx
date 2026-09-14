@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Modal, Select, message } from "antd";
 import { fetchUsers, deliverNotifications } from "../../api/notifications";
 import type { User } from "../../types/user.types";
-
-const { Option } = Select;
+import { userSearchFilter } from "../../lib/searchFilter";
 
 interface Props {
   open: boolean;
@@ -16,16 +15,32 @@ const NotificationActions: React.FC<Props> = ({ open, onClose, selectedIds, onSu
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUser, setSelectedUser] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(false);
 
   useEffect(() => {
-    if (open) {
+    if (open && !users.length) {
+      setLoadingUsers(true);
       fetchUsers()
         .then(setUsers)
         .catch(() => {
           message.error("Error al cargar usuarios");
-        });
+        })
+        .finally(() => setLoadingUsers(false));
     }
-  }, [open]);
+  }, [open, users.length]);
+
+  // Etiqueta como string plano: así el filtro de búsqueda sí puede comparar
+  // (con children JSX el texto llegaba como arreglo y nunca coincidía).
+  const options = useMemo(
+    () =>
+      users
+        .map((u) => ({
+          value: u.id,
+          label: `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || u.username,
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label, "es")),
+    [users],
+  );
 
   const handleDeliver = async () => {
     if (!selectedUser) {
@@ -50,14 +65,10 @@ const NotificationActions: React.FC<Props> = ({ open, onClose, selectedIds, onSu
     }
   };
 
-  const filterOption = (input: string, option?: { children?: React.ReactNode }) => {
-    const label = option?.children;
-    return typeof label === "string" && label.toLowerCase().includes(input.toLowerCase());
-  };
-
   return (
     <Modal
       open={open}
+      destroyOnHidden
       onCancel={() => {
         setSelectedUser(null);
         onClose();
@@ -68,21 +79,20 @@ const NotificationActions: React.FC<Props> = ({ open, onClose, selectedIds, onSu
       cancelText="Cancelar"
       title="Entregar notificaciones seleccionadas"
     >
-      <p>Selecciona el usuario al que se entregan:</p>
+      <p>Escribe el nombre de la persona a la que se entregan:</p>
       <Select
         style={{ width: "100%" }}
-        placeholder="Selecciona un usuario"
+        placeholder="Escribe para buscar…"
         onChange={(val) => setSelectedUser(val)}
         value={selectedUser ?? undefined}
         showSearch
-        filterOption={filterOption}
-      >
-        {users.map((user) => (
-          <Option key={user.id} value={user.id}>
-            {user.first_name} {user.last_name}
-          </Option>
-        ))}
-      </Select>
+        autoFocus
+        allowClear
+        loading={loadingUsers}
+        filterOption={userSearchFilter}
+        options={options}
+        notFoundContent={loadingUsers ? "Cargando…" : "Sin coincidencias"}
+      />
     </Modal>
   );
 };

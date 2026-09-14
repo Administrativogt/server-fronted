@@ -28,6 +28,7 @@ import {
   fetchHallsByProvenience,
 } from "../../api/notifications";
 import { type ProvenienceDto, type HallDto } from "../../api/notifications";
+import { userSearchFilter } from "../../lib/searchFilter";
 import useAuthStore from "../../auth/useAuthStore";
 import AddProvenienceModal from "./AddProvenienceModal";
 import { fetchUsers as fetchAllUsers, fullName, type UserLite } from "../../api/users";
@@ -286,7 +287,7 @@ const CrearNotificacion: React.FC = () => {
                   placeholder="Selecciona entidad"
                   onChange={onProvenienceChange}
                   showSearch
-                  optionFilterProp="label"
+                  filterOption={userSearchFilter}
                   options={provenienceOptions}
                   loading={loadingCatalogs}
                   popupRender={(menu) => (
@@ -330,7 +331,7 @@ const CrearNotificacion: React.FC = () => {
                   <Select
                     placeholder={hallPlaceholder}
                     showSearch
-                    optionFilterProp="label"
+                    filterOption={userSearchFilter}
                     loading={loadingHalls}
                     options={halls.map((h) => ({ value: h.id, label: h.name }))}
                     popupRender={(menu) => (
@@ -362,7 +363,7 @@ const CrearNotificacion: React.FC = () => {
                 <Select
                   placeholder="Selecciona lugar"
                   showSearch
-                  optionFilterProp="label"
+                  filterOption={userSearchFilter}
                   loading={loadingCatalogs}
                   options={places.map((pl) => ({ value: pl.id, label: pl.name }))}
                 />
@@ -378,7 +379,7 @@ const CrearNotificacion: React.FC = () => {
                 <Select
                   placeholder="Selecciona receptor"
                   showSearch
-                  optionFilterProp="label"
+                  filterOption={userSearchFilter}
                   loading={loadingCatalogs}
                   options={receivers.map((u) => ({
                     value: u.id,
@@ -509,7 +510,7 @@ const CrearNotificacion: React.FC = () => {
           style={{ width: "100%" }}
           placeholder="Busca por nombre"
           showSearch
-          optionFilterProp="label"
+          filterOption={userSearchFilter}
           loading={loadingUsers}
           value={pickedUserId}
           onChange={(v: number) => setPickedUserId(v)}

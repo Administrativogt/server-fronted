@@ -18,6 +18,7 @@ import {
   type ProvenienceDto,
 } from "../../api/notifications";
 import type { User } from "../../types/user.types";
+import { userSearchFilter } from "../../lib/searchFilter";
 
 /** Sentinela para "Otra entidad" (texto libre), igual que en CrearNotificacion. */
 const OTRA_ENTIDAD = -1;
@@ -374,7 +375,7 @@ const Notificaciones: React.FC = () => {
           >
             <Select
               showSearch
-              optionFilterProp="label"
+              filterOption={userSearchFilter}
               placeholder="Seleccione la entidad"
               onChange={alCambiarProcedencia}
               options={[
@@ -402,7 +403,7 @@ const Notificaciones: React.FC = () => {
             >
               <Select
                 showSearch
-                optionFilterProp="label"
+                filterOption={userSearchFilter}
                 placeholder="Selecciona sala"
                 options={halls.map((h) => ({ value: h.id, label: h.name }))}
               />
@@ -440,7 +441,7 @@ const Notificaciones: React.FC = () => {
           >
             <Select
               showSearch
-              optionFilterProp="label"
+              filterOption={userSearchFilter}
               placeholder="Selecciona receptor"
               options={receivers.map((r) => ({
                 value: r.id,
@@ -458,7 +459,7 @@ const Notificaciones: React.FC = () => {
               >
                 <Select
                   showSearch
-                  optionFilterProp="label"
+                  filterOption={userSearchFilter}
                   placeholder="Seleccione a quién se entregó"
                   options={usersAll.map((u) => ({
                     value: u.id,
@@ -474,7 +475,7 @@ const Notificaciones: React.FC = () => {
               >
                 <Select
                   showSearch
-                  optionFilterProp="label"
+                  filterOption={userSearchFilter}
                   placeholder="Seleccione quién entregó"
                   options={receivers.map((r) => ({
                     value: r.id,
