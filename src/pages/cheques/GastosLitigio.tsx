@@ -34,6 +34,7 @@ import {
 } from '../../api/checks';
 import { fetchUsers, fullName, type UserLite } from '../../api/users';
 import useAuthStore from '../../auth/useAuthStore';
+import { LITIGIO_TEAM_IDS, LITIGIO_TEAM_IDS_CSV } from '../../config/equipos';
 
 const { Title } = Typography;
 
@@ -102,7 +103,8 @@ function GastosLitigio() {
       const response = await getPendingLiquidation({
         page: 1,
         per_page: 200,
-        equipo_id: 6,
+        // Familia Litigio completa (LITIGIO + EAS + DEJ), no solo el equipo 6
+        equipo_ids: LITIGIO_TEAM_IDS_CSV,
         ...(canViewAll || isSecretaria ? {} : { responsible_id: userId ?? undefined }),
       });
       setCheckOptions(response.data);
@@ -225,7 +227,9 @@ function GastosLitigio() {
   }, [filters.page, filters.per_page]);
 
   useEffect(() => {
-    fetchUsers(6).then(setUsers).catch(() => setUsers([]));
+    fetchUsers(LITIGIO_TEAM_IDS)
+      .then(setUsers)
+      .catch(() => setUsers([]));
   }, []);
 
   const openCreate = () => {

@@ -60,8 +60,14 @@ function ensureUserArray(data: UserLite[] | { data?: UserLite[] } | null | undef
 /**
  * Obtener lista simplificada de usuarios (alias de getAllUsers para compatibilidad)
  */
-export const fetchUsers = async (equipoId?: number): Promise<UserLite[]> => {
-  const params = equipoId ? { equipo_id: equipoId } : undefined;
+export const fetchUsers = async (
+  equipoId?: number | readonly number[],
+): Promise<UserLite[]> => {
+  // El backend acepta un id o varios separados por coma (ej. "6,14,15").
+  const equipo_id = Array.isArray(equipoId)
+    ? (equipoId as readonly number[]).join(',')
+    : equipoId;
+  const params = equipo_id ? { equipo_id } : undefined;
   const response = await axios.get<UserLite[] | { data: UserLite[] }>('/users', { params });
   return ensureUserArray(response.data);
 };
