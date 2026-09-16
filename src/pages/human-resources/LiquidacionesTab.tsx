@@ -181,7 +181,11 @@ const LiquidacionesTab: React.FC = () => {
         })),
       });
       message.success(
-        `Liquidación #${created.id} confirmada — el saldo del usuario quedó en 0`,
+        `Liquidación #${created.id} confirmada — el saldo del usuario quedó en 0` +
+          (created.usuario_desactivado
+            ? ' y su cuenta fue desactivada'
+            : ' (la cuenta ya estaba desactivada)'),
+        6,
       );
       setModalOpen(false);
       resetModal();
@@ -202,7 +206,10 @@ const LiquidacionesTab: React.FC = () => {
     setAnulandoId(id);
     try {
       await anularLiquidation(id);
-      message.success('Liquidación anulada — se restauró el saldo cerrado');
+      message.success(
+        'Liquidación anulada — se restauró el saldo cerrado. Si la persona sigue en la Firma, reactivá su cuenta desde Usuarios',
+        6,
+      );
       loadLiquidations();
     } catch (err: any) {
       message.error(err?.response?.data?.message ?? 'No se pudo anular');
@@ -505,7 +512,7 @@ const LiquidacionesTab: React.FC = () => {
             />
             <Popconfirm
               title="¿Confirmar liquidación?"
-              description="El saldo de vacaciones del empleado quedará en 0 y se generará la carta."
+              description="El saldo de vacaciones quedará en 0, se generará la carta y la cuenta del empleado se desactivará (si aún está activa)."
               okText="Confirmar"
               cancelText="Cancelar"
               onConfirm={handleConfirm}

@@ -40,6 +40,8 @@ export interface VacationLiquidation {
   periodos: LiquidationPeriod[];
   created_at: string;
   anulada_at: string | null;
+  /** Solo en la respuesta de POST: true si al confirmar se dio de baja la cuenta del usuario */
+  usuario_desactivado?: boolean;
 }
 
 // ============================================
