@@ -64,6 +64,9 @@ export const fetchUsers = async (
   equipoId?: number | readonly number[],
 ): Promise<UserLite[]> => {
   // El backend acepta un id o varios separados por coma (ej. "6,14,15").
+  // Un array vacío significa "ningún equipo": no se consulta nada (si se
+  // omitiera el parámetro, el backend devolvería a TODOS los usuarios).
+  if (Array.isArray(equipoId) && equipoId.length === 0) return [];
   const equipo_id = Array.isArray(equipoId)
     ? (equipoId as readonly number[]).join(',')
     : equipoId;
