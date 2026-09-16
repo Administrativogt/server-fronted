@@ -9,12 +9,14 @@ import {
   Form,
   Input,
   Modal,
+  Progress,
   Row,
   Select,
   Space,
   Table,
   Tabs,
   Tag,
+  Tooltip,
   Typography,
   Upload,
   message,
@@ -66,11 +68,15 @@ import type { UploadFile } from 'antd/es/upload';
 
 const { Title, Text } = Typography;
 
+// Orden del flujo: Solicitada (1) → En proceso (4) → Entregada (2). Cancelada (3)
+// queda fuera del flujo. `step` alimenta la barra de progreso de la tabla.
 const certificateStates = [
-  { id: 1, label: 'Pendiente', color: 'orange' },
-  { id: 2, label: 'Entregado', color: 'green' },
-  { id: 3, label: 'Cancelado', color: 'red' },
+  { id: 1, label: 'Solicitada', color: 'orange', hex: '#fa8c16', step: 1 },
+  { id: 4, label: 'En proceso', color: 'blue', hex: '#1677ff', step: 2 },
+  { id: 2, label: 'Entregada', color: 'green', hex: '#52c41a', step: 3 },
+  { id: 3, label: 'Cancelada', color: 'red', hex: '#ff4d4f', step: 0 },
 ];
+const CERT_TOTAL_STEPS = 3;
 
 const HumanResourcesPage: React.FC = () => {
   const userId = useAuthStore((s) => s.userId);
@@ -95,7 +101,7 @@ const HumanResourcesPage: React.FC = () => {
   // Certificados
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [certLoading, setCertLoading] = useState(false);
-  // Filtro de la tarjeta-resumen: null = todas, 1 = ingresadas, 2 = entregadas.
+  // Filtro de la tarjeta-resumen: null = todas, 1 = solicitadas, 4 = en proceso, 2 = entregadas.
   // Arranca en 1 (pendientes) = la cola de trabajo, como antes.
   const [certStateFilter, setCertStateFilter] = useState<number | null>(1);
   const [certificateModalOpen, setCertificateModalOpen] = useState(false);
@@ -206,9 +212,35 @@ const HumanResourcesPage: React.FC = () => {
   // HELPERS
   // ============================================
 
-  const getCertificateStateTag = (stateId: number) => {
+  /**
+   * Barra de progreso del flujo Solicitada → En proceso → Entregada
+   * (3 segmentos). Cancelada se muestra en rojo, sin avance.
+   */
+  const renderCertificateProgress = (stateId: number) => {
     const state = certificateStates.find((s) => s.id === stateId);
-    return <Tag color={state?.color || 'default'}>{state?.label || stateId}</Tag>;
+    if (!state) return <Tag>{stateId}</Tag>;
+    const cancelled = state.step === 0;
+    const percent = cancelled ? 100 : Math.round((state.step / CERT_TOTAL_STEPS) * 100);
+    const tooltip = cancelled
+      ? 'Solicitud cancelada'
+      : `Paso ${state.step} de ${CERT_TOTAL_STEPS}: ${state.label}`;
+    return (
+      <Tooltip title={tooltip}>
+        <div style={{ minWidth: 150 }}>
+          <Progress
+            percent={percent}
+            steps={CERT_TOTAL_STEPS}
+            size="small"
+            showInfo={false}
+            strokeColor={state.hex}
+            status={cancelled ? 'exception' : undefined}
+          />
+          <div style={{ fontSize: 12, color: state.hex, fontWeight: 600, marginTop: 2 }}>
+            {state.label}
+          </div>
+        </div>
+      </Tooltip>
+    );
   };
 
   const getUserDisplayName = (user: CertificateUser | number | string) => {
@@ -446,7 +478,8 @@ const HumanResourcesPage: React.FC = () => {
       {
         title: 'Estado',
         dataIndex: 'state',
-        render: (value: number) => getCertificateStateTag(value),
+        width: 190,
+        render: (value: number) => renderCertificateProgress(value),
       },
       ...(isCertAdmin
         ? [
@@ -699,7 +732,8 @@ const HumanResourcesPage: React.FC = () => {
         {/* Resumen de estados — cada tarjeta filtra la tabla al hacer clic */}
         <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
           {[
-            { key: 1, label: 'Ingresadas', color: '#fa8c16', count: certificates.filter((c) => c.state === 1).length },
+            { key: 1, label: 'Solicitadas', color: '#fa8c16', count: certificates.filter((c) => c.state === 1).length },
+            { key: 4, label: 'En proceso', color: '#1677ff', count: certificates.filter((c) => c.state === 4).length },
             { key: 2, label: 'Entregadas', color: '#52c41a', count: certificates.filter((c) => c.state === 2).length },
             { key: null as number | null, label: 'Total', color: '#1677ff', count: certificates.length },
           ].map((card) => {
