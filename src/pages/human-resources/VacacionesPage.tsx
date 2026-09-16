@@ -1580,6 +1580,14 @@ const VacacionesPage: React.FC = () => {
         },
       },
       {
+        title: 'Equipo',
+        dataIndex: 'equipo',
+        width: 160,
+        render: (v: string | null | undefined) =>
+          v ? <Tag style={{ borderRadius: 6, fontSize: 11 }}>{v}</Tag>
+            : <Text type="secondary" style={{ fontSize: 12 }}>—</Text>,
+      },
+      {
         title: 'Tipo',
         dataIndex: 'time_off_label',
         width: 200,
@@ -2422,7 +2430,7 @@ const VacacionesPage: React.FC = () => {
             if (!balanceSearch) return true;
             const q = balanceSearch.toLowerCase();
             const name = `${b.user?.first_name ?? ''} ${b.user?.last_name ?? ''}`.toLowerCase();
-            return name.includes(q);
+            return name.includes(q) || (b.equipo ?? '').toLowerCase().includes(q);
           })}
           columns={balanceColumns as any}
           pagination={{ pageSize: 15, size: 'small' }}
@@ -2566,7 +2574,8 @@ const VacacionesPage: React.FC = () => {
       const q = teamSearch.toLowerCase();
       return (
         `${r.user.first_name} ${r.user.last_name}`.toLowerCase().includes(q) ||
-        (r.user.username ?? '').toLowerCase().includes(q)
+        (r.user.username ?? '').toLowerCase().includes(q) ||
+        (r.equipo ?? '').toLowerCase().includes(q)
       );
     });
     const totalDisponible = teamBalances.reduce((acc, r) => acc + (r.available ?? 0), 0);
@@ -2599,6 +2608,14 @@ const VacacionesPage: React.FC = () => {
             </div>
           );
         },
+      },
+      {
+        title: 'Equipo',
+        dataIndex: 'equipo',
+        width: 160,
+        render: (v: string | null) =>
+          v ? <Tag style={{ borderRadius: 6, fontSize: 11 }}>{v}</Tag>
+            : <Text type="secondary" style={{ fontSize: 12 }}>—</Text>,
       },
       {
         title: `Período ${year - 1}`,

@@ -45,6 +45,8 @@ export interface VacationRequest {
 export interface VacationBalance {
   id: number;
   user: VacationUser;
+  /** Nombre del equipo (users_equipo) del empleado; null si no tiene */
+  equipo?: string | null;
   time_off_type: string;
   time_off_label?: string;
   fecha_ingreso: string | null;
