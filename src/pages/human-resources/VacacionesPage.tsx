@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { FormInstance } from 'antd';
 import {
   Alert,
   Checkbox,
@@ -96,7 +97,9 @@ import {
   rolloverYear,
   setVacationBalance,
   updateVacationSettings,
+  fetchWorkingDaysPreview,
 } from '../../api/vacations';
+import type { WorkingDaysPreview } from '../../api/vacations';
 import { getEquipos } from '../../api/users';
 import {
   type Holiday,
@@ -530,6 +533,117 @@ const REQUEST_TYPE_LABELS: Record<VacationRequestTypeValue, string> = Object.fro
 // ============================================
 // COMPONENT
 // ============================================
+
+// ─── Contador de días hábiles bajo el selector de rango ─────────────────────
+// Consulta al backend (misma regla que al crear: sábados, domingos y feriados
+// registrados no cuentan) para que el usuario vea cuántos días se descontarán
+// ANTES de enviar la solicitud.
+const WEEKDAY_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+const WorkingDaysHint: React.FC<{
+  form: FormInstance;
+  P: typeof VAC_LIGHT;
+  fieldName?: string;
+}> = ({ form, P, fieldName = 'rango' }) => {
+  const rango = Form.useWatch(fieldName, form) as [dayjs.Dayjs | null, dayjs.Dayjs | null] | null | undefined;
+  const [preview, setPreview] = useState<WorkingDaysPreview | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const lastKey = useRef<string>('');
+
+  const inicio = rango?.[0] ? dayjs(rango[0]).format('YYYY-MM-DD') : null;
+  const fin = rango?.[1] ? dayjs(rango[1]).format('YYYY-MM-DD') : null;
+
+  useEffect(() => {
+    if (!inicio || !fin) {
+      lastKey.current = '';
+      setPreview(null);
+      setError(null);
+      return;
+    }
+    const key = `${inicio}|${fin}`;
+    if (key === lastKey.current) return;
+    lastKey.current = key;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    const timer = setTimeout(() => {
+      fetchWorkingDaysPreview(inicio, fin)
+        .then((data) => { if (!cancelled) setPreview(data); })
+        .catch((e: any) => {
+          if (cancelled) return;
+          setPreview(null);
+          setError(e?.response?.data?.message ?? 'No se pudo calcular los días hábiles');
+        })
+        .finally(() => { if (!cancelled) setLoading(false); });
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [inicio, fin]);
+
+  if (!inicio || !fin) return null;
+
+  const box: React.CSSProperties = {
+    marginTop: 8,
+    padding: '8px 12px',
+    borderRadius: 8,
+    fontSize: 12,
+    lineHeight: 1.5,
+    background: P.indigoSoft,
+    color: P.textStrong,
+  };
+
+  if (loading && !preview) {
+    return <div style={box}><Text type="secondary" style={{ fontSize: 12 }}>Calculando días hábiles…</Text></div>;
+  }
+  if (error) {
+    return <div style={{ ...box, background: P.warnBg, color: P.warnText }}>{error}</div>;
+  }
+  if (!preview) return null;
+
+  const excluidos: string[] = [];
+  if (preview.fines_de_semana > 0) {
+    excluidos.push(`${preview.fines_de_semana} de fin de semana`);
+  }
+  if (preview.feriados.length > 0) {
+    const lista = preview.feriados
+      .map((f) => {
+        const d = dayjs(f.fecha);
+        return `${WEEKDAY_SHORT[d.day()]} ${d.format('DD/MM')} ${f.nombre}`;
+      })
+      .join(', ');
+    excluidos.push(`${preview.feriados.length} feriado${preview.feriados.length === 1 ? '' : 's'} (${lista})`);
+  }
+
+  if (preview.dias_habiles === 0) {
+    return (
+      <div style={{ ...box, background: P.warnBg, color: P.warnText }}>
+        El rango seleccionado no incluye días hábiles: solo fin de semana o feriados. No se puede crear la solicitud.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ ...box, ...(preview.excede_maximo ? { background: P.warnBg, color: P.warnText } : {}) }}>
+      <div>
+        <strong style={{ color: preview.excede_maximo ? P.red : P.indigoText, fontSize: 13 }}>
+          {preview.dias_habiles} {preview.dias_habiles === 1 ? 'día hábil' : 'días hábiles'}
+        </strong>{' '}
+        se descontarán del saldo
+        <span style={{ color: P.textMuted }}> · {preview.dias_calendario} días calendario en el rango</span>
+      </div>
+      {excluidos.length > 0 && (
+        <div style={{ color: P.textMuted }}>
+          No cuentan: {excluidos.join(' y ')}
+        </div>
+      )}
+      {preview.excede_maximo && (
+        <div style={{ fontWeight: 600 }}>
+          Supera el máximo de {preview.max_dias_por_solicitud} días hábiles por solicitud. Divide la solicitud en partes.
+        </div>
+      )}
+    </div>
+  );
+};
 
 const VacacionesPage: React.FC = () => {
   const isSuperuser = useAuthStore((s) => s.is_superuser);
@@ -1889,9 +2003,12 @@ const VacacionesPage: React.FC = () => {
                     label={<span style={{ fontWeight: 600, color: P.label }}>Rango de fechas</span>}
                     rules={[{ required: true, message: 'Selecciona las fechas' }]}
                     extra={
-                      <Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
-                        Máximo {MAX_DAYS_REQUEST} días hábiles por solicitud
-                      </Text>
+                      <>
+                        <Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
+                          Máximo {MAX_DAYS_REQUEST} días hábiles por solicitud. Fines de semana y feriados no cuentan.
+                        </Text>
+                        <WorkingDaysHint form={requestForm} P={P} />
+                      </>
                     }
                   >
                     <RangePicker
@@ -2248,7 +2365,12 @@ const VacacionesPage: React.FC = () => {
                   </Col>
                 </Row>
               ) : (
-                <Form.Item name="rango" label={<span style={{ fontWeight: 600 }}>Rango de fechas</span>} rules={[{ required: true }]}>
+                <Form.Item
+                  name="rango"
+                  label={<span style={{ fontWeight: 600 }}>Rango de fechas</span>}
+                  rules={[{ required: true }]}
+                  extra={<WorkingDaysHint form={hrRequestForm} P={P} />}
+                >
                   <RangePicker style={{ width: '100%', borderRadius: 8 }} format="DD/MM/YYYY" />
                 </Form.Item>
               );
@@ -3407,7 +3529,12 @@ const VacacionesPage: React.FC = () => {
                   </Col>
                 </Row>
               ) : (
-                <Form.Item name="rango" label={<span style={{ fontWeight: 600 }}>Rango de fechas</span>} rules={[{ required: true }]}>
+                <Form.Item
+                  name="rango"
+                  label={<span style={{ fontWeight: 600 }}>Rango de fechas</span>}
+                  rules={[{ required: true }]}
+                  extra={<WorkingDaysHint form={editForm} P={P} />}
+                >
                   <RangePicker style={{ width: '100%', borderRadius: 8 }} format="DD/MM/YYYY" />
                 </Form.Item>
               );

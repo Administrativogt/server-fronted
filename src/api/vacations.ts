@@ -346,3 +346,25 @@ export async function fetchDaysUsedStats(year?: number, equipoId?: number): Prom
   const res = await api.get(`${BASE}/stats/days-used?${params.toString()}`);
   return res.data;
 }
+
+export interface WorkingDaysPreview {
+  fecha_inicio: string;
+  fecha_fin: string;
+  dias_calendario: number;
+  fines_de_semana: number;
+  feriados: { fecha: string; nombre: string }[];
+  dias_habiles: number;
+  max_dias_por_solicitud: number;
+  excede_maximo: boolean;
+}
+
+/** Vista previa de los días hábiles que se descontarán en un rango (misma regla que el backend al crear). */
+export async function fetchWorkingDaysPreview(
+  fechaInicio: string,
+  fechaFin: string,
+): Promise<WorkingDaysPreview> {
+  const res = await api.get(`${BASE}/working-days`, {
+    params: { fecha_inicio: fechaInicio, fecha_fin: fechaFin },
+  });
+  return res.data;
+}
