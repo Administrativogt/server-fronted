@@ -13,6 +13,8 @@ import {
   Row,
   Col,
   Tooltip,
+  Tabs,
+  Badge,
   message,
 } from 'antd';
 import { SearchOutlined, ClearOutlined, PrinterOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
@@ -58,8 +60,13 @@ const defaultFilters: Filters = {
   dateRange: null,
 };
 
+type ListScope = 'mine' | 'to_authorize';
+
 const MoneyReqList: React.FC = () => {
   const [data, setData] = useState<MoneyRequirement[]>([]);
+  // 'mine' = los que yo solicité; 'to_authorize' = los que esperan MI autorización
+  const [scope, setScope] = useState<ListScope>('mine');
+  const [toAuthorizeCount, setToAuthorizeCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [users, setUsers] = useState<UserLite[]>([]);
@@ -74,10 +81,11 @@ const MoneyReqList: React.FC = () => {
   const { hasPermission, isSuperUser } = usePermissions();
   const canAuthorize = isSuperUser() || hasPermission('money requirements authorizers');
 
-  const fetchRequirements = async (activeFilters: Filters = filters) => {
+  const fetchRequirements = async (activeFilters: Filters = filters, activeScope: ListScope = scope) => {
     try {
       setLoading(true);
       const params: Record<string, unknown> = {};
+      if (activeScope === 'to_authorize') params.scope = 'to_authorize';
       if (activeFilters.payableTo) params.payableTo = activeFilters.payableTo;
       if (activeFilters.correlative) params.correlative = activeFilters.correlative.trim();
       if (activeFilters.teamId) params.teamId = activeFilters.teamId;
@@ -95,8 +103,27 @@ const MoneyReqList: React.FC = () => {
     }
   };
 
+  // Contador de la pestaña "Por autorizar" (solo pendientes de mi firma)
+  const refreshToAuthorizeCount = async () => {
+    if (!canAuthorize) return;
+    try {
+      const res = await getMoneyRequirements({ scope: 'to_authorize' });
+      setToAuthorizeCount(res.length);
+    } catch {
+      /* el contador es informativo */
+    }
+  };
+
+  const changeScope = (key: string) => {
+    const next = (key === 'to_authorize' ? 'to_authorize' : 'mine') as ListScope;
+    setScope(next);
+    setSelectedRowKeys([]);
+    fetchRequirements(filters, next);
+  };
+
   useEffect(() => {
-    fetchRequirements(defaultFilters);
+    fetchRequirements(defaultFilters, 'mine');
+    refreshToAuthorizeCount();
     // Solo autorizadores (grupo "money requirements authorizers"), no las 295
     // personas. Aquí sin acotar al equipo propio: contabilidad edita y envía
     // requerimientos de cualquier equipo.
@@ -121,6 +148,7 @@ const MoneyReqList: React.FC = () => {
     message.success('Autorizados correctamente');
     setSelectedRowKeys([]);
     fetchRequirements();
+    refreshToAuthorizeCount();
   };
 
   const doDeny = async () => {
@@ -129,6 +157,7 @@ const MoneyReqList: React.FC = () => {
     message.success('Denegados correctamente');
     setSelectedRowKeys([]);
     fetchRequirements();
+    refreshToAuthorizeCount();
   };
 
   const openEmailModal = () => {
@@ -145,11 +174,14 @@ const MoneyReqList: React.FC = () => {
     setEmailModalOpen(false);
     setSelectedRowKeys([]);
     fetchRequirements();
+    refreshToAuthorizeCount();
   };
 
   // Editable/eliminable solo si NO está aprobado/finalizado (regla nueva; el
-  // backend también la impone)
-  const canModify = (r: MoneyRequirement) => [1, 2, 4].includes(r.state);
+  // backend también la impone). En "Por autorizar" las filas son de otros
+  // solicitantes: el autorizador solo autoriza o deniega, no edita ni elimina.
+  const canModify = (r: MoneyRequirement) =>
+    scope === 'mine' && [1, 2, 4].includes(r.state);
 
   const openEdit = (r: MoneyRequirement) => {
     setEditRow(r);
@@ -172,6 +204,7 @@ const MoneyReqList: React.FC = () => {
       message.success('Requerimiento actualizado');
       setEditRow(null);
       fetchRequirements();
+      refreshToAuthorizeCount();
     } catch (err: any) {
       if (err?.errorFields) return; // validación del form
       message.error(err?.response?.data?.message || 'No se pudo actualizar');
@@ -190,6 +223,7 @@ const MoneyReqList: React.FC = () => {
           await deleteMoneyRequirement(r.id);
           message.success('Requerimiento eliminado');
           fetchRequirements();
+          refreshToAuthorizeCount();
         } catch (err: any) {
           message.error(err?.response?.data?.message || 'No se pudo eliminar');
         }
@@ -199,6 +233,10 @@ const MoneyReqList: React.FC = () => {
 
   const columns = [
     { title: 'Fecha', dataIndex: 'date', key: 'date', width: 110 },
+    // En "Por autorizar" importa quién lo pide; en "Mis requerimientos" siempre soy yo
+    ...(scope === 'to_authorize'
+      ? [{ title: 'Solicitante', dataIndex: 'applicantName', key: 'applicantName', width: 180 }]
+      : []),
     { title: 'A nombre de', dataIndex: 'payableTo', key: 'payableTo', width: 180 },
     {
       title: 'Monto',
@@ -264,11 +302,15 @@ const MoneyReqList: React.FC = () => {
   return (
     <Card>
       <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title level={4}>Requerimientos de dinero</Title>
+        <Title level={4}>
+          {scope === 'to_authorize' ? 'Requerimientos por autorizar' : 'Requerimientos de dinero'}
+        </Title>
         <Space>
-          <Button onClick={openEmailModal} disabled={!hasPendingSelected}>
-            ✉️ Enviar autorización
-          </Button>
+          {scope === 'mine' && (
+            <Button onClick={openEmailModal} disabled={!hasPendingSelected}>
+              ✉️ Enviar autorización
+            </Button>
+          )}
           {canAuthorize && (
             <>
               <Button type="primary" onClick={doAuthorize} disabled={!selectedIds.length}>
@@ -281,6 +323,26 @@ const MoneyReqList: React.FC = () => {
           )}
         </Space>
       </Space>
+
+      {canAuthorize && (
+        <Tabs
+          activeKey={scope}
+          onChange={changeScope}
+          style={{ marginBottom: 8 }}
+          items={[
+            { key: 'mine', label: 'Mis requerimientos' },
+            {
+              key: 'to_authorize',
+              label: (
+                <Space size={6}>
+                  Por autorizar
+                  <Badge count={toAuthorizeCount ?? 0} showZero={false} overflowCount={999} />
+                </Space>
+              ),
+            },
+          ]}
+        />
+      )}
 
       {/* ── Filtros ── */}
       <Card size="small" style={{ marginBottom: 16, background: 'transparent' }} bordered>
