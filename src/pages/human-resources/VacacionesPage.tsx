@@ -84,6 +84,7 @@ import {
   downloadVacationIcs,
   fetchCalendar,
   fetchTeamBalances,
+  fetchTeamRequests,
   fetchJefes,
   fetchDaysUsedStats,
   fetchMyBalanceLog,
@@ -718,6 +719,9 @@ const VacacionesPage: React.FC = () => {
   // ---- Mi equipo (jefes): saldo de cada integrante ----
   const [teamBalances, setTeamBalances] = useState<TeamBalanceRow[]>([]);
   const [teamLoading, setTeamLoading] = useState(false);
+  // ---- Mi equipo (jefes): solicitudes de los integrantes, para aprobar/rechazar ----
+  const [teamRequests, setTeamRequests] = useState<VacationRequest[]>([]);
+  const [teamRequestsLoading, setTeamRequestsLoading] = useState(false);
   const [teamSearch, setTeamSearch] = useState('');
   // RR.HH. "ver como jefe": catálogo de jefes y jefe elegido para equipo / calendario
   const [jefes, setJefes] = useState<JefeOption[]>([]);
@@ -955,12 +959,14 @@ const VacacionesPage: React.FC = () => {
     fetchJefes().then(setJefes).catch(() => {});
   }, [isHR]);
 
-  // Saldos del equipo: jefe → el suyo; RR.HH. → el del jefe elegido (o el suyo si también es jefe)
-  useEffect(() => {
+  // Saldos y solicitudes del equipo: jefe → el suyo; RR.HH. → el del jefe elegido
+  // (o el suyo si también es jefe). Se reusa tras aprobar/rechazar.
+  const reloadTeam = useCallback(() => {
     if (!canSeeTeam) return;
     const jefeId = isHR ? selectedJefeId : null;
     if (isHR && !jefeId && !isJefe) {
       setTeamBalances([]);
+      setTeamRequests([]);
       return;
     }
     setTeamLoading(true);
@@ -968,7 +974,16 @@ const VacacionesPage: React.FC = () => {
       .then(setTeamBalances)
       .catch(() => message.error('Error al cargar los saldos del equipo'))
       .finally(() => setTeamLoading(false));
+    setTeamRequestsLoading(true);
+    fetchTeamRequests(jefeId)
+      .then(setTeamRequests)
+      .catch(() => message.error('Error al cargar las solicitudes del equipo'))
+      .finally(() => setTeamRequestsLoading(false));
   }, [canSeeTeam, isHR, isJefe, selectedJefeId]);
+
+  useEffect(() => {
+    reloadTeam();
+  }, [reloadTeam]);
 
   const jefeLabel = (j: JefeOption) =>
     `${j.first_name} ${j.last_name}`.trim() + ` (${j.username}) · ${j.subordinados}`;
@@ -1274,6 +1289,7 @@ const VacacionesPage: React.FC = () => {
       await approveVacationRequest(id);
       message.success('Solicitud aprobada');
       loadAllRequests();
+      reloadTeam();
     } catch {
       message.error('No se pudo aprobar la solicitud');
     } finally {
@@ -1298,6 +1314,7 @@ const VacacionesPage: React.FC = () => {
       rejectForm.resetFields();
       setRejectingId(null);
       loadAllRequests();
+      reloadTeam();
     } catch {
       message.error('No se pudo rechazar la solicitud');
     } finally {
@@ -2908,7 +2925,117 @@ const VacacionesPage: React.FC = () => {
 
     const hrSinJefe = isHR && !selectedJefeId && !isJefe;
 
+    // Solicitudes del equipo: el jefe aprueba/rechaza aquí lo mismo que ya podía
+    // hacer desde los botones del correo de autorización.
+    const teamRequestColumns = [
+      { title: '#', dataIndex: 'id', width: 55 },
+      {
+        title: 'Empleado',
+        dataIndex: 'user',
+        render: (v: VacationRequest['user']) => {
+          const name = getUserName(v);
+          return (
+            <div className="vac-emp-cell">
+              <Avatar
+                size={30}
+                style={{ background: getAvatarColor(name), fontSize: 12, fontWeight: 700, flexShrink: 0 }}
+              >
+                {getInitials(v)}
+              </Avatar>
+              <span className="vac-emp-name">{name}</span>
+            </div>
+          );
+        },
+      },
+      {
+        title: 'Tipo',
+        dataIndex: 'time_off_type',
+        ellipsis: true,
+        render: (v: TimeOffTypeValue) => (
+          <Tag style={{ borderRadius: 6, fontSize: 11 }}>
+            {TIME_OFF_LABELS[v] ?? v ?? 'Vacaciones'}
+          </Tag>
+        ),
+      },
+      {
+        title: 'Duración',
+        dataIndex: 'request_type',
+        width: 110,
+        render: (v: VacationRequestTypeValue) => REQUEST_TYPE_LABELS[v] ?? v ?? 'Día completo',
+      },
+      {
+        title: 'Fecha inicio',
+        dataIndex: 'fecha_inicio',
+        render: (v: string, r: VacationRequest) => (
+          <span>
+            {v ? dayjs(v).format('DD/MM/YYYY') : '-'}
+            {r.hora_inicio && (
+              <Text type="secondary" style={{ fontSize: 11, marginLeft: 4 }}>
+                {r.hora_inicio}
+              </Text>
+            )}
+          </span>
+        ),
+      },
+      {
+        title: 'Fecha fin',
+        dataIndex: 'fecha_fin',
+        render: (v: string, r: VacationRequest) =>
+          r.request_type !== 'full_day' ? null : v ? dayjs(v).format('DD/MM/YYYY') : '-',
+      },
+      {
+        title: 'Días',
+        dataIndex: 'dias_solicitados',
+        width: 65,
+        render: (v: number) => <span style={{ fontWeight: 600, color: P.navy }}>{v}</span>,
+      },
+      {
+        title: 'Estado',
+        dataIndex: 'estado',
+        render: (v: VacationStatus) => getStatusBadge(v),
+      },
+      {
+        title: 'Motivo rechazo',
+        dataIndex: 'motivo_cancelacion',
+        ellipsis: true,
+        render: (v: string) => v || <Text type="secondary">—</Text>,
+      },
+      {
+        title: 'Acciones',
+        width: 210,
+        render: (_: unknown, record: VacationRequest) =>
+          record.estado === 'PENDIENTE' ? (
+            <Space size={6}>
+              <Button
+                size="small"
+                type="primary"
+                icon={<CheckCircleOutlined />}
+                loading={approvingId === record.id}
+                onClick={() => handleApprove(record.id)}
+                style={{ borderRadius: 6, background: P.greenBtn, border: 'none', fontWeight: 600 }}
+              >
+                Aprobar
+              </Button>
+              <Button
+                size="small"
+                danger
+                icon={<CloseCircleOutlined />}
+                onClick={() => openRejectModal(record.id)}
+                style={{ borderRadius: 6, fontWeight: 600 }}
+              >
+                Rechazar
+              </Button>
+            </Space>
+          ) : (
+            <Text type="secondary">—</Text>
+          ),
+      },
+    ];
+
+    const pendientesEquipo = teamRequests.filter((r) => r.estado === 'PENDIENTE').length;
+
     return (
+      <>
       <Card
         className="vac-section-card"
         title={
@@ -2990,6 +3117,48 @@ const VacacionesPage: React.FC = () => {
           }}
         />
       </Card>
+
+      <Card
+        className="vac-section-card"
+        style={{ marginTop: 16 }}
+        title={
+          <Space>
+            <TeamOutlined style={{ color: P.gold }} />
+            <span>Solicitudes de mi equipo</span>
+            {pendientesEquipo > 0 && (
+              <Tag color="orange" style={{ borderRadius: 6, fontWeight: 600 }}>
+                {pendientesEquipo} pendiente{pendientesEquipo === 1 ? '' : 's'}
+              </Tag>
+            )}
+          </Space>
+        }
+        extra={
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={reloadTeam}
+            size="small"
+            style={{ borderRadius: 6 }}
+          >
+            Actualizar
+          </Button>
+        }
+      >
+        <Table
+          rowKey={(r: VacationRequest) => r.id}
+          loading={teamRequestsLoading}
+          dataSource={teamRequests}
+          columns={teamRequestColumns as any}
+          pagination={teamRequests.length > 25 ? { pageSize: 25, size: 'small' } : false}
+          size="middle"
+          scroll={{ x: 1000 }}
+          locale={{
+            emptyText: hrSinJefe
+              ? 'Seleccioná un jefe para ver sus solicitudes'
+              : 'Tu equipo no tiene solicitudes registradas',
+          }}
+        />
+      </Card>
+      </>
     );
   };
 

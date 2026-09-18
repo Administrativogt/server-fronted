@@ -291,6 +291,19 @@ export async function fetchTeamBalances(jefeId?: number | null): Promise<TeamBal
   return data;
 }
 
+/**
+ * [Jefe] Solicitudes de los integrantes de mi equipo. jefeId solo lo respeta
+ * el backend si quien llama es RR.HH.
+ */
+export async function fetchTeamRequests(
+  jefeId?: number | null,
+): Promise<VacationRequest[]> {
+  const { data } = await api.get(`${BASE}/team-requests`, {
+    params: jefeId ? { jefe_id: jefeId } : undefined,
+  });
+  return data;
+}
+
 export interface JefeOption {
   id: number;
   username: string;
