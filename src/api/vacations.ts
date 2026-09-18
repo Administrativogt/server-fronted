@@ -138,9 +138,30 @@ export async function createVacationRequest(payload: {
   time_off_type?: TimeOffTypeValue;
   hora_inicio?: string;
   comentarios?: string;
+  /**
+   * Confirma el sobregiro: crea la solicitud aunque el saldo no alcance y lo
+   * deja en negativo. Sin este flag el backend responde 400 con
+   * code = 'INSUFFICIENT_BALANCE' (ver InsufficientBalanceError).
+   */
+  allow_negative_balance?: boolean;
 }): Promise<VacationRequest> {
   const { data } = await api.post(BASE, payload);
   return data;
+}
+
+/** Cuerpo del 400 que devuelve el backend cuando el saldo no alcanza. */
+export interface InsufficientBalanceError {
+  code: 'INSUFFICIENT_BALANCE';
+  message: string;
+  saldo_actual: number;
+  dias_solicitados: number;
+  saldo_resultante: number;
+}
+
+/** Devuelve el detalle del sobregiro si el error de axios es un 400 por saldo. */
+export function getInsufficientBalance(e: any): InsufficientBalanceError | null {
+  const data = e?.response?.data;
+  return data?.code === 'INSUFFICIENT_BALANCE' ? (data as InsufficientBalanceError) : null;
 }
 
 export async function cancelVacationRequest(id: number): Promise<VacationRequest> {
@@ -190,6 +211,8 @@ export async function hrUpdateVacationRequest(
     time_off_type?: TimeOffTypeValue;
     hora_inicio?: string;
     comentarios?: string;
+    /** Confirma ampliar la solicitud dejando el saldo en negativo. */
+    allow_negative_balance?: boolean;
   },
 ): Promise<VacationRequest> {
   const { data } = await api.patch(`${BASE}/${id}/hr-update`, payload);

@@ -76,6 +76,7 @@ import {
   resendVacationApprovalEmail,
   cancelVacationRequest,
   createVacationRequest,
+  getInsufficientBalance,
   downloadVacationBalancesExcel,
   downloadVacationRequestsExcel,
   fetchAllVacationRequests,
@@ -645,6 +646,56 @@ const WorkingDaysHint: React.FC<{
   );
 };
 
+/**
+ * El saldo no alcanza. En vez de bloquear la solicitud, se le explica el
+ * sobregiro y se le deja decidir: si acepta, se reenvía con
+ * allow_negative_balance y el saldo queda en negativo.
+ */
+const confirmOverdraft = (
+  overdraft: { saldo_actual: number; dias_solicitados: number; saldo_resultante: number },
+  onConfirm: () => Promise<void>,
+  sujeto: 'Tu' | 'El empleado' = 'Tu',
+) => {
+  const esRRHH = sujeto === 'El empleado';
+  const faltan = Math.abs(overdraft.saldo_resultante);
+  const plural = (n: number) => (n === 1 ? 'día' : 'días');
+
+  Modal.confirm({
+    title: esRRHH ? 'El empleado no tiene saldo suficiente' : 'Ya no tienes saldo disponible',
+    okText: esRRHH ? 'Sí, crear igual' : 'Sí, solicitar igual',
+    cancelText: 'Cancelar',
+    okButtonProps: { danger: true },
+    width: 480,
+    content: (
+      <div>
+        <p style={{ marginTop: 0 }}>
+          {esRRHH ? 'Saldo disponible del empleado: ' : 'Tu saldo disponible es de '}
+          <strong>
+            {overdraft.saldo_actual} {plural(overdraft.saldo_actual)}
+          </strong>
+          {' y '}
+          {esRRHH ? 'la solicitud es de ' : 'estás solicitando '}
+          <strong>
+            {overdraft.dias_solicitados} {plural(overdraft.dias_solicitados)}
+          </strong>
+          .
+        </p>
+        <p style={{ marginBottom: 0 }}>
+          Si continúas, la solicitud se envía igual y el saldo queda en{' '}
+          <strong>
+            −{faltan} {plural(faltan)}
+          </strong>
+          . Esos {plural(faltan)} se descontarán del próximo período acumulado.
+        </p>
+      </div>
+    ),
+    onOk: () =>
+      onConfirm().catch((err: any) => {
+        message.error(err?.response?.data?.message || 'No se pudo enviar la solicitud');
+      }),
+  });
+};
+
 const VacacionesPage: React.FC = () => {
   const isSuperuser = useAuthStore((s) => s.is_superuser);
   const username = useAuthStore((s) => s.username);
@@ -1100,13 +1151,27 @@ const VacacionesPage: React.FC = () => {
         ...(hora_inicio !== undefined ? { hora_inicio } : {}),
       };
 
-      await createVacationRequest(payload);
-      message.success('Solicitud enviada');
-      requestForm.resetFields();
-      loadMyVacations();
+      const send = async (allowNegative: boolean) => {
+        await createVacationRequest(
+          allowNegative ? { ...payload, allow_negative_balance: true } : payload,
+        );
+        message.success('Solicitud enviada');
+        requestForm.resetFields();
+        loadMyVacations();
+      };
+
+      try {
+        await send(false);
+      } catch (e: any) {
+        // Saldo insuficiente: en vez de bloquear, preguntamos si quiere
+        // solicitar igual sabiendo que el saldo queda en negativo.
+        const overdraft = getInsufficientBalance(e);
+        if (!overdraft) throw e;
+        confirmOverdraft(overdraft, () => send(true));
+      }
     } catch (e: any) {
       if (e?.errorFields) return;
-      message.error('No se pudo enviar la solicitud');
+      message.error(e?.response?.data?.message || 'No se pudo enviar la solicitud');
     } finally {
       setRequesting(false);
     }
@@ -1158,13 +1223,26 @@ const VacacionesPage: React.FC = () => {
         ...(hora_inicio !== undefined ? { hora_inicio } : {}),
       };
 
-      await createVacationRequestForUser(values.user_id, payload);
-      message.success('Solicitud creada exitosamente');
-      hrRequestForm.resetFields();
-      loadAllRequests();
+      const send = async (allowNegative: boolean) => {
+        await createVacationRequestForUser(
+          values.user_id,
+          allowNegative ? { ...payload, allow_negative_balance: true } : payload,
+        );
+        message.success('Solicitud creada exitosamente');
+        hrRequestForm.resetFields();
+        loadAllRequests();
+      };
+
+      try {
+        await send(false);
+      } catch (e: any) {
+        const overdraft = getInsufficientBalance(e);
+        if (!overdraft) throw e;
+        confirmOverdraft(overdraft, () => send(true), 'El empleado');
+      }
     } catch (e: any) {
       if (e?.errorFields) return;
-      message.error('No se pudo crear la solicitud');
+      message.error(e?.response?.data?.message || 'No se pudo crear la solicitud');
     } finally {
       setHrRequesting(false);
     }
@@ -1272,13 +1350,26 @@ const VacacionesPage: React.FC = () => {
         payload.fecha_fin = dayjs(fechaFin).format('YYYY-MM-DD');
       }
 
-      await hrUpdateVacationRequest(editingRequest.id, payload);
-      message.success('Solicitud actualizada y saldo reconciliado');
-      setEditModalOpen(false);
-      editForm.resetFields();
-      setEditingRequest(null);
-      loadAllRequests();
-      loadBalances();
+      const send = async (allowNegative: boolean) => {
+        await hrUpdateVacationRequest(
+          editingRequest.id,
+          allowNegative ? { ...payload, allow_negative_balance: true } : payload,
+        );
+        message.success('Solicitud actualizada y saldo reconciliado');
+        setEditModalOpen(false);
+        editForm.resetFields();
+        setEditingRequest(null);
+        loadAllRequests();
+        loadBalances();
+      };
+
+      try {
+        await send(false);
+      } catch (e: any) {
+        const overdraft = getInsufficientBalance(e);
+        if (!overdraft) throw e;
+        confirmOverdraft(overdraft, () => send(true), 'El empleado');
+      }
     } catch (e: any) {
       if (e?.errorFields) return;
       message.error(e?.response?.data?.message || 'No se pudo actualizar la solicitud');
@@ -1800,8 +1891,11 @@ const VacacionesPage: React.FC = () => {
   const renderMyVacationsTab = () => {
     const vacBalance = myData?.balances?.find((b) => b.time_off_type === 'vacaciones');
     const saldo = vacBalance?.saldo_dias ?? myData?.saldo_dias ?? 0;
-    const progressPercent = Math.min(100, Math.round((saldo / 15) * 100));
+    // El saldo puede quedar negativo si el empleado confirmó un sobregiro;
+    // la barra se mantiene en 0 y el número se pinta en rojo.
+    const progressPercent = Math.max(0, Math.min(100, Math.round((saldo / 15) * 100)));
     const isLow = saldo < 5;
+    const isOverdrawn = saldo < 0;
     const otherBalances = myData?.balances?.filter((b) => b.time_off_type !== 'vacaciones') ?? [];
     const pendingDays = vacBalance
       ? Math.max(0, (Number(vacBalance.previous_year) + Number(vacBalance.earned_this_year) - Number(vacBalance.used_this_year)) - Number(vacBalance.saldo_dias))
@@ -1827,6 +1921,17 @@ const VacacionesPage: React.FC = () => {
                 strokeWidth={7}
                 style={{ marginBottom: 10 }}
               />
+              {isOverdrawn && (
+                <Alert
+                  type="error"
+                  showIcon
+                  banner
+                  style={{ borderRadius: 8, fontSize: 12, marginBottom: 10 }}
+                  message={`Saldo en negativo: debes ${Math.abs(saldo)} día${Math.abs(saldo) !== 1 ? 's' : ''}`}
+                  description="Se descontarán de los días que acumules en tu próximo período."
+                />
+              )}
+
               {/* Días en solicitudes pendientes */}
               {pendingDays > 0 && (
                 <div style={{
