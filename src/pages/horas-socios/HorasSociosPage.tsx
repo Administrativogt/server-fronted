@@ -45,7 +45,6 @@ const periodoLabel = (imp: HorasImportacion) =>
 const HorasSociosPage: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [sinEquipo, setSinEquipo] = useState<string[]>([]);
 
   const [importaciones, setImportaciones] = useState<HorasImportacion[]>([]);
   const [loadingImps, setLoadingImps] = useState(false);
@@ -60,6 +59,9 @@ const HorasSociosPage: React.FC = () => {
   const [enviando, setEnviando] = useState(false);
   const [resultadoEnvio, setResultadoEnvio] = useState<EnvioResultado[] | null>(null);
   const [fueDryRun, setFueDryRun] = useState(false);
+
+  /** Excluidos del reporte por no tener equipo (viene del reporte calculado). */
+  const sinEquipo = reporte?.usuariosSinEquipo ?? [];
 
   const cargarImportaciones = async () => {
     setLoadingImps(true);
@@ -80,13 +82,11 @@ const HorasSociosPage: React.FC = () => {
   const handleImportar = async () => {
     if (!file) return message.warning('Selecciona el TM-report (Excel)');
     setUploading(true);
-    setSinEquipo([]);
     try {
       const { data } = await horasSociosApi.importar(file);
       message.success(
         `Importados ${data.importacion.total_registros} registros (${periodoLabel(data.importacion)})`,
       );
-      setSinEquipo(data.usuariosSinEquipo);
       setFile(null);
       await cargarImportaciones();
       await verPreview(data.importacion.id);
@@ -103,7 +103,6 @@ const HorasSociosPage: React.FC = () => {
       const { data } = await horasSociosApi.getPreview(id);
       setReporte(data);
       setTabSocio('GENERAL');
-      setSinEquipo(data.usuariosSinEquipo);
     } catch (err: any) {
       message.error(err.response?.data?.message || 'Error al calcular el reporte');
     } finally {
@@ -383,11 +382,18 @@ const HorasSociosPage: React.FC = () => {
             style={{ marginTop: 12 }}
             type="warning"
             showIcon
-            message={`${sinEquipo.length} usuario(s) sin equipo asignado — sus filas saldrán como "(SIN EQUIPO)" y no entran en ninguna hoja de socio`}
+            message={`${sinEquipo.length} usuario(s) sin equipo asignado — EXCLUIDOS del reporte, las hojas de socio y los correos`}
             description={
               <>
-                {sinEquipo.join(', ')}
+                {sinEquipo
+                  .map(
+                    (u) =>
+                      `${u.name} (${minutosAHoras(u.minutes)})` +
+                      (u.estado === 'inactivo' ? ' — ya no está en la firma' : ''),
+                  )
+                  .join(', ')}
                 <br />
+                Si alguno debe entrar al reporte, asígnale equipo en Catálogos.{' '}
                 <Link to="/dashboard/horas-socios/catalogos">Asignarlos en Catálogos →</Link>
               </>
             }
@@ -398,10 +404,17 @@ const HorasSociosPage: React.FC = () => {
             style={{ marginTop: 12 }}
             type="info"
             showIcon
-            message={`${reporte.usuariosInactivos.length} usuario(s) inactivo(s) en la firma — excluidos del reporte, las hojas de socio y los correos`}
-            description={reporte.usuariosInactivos
-              .map((u) => `${u.name} (${minutosAHoras(u.minutes)})`)
-              .join(', ')}
+            message={`${reporte.usuariosInactivos.length} usuario(s) que ya no están en la firma — SÍ se incluyen en el reporte (causaron baja durante el semestre)`}
+            description={
+              <>
+                {reporte.usuariosInactivos
+                  .map((u) => `${u.name} (${minutosAHoras(u.minutes)})`)
+                  .join(', ')}
+                <br />
+                Para dejar fuera a quien causó baja antes del semestre, quítale el equipo o
+                desactiva su timekeeper en Catálogos.
+              </>
+            }
           />
         )}
         {reporte && reporte.usuariosNoEncontrados?.length > 0 && (

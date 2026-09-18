@@ -74,6 +74,8 @@ export interface UsuarioFueraFirma {
   name: string;
   minutes: number;
   hours: number;
+  /** Estado en la firma al generar el reporte. */
+  estado: EstadoFirma;
 }
 
 export interface FilaReporte {
@@ -109,8 +111,9 @@ export interface ReporteHoras {
   periodoTexto: string;
   filas: FilaReporte[];
   totales: FilaReporte;
-  usuariosSinEquipo: string[];
-  /** Inactivos en la firma: EXCLUIDOS del reporte (filas, totales, correos). */
+  /** Sin equipo asignado: EXCLUIDOS del reporte, las hojas de socio y los correos. */
+  usuariosSinEquipo: UsuarioFueraFirma[];
+  /** Inactivos en la firma CON equipo: se incluyen; solo se señalan. */
   usuariosInactivos: UsuarioFueraFirma[];
   /** Sin coincidencia en usuarios del sistema: se mantienen, solo se señalan. */
   usuariosNoEncontrados: UsuarioFueraFirma[];
