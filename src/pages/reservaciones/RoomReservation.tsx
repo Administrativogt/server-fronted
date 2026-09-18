@@ -27,6 +27,7 @@ interface Room {
   id: number;
   name: string;
   price_per_hour: string | null;
+  state: boolean;
 }
 
 function RoomReservation() {
@@ -59,7 +60,7 @@ function RoomReservation() {
   // 🔹 Obtener TODAS las salas disponibles (no solo las que tienen reservaciones)
   const roomOptions = useMemo(() => {
     return allRooms
-      .filter(r => r.price_per_hour != null) // Solo salas con precio
+      .filter(r => !!r.state) // Solo salas activas
       .map(r => ({ label: r.name, value: r.name }));
   }, [allRooms]);
 

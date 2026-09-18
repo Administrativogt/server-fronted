@@ -47,7 +47,7 @@ type Reservation = {
 };
 
 type Partner = { id: number; full_name: string };
-type Room = { id: number; name: string; price_per_hour: string | null };
+type Room = { id: number; name: string; price_per_hour: string | null; state: boolean };
 
 // ---- Para el reporte ----
 type ReportRow = {
@@ -407,7 +407,7 @@ export default function ReservationsList() {
     try {
       if (!rooms.length) {
         const resRooms = await api.get<Room[]>('/rooms');
-        setRooms(resRooms.data.filter(r => r.price_per_hour != null));
+        setRooms(resRooms.data.filter(r => !!r.state));
       }
       const date = dayjs(row.reservation_date);
       const [ih, im] = fmtTime(row.init_hour).split(':').map(Number);

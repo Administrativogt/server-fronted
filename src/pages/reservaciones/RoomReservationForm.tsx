@@ -73,6 +73,7 @@ interface Room {
   id: number;
   name: string;
   price_per_hour: string | null;
+  state: boolean;
 }
 type Partner = { id: number; full_name: string; email: string };
 
@@ -207,7 +208,7 @@ export default function RoomReservationForm() {
 
     api
       .get<Room[]>("/rooms")
-      .then((res) => setRooms(res.data.filter((r) => r.price_per_hour != null)))
+      .then((res) => setRooms(res.data.filter((r) => !!r.state)))
       .catch(() => {
         setRooms([]);
         notif.error({
