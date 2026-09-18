@@ -388,8 +388,8 @@ const HorasSociosPage: React.FC = () => {
                 {sinEquipo
                   .map(
                     (u) =>
-                      `${u.name} (${minutosAHoras(u.minutes)})` +
-                      (u.estado === 'inactivo' ? ' — ya no está en la firma' : ''),
+                      `${u.name} (${minutosAHoras(u.minutes)}` +
+                      (u.estado === 'inactivo' ? ', ya no está en la firma)' : ')'),
                   )
                   .join(', ')}
                 <br />
