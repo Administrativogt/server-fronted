@@ -28,7 +28,9 @@ export async function getTeams(): Promise<Team[]> {
  * están en el grupo "money requirements authorizers" y activos. Es la misma
  * regla que usaba el Django viejo para llenar "Responsable de firmar".
  */
-export async function getAuthorizers(allTeams = false): Promise<UserLite[]> {
+export type Authorizer = UserLite & { grupo?: 'equipo' | 'socios' };
+
+export async function getAuthorizers(allTeams = false): Promise<Authorizer[]> {
   const { data } = await api.get('/money-requirements/authorizers', {
     params: allTeams ? { allTeams: true } : undefined,
   });

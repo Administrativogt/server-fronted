@@ -11,10 +11,11 @@ import {
   message,
   Typography,
 } from 'antd';
+import type { DefaultOptionType } from 'antd/es/select';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { getTeams, getAuthorizers, type Team } from '../../api/teams';
-import { type UserLite, fullName } from '../../api/users';
+import { getTeams, getAuthorizers, type Team, type Authorizer } from '../../api/teams';
+import { fullName } from '../../api/users';
 import type { MoneyRequirement } from '../../api/moneyRequirements';
 import { createMoneyRequirement, sendAuthorizationEmail } from '../../api/moneyRequirements';
 
@@ -43,7 +44,7 @@ interface FormValues {
 const CreateMoneyRequirement: React.FC = () => {
   const [form] = Form.useForm<FormValues>();
   const [teams, setTeams] = useState<Team[]>([]);
-  const [users, setUsers] = useState<UserLite[]>([]);
+  const [users, setUsers] = useState<Authorizer[]>([]);
   const navigate = useNavigate();
 
   // Las áreas dependen del equipo: /money-requirements/teams ya las trae
@@ -67,11 +68,23 @@ const CreateMoneyRequirement: React.FC = () => {
     loadData();
   }, []);
 
-  // ⚙️ Opciones para el combo de autorizadores (con label string para filtrar)
-  const userOptions = useMemo(
-    () => users.map((u) => ({ value: u.id, label: fullName(u) })),
-    [users],
-  );
+  // ⚙️ Opciones para el combo de autorizadores (con label string para filtrar).
+  // El backend marca cada nombre con su origen (`grupo`): los de siempre vienen
+  // como 'equipo' y el combo queda plano, igual que antes. Solo cuando además
+  // llegan socios (hoy solo MEJ000) se parte en dos secciones.
+  const userOptions = useMemo<DefaultOptionType[]>(() => {
+    const byLabel = (a: { label: string }, b: { label: string }) =>
+      a.label.toLowerCase().localeCompare(b.label.toLowerCase());
+    const toOptions = (list: Authorizer[]) =>
+      list.map((u) => ({ value: u.id, label: fullName(u) })).sort(byLabel);
+    const socios = users.filter((u) => u.grupo === 'socios');
+    if (!socios.length) return toOptions(users);
+    const equipo = users.filter((u) => u.grupo !== 'socios');
+    return [
+      { label: 'Mi equipo', options: toOptions(equipo) },
+      { label: 'Socios', options: toOptions(socios) },
+    ].filter((g) => g.options.length > 0);
+  }, [users]);
 
   /** Crear sin enviar correo */
   const handleCreate = async (values: FormValues) => {
@@ -230,9 +243,6 @@ const CreateMoneyRequirement: React.FC = () => {
             notFoundContent="Su equipo no tiene autorizadores configurados"
             options={userOptions}
             optionFilterProp="label"
-            filterSort={(a, b) =>
-              a.label.toLowerCase().localeCompare(b.label.toLowerCase())
-            }
           />
         </Form.Item>
 
