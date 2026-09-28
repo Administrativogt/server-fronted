@@ -19,6 +19,7 @@ import {
   message,
 } from 'antd';
 import {
+  EditOutlined,
   FilePdfOutlined,
   PlusOutlined,
   ReloadOutlined,
@@ -37,6 +38,7 @@ import {
   downloadLiquidationPdf,
   fetchLiquidations,
   previewLiquidation,
+  updateLiquidationAccess,
 } from '../../api/vacationLiquidations';
 
 const { Text } = Typography;
@@ -69,7 +71,13 @@ const LiquidacionesTab: React.FC = () => {
   const [preview, setPreview] = useState<LiquidationPreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [observaciones, setObservaciones] = useState('');
+  const [accesoHasta, setAccesoHasta] = useState<Dayjs | null>(null);
   const [confirming, setConfirming] = useState(false);
+
+  // ---- Cambiar último día con acceso ----
+  const [accesoEdit, setAccesoEdit] = useState<VacationLiquidation | null>(null);
+  const [accesoEditFecha, setAccesoEditFecha] = useState<Dayjs | null>(null);
+  const [savingAcceso, setSavingAcceso] = useState(false);
 
   const loadLiquidations = useCallback(async () => {
     setLoading(true);
@@ -112,6 +120,7 @@ const LiquidacionesTab: React.FC = () => {
     setFechaIngreso(null);
     setPreview(null);
     setObservaciones('');
+    setAccesoHasta(null);
   };
 
   const handlePreview = async () => {
@@ -170,6 +179,7 @@ const LiquidacionesTab: React.FC = () => {
         user_id: selectedUserId,
         fecha_ingreso: fechaIngreso.format('YYYY-MM-DD'),
         fecha_salida: fechaSalida.format('YYYY-MM-DD'),
+        acceso_hasta: accesoHasta ? accesoHasta.format('YYYY-MM-DD') : undefined,
         observaciones: observaciones || undefined,
         periodos: preview.periodos.map((p) => ({
           periodo_inicio: p.periodo_inicio,
@@ -182,9 +192,11 @@ const LiquidacionesTab: React.FC = () => {
       });
       message.success(
         `Liquidación #${created.id} confirmada — el saldo del usuario quedó en 0` +
-          (created.usuario_desactivado
-            ? ' y su cuenta fue desactivada'
-            : ' (la cuenta ya estaba desactivada)'),
+          (created.acceso_hasta
+            ? `; podrá entrar al sistema hasta el ${fmtFecha(created.acceso_hasta)} y luego su cuenta se desactivará`
+            : created.usuario_desactivado
+              ? ' y su cuenta fue desactivada'
+              : ' (la cuenta ya estaba desactivada)'),
         6,
       );
       setModalOpen(false);
@@ -202,12 +214,14 @@ const LiquidacionesTab: React.FC = () => {
     }
   };
 
-  const handleAnular = async (id: number) => {
-    setAnulandoId(id);
+  const handleAnular = async (liq: VacationLiquidation) => {
+    setAnulandoId(liq.id);
     try {
-      await anularLiquidation(id);
+      await anularLiquidation(liq.id);
       message.success(
-        'Liquidación anulada — se restauró el saldo cerrado. Si la persona sigue en la Firma, reactivá su cuenta desde Usuarios',
+        liq.acceso_revocado_at
+          ? 'Liquidación anulada — se restauró el saldo cerrado. Si la persona sigue en la Firma, reactivá su cuenta desde Usuarios'
+          : 'Liquidación anulada — se restauró el saldo cerrado y se canceló la baja programada; la cuenta sigue activa',
         6,
       );
       loadLiquidations();
@@ -215,6 +229,31 @@ const LiquidacionesTab: React.FC = () => {
       message.error(err?.response?.data?.message ?? 'No se pudo anular');
     } finally {
       setAnulandoId(null);
+    }
+  };
+
+  const handleSaveAcceso = async () => {
+    if (!accesoEdit || !accesoEditFecha) return;
+    setSavingAcceso(true);
+    try {
+      const updated = await updateLiquidationAccess(
+        accesoEdit.id,
+        accesoEditFecha.format('YYYY-MM-DD'),
+      );
+      message.success(
+        updated.usuario_desactivado
+          ? 'La fecha ya pasó: la cuenta se desactivó'
+          : `Podrá entrar al sistema hasta el ${fmtFecha(updated.acceso_hasta!)}`,
+        6,
+      );
+      setAccesoEdit(null);
+      loadLiquidations();
+    } catch (err: any) {
+      message.error(
+        err?.response?.data?.message ?? 'No se pudo cambiar la fecha de acceso',
+      );
+    } finally {
+      setSavingAcceso(false);
     }
   };
 
@@ -266,6 +305,38 @@ const LiquidacionesTab: React.FC = () => {
       render: fmtFecha,
     },
     {
+      title: 'Acceso al sistema',
+      key: 'acceso',
+      render: (_: unknown, r: VacationLiquidation) => {
+        if (r.estado !== 'CONFIRMADA') return <Text type="secondary">—</Text>;
+        if (r.acceso_revocado_at) {
+          return (
+            <Tag color="default">
+              Desactivada el {fmtFecha(r.acceso_revocado_at)}
+            </Tag>
+          );
+        }
+        return (
+          <Space size={4}>
+            <Tooltip title="La cuenta se desactiva automáticamente al terminar ese día">
+              <Tag color="orange">Hasta el {fmtFecha(r.acceso_hasta!)}</Tag>
+            </Tooltip>
+            <Tooltip title="Cambiar último día con acceso">
+              <Button
+                size="small"
+                type="text"
+                icon={<EditOutlined />}
+                onClick={() => {
+                  setAccesoEdit(r);
+                  setAccesoEditFecha(r.acceso_hasta ? dayjs(r.acceso_hasta) : null);
+                }}
+              />
+            </Tooltip>
+          </Space>
+        );
+      },
+    },
+    {
       title: 'Días a pagar',
       dataIndex: 'total_dias_pendientes',
       key: 'total',
@@ -307,7 +378,7 @@ const LiquidacionesTab: React.FC = () => {
               description="Se restaurará el saldo de vacaciones que se cerró."
               okText="Anular"
               cancelText="No"
-              onConfirm={() => handleAnular(r.id)}
+              onConfirm={() => handleAnular(r)}
             >
               <Button
                 size="small"
@@ -449,6 +520,8 @@ const LiquidacionesTab: React.FC = () => {
               onChange={(d) => {
                 setFechaSalida(d);
                 setPreview(null);
+                // Por defecto conserva el acceso hasta el último día laborado
+                setAccesoHasta(d && !d.isBefore(dayjs(), 'day') ? d : null);
               }}
               format="DD/MM/YYYY"
               style={{ width: '100%', marginTop: 4 }}
@@ -503,6 +576,26 @@ const LiquidacionesTab: React.FC = () => {
                 </Text>
               </Text>
             </Row>
+            <Row gutter={12} align="middle" style={{ marginBottom: 12 }}>
+              <Col span={8}>
+                <Text strong>Último día con acceso al sistema</Text>
+                <DatePicker
+                  value={accesoHasta}
+                  onChange={setAccesoHasta}
+                  disabledDate={(d) => d.isBefore(dayjs(), 'day')}
+                  placeholder="Desactivar al confirmar"
+                  format="DD/MM/YYYY"
+                  style={{ width: '100%', marginTop: 4 }}
+                />
+              </Col>
+              <Col span={16}>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {accesoHasta
+                    ? `Podrá seguir entrando a la aplicación hasta el ${accesoHasta.format('DD/MM/YYYY')}; al terminar ese día su cuenta se desactiva sola.`
+                    : 'Sin fecha: la cuenta se desactiva en cuanto confirmes la liquidación.'}
+                </Text>
+              </Col>
+            </Row>
             <Input.TextArea
               rows={2}
               placeholder="Observaciones (opcional)"
@@ -512,7 +605,11 @@ const LiquidacionesTab: React.FC = () => {
             />
             <Popconfirm
               title="¿Confirmar liquidación?"
-              description="El saldo de vacaciones quedará en 0, se generará la carta y la cuenta del empleado se desactivará (si aún está activa)."
+              description={
+                accesoHasta
+                  ? `El saldo de vacaciones quedará en 0 y se generará la carta. La cuenta del empleado seguirá activa hasta el ${accesoHasta.format('DD/MM/YYYY')}.`
+                  : 'El saldo de vacaciones quedará en 0, se generará la carta y la cuenta del empleado se desactivará (si aún está activa).'
+              }
               okText="Confirmar"
               cancelText="Cancelar"
               onConfirm={handleConfirm}
@@ -522,6 +619,40 @@ const LiquidacionesTab: React.FC = () => {
               </Button>
             </Popconfirm>
           </>
+        )}
+      </Modal>
+
+      <Modal
+        title="Último día con acceso al sistema"
+        open={!!accesoEdit}
+        onCancel={() => setAccesoEdit(null)}
+        onOk={handleSaveAcceso}
+        okText="Guardar"
+        cancelText="Cancelar"
+        okButtonProps={{ disabled: !accesoEditFecha, loading: savingAcceso }}
+        destroyOnClose
+      >
+        {accesoEdit && (
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Text>
+              {accesoEdit.user?.first_name} {accesoEdit.user?.last_name} podrá
+              entrar a la aplicación hasta el día que elijas; al terminar ese
+              día su cuenta se desactiva sola.
+            </Text>
+            <DatePicker
+              value={accesoEditFecha}
+              onChange={setAccesoEditFecha}
+              format="DD/MM/YYYY"
+              style={{ width: '100%' }}
+            />
+            {accesoEditFecha?.isBefore(dayjs(), 'day') && (
+              <Alert
+                type="warning"
+                showIcon
+                message="Esa fecha ya pasó: la cuenta se desactivará al guardar."
+              />
+            )}
+          </Space>
         )}
       </Modal>
     </div>

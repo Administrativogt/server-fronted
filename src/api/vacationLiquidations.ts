@@ -35,12 +35,16 @@ export interface VacationLiquidation {
   fecha_salida: string;
   total_dias_pendientes: number;
   saldo_cerrado: number;
+  /** Último día con acceso al sistema; null = se desactivó al confirmar */
+  acceso_hasta: string | null;
+  /** Cuándo se desactivó la cuenta; null mientras la baja siga programada */
+  acceso_revocado_at: string | null;
   estado: LiquidationStatus;
   observaciones: string | null;
   periodos: LiquidationPeriod[];
   created_at: string;
   anulada_at: string | null;
-  /** Solo en la respuesta de POST: true si al confirmar se dio de baja la cuenta del usuario */
+  /** Solo en la respuesta de POST/PATCH acceso: true si en esa operación se dio de baja la cuenta del usuario */
   usuario_desactivado?: boolean;
 }
 
@@ -63,6 +67,7 @@ export async function createLiquidation(payload: {
   user_id: number;
   fecha_ingreso: string;
   fecha_salida: string;
+  acceso_hasta?: string;
   observaciones?: string;
   periodos: Omit<LiquidationPeriod, 'id' | 'orden'>[];
 }): Promise<VacationLiquidation> {
@@ -72,6 +77,16 @@ export async function createLiquidation(payload: {
 
 export async function fetchLiquidations(): Promise<VacationLiquidation[]> {
   const { data } = await api.get(BASE);
+  return data;
+}
+
+export async function updateLiquidationAccess(
+  id: number,
+  accesoHasta: string,
+): Promise<VacationLiquidation> {
+  const { data } = await api.patch(`${BASE}/${id}/acceso`, {
+    acceso_hasta: accesoHasta,
+  });
   return data;
 }
 
