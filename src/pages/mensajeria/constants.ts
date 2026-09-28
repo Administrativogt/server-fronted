@@ -33,6 +33,10 @@ export const PRIORIDADES_TEXTO: Record<number, string> = {
   4: 'Villa Nueva',
 };
 
+// Mensajero externo (usuario MENSAJERO, id 427 en prod): sus rutas las manejan
+// los mensajeros internos, que pueden bajar su reporte desde Crear Reporte.
+export const MENSAJERO_EXTERNO_USERNAME = 'MENSAJERO';
+
 /** "2026-07-20T00:00:00" → "2026-07-20"; nulos/vacíos → "—" */
 export const formatFecha = (date?: string | null): string =>
   date ? date.split('T')[0] : '—';

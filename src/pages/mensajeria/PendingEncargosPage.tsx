@@ -39,7 +39,7 @@ import type { Encargo, Usuario } from '../../types/encargo';
 import CommentModal from './components/CommentModal';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
 import EncargoCardList from './components/EncargoCardList';
-import { PRIORIDADES_TEXTO, formatFecha, formatHorario, saveExcelResponse } from './constants';
+import { MENSAJERO_EXTERNO_USERNAME, PRIORIDADES_TEXTO, formatFecha, formatHorario, saveExcelResponse } from './constants';
 import { confirmarEntrega } from './deliver';
 import useAuthStore from '../../auth/useAuthStore';
 
@@ -217,9 +217,15 @@ const PendingEncargosPage: React.FC = () => {
     }
   };
 
+  // Un mensajero solo baja su propio reporte, salvo el del mensajero externo
+  // (usuario MENSAJERO), cuyas rutas también manejan ellos.
+  const exportOptions = isMensajero
+    ? mensajeros.filter((m) => m.id === userId || m.username?.toUpperCase() === MENSAJERO_EXTERNO_USERNAME)
+    : mensajeros;
+
   const handleCrearReporte = (type: 1 | 2) => {
     setExportType(type);
-    if (isMensajero && userId) {
+    if (isMensajero && userId && exportOptions.length <= 1) {
       downloadExcel(userId, type);
     } else {
       setExportModal(true);
@@ -813,7 +819,7 @@ const PendingEncargosPage: React.FC = () => {
             String(option?.children || '').toLowerCase().includes(input.toLowerCase())
           }
         >
-          {mensajeros.map((m) => (
+          {exportOptions.map((m) => (
             <Option key={m.id} value={m.id}>
               {m.first_name} {m.last_name}
             </Option>
