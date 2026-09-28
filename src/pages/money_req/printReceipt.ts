@@ -7,6 +7,7 @@ const STATE_LABEL: Record<number, string> = {
   3: 'Autorizado',
   4: 'Rechazado',
   5: 'Anulado',
+  6: 'Finalizado',
 };
 
 const CURRENCY_NAME: Record<string, string> = {
