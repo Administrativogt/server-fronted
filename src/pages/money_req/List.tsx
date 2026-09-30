@@ -29,7 +29,9 @@ import {
   updateMoneyRequirement,
   deleteMoneyRequirement,
   downloadMyMoneyRequirementsReport,
+  getReportApplicants,
   type MoneyRequirement,
+  type ReportApplicant,
 } from '../../api/moneyRequirements';
 import { type UserLite, fullName } from '../../api/users';
 import { getTeams, getAuthorizers, type Team } from '../../api/teams';
@@ -77,6 +79,10 @@ const MoneyReqList: React.FC = () => {
   const [reportOpen, setReportOpen] = useState(false);
   const [reportRange, setReportRange] = useState<[Dayjs, Dayjs]>(() => [dayjs().startOf('year'), dayjs()]);
   const [reportLoading, setReportLoading] = useState(false);
+  // Superusuario: puede elegir de quién es el reporte (null = el mío)
+  const [reportUserId, setReportUserId] = useState<number | null>(null);
+  const [reportApplicants, setReportApplicants] = useState<ReportApplicant[]>([]);
+  const [applicantsLoading, setApplicantsLoading] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   // Edición (solo NO aprobados; mismos campos editables que el Django viejo)
@@ -85,6 +91,18 @@ const MoneyReqList: React.FC = () => {
 
   const { hasPermission, isSuperUser } = usePermissions();
   const canAuthorize = isSuperUser() || hasPermission('money requirements authorizers');
+  const canPickReportUser = isSuperUser();
+
+  const openReport = () => {
+    setReportOpen(true);
+    if (canPickReportUser && !reportApplicants.length) {
+      setApplicantsLoading(true);
+      getReportApplicants()
+        .then(setReportApplicants)
+        .catch(() => message.error('No se pudo cargar la lista de solicitantes'))
+        .finally(() => setApplicantsLoading(false));
+    }
+  };
 
   const fetchRequirements = async (activeFilters: Filters = filters, activeScope: ListScope = scope) => {
     try {
@@ -312,7 +330,7 @@ const MoneyReqList: React.FC = () => {
         </Title>
         <Space>
           {scope === 'mine' && (
-            <Button icon={<FilePdfOutlined />} onClick={() => setReportOpen(true)}>
+            <Button icon={<FilePdfOutlined />} onClick={openReport}>
               Mi reporte
             </Button>
           )}
@@ -541,6 +559,7 @@ const MoneyReqList: React.FC = () => {
             await downloadMyMoneyRequirementsReport(
               reportRange[0].format('YYYY-MM'),
               reportRange[1].format('YYYY-MM'),
+              reportUserId,
             );
             setReportOpen(false);
           } catch {
@@ -551,8 +570,25 @@ const MoneyReqList: React.FC = () => {
         }}
       >
         <Typography.Paragraph type="secondary">
-          Resumen por mes de los requerimientos que solicitaste (cantidad, estados y montos), con el detalle de cada uno.
+          Resumen por mes de los requerimientos {canPickReportUser ? 'solicitados' : 'que solicitaste'} (cantidad,
+          estados y montos), con el detalle de cada uno.
         </Typography.Paragraph>
+        {canPickReportUser && (
+          <Select
+            style={{ width: '100%', marginBottom: 12 }}
+            showSearch
+            allowClear
+            placeholder="Mis requerimientos"
+            value={reportUserId ?? undefined}
+            onChange={(v) => setReportUserId(v ?? null)}
+            loading={applicantsLoading}
+            optionFilterProp="label"
+            options={reportApplicants.map((a) => ({
+              value: a.id,
+              label: `${a.name} (${a.username})${a.isActive ? '' : ' · inactivo'} — ${a.total}`,
+            }))}
+          />
+        )}
         <RangePicker
           picker="month"
           format="MMMM YYYY"

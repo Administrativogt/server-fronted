@@ -66,10 +66,29 @@ export async function sendAuthorizationEmail(to: string, ids: number[]) {
   });
   return data;
 }
-// Reporte PDF de mis requerimientos (from/to = "YYYY-MM")
-export async function downloadMyMoneyRequirementsReport(from: string, to: string): Promise<void> {
+export interface ReportApplicant {
+  id: number;
+  username: string;
+  name: string;
+  isActive: boolean;
+  total: number;
+}
+
+// Solicitantes con requerimientos (solo superusuarios; el backend responde 403 al resto)
+export async function getReportApplicants(): Promise<ReportApplicant[]> {
+  const { data } = await api.get('/money-requirements/report-applicants');
+  return data;
+}
+
+// Reporte PDF de requerimientos (from/to = "YYYY-MM"). userId solo lo acepta
+// el backend a superusuarios; sin él, el reporte es del usuario autenticado.
+export async function downloadMyMoneyRequirementsReport(
+  from: string,
+  to: string,
+  userId?: number | null,
+): Promise<void> {
   const response = await api.get('/money-requirements/my-report', {
-    params: { from, to },
+    params: { from, to, ...(userId ? { userId } : {}) },
     responseType: 'blob',
   });
   const disposition: string = response.headers['content-disposition'] ?? '';
