@@ -66,3 +66,18 @@ export async function sendAuthorizationEmail(to: string, ids: number[]) {
   });
   return data;
 }
+// Reporte PDF de mis requerimientos (from/to = "YYYY-MM")
+export async function downloadMyMoneyRequirementsReport(from: string, to: string): Promise<void> {
+  const response = await api.get('/money-requirements/my-report', {
+    params: { from, to },
+    responseType: 'blob',
+  });
+  const disposition: string = response.headers['content-disposition'] ?? '';
+  const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? `mis-requerimientos-${from}_${to}.pdf`;
+  const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}

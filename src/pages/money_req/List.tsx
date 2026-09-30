@@ -17,10 +17,10 @@ import {
   Badge,
   message,
 } from 'antd';
-import { SearchOutlined, ClearOutlined, PrinterOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { SearchOutlined, ClearOutlined, PrinterOutlined, EditOutlined, DeleteOutlined, FilePdfOutlined } from '@ant-design/icons';
 import { Form, InputNumber } from 'antd';
 import { printMoneyRequirement } from './printReceipt';
-import type { Dayjs } from 'dayjs';
+import dayjs, { type Dayjs } from 'dayjs';
 import {
   getMoneyRequirements,
   authorizeMoneyRequirements,
@@ -28,6 +28,7 @@ import {
   sendAuthorizationEmail,
   updateMoneyRequirement,
   deleteMoneyRequirement,
+  downloadMyMoneyRequirementsReport,
   type MoneyRequirement,
 } from '../../api/moneyRequirements';
 import { type UserLite, fullName } from '../../api/users';
@@ -72,6 +73,10 @@ const MoneyReqList: React.FC = () => {
   const [users, setUsers] = useState<UserLite[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [emailModalOpen, setEmailModalOpen] = useState(false);
+  // Reporte PDF de mis requerimientos: rango de meses (por defecto enero → mes actual)
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportRange, setReportRange] = useState<[Dayjs, Dayjs]>(() => [dayjs().startOf('year'), dayjs()]);
+  const [reportLoading, setReportLoading] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   // Edición (solo NO aprobados; mismos campos editables que el Django viejo)
@@ -307,6 +312,11 @@ const MoneyReqList: React.FC = () => {
         </Title>
         <Space>
           {scope === 'mine' && (
+            <Button icon={<FilePdfOutlined />} onClick={() => setReportOpen(true)}>
+              Mi reporte
+            </Button>
+          )}
+          {scope === 'mine' && (
             <Button onClick={openEmailModal} disabled={!hasPendingSelected}>
               ✉️ Enviar autorización
             </Button>
@@ -517,6 +527,49 @@ const MoneyReqList: React.FC = () => {
             </Select>
           </Form.Item>
         </Form>
+      </Modal>
+      {/* ── Reporte PDF de mis requerimientos ── */}
+      <Modal
+        title="Reporte de mis requerimientos"
+        open={reportOpen}
+        onCancel={() => setReportOpen(false)}
+        okText="Descargar PDF"
+        confirmLoading={reportLoading}
+        onOk={async () => {
+          setReportLoading(true);
+          try {
+            await downloadMyMoneyRequirementsReport(
+              reportRange[0].format('YYYY-MM'),
+              reportRange[1].format('YYYY-MM'),
+            );
+            setReportOpen(false);
+          } catch {
+            message.error('No se pudo generar el reporte');
+          } finally {
+            setReportLoading(false);
+          }
+        }}
+      >
+        <Typography.Paragraph type="secondary">
+          Resumen por mes de los requerimientos que solicitaste (cantidad, estados y montos), con el detalle de cada uno.
+        </Typography.Paragraph>
+        <RangePicker
+          picker="month"
+          format="MMMM YYYY"
+          style={{ width: '100%' }}
+          allowClear={false}
+          value={reportRange}
+          disabledDate={(d) => d.isAfter(dayjs(), 'month')}
+          onChange={(vals) => {
+            if (vals?.[0] && vals?.[1]) setReportRange([vals[0], vals[1]]);
+          }}
+        />
+        <Space size={8} wrap style={{ marginTop: 12 }}>
+          <Button size="small" onClick={() => setReportRange([dayjs().startOf('month'), dayjs()])}>Este mes</Button>
+          <Button size="small" onClick={() => setReportRange([dayjs().subtract(1, 'month'), dayjs().subtract(1, 'month')])}>Mes anterior</Button>
+          <Button size="small" onClick={() => setReportRange([dayjs().startOf('year'), dayjs()])}>Este año</Button>
+          <Button size="small" onClick={() => setReportRange([dayjs().subtract(1, 'year').startOf('year'), dayjs().subtract(1, 'year').endOf('year')])}>Año anterior</Button>
+        </Space>
       </Modal>
     </Card>
   );
