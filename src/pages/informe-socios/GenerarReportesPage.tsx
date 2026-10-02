@@ -12,6 +12,7 @@ import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { informeSociosApi } from '../../api/informe-socios';
 import type {
+  InformeSocio,
   InformeStats,
   PreviewResumenSocio,
   CodigoDetectado,
@@ -33,6 +34,8 @@ const DEFAULT_ADMIN_EMAILS: string[] = [
   'fguerra@consortiumlegal.com',
 ];
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const GenerarReportesPage: React.FC = () => {
   const [stats, setStats] = useState<InformeStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
@@ -42,6 +45,8 @@ const GenerarReportesPage: React.FC = () => {
   const [result, setResult] = useState<GenerarReporteResult | null>(null);
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
   const [emailsAdmin, setEmailsAdmin] = useState<string[]>(DEFAULT_ADMIN_EMAILS);
+  const [emailSearch, setEmailSearch] = useState('');
+  const [socios, setSocios] = useState<InformeSocio[]>([]);
   const [enviarEmail, setEnviarEmail] = useState(true);
 
   // Detalle al hacer clic en los indicadores
@@ -114,6 +119,45 @@ const GenerarReportesPage: React.FC = () => {
   } | null>(null);
 
   useEffect(() => { fetchStats(); }, []);
+
+  // Socios activos con correo: opciones para agregarlos al reporte general
+  useEffect(() => {
+    informeSociosApi
+      .getSocios()
+      .then(({ data }) => setSocios(data.filter((s) => s.activo && s.email)))
+      .catch(() => setSocios([]));
+  }, []);
+
+  const socioOptions = socios.map((s) => ({
+    value: s.email.trim().toLowerCase(),
+    label: `${s.nombre} — ${s.email.trim().toLowerCase()}`,
+  }));
+
+  // Solo deja correos válidos: un nombre a medio buscar ("omar") haría que el
+  // backend rechace todo el envío.
+  const addEmails = (vals: string[]) => {
+    const limpios = vals
+      .flatMap((v) => v.split(/[\s,;]+/))
+      .map((v) => v.trim().toLowerCase())
+      .filter(Boolean);
+    const validos = limpios.filter((v) => EMAIL_RE.test(v));
+    const invalidos = limpios.filter((v) => !EMAIL_RE.test(v));
+    if (invalidos.length) {
+      message.warning(`No es un correo válido: ${invalidos.join(', ')}`);
+    }
+    setEmailsAdmin([...new Set(validos)]);
+  };
+
+  // Si escribió un correo y salió del campo sin presionar Enter, no perderlo
+  // (si solo estaba buscando un nombre, se descarta en silencio).
+  const commitEmailSearch = () => {
+    const pendiente = emailSearch.trim().toLowerCase();
+    if (EMAIL_RE.test(pendiente)) addEmails([...emailsAdmin, pendiente]);
+    setEmailSearch('');
+  };
+
+  const agregarTodosLosSocios = () =>
+    addEmails([...emailsAdmin, ...socioOptions.map((o) => o.value)]);
 
   // Encadenar períodos: pre-cargar [día siguiente al último envío, ayer]
   useEffect(() => {
@@ -365,17 +409,34 @@ const GenerarReportesPage: React.FC = () => {
             <Col xs={24} md={10}>
               <Form.Item
                 label="Correos administrador (opcional)"
-                extra="Si se indican, cada uno recibe el reporte general con todos los casos/clientes. Escribe un correo y presiona Enter para agregarlo."
+                extra={
+                  <>
+                    Cada uno recibe el reporte general con todos los casos/clientes.
+                    Selecciona socios de la lista o escribe cualquier otro correo.
+                    {socioOptions.length > 0 && (
+                      <>
+                        {' '}
+                        <Button type="link" size="small" style={{ padding: 0 }} onClick={agregarTodosLosSocios}>
+                          Agregar todos los socios
+                        </Button>
+                      </>
+                    )}
+                  </>
+                }
               >
                 <Select
                   mode="tags"
                   value={emailsAdmin}
-                  onChange={(vals) => setEmailsAdmin(vals as string[])}
-                  placeholder="oma@consortiumlegal.com, fernando@consortiumlegal.com"
-                  tokenSeparators={[',', ';', ' ']}
+                  onChange={(vals) => { addEmails(vals as string[]); setEmailSearch(''); }}
+                  searchValue={emailSearch}
+                  onSearch={setEmailSearch}
+                  onBlur={commitEmailSearch}
+                  options={socioOptions}
+                  optionFilterProp="label"
+                  placeholder="Selecciona socios o escribe un correo"
+                  tokenSeparators={[',', ';']}
                   suffixIcon={<UserOutlined />}
                   style={{ width: '100%' }}
-                  open={false}
                 />
               </Form.Item>
             </Col>
