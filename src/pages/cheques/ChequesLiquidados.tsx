@@ -319,13 +319,24 @@ function ChequesLiquidados() {
               return (
                 <Space direction="vertical" size={2}>
                   <span>{liquidated.toFixed(2)}</span>
-                  <Tooltip
-                    title={`Monto solicitado: ${requested.toFixed(2)} · Pendiente de liquidar: ${remaining.toFixed(2)}`}
-                  >
-                    <Tag color="orange" style={{ marginInlineEnd: 0 }}>
-                      Parcial · resta {remaining.toFixed(2)}
-                    </Tag>
-                  </Tooltip>
+                  {record.remainder_liquidated ? (
+                    <Tooltip
+                      title={`Monto solicitado: ${requested.toFixed(2)} · El saldo de ${remaining.toFixed(2)} ya se liquidó en el ID ${record.remainder_request_id}`}
+                    >
+                      <Tag color="green" style={{ marginInlineEnd: 0 }}>
+                        Parcial · saldo liquidado en ID {record.remainder_request_id}
+                      </Tag>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip
+                      title={`Monto solicitado: ${requested.toFixed(2)} · Pendiente de liquidar: ${remaining.toFixed(2)}${record.remainder_request_id ? ` en el ID ${record.remainder_request_id}` : ''}`}
+                    >
+                      <Tag color="orange" style={{ marginInlineEnd: 0 }}>
+                        Parcial · resta {remaining.toFixed(2)}
+                        {record.remainder_request_id ? ` (ID ${record.remainder_request_id})` : ''}
+                      </Tag>
+                    </Tooltip>
+                  )}
                 </Space>
               );
             },

@@ -49,6 +49,10 @@ export interface CheckRequest {
   is_partial_liquidation?: boolean;
   /** Saldo pendiente de liquidar cuando la liquidación fue parcial. */
   remaining_amount?: number;
+  /** ID que generó Sirvo con el saldo de la parcial (null si aún no está en la app). */
+  remainder_request_id?: number | null;
+  /** true si ese saldo ya se liquidó (o Sirvo ya no lo reporta pendiente). */
+  remainder_liquidated?: boolean;
 }
 
 export interface CheckListResponse {
@@ -107,6 +111,8 @@ export interface Liquidation {
   id: number;
   created: string;
   check_instance?: CheckRequest;
+  /** Liquidación parcial: ID nuevo con el saldo que generó Sirvo (null si aún no lo reporta). */
+  remaining_check?: CheckRequest | null;
   document_type_code: string;
   invoice_nit: string;
   invoice_serie?: string | null;

@@ -29,7 +29,7 @@ import {
 } from '../../api/checks';
 import { getEntities as getProcurationEntities } from '../../api/procuration';
 import { formatDateGT } from '../../utils/date';
-import type { CheckRequest, CheckEntity, InmobiliarioExpense, LitigioExpense } from '../../types/checks.types';
+import type { CheckRequest, CheckEntity, InmobiliarioExpense, LitigioExpense, Liquidation } from '../../types/checks.types';
 import useAuthStore from '../../auth/useAuthStore';
 import { MAX_UPLOAD_MB, MENSAJE_413, validarPesoArchivo } from '../../utils/upload';
 
@@ -162,7 +162,10 @@ function LiquidacionCheque() {
     }
   };
 
-  const openLiquidateModal = async (check: CheckRequest) => {
+  const openLiquidateModal = async (
+    check: CheckRequest,
+    keep?: { entity_id?: number; codigo_tipo_documento?: string },
+  ) => {
     setSelectedCheck(check);
     setChangeInvoiceData(false);
     setFileList([]);
@@ -171,9 +174,10 @@ function LiquidacionCheque() {
     setInmobiliarioExpenses([]);
     setLitigioExpenses([]);
     const defaultEntityId = entities[0]?.id ?? 12;
+    liquidateForm.resetFields();
     liquidateForm.setFieldsValue({
-      entity_id: defaultEntityId,
-      codigo_tipo_documento: 'COMP',
+      entity_id: keep?.entity_id ?? defaultEntityId,
+      codigo_tipo_documento: keep?.codigo_tipo_documento ?? 'COMP',
       serie_factura: check.document_serie || '',
       numero_factura: check.document_number ? String(check.document_number) : '',
       nit_factura: check.invoice_nit || 'CF',
@@ -208,6 +212,7 @@ function LiquidacionCheque() {
     try {
       const values = await liquidateForm.validateFields();
       setLiquidateLoading(true);
+      let result: Liquidation;
 
       if (fileList.length) {
         const formData = new FormData();
@@ -219,20 +224,41 @@ function LiquidacionCheque() {
         selectedExpenseIds.forEach((id) => formData.append('expense_ids[]', String(id)));
         selectedLitigioIds.forEach((id) => formData.append('litigio_expense_ids[]', String(id)));
         formData.append('document', fileList[0].originFileObj);
-        await liquidateCheck(selectedCheck.request_id, formData);
+        result = await liquidateCheck(selectedCheck.request_id, formData);
       } else {
-        await liquidateCheck(selectedCheck.request_id, {
+        result = await liquidateCheck(selectedCheck.request_id, {
           ...values,
           expense_ids: selectedExpenseIds.length ? selectedExpenseIds : undefined,
           litigio_expense_ids: selectedLitigioIds.length ? selectedLitigioIds : undefined,
         });
       }
 
-      message.success('Cheque liquidado correctamente');
+      const isPartial = Number(values.valor_total) < Number(selectedCheck.total_value);
+      const remaining = result?.remaining_check ?? null;
       setLiquidateModalOpen(false);
       setSelectedCheck(null);
       setFileList([]);
       await loadData();
+
+      if (remaining) {
+        // Parcial: Sirvo ya generó el ID con el saldo → abrir de una vez su
+        // liquidación para cargar el siguiente comprobante.
+        message.success(
+          `Liquidado. Se generó el ID ${remaining.request_id} con saldo Q${Number(remaining.total_value).toFixed(2)}: ya puedes cargar el siguiente comprobante.`,
+          6,
+        );
+        await openLiquidateModal(remaining, {
+          entity_id: values.entity_id,
+          codigo_tipo_documento: values.codigo_tipo_documento,
+        });
+      } else if (isPartial) {
+        message.info(
+          'Liquidado. El ID con el saldo restante aparecerá en la lista en un par de minutos (Sirvo aún no lo reporta).',
+          6,
+        );
+      } else {
+        message.success('Cheque liquidado correctamente');
+      }
     } catch (error: any) {
       const err = error?.response?.data;
       // Extraer mensaje sin importar si viene como string, array o campo message/error
