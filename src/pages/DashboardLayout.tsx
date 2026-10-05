@@ -13,14 +13,14 @@ import {
   SearchOutlined,
   DownOutlined,
 } from '@ant-design/icons';
-import { useNavigate, Outlet, useLocation } from 'react-router-dom';
+import { useNavigate, Outlet, useLocation, Navigate } from 'react-router-dom';
 import useAuthStore from '../auth/useAuthStore';
 import useThemeStore from '../hooks/useThemeStore';
 import api from '../api/axios';
 import { useUserAdminPermissions } from '../hooks/usePermissions';
 import type { ModuleKey } from '../types/module-access.types';
 import { getTipoUsuarioLabel, getTipoUsuarioColor } from '../types/user.types';
-import { MENU, buildMenuItems, type MenuCaps } from '../config/menu';
+import { MENU, VACATIONS_ONLY_MENU, VACATIONS_ONLY_PATH, buildMenuItems, type MenuCaps } from '../config/menu';
 import { PRIMARY } from './dashboard/theme';
 import { canManageInduction } from '../utils/induction';
 import { canAccessHorasSocios } from '../routes/HorasSociosRoute';
@@ -254,7 +254,9 @@ const DashboardLayout: React.FC = () => {
     return false;
   };
 
-  const rawItems = buildMenuItems(MENU, caps);
+  // Usuarios 'solo vacaciones': menú con una sola entrada
+  const vacationsOnly = !isSuperuser && hasModule('solo_vacaciones');
+  const rawItems = buildMenuItems(vacationsOnly ? VACATIONS_ONLY_MENU : MENU, caps);
 
   // Listado principal (filtrado por búsqueda si aplica)
   const mainItems = isSearching ? rawItems.filter(matchesSearch) : rawItems;
@@ -312,6 +314,11 @@ const DashboardLayout: React.FC = () => {
   }
 
   const effectiveOpenKeys = collapsed ? [] : isSearching ? searchOpenKeys : openKeys;
+
+  // Fuera de Vacaciones no hay nada para ellos (inicio, Mis cheques, etc.)
+  if (vacationsOnly && !location.pathname.startsWith(VACATIONS_ONLY_PATH)) {
+    return <Navigate to={VACATIONS_ONLY_PATH} replace />;
+  }
 
   return (
     <Layout style={{ minHeight: '100vh' }}>

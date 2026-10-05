@@ -22,6 +22,8 @@ export type ModuleKey =
   | 'escrituras'
   | 'horarios'
   | 'sugerencias'
+  // Marca: el usuario solo usa la app para pedir vacaciones (grupo 'solo vacaciones')
+  | 'solo_vacaciones'
   // Módulos administrativos
   | 'usuarios'
   | 'grupos'

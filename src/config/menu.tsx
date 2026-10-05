@@ -296,6 +296,12 @@ export const MENU: NavItem[] = [
   },
 ];
 
+/** Menú reducido para usuarios con el módulo 'solo_vacaciones' (p. ej. conserjería). */
+export const VACATIONS_ONLY_PATH = '/dashboard/recursos-humanos/vacaciones';
+export const VACATIONS_ONLY_MENU: NavItem[] = [
+  { key: VACATIONS_ONLY_PATH, label: 'Vacaciones', icon: <CalendarOutlined /> },
+];
+
 /** Convierte la config declarativa en items de AntD Menu, filtrando por caps. */
 export type AntdMenuItem = {
   key: string;
