@@ -300,7 +300,33 @@ function ChequesLiquidados() {
           { title: 'Request ID', dataIndex: 'request_id', width: 120 },
           { title: 'NT', dataIndex: 'work_note_number', width: 110 },
           { title: 'Cliente', dataIndex: 'client', width: 120 },
-          { title: 'Descripción', dataIndex: 'description', width: 260, ellipsis: true },
+          {
+            title: 'Descripción',
+            dataIndex: 'description',
+            width: 200,
+            // Mismo recorte que en Liquidación de cheques: con ellipsis y
+            // scroll max-content la columna se estiraba al texto más largo.
+            render: (desc: string) =>
+              desc ? (
+                <Tooltip placement="topLeft" title={desc}>
+                  <span
+                    style={{
+                      display: '-webkit-box',
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      whiteSpace: 'normal',
+                      wordBreak: 'break-word',
+                      cursor: 'default',
+                    }}
+                  >
+                    {desc}
+                  </span>
+                </Tooltip>
+              ) : (
+                '—'
+              ),
+          },
           {
             title: 'Monto liquidado',
             dataIndex: 'liquidated_amount',
