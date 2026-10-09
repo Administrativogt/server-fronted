@@ -52,6 +52,7 @@ function ChequesLiquidados() {
     request_id: undefined as number | undefined,
     work_note_number: undefined as number | undefined,
     client: '',
+    description: '',
     invoice_number: '',
     init_date: '',
     end_date: '',
@@ -74,6 +75,7 @@ function ChequesLiquidados() {
         request_id: filters.request_id || undefined,
         work_note_number: filters.work_note_number || undefined,
         client: filters.client.trim() || undefined,
+        description: filters.description.trim() || undefined,
         invoice_number: filters.invoice_number.trim() || undefined,
         init_date: filters.init_date || undefined,
         end_date: filters.end_date || undefined,
@@ -222,6 +224,13 @@ function ChequesLiquidados() {
           style={{ width: 180 }}
           value={filters.client}
           onChange={(e) => setFilters((prev) => ({ ...prev, client: e.target.value }))}
+        />
+        <Input
+          placeholder="Descripción"
+          allowClear
+          style={{ width: 200 }}
+          value={filters.description}
+          onChange={(e) => setFilters((prev) => ({ ...prev, description: e.target.value }))}
         />
         <Input
           placeholder="No. de comprobante"
