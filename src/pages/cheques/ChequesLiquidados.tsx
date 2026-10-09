@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Button,
   Card,
+  Checkbox,
   DatePicker,
   Input,
   InputNumber,
@@ -55,6 +56,7 @@ function ChequesLiquidados() {
     init_date: '',
     end_date: '',
     responsible_id: undefined as number | undefined,
+    liquidated_today: false,
     page: 1,
     per_page: 20,
   });
@@ -75,6 +77,7 @@ function ChequesLiquidados() {
         invoice_number: filters.invoice_number.trim() || undefined,
         init_date: filters.init_date || undefined,
         end_date: filters.end_date || undefined,
+        liquidated_today: filters.liquidated_today || undefined,
         responsible_id: canFilterResponsible
           ? filters.responsible_id || undefined
           : undefined,
@@ -94,8 +97,9 @@ function ChequesLiquidados() {
 
   useEffect(() => {
     loadData();
+    // "Liquidado hoy" busca en cuanto se marca/desmarca
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.page, filters.per_page]);
+  }, [filters.page, filters.per_page, filters.liquidated_today]);
 
   useEffect(() => {
     if (canFilterResponsible) {
@@ -251,6 +255,14 @@ function ChequesLiquidados() {
             optionFilterProp="label"
           />
         ) : null}
+        <Checkbox
+          checked={filters.liquidated_today}
+          onChange={(e) =>
+            setFilters((prev) => ({ ...prev, liquidated_today: e.target.checked, page: 1 }))
+          }
+        >
+          Liquidado hoy
+        </Checkbox>
         <Button
           type="primary"
           onClick={() => {
