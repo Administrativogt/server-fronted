@@ -43,7 +43,7 @@ export interface MenuCaps {
   canManageInduction: boolean;
   canAccessHorasSocios: boolean;
   canAccessVacationHr: boolean;
-  /** Superusuario o Contabilidad: configura coordinadores y autorizadores de cheques. */
+  /** Solo superusuario: configura coordinadores y autorizadores de cheques. */
   canManageCoordinators: boolean;
 }
 

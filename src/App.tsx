@@ -221,7 +221,6 @@ function AppInner() {
                 <Route path="/dashboard/cheques/autorizacion" element={<AutorizacionCheque />} />
                 <Route path="/dashboard/cheques/liquidacion" element={<LiquidacionCheque />} />
                 <Route path="/dashboard/cheques/liquidados" element={<ChequesLiquidados />} />
-                <Route path="/dashboard/cheques/coordinadores" element={<Coordinadores />} />
               </Route>
 
               {/* Gastos inmobiliario — Django: superuser o secretaria equipo Inmobiliario */}
@@ -359,6 +358,7 @@ function AppInner() {
               {/* Ruta corta pedida por el usuario: administrativogt.com/admin (dentro del layout) */}
               <Route element={<SuperuserRoute />}>
                 <Route path="/admin" element={<AuditoriaPage />} />
+                <Route path="/dashboard/cheques/coordinadores" element={<Coordinadores />} />
                 <Route path="/dashboard/admin/auditoria" element={<Navigate to="/admin" replace />} />
               </Route>
               
