@@ -17,7 +17,7 @@ import {
   Typography,
   Upload,
 } from 'antd';
-import { UploadOutlined } from '@ant-design/icons';
+import { DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import { fetchUsers, fullName, type UserLite } from '../../api/users';
 import {
   getCheckEntities,
@@ -26,6 +26,7 @@ import {
   getPendingLiquidation,
   getInmobiliarioExpenses,
   getLitigioExpenses,
+  downloadPendingLiquidationViewReport,
 } from '../../api/checks';
 import { getEntities as getProcurationEntities } from '../../api/procuration';
 import { formatDateGT } from '../../utils/date';
@@ -49,6 +50,7 @@ function LiquidacionCheque() {
   const [data, setData] = useState<CheckRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
   const [liquidateLoading, setLiquidateLoading] = useState(false);
   const [users, setUsers] = useState<UserLite[]>([]);
   const [selectedCheck, setSelectedCheck] = useState<CheckRequest | null>(null);
@@ -325,6 +327,32 @@ function LiquidacionCheque() {
     }
   };
 
+  const handleDownloadReport = async () => {
+    setReportLoading(true);
+    try {
+      await downloadPendingLiquidationViewReport({
+        request_id: filters.request_id || undefined,
+        work_note_number: filters.work_note_number || undefined,
+        client: filters.client || undefined,
+        responsible_id: canFilterResponsible ? filters.responsible_id || undefined : userId || undefined,
+      });
+    } catch (error: any) {
+      // La respuesta viene como blob: leer el mensaje del backend
+      let msg = 'Error al descargar el reporte';
+      const blob = error?.response?.data;
+      if (blob instanceof Blob) {
+        try {
+          msg = JSON.parse(await blob.text())?.message || msg;
+        } catch {
+          /* se queda el mensaje genérico */
+        }
+      }
+      message.error(msg);
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
   return (
     <Card>
       <Space
@@ -334,9 +362,16 @@ function LiquidacionCheque() {
         <Title level={4} style={{ margin: 0 }}>
           Liquidación de cheques
         </Title>
-        <Button onClick={() => loadData()} loading={loading}>
-          Recargar
-        </Button>
+        <Space>
+          <Tooltip title="Excel con los cheques pendientes de liquidar según los filtros actuales">
+            <Button icon={<DownloadOutlined />} onClick={handleDownloadReport} loading={reportLoading}>
+              Descargar reporte
+            </Button>
+          </Tooltip>
+          <Button onClick={() => loadData()} loading={loading}>
+            Recargar
+          </Button>
+        </Space>
       </Space>
 
       <Form form={syncForm} layout="inline" onFinish={handleSync} style={{ marginBottom: 12 }}>

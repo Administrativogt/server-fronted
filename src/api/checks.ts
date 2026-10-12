@@ -257,6 +257,18 @@ export const downloadPendingLiquidationReport = async (
     filename || 'Reporte_Cheques_Pendientes_general.xlsx',
   );
 
+export const downloadPendingLiquidationViewReport = async (filters: {
+  request_id?: number;
+  work_note_number?: number;
+  client?: string;
+  responsible_id?: number;
+}) =>
+  downloadBlob(
+    '/checks/reports/pending-liquidation-view.xlsx',
+    filters,
+    'Reporte_Cheques_Pendientes.xlsx',
+  );
+
 export const downloadLiquidatedReport = async (
   filters?: {
     invoice_number?: string;
