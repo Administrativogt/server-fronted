@@ -80,6 +80,58 @@ export const getCoordinatorMembers = async (checkIds: number[]): Promise<UserLit
   return Array.isArray(data) ? data : (data?.members ?? data?.data ?? []);
 };
 
+// ─── Administración de coordinadores (superusuario / Contabilidad) ──────────
+
+export interface CoordinatorMember {
+  id: number;
+  username: string;
+  first_name: string;
+  last_name: string;
+  active: boolean;
+}
+
+export interface CoordinatorAdminItem {
+  id: number;
+  name: string;
+  members: CoordinatorMember[];
+  total_checks: number;
+  pending_authorization: number;
+  last_check_date: string | null;
+}
+
+export interface UnconfiguredCoordinator {
+  name: string;
+  total_checks: number;
+  pending_authorization: number;
+  last_check_date: string | null;
+}
+
+export const getCoordinatorsAdmin = async (): Promise<{
+  coordinators: CoordinatorAdminItem[];
+  unconfigured: UnconfiguredCoordinator[];
+}> => {
+  const { data } = await api.get('/checks/coordinators/admin');
+  return data;
+};
+
+export const createCoordinator = async (payload: { name: string; member_ids: number[] }) => {
+  const { data } = await api.post('/checks/coordinators', payload);
+  return data;
+};
+
+export const updateCoordinator = async (
+  id: number,
+  payload: { name?: string; member_ids?: number[] },
+) => {
+  const { data } = await api.patch(`/checks/coordinators/${id}`, payload);
+  return data;
+};
+
+export const deleteCoordinator = async (id: number) => {
+  const { data } = await api.delete(`/checks/coordinators/${id}`);
+  return data;
+};
+
 export const manageChecksAuthorization = async (
   payload: ManageAuthorizationPayload,
 ): Promise<{ processed: number; action: string }> => {

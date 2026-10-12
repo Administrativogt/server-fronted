@@ -27,6 +27,7 @@ import {
   CalendarOutlined,
   BarChartOutlined,
   FieldTimeOutlined,
+  TeamOutlined,
 } from '@ant-design/icons';
 import type { ModuleKey } from '../types/module-access.types';
 
@@ -42,6 +43,8 @@ export interface MenuCaps {
   canManageInduction: boolean;
   canAccessHorasSocios: boolean;
   canAccessVacationHr: boolean;
+  /** Superusuario o Contabilidad: configura coordinadores y autorizadores de cheques. */
+  canManageCoordinators: boolean;
 }
 
 /**
@@ -147,6 +150,7 @@ export const MENU: NavItem[] = [
       { key: '/dashboard/cheques/inmobiliario', label: 'Gastos inmobiliarios', icon: <FileTextOutlined />, visible: (c) => c.hasModule('cheques_inmobiliario') },
       { key: '/dashboard/cheques/litigio', label: 'Gastos litigio', icon: <FileTextOutlined />, visible: (c) => c.hasModule('cheques_litigio') },
       { key: '/dashboard/cheques/pendientes', label: 'Cheques pendientes', icon: <PushpinOutlined />, visible: (c) => c.hasModule('cheques_antiguos') },
+      { key: '/dashboard/cheques/coordinadores', label: 'Coordinadores', icon: <TeamOutlined />, visible: (c) => c.canManageCoordinators },
     ],
   },
   {

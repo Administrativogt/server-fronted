@@ -44,6 +44,7 @@ const ChequesLiquidados = lazy(() => import('./pages/cheques/ChequesLiquidados')
 const GastosInmobiliarios = lazy(() => import('./pages/cheques/GastosInmobiliarios'));
 const GastosLitigio = lazy(() => import('./pages/cheques/GastosLitigio'));
 const ChequesPendientes = lazy(() => import('./pages/cheques/ChequesPendientes'));
+const Coordinadores = lazy(() => import('./pages/cheques/Coordinadores'));
 
 // Módulo de reservaciones
 const RoomReservation = lazy(() => import('./pages/reservaciones/RoomReservation'));
@@ -220,6 +221,7 @@ function AppInner() {
                 <Route path="/dashboard/cheques/autorizacion" element={<AutorizacionCheque />} />
                 <Route path="/dashboard/cheques/liquidacion" element={<LiquidacionCheque />} />
                 <Route path="/dashboard/cheques/liquidados" element={<ChequesLiquidados />} />
+                <Route path="/dashboard/cheques/coordinadores" element={<Coordinadores />} />
               </Route>
 
               {/* Gastos inmobiliario — Django: superuser o secretaria equipo Inmobiliario */}
