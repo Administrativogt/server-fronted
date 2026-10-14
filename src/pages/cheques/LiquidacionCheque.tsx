@@ -18,7 +18,7 @@ import {
   Upload,
 } from 'antd';
 import { DownloadOutlined, UploadOutlined } from '@ant-design/icons';
-import { fetchUsers, fullName, type UserLite } from '../../api/users';
+import { fetchUsers, userFilterOptions, type UserLite } from '../../api/users';
 import {
   getCheckEntities,
   liquidateCheck,
@@ -110,7 +110,7 @@ function LiquidacionCheque() {
   }, [filters.page, filters.per_page]);
 
   useEffect(() => {
-    fetchUsers().then(setUsers).catch(() => setUsers([]));
+    fetchUsers(undefined, { includeInactive: true }).then(setUsers).catch(() => setUsers([]));
   }, []);
 
   useEffect(() => {
@@ -412,10 +412,7 @@ function LiquidacionCheque() {
             placeholder="solicitante"
             value={filters.responsible_id}
             onChange={(value) => setFilters((prev) => ({ ...prev, responsible_id: value }))}
-            options={users.map((user) => ({
-              label: `${fullName(user)} (${user.username})`,
-              value: user.id,
-            }))}
+            options={userFilterOptions(users)}
             optionFilterProp="label"
           />
         ) : null}

@@ -24,7 +24,7 @@ import {
   getLiquidationDocumentUrl,
   revertLiquidation,
 } from '../../api/checks';
-import { fetchUsers, fullName, type UserLite } from '../../api/users';
+import { fetchUsers, userFilterOptions, type UserLite } from '../../api/users';
 import useAuthStore from '../../auth/useAuthStore';
 
 const { Title, Text } = Typography;
@@ -105,7 +105,7 @@ function ChequesLiquidados() {
 
   useEffect(() => {
     if (canFilterResponsible) {
-      fetchUsers().then(setUsers).catch(() => setUsers([]));
+      fetchUsers(undefined, { includeInactive: true }).then(setUsers).catch(() => setUsers([]));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canFilterResponsible]);
@@ -257,10 +257,7 @@ function ChequesLiquidados() {
             placeholder="solicitante"
             value={filters.responsible_id}
             onChange={(value) => setFilters((prev) => ({ ...prev, responsible_id: value }))}
-            options={users.map((user) => ({
-              label: `${fullName(user)} (${user.username})`,
-              value: user.id,
-            }))}
+            options={userFilterOptions(users)}
             optionFilterProp="label"
           />
         ) : null}

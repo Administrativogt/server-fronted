@@ -25,7 +25,7 @@ import {
   syncPendingAuthorization,
   getCoordinatorMembers,
 } from '../../api/checks';
-import { fetchUsers, fullName, type UserLite } from '../../api/users';
+import { fetchUsers, fullName, userFilterOptions, type UserLite } from '../../api/users';
 import useAuthStore from '../../auth/useAuthStore';
 
 const { Title, Text } = Typography;
@@ -212,7 +212,7 @@ function AutorizacionCheque() {
   ]);
 
   useEffect(() => {
-    fetchUsers().then(setUsers).catch(() => setUsers([]));
+    fetchUsers(undefined, { includeInactive: true }).then(setUsers).catch(() => setUsers([]));
   }, []);
 
   const handleSync = async () => {
@@ -429,10 +429,7 @@ function AutorizacionCheque() {
                 onChange={(value) =>
                   setFilters((prev) => ({ ...prev, responsible_id: value, page: 1 }))
                 }
-                options={users.map((user) => ({
-                  label: `${fullName(user)} (${user.username})`,
-                  value: user.id,
-                }))}
+                options={userFilterOptions(users)}
                 optionFilterProp="label"
               />
             </label>

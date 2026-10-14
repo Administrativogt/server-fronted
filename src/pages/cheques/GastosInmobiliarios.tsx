@@ -32,7 +32,7 @@ import {
   updateInmobiliarioExpense,
   verifyParentCheck,
 } from '../../api/checks';
-import { fetchUsers, fullName, type UserLite } from '../../api/users';
+import { fetchUsers, fullName, userFilterOptions, type UserLite } from '../../api/users';
 import api from '../../api/axios';
 import useAuthStore from '../../auth/useAuthStore';
 
@@ -51,6 +51,8 @@ function GastosInmobiliarios() {
 
   const [data, setData] = useState<InmobiliarioExpense[]>([]);
   const [users, setUsers] = useState<UserLite[]>([]);
+  // Filtros/reportes: incluye dados de baja (el formulario usa solo activos)
+  const [filterUsers, setFilterUsers] = useState<UserLite[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<InmobiliarioExpense | null>(null);
@@ -283,6 +285,9 @@ function GastosInmobiliarios() {
 
   useEffect(() => {
     fetchUsers(4).then(setUsers).catch(() => setUsers([]));
+    fetchUsers(4, { includeInactive: true })
+      .then(setFilterUsers)
+      .catch(() => setFilterUsers([]));
   }, []);
 
   const openCreate = () => {
@@ -386,7 +391,7 @@ function GastosInmobiliarios() {
   const handleDownloadPendingReport = async () => {
     setPendingDownloading(true);
     try {
-      const selected = users.find((u) => u.id === pendingUserId);
+      const selected = filterUsers.find((u) => u.id === pendingUserId);
       const namePart = selected
         ? (selected.first_name || fullName(selected)).trim().replace(/\s+/g, '_')
         : 'general';
@@ -477,10 +482,7 @@ function GastosInmobiliarios() {
             placeholder="entregado por"
             value={filters.responsible_id}
             onChange={(value) => setFilters((prev) => ({ ...prev, responsible_id: value }))}
-            options={users.map((user) => ({
-              label: `${fullName(user)} (${user.username})`,
-              value: user.id,
-            }))}
+            options={userFilterOptions(filterUsers)}
             optionFilterProp="label"
           />
         ) : null}
@@ -836,10 +838,7 @@ function GastosInmobiliarios() {
               placeholder="Seleccione una opción"
               value={pendingUserId}
               onChange={(value) => setPendingUserId(value)}
-              options={users.map((user) => ({
-                label: `${fullName(user)} (${user.username})`,
-                value: user.id,
-              }))}
+              options={userFilterOptions(filterUsers)}
               optionFilterProp="label"
             />
           </Form.Item>

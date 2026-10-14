@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, Card, InputNumber, message, Select, Space, Table, Typography } from 'antd';
 import { downloadPendingLiquidationReport, getPendingLiquidation } from '../../api/checks';
 import type { CheckRequest } from '../../types/checks.types';
-import { fetchUsers, fullName, type UserLite } from '../../api/users';
+import { fetchUsers, userFilterOptions, type UserLite } from '../../api/users';
 import useAuthStore from '../../auth/useAuthStore';
 
 const { Title } = Typography;
@@ -46,7 +46,7 @@ function ChequesPendientes() {
   };
 
   useEffect(() => {
-    fetchUsers().then(setUsers).catch(() => setUsers([]));
+    fetchUsers(undefined, { includeInactive: true }).then(setUsers).catch(() => setUsers([]));
   }, []);
 
   useEffect(() => {
@@ -98,10 +98,7 @@ function ChequesPendientes() {
             placeholder="Responsable"
             value={responsibleId}
             onChange={setResponsibleId}
-            options={users.map((user) => ({
-              label: `${fullName(user)} (${user.username})`,
-              value: user.id,
-            }))}
+            options={userFilterOptions(users)}
             optionFilterProp="label"
           />
         ) : null}

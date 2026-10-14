@@ -32,7 +32,7 @@ import {
   updateLitigioExpense,
   verifyParentCheck,
 } from '../../api/checks';
-import { fetchUsers, fullName, type UserLite } from '../../api/users';
+import { fetchUsers, fullName, userFilterOptions, type UserLite } from '../../api/users';
 import useAuthStore from '../../auth/useAuthStore';
 import { LITIGIO_TEAM_IDS, LITIGIO_TEAM_IDS_CSV } from '../../config/equipos';
 
@@ -51,6 +51,8 @@ function GastosLitigio() {
   const [data, setData] = useState<LitigioExpense[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [users, setUsers] = useState<UserLite[]>([]);
+  // Filtros/reportes: incluye dados de baja (el formulario usa solo activos)
+  const [filterUsers, setFilterUsers] = useState<UserLite[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<LitigioExpense | null>(null);
@@ -230,6 +232,9 @@ function GastosLitigio() {
     fetchUsers(LITIGIO_TEAM_IDS)
       .then(setUsers)
       .catch(() => setUsers([]));
+    fetchUsers(LITIGIO_TEAM_IDS, { includeInactive: true })
+      .then(setFilterUsers)
+      .catch(() => setFilterUsers([]));
   }, []);
 
   const openCreate = () => {
@@ -363,10 +368,7 @@ function GastosLitigio() {
             placeholder="solicitante"
             value={filters.responsible_id}
             onChange={(value) => setFilters((prev) => ({ ...prev, responsible_id: value }))}
-            options={users.map((user) => ({
-              label: `${fullName(user)} (${user.username})`,
-              value: user.id,
-            }))}
+            options={userFilterOptions(filterUsers)}
             optionFilterProp="label"
           />
         ) : null}

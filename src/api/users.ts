@@ -62,6 +62,10 @@ function ensureUserArray(data: UserLite[] | { data?: UserLite[] } | null | undef
  */
 export const fetchUsers = async (
   equipoId?: number | readonly number[],
+  // true solo para FILTROS de listados/reportes: los dados de baja conservan
+  // sus registros y sin esto no se podía filtrar ni bajar su Excel.
+  // Los formularios (asignar, entregar) deben seguir usando solo activos.
+  { includeInactive = false }: { includeInactive?: boolean } = {},
 ): Promise<UserLite[]> => {
   // El backend acepta un id o varios separados por coma (ej. "6,14,15").
   // Un array vacío significa "ningún equipo": no se consulta nada (si se
@@ -70,10 +74,27 @@ export const fetchUsers = async (
   const equipo_id = Array.isArray(equipoId)
     ? (equipoId as readonly number[]).join(',')
     : equipoId;
-  const params = equipo_id ? { equipo_id } : undefined;
+  const params = {
+    ...(equipo_id ? { equipo_id } : {}),
+    ...(includeInactive ? { include_inactive: 'true' } : {}),
+  };
   const response = await axios.get<UserLite[] | { data: UserLite[] }>('/users', { params });
-  return ensureUserArray(response.data);
+  const users = ensureUserArray(response.data);
+  // Inactivos al final para que no estorben al buscar a los actuales
+  return includeInactive
+    ? [...users].sort((a, b) => Number(isInactiveUser(a)) - Number(isInactiveUser(b)))
+    : users;
 };
+
+export const isInactiveUser = (user: UserLite): boolean =>
+  user.estado !== undefined && Number(user.estado) !== 1;
+
+/** Opciones para un Select de filtro: "Nombre (USR001)", y "— inactivo" a los dados de baja. */
+export const userFilterOptions = (users: UserLite[]) =>
+  users.map((user) => ({
+    label: `${fullName(user)} (${user.username})${isInactiveUser(user) ? ' — inactivo' : ''}`,
+    value: user.id,
+  }));
 
 /**
  * Obtener todos los usuarios (incluidos inactivos)
