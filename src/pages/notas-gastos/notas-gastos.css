@@ -1,0 +1,127 @@
+/* Notas de gastos e impresiones. Los colores llegan como custom properties
+   desde el token de AntD (claro/oscuro) en el wrapper .ng-page. */
+
+/* Fila recién guardada / copiada: tinte índigo que se desvanece */
+@keyframes ng-flash {
+  from { background-color: var(--ng-flash); }
+  to   { background-color: transparent; }
+}
+.ng-page .ng-row-flash > td {
+  animation: ng-flash 1.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Coincidencias de la búsqueda */
+.ng-page mark.ng-mark {
+  background: var(--ng-mark);
+  color: inherit;
+  padding: 0 1px;
+  border-radius: 3px;
+}
+
+/* NT editable en la celda: parece texto hasta que se pasa el mouse */
+.ng-page .ng-nt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 2px 8px;
+  margin-left: -8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: inherit;
+  cursor: text;
+  transition: border-color 160ms ease-out, background-color 160ms ease-out;
+}
+.ng-page .ng-nt:hover {
+  border-color: var(--ng-border);
+  background: var(--ng-subtle);
+}
+.ng-page .ng-nt:focus-visible {
+  outline: 2px solid var(--ng-primary);
+  outline-offset: 1px;
+}
+.ng-page .ng-nt .ng-nt-pencil {
+  opacity: 0;
+  font-size: 12px;
+  color: var(--ng-muted);
+  transition: opacity 160ms ease-out;
+}
+.ng-page .ng-nt:hover .ng-nt-pencil,
+.ng-page .ng-nt:focus-visible .ng-nt-pencil {
+  opacity: 1;
+}
+.ng-page .ng-nt-empty {
+  font-weight: 500;
+  color: var(--ng-warning);
+  border-style: dashed;
+  border-color: var(--ng-warning-border);
+  cursor: pointer;
+}
+.ng-page .ng-nt-empty:hover {
+  border-color: var(--ng-warning);
+  background: var(--ng-warning-bg);
+}
+
+/* Cliente clicable = filtro rápido */
+.ng-page .ng-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color 160ms ease-out, color 160ms ease-out;
+}
+.ng-page .ng-link:hover {
+  color: var(--ng-primary);
+  text-decoration-color: currentColor;
+}
+.ng-page .ng-link:focus-visible {
+  outline: 2px solid var(--ng-primary);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Acciones de la fila: discretas hasta el hover (siempre visibles con teclado) */
+.ng-page .ng-actions {
+  opacity: 0.45;
+  transition: opacity 160ms ease-out;
+}
+.ng-page tr:hover .ng-actions,
+.ng-page .ng-actions:focus-within {
+  opacity: 1;
+}
+
+.ng-page .ng-kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--ng-border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+  color: var(--ng-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ng-page .ng-row-flash > td { animation: none; background-color: var(--ng-flash); }
+  .ng-page .ng-nt,
+  .ng-page .ng-nt .ng-nt-pencil,
+  .ng-page .ng-link,
+  .ng-page .ng-actions { transition: none; }
+}
+
+@media (hover: none) {
+  .ng-page .ng-actions { opacity: 1; }
+  .ng-page .ng-nt .ng-nt-pencil { opacity: 1; }
+}
