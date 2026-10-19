@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import {
-  AutoComplete,
   Button,
   Card,
   Empty,
-  Form,
   Input,
   InputNumber,
   message,
-  Modal,
   Select,
   Skeleton,
   Space,
@@ -43,12 +40,12 @@ import {
   type NotaGastoPayload,
   type NotaGastoUser,
 } from '../../api/notasGastos';
+import NotaGastoModal, { type NotaModalState } from './NotaGastoModal';
 import './notas-gastos.css';
 
 const { Title, Text } = Typography;
 
 type AreaTab = NotaGastoArea | 'TODAS';
-type ModalState = { mode: 'create'; nombre?: string; nt?: number } | { mode: 'edit'; nota: NotaGasto } | null;
 type Filters = { tab: AreaTab; search: string; cliente?: string; soloSinNt: boolean };
 
 const areaLabel = (a: NotaGastoArea) => NOTA_GASTO_AREAS.find((x) => x.value === a)?.label ?? a;
@@ -203,12 +200,11 @@ function NotasGastos() {
   const [saving, setSaving] = useState(false);
   const [filters, setFilters] = useState<Filters>({ tab: 'TODAS', search: '', soloSinNt: false });
   const [showInactive, setShowInactive] = useState(false);
-  const [modal, setModal] = useState<ModalState>(null);
+  const [modal, setModal] = useState<NotaModalState>(null);
   const [editingNtId, setEditingNtId] = useState<number | null>(null);
   const [flashId, setFlashId] = useState<number | null>(null);
   const flashTimer = useRef<number | undefined>(undefined);
   const searchRef = useRef<InputRef>(null);
-  const [form] = Form.useForm<NotaGastoPayload>();
   const { tab, search, cliente, soloSinNt } = filters;
   const patchFilters = (p: Partial<Filters>) => setFilters((f) => ({ ...f, ...p }));
 
@@ -283,11 +279,6 @@ function NotasGastos() {
     [byArea],
   );
 
-  const allClientes = useMemo(
-    () => [...new Set(notas.map((n) => n.cliente))].sort((a, b) => a.localeCompare(b)).map((c) => ({ value: c })),
-    [notas],
-  );
-
   const filtered = useMemo(() => notas.filter((n) => matches(n, filters)), [notas, filters]);
 
   const countFor = (a: AreaTab) =>
@@ -295,45 +286,37 @@ function NotasGastos() {
   const sinNtCount = byArea.filter((n) => n.nt == null && n.activo).length;
   const hasFilters = !!search.trim() || !!cliente || soloSinNt;
 
-  const openModal = (state: ModalState) => {
-    setModal(state);
-    if (state?.mode === 'edit') {
-      const { area, cliente: c, caso, nombre, nt, observaciones } = state.nota;
-      form.setFieldsValue({ area, cliente: c, caso, nombre, nt, observaciones });
-    } else {
-      form.setFieldsValue({
+  const openModal = (state: NotaModalState) => {
+    if (state?.mode === 'create') {
+      state = {
         area: tab === 'TODAS' ? undefined : tab,
         cliente,
-        caso: null,
-        nombre: state?.nombre ?? '',
-        nt: state?.nt ?? null,
-        observaciones: '',
-      });
+        ...state,
+      };
     }
+    setModal(state);
   };
 
-  const handleSave = async () => {
-    const values = await form.validateFields();
-    const payload: NotaGastoPayload = {
-      ...values,
-      cliente: values.cliente.replace(/\s+/g, ' ').trim().toUpperCase(),
-      caso: values.caso?.trim() || null,
-      nt: values.nt ?? null,
-      observaciones: values.observaciones ?? '',
-    };
+  const handleSave = async (payload: NotaGastoPayload, keepOpen: boolean): Promise<NotaGasto | null> => {
     setSaving(true);
     try {
       const saved =
         modal?.mode === 'edit'
           ? await updateNotaGasto(modal.nota.id, payload)
           : await createNotaGasto(payload);
-      message.success(modal?.mode === 'edit' ? 'Nota actualizada' : `Nota registrada en ${areaLabel(saved.area)}`);
-      setModal(null);
+      message.success(
+        modal?.mode === 'edit'
+          ? 'Nota actualizada'
+          : `${saved.nt ? `NT ${saved.nt}` : 'Nota'} registrada en ${areaLabel(saved.area)}`,
+      );
+      if (!keepOpen) setModal(null);
       upsert(saved);
       reveal(saved);
       flash(saved.id);
+      return saved;
     } catch (err) {
       message.error(apiError(err, 'No se pudo guardar la nota'));
+      return null;
     } finally {
       setSaving(false);
     }
@@ -749,50 +732,14 @@ function NotasGastos() {
         )}
       </Card>
 
-      <Modal
-        open={modal !== null}
-        title={modal?.mode === 'edit' ? 'Editar nota' : 'Nueva nota'}
-        okText="Guardar"
-        cancelText="Cancelar"
-        confirmLoading={saving}
-        onOk={handleSave}
+      <NotaGastoModal
+        state={modal}
+        notas={notas}
+        saving={saving}
         onCancel={() => setModal(null)}
-        destroyOnHidden
-      >
-        <Form form={form} layout="vertical" preserve={false}>
-          <Form.Item name="area" label="Área" rules={[{ required: true, message: 'Seleccione el área' }]}>
-            <Select options={NOTA_GASTO_AREAS} placeholder="Área" />
-          </Form.Item>
-          <Form.Item
-            name="cliente"
-            label="Cliente"
-            rules={[{ required: true, whitespace: true, message: 'Ingrese el cliente' }]}
-          >
-            <AutoComplete
-              allowClear
-              placeholder="Escriba o elija un cliente existente"
-              options={allClientes}
-              filterOption={(input, opt) => normalize(String(opt?.value ?? '')).includes(normalize(input))}
-            />
-          </Form.Item>
-          <Form.Item name="caso" label="Caso" extra="Número de caso (opcional, lo usa Migración).">
-            <Input maxLength={50} />
-          </Form.Item>
-          <Form.Item
-            name="nombre"
-            label="Nombre"
-            rules={[{ required: true, whitespace: true, message: 'Ingrese el nombre del caso' }]}
-          >
-            <Input.TextArea autoSize={{ minRows: 1, maxRows: 4 }} placeholder="p. ej. RESIDENCIA TEMPORAL JUAN PÉREZ" />
-          </Form.Item>
-          <Form.Item name="nt" label="NT" extra="Número de nota de trabajo. Déjelo vacío si aún no lo tiene.">
-            <InputNumber min={1} precision={0} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="observaciones" label="Observaciones">
-            <Input.TextArea autoSize={{ minRows: 1, maxRows: 4 }} />
-          </Form.Item>
-        </Form>
-      </Modal>
+        onSubmit={handleSave}
+        onEditExisting={(n) => openModal({ mode: 'edit', nota: n })}
+      />
     </div>
   );
 }
