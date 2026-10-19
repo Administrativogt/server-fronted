@@ -143,7 +143,7 @@ const DashboardLayout: React.FC = () => {
     isSuperuser,
     canManageInduction: canManageInduction(isSuperuser, username),
     canAccessHorasSocios: canAccessHorasSocios(isSuperuser, username),
-    canAccessVacationHr: canAccessVacationHr(isSuperuser, username),
+    canAccessVacationHr: canAccessVacationHr(username),
     canManageCoordinators: isSuperuser === true,
   };
 
