@@ -28,6 +28,7 @@ import {
   BarChartOutlined,
   FieldTimeOutlined,
   TeamOutlined,
+  PrinterOutlined,
 } from '@ant-design/icons';
 import type { ModuleKey } from '../types/module-access.types';
 
@@ -288,6 +289,7 @@ export const MENU: NavItem[] = [
       { key: '/dashboard/casos/crear', label: 'Crear caso', icon: <FileAddOutlined /> },
     ],
   },
+  { key: '/dashboard/notas-gastos', label: 'Notas de gastos e impresiones', icon: <PrinterOutlined /> },
   {
     key: 'jurisprudencia',
     label: 'Jurisprudencia',

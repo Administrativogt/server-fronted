@@ -141,6 +141,9 @@ const JurisprudenceDashboardPage = lazy(() => import('./pages/jurisprudence/Juri
 const SentenceDetailPage = lazy(() => import('./pages/jurisprudence/SentenceDetailPage'));
 const SentenceFormPage = lazy(() => import('./pages/jurisprudence/SentenceFormPage'));
 
+// Notas de gastos e impresiones
+const NotasGastos = lazy(() => import('./pages/notas-gastos/NotasGastos'));
+
 dayjs.locale('es');
 
 function AppInner() {
@@ -373,6 +376,9 @@ function AppInner() {
                 <Route path="/dashboard/casos/solicitud/:id" element={<CaseDetailPage />} />
                 <Route path="/dashboard/casos/solicitud/editar/:id" element={<EditCasePage />} />
               </Route>
+
+              {/* Notas de gastos e impresiones (NT por caso) */}
+              <Route path="/dashboard/notas-gastos" element={<NotasGastos />} />
 
               {/* Módulo de Jurisprudencia */}
               <Route path="/dashboard/jurisprudencia" element={<JurisprudenceListPage />} />
