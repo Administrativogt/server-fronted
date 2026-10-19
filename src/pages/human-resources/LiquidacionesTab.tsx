@@ -364,14 +364,17 @@ const LiquidacionesTab: React.FC = () => {
       key: 'acciones',
       render: (_: unknown, r: VacationLiquidation) => (
         <Space>
-          <Tooltip title="Descargar carta PDF">
-            <Button
-              size="small"
-              icon={<FilePdfOutlined />}
-              loading={downloadingId === r.id}
-              onClick={() => handleDownload(r)}
-            />
-          </Tooltip>
+          {/* Una liquidación anulada no tiene carta válida */}
+          {r.estado === 'CONFIRMADA' && (
+            <Tooltip title="Descargar carta PDF">
+              <Button
+                size="small"
+                icon={<FilePdfOutlined />}
+                loading={downloadingId === r.id}
+                onClick={() => handleDownload(r)}
+              />
+            </Tooltip>
+          )}
           {r.estado === 'CONFIRMADA' && (
             <Popconfirm
               title="¿Anular esta liquidación?"
