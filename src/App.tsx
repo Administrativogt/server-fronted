@@ -143,6 +143,7 @@ const SentenceFormPage = lazy(() => import('./pages/jurisprudence/SentenceFormPa
 
 // Notas de gastos e impresiones
 const NotasGastos = lazy(() => import('./pages/notas-gastos/NotasGastos'));
+const GastosMigracion = lazy(() => import('./pages/migracion/GastosMigracion'));
 
 dayjs.locale('es');
 
@@ -379,6 +380,8 @@ function AppInner() {
 
               {/* Notas de gastos e impresiones (NT por caso) */}
               <Route path="/dashboard/notas-gastos" element={<NotasGastos />} />
+              {/* Migración: gastos por NT (cheques LAS de Sirvo) */}
+              <Route path="/dashboard/migracion/gastos" element={<GastosMigracion />} />
 
               {/* Módulo de Jurisprudencia */}
               <Route path="/dashboard/jurisprudencia" element={<JurisprudenceListPage />} />

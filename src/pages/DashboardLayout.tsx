@@ -25,6 +25,7 @@ import { PRIMARY } from './dashboard/theme';
 import { canManageInduction } from '../utils/induction';
 import { canAccessHorasSocios } from '../routes/HorasSociosRoute';
 import { canAccessVacationHr } from '../routes/VacationHrRoute';
+import { canSeeMigracionGastos } from '../utils/migracion';
 import ErrorBoundary from '../components/ErrorBoundary';
 import ContentSkeleton from '../components/ContentSkeleton';
 
@@ -74,6 +75,7 @@ const DashboardLayout: React.FC = () => {
   const isSuperuser = useAuthStore((s) => s.is_superuser);
   const tipoUsuario = useAuthStore((s) => s.tipo_usuario);
   const modules = useAuthStore((s) => s.modules);
+  const equipoId = useAuthStore((s) => s.equipoId);
 
   const canSeeAsignados = tipoUsuario === 8 || username === 'ESC002' || username === 'BAR008';
   const canCreateEncargo = tipoUsuario !== 8; // ✅ Mensajeros NO pueden crear encargos
@@ -145,6 +147,7 @@ const DashboardLayout: React.FC = () => {
     canAccessHorasSocios: canAccessHorasSocios(isSuperuser, username),
     canAccessVacationHr: canAccessVacationHr(username),
     canManageCoordinators: isSuperuser === true,
+    canSeeMigracionGastos: canSeeMigracionGastos(isSuperuser, tipoUsuario, equipoId),
   };
 
   /* Mejora UX en modo colapsado:

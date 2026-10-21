@@ -29,6 +29,7 @@ import {
   FieldTimeOutlined,
   TeamOutlined,
   PrinterOutlined,
+  GlobalOutlined,
 } from '@ant-design/icons';
 import type { ModuleKey } from '../types/module-access.types';
 
@@ -46,6 +47,8 @@ export interface MenuCaps {
   canAccessVacationHr: boolean;
   /** Solo superusuario: configura coordinadores y autorizadores de cheques. */
   canManageCoordinators: boolean;
+  /** Gastos por NT de Migración: superusuario, contabilidad, socios y secretarias de LAS. */
+  canSeeMigracionGastos: boolean;
 }
 
 /**
@@ -289,7 +292,20 @@ export const MENU: NavItem[] = [
       { key: '/dashboard/casos/crear', label: 'Crear caso', icon: <FileAddOutlined /> },
     ],
   },
-  { key: '/dashboard/notas-gastos', label: 'Notas de gastos e impresiones', icon: <PrinterOutlined /> },
+  {
+    key: 'migracion',
+    label: 'Migración',
+    icon: <GlobalOutlined />,
+    children: [
+      { key: '/dashboard/notas-gastos', label: 'Notas de gastos e impresiones', icon: <PrinterOutlined /> },
+      {
+        key: '/dashboard/migracion/gastos',
+        label: 'Gastos por NT',
+        icon: <BarChartOutlined />,
+        visible: (c) => c.canSeeMigracionGastos,
+      },
+    ],
+  },
   {
     key: 'jurisprudencia',
     label: 'Jurisprudencia',
