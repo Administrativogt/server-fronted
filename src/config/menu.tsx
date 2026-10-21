@@ -30,6 +30,7 @@ import {
   TeamOutlined,
   PrinterOutlined,
   GlobalOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import type { ModuleKey } from '../types/module-access.types';
 
@@ -49,6 +50,8 @@ export interface MenuCaps {
   canManageCoordinators: boolean;
   /** Gastos por NT de Migración: superusuario, contabilidad, socios y secretarias de LAS. */
   canSeeMigracionGastos: boolean;
+  /** Control de supervisión de mensajería y limpieza: MARA, TOR002 y superusuarios. */
+  canAccessSupervision: boolean;
 }
 
 /**
@@ -169,6 +172,12 @@ export const MENU: NavItem[] = [
       { key: '/dashboard/mensajeria/todos', label: 'Todos los envíos', icon: <UnorderedListOutlined /> },
       { key: '/dashboard/mensajeria/dashboard', label: 'Dashboard', icon: <AuditOutlined /> },
     ],
+  },
+  {
+    key: '/dashboard/supervision',
+    label: 'Control de supervisión',
+    icon: <SafetyCertificateOutlined />,
+    visible: (c) => c.canAccessSupervision,
   },
   {
     key: 'notificaciones',

@@ -20,6 +20,7 @@ import PrivateRoute from './routes/PrivateRoute';
 import ModuleRoute from './routes/ModuleRoute';
 import InductionRoute from './routes/InductionRoute';
 import HorasSociosRoute from './routes/HorasSociosRoute';
+import SupervisionRoute from './routes/SupervisionRoute';
 import SuperuserRoute from './routes/SuperuserRoute';
 import VacationHrRoute from './routes/VacationHrRoute';
 import DashboardLayout from './pages/DashboardLayout';
@@ -143,6 +144,8 @@ const SentenceFormPage = lazy(() => import('./pages/jurisprudence/SentenceFormPa
 
 // Notas de gastos e impresiones
 const NotasGastos = lazy(() => import('./pages/notas-gastos/NotasGastos'));
+const SupervisionPage = lazy(() => import('./pages/supervision/SupervisionPage'));
+const RevisionFormPage = lazy(() => import('./pages/supervision/RevisionFormPage'));
 const GastosMigracion = lazy(() => import('./pages/migracion/GastosMigracion'));
 
 dayjs.locale('es');
@@ -304,6 +307,13 @@ function AppInner() {
               <Route element={<HorasSociosRoute />}>
                 <Route path="/dashboard/horas-socios" element={<HorasSociosPage />} />
                 <Route path="/dashboard/horas-socios/catalogos" element={<HorasCatalogosPage />} />
+              </Route>
+
+              {/* Control de supervisión: mensajería y limpieza (Mara Ortiz, TOR002) */}
+              <Route element={<SupervisionRoute />}>
+                <Route path="/dashboard/supervision" element={<SupervisionPage />} />
+                <Route path="/dashboard/supervision/nueva/:tipo" element={<RevisionFormPage />} />
+                <Route path="/dashboard/supervision/revision/:id" element={<RevisionFormPage />} />
               </Route>
 
               {/* Control de casos */}
