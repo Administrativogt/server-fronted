@@ -6,6 +6,14 @@ import useAuthStore from '../auth/useAuthStore';
 import loginImage from '../assets/new_cover_consortium copy.jpg';
 import logoDark from '../assets/logo-dark.png';
 import type { ModuleAccessItem } from '../types/module-access.types';
+import {
+  verifyMfaLogin,
+  startMfaSetupFromLogin,
+  enableMfaFromLogin,
+  type MfaSetupInfo,
+} from '../api/mfa';
+import MfaQrSetup from '../components/mfa/MfaQrSetup';
+import RecoveryCodes from '../components/mfa/RecoveryCodes';
 
 import './Login.css';
 
@@ -34,6 +42,22 @@ function Login() {
   const [forceChangeOpen, setForceChangeOpen] = useState(false);
   const [forceChangeLoading, setForceChangeLoading] = useState(false);
   const [forceChangeForm] = Form.useForm();
+  // Doble factor: tras la contraseña, el backend puede pedir el código de la
+  // app (verify) o, si es obligatorio y no lo tiene, configurarla (setup).
+  const [mfaStep, setMfaStep] = useState<{
+    mode: 'verify' | 'setup';
+    token: string;
+    password: string;
+    username: string;
+  } | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaLoading, setMfaLoading] = useState(false);
+  const [mfaSetupInfo, setMfaSetupInfo] = useState<MfaSetupInfo | null>(null);
+  const [newRecoveryCodes, setNewRecoveryCodes] = useState<{
+    codes: string[];
+    user: any;
+    password: string;
+  } | null>(null);
   const setToken = useAuthStore((state) => state.setToken);
   const setUsername = useAuthStore((state) => state.setUsername);
   const setFirstName = useAuthStore((state) => state.setFirstName);
@@ -55,6 +79,88 @@ function Login() {
     }
   };
 
+  /** Guarda la sesión que devolvió el backend (login directo o tras MFA). */
+  const applySession = (data: any, fallbackUsername: string) => {
+    const { access_token, user } = data;
+    const decoded = decodeJwt(access_token);
+
+    if (!decoded) {
+      throw new Error('Token inválido');
+    }
+
+    setToken(access_token);
+    setRefreshToken('');
+    setUsername(decoded.username || fallbackUsername);
+    setFirstName(user?.first_name || '');
+    setLastName(user?.last_name || '');
+    setUserId(decoded.sub);
+    setTipoUsuario(user?.tipo_usuario ?? null);
+    useAuthStore.getState().setAreaId(user?.area?.id ?? null);
+    useAuthStore.getState().setEquipoId(user?.equipo?.id ?? null);
+    setIsSuperuser(user?.is_superuser === true);
+    setPermissions(Array.isArray(user?.codenames) ? user.codenames : []);
+    setModules(Array.isArray(user?.modules) ? (user.modules as ModuleAccessItem[]) : []);
+  };
+
+  /** Último paso: cambio obligatorio de contraseña o entrar al dashboard. */
+  const finishLogin = (user: any, password: string) => {
+    if (user?.must_change_password === true) {
+      forceChangeForm.setFieldsValue({
+        currentPassword: password,
+        newPassword: '',
+        confirmPassword: '',
+      });
+      setForceChangeOpen(true);
+      message.warning('Debes cambiar la contraseña temporal por una más segura.');
+      return;
+    }
+
+    message.success('Inicio de sesión exitoso');
+    navigate(redirectTo, { replace: true });
+  };
+
+  const onMfaVerify = async () => {
+    if (!mfaStep) return;
+    try {
+      setMfaLoading(true);
+      const { data } = await verifyMfaLogin(mfaStep.token, mfaCode.trim());
+      applySession(data, mfaStep.username);
+      if (data?.mfa?.used_recovery_code) {
+        const left = data.mfa.recovery_codes_remaining;
+        message.warning(
+          `Entraste con un código de respaldo. Te quedan ${left}. Si perdiste el celular, pide que te reseteen el autenticador.`,
+          8,
+        );
+      }
+      finishLogin(data.user, mfaStep.password);
+    } catch (error: any) {
+      setMfaCode('');
+      message.error(error.response?.data?.message || 'Código incorrecto');
+    } finally {
+      setMfaLoading(false);
+    }
+  };
+
+  const onMfaEnable = async (code: string) => {
+    if (!mfaStep) return;
+    try {
+      setMfaLoading(true);
+      const { data } = await enableMfaFromLogin(mfaStep.token, code);
+      applySession(data, mfaStep.username);
+      setNewRecoveryCodes({ codes: data.recovery_codes ?? [], user: data.user, password: mfaStep.password });
+    } catch (error: any) {
+      message.error(error.response?.data?.message || 'Código incorrecto');
+    } finally {
+      setMfaLoading(false);
+    }
+  };
+
+  const cancelMfa = () => {
+    setMfaStep(null);
+    setMfaCode('');
+    setMfaSetupInfo(null);
+  };
+
   const onFinish = async (values: { username: string; password: string }) => {
     try {
       const transformedValues = {
@@ -63,43 +169,20 @@ function Login() {
       };
 
       const response = await api.post('/auth/login', transformedValues);
-      const { access_token, user } = response.data;
 
-      console.log('📦 Respuesta del backend:', response.data);
-
-      const decoded = decodeJwt(access_token);
-      console.log('🔓 JWT decodificado:', decoded);
-
-      if (!decoded) {
-        throw new Error('Token inválido');
-      }
-
-      setToken(access_token);
-      setRefreshToken('');
-      setUsername(decoded.username || transformedValues.username);
-      setFirstName(user?.first_name || '');
-      setLastName(user?.last_name || '');
-      setUserId(decoded.sub);
-      setTipoUsuario(user?.tipo_usuario ?? null);
-      useAuthStore.getState().setAreaId(user?.area?.id ?? null);
-      useAuthStore.getState().setEquipoId(user?.equipo?.id ?? null);
-      setIsSuperuser(user?.is_superuser === true);
-      setPermissions(Array.isArray(user?.codenames) ? user.codenames : []);
-      setModules(Array.isArray(user?.modules) ? (user.modules as ModuleAccessItem[]) : []);
-
-      if (user?.must_change_password === true) {
-        forceChangeForm.setFieldsValue({
-          currentPassword: values.password,
-          newPassword: '',
-          confirmPassword: '',
-        });
-        setForceChangeOpen(true);
-        message.warning('Debes cambiar la contraseña temporal por una más segura.');
+      if (response.data?.mfa_required || response.data?.mfa_setup_required) {
+        const mode = response.data.mfa_required ? 'verify' : 'setup';
+        const token = response.data.mfa_token as string;
+        if (mode === 'setup') {
+          const { data } = await startMfaSetupFromLogin(token);
+          setMfaSetupInfo(data);
+        }
+        setMfaStep({ mode, token, password: values.password, username: transformedValues.username });
         return;
       }
 
-      message.success('Inicio de sesión exitoso');
-      navigate(redirectTo, { replace: true });
+      applySession(response.data, transformedValues.username);
+      finishLogin(response.data.user, values.password);
     } catch (error: any) {
       console.error('❌ Error en login:', error);
       const errorMsg = error.response?.data?.message || 'Credenciales inválidas';
@@ -202,13 +285,90 @@ function Login() {
                 style={{ height: 40, marginBottom: 32 }}
               />
               <Title level={2} style={{ color: textWhite, marginBottom: 8 }}>
-                Iniciar sesión
+                {newRecoveryCodes
+                  ? 'Códigos de respaldo'
+                  : mfaStep?.mode === 'setup'
+                    ? 'Configura tu autenticador'
+                    : mfaStep
+                      ? 'Verificación en dos pasos'
+                      : 'Iniciar sesión'}
               </Title>
               <Text style={{ color: textMuted, fontSize: 14 }}>
-                Accede a tu cuenta para continuar
+                {newRecoveryCodes
+                  ? 'El autenticador quedó activo.'
+                  : mfaStep?.mode === 'setup'
+                    ? 'Tu cuenta requiere verificación en dos pasos con Microsoft Authenticator.'
+                    : mfaStep
+                      ? 'Abre Microsoft Authenticator y escribe el código de 6 dígitos.'
+                      : 'Accede a tu cuenta para continuar'}
               </Text>
             </div>
 
+            {newRecoveryCodes ? (
+              <div>
+                <RecoveryCodes codes={newRecoveryCodes.codes} username={mfaStep?.username} />
+                <Button
+                  type="primary"
+                  block
+                  size="large"
+                  style={{ marginTop: 24, height: 48, fontWeight: 600 }}
+                  onClick={() => {
+                    const pending = newRecoveryCodes;
+                    setNewRecoveryCodes(null);
+                    finishLogin(pending.user, pending.password);
+                  }}
+                >
+                  Ya los guardé, continuar
+                </Button>
+              </div>
+            ) : mfaStep?.mode === 'setup' ? (
+              <div>
+                {mfaSetupInfo ? (
+                  <MfaQrSetup info={mfaSetupInfo} loading={mfaLoading} onSubmit={onMfaEnable} submitText="Activar" />
+                ) : (
+                  <Text style={{ color: textMuted }}>Generando código QR…</Text>
+                )}
+                <Button type="link" block style={{ marginTop: 16 }} onClick={cancelMfa}>
+                  Volver al inicio de sesión
+                </Button>
+              </div>
+            ) : mfaStep ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (mfaCode.trim().length >= 6) onMfaVerify();
+                }}
+              >
+                <Input
+                  size="large"
+                  value={mfaCode}
+                  onChange={(e) => setMfaCode(e.target.value.toUpperCase().slice(0, 9))}
+                  placeholder="123456"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  aria-label="Código de verificación"
+                  autoFocus
+                  style={{ letterSpacing: 6, textAlign: 'center', fontSize: 22, marginBottom: 16 }}
+                />
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  block
+                  size="large"
+                  loading={mfaLoading}
+                  disabled={mfaCode.trim().length < 6}
+                  style={{ height: 48, fontWeight: 600, fontSize: 15, borderRadius: 8 }}
+                >
+                  Verificar
+                </Button>
+                <Text style={{ color: textMuted, fontSize: 12, display: 'block', marginTop: 16 }}>
+                  ¿No tienes el celular? Escribe uno de tus códigos de respaldo (XXXX-XXXX).
+                </Text>
+                <Button type="link" block style={{ marginTop: 8 }} onClick={cancelMfa}>
+                  Volver al inicio de sesión
+                </Button>
+              </form>
+            ) : (
             <Form layout="vertical" onFinish={onFinish}>
               <Form.Item
                 label={<span style={{ color: textWhite, fontWeight: 500 }}>Usuario</span>}
@@ -272,6 +432,7 @@ function Login() {
                 </Button>
               </Form.Item>
             </Form>
+            )}
           </div>
         </Col>
 

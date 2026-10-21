@@ -12,6 +12,7 @@ import {
   StarFilled,
   SearchOutlined,
   DownOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation, Navigate } from 'react-router-dom';
 import useAuthStore from '../auth/useAuthStore';
@@ -27,6 +28,7 @@ import { canAccessHorasSocios } from '../routes/HorasSociosRoute';
 import { canAccessVacationHr } from '../routes/VacationHrRoute';
 import ErrorBoundary from '../components/ErrorBoundary';
 import ContentSkeleton from '../components/ContentSkeleton';
+import MfaSettingsModal from '../components/mfa/MfaSettingsModal';
 
 import logoLight from '../assets/logo-cosortium.png';
 import logoDark from '../assets/logo-dark.png';
@@ -38,6 +40,7 @@ const DashboardLayout: React.FC = () => {
   const [openKeys, setOpenKeys] = useState<string[]>([]);
   const [canSeeReport, setCanSeeReport] = useState<boolean | null>(null);
   const [search, setSearch] = useState('');
+  const [mfaOpen, setMfaOpen] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
 
   const themeMode = useThemeStore((s) => s.mode);
@@ -473,6 +476,15 @@ const DashboardLayout: React.FC = () => {
                   <div style={{ padding: 8 }}>
                     <Button
                       type="text"
+                      block
+                      icon={<SafetyCertificateOutlined />}
+                      onClick={() => setMfaOpen(true)}
+                      style={{ justifyContent: 'flex-start' }}
+                    >
+                      Verificación en dos pasos
+                    </Button>
+                    <Button
+                      type="text"
                       danger
                       block
                       icon={<LogoutOutlined />}
@@ -530,6 +542,7 @@ const DashboardLayout: React.FC = () => {
                 <DownOutlined style={{ fontSize: 10, opacity: 0.55 }} />
               </button>
             </Dropdown>
+            <MfaSettingsModal open={mfaOpen} onClose={() => setMfaOpen(false)} username={username} />
           </div>
         </Header>
 

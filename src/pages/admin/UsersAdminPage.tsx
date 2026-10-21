@@ -24,10 +24,13 @@ import {
   StopOutlined,
   IdcardOutlined,
   WarningOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { useUserAdminPermissions } from '../../hooks/usePermissions';
 import { getAllUsersIncludingInactive, deactivateUser, activateUser } from '../../api/users';
+import { getMfaEnabledUsers, resetUserMfa } from '../../api/mfa';
+import useAuthStore from '../../auth/useAuthStore';
 import { useReferenceData } from '../../hooks/useReferenceData';
 import useThemeStore from '../../hooks/useThemeStore';
 import { TIPOS_USUARIO, getTipoUsuarioLabel } from '../../types/user.types';
@@ -66,6 +69,35 @@ const UsersAdminPage: React.FC = () => {
   const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(false);
   const [sirvoCodeModalOpen, setSirvoCodeModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+
+  // Doble factor: quién lo tiene activo (solo lo consulta un superusuario,
+  // que es quien puede resetearlo si alguien perdió el celular).
+  const isSuperuser = useAuthStore((s) => s.is_superuser);
+  const [mfaUserIds, setMfaUserIds] = useState<Set<number>>(new Set());
+  const loadMfaUsers = async () => {
+    if (!isSuperuser) return;
+    try {
+      const { data } = await getMfaEnabledUsers();
+      setMfaUserIds(new Set(data.map((r) => r.user_id)));
+    } catch {
+      setMfaUserIds(new Set());
+    }
+  };
+  useEffect(() => {
+    loadMfaUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSuperuser]);
+
+  const handleResetMfa = async (userId: number) => {
+    try {
+      await resetUserMfa(userId);
+      message.success('Autenticador reseteado: lo configurará de nuevo al activarlo');
+      loadMfaUsers();
+    } catch (error) {
+      message.error('Error al resetear el autenticador');
+      console.error(error);
+    }
+  };
 
   // ============================================
   // PROTECCIÓN DE ACCESO
@@ -266,7 +298,7 @@ const UsersAdminPage: React.FC = () => {
       title: 'Acciones',
       key: 'actions',
       fixed: 'right',
-      width: isSirvoCodeUser ? 80 : 200,
+      width: isSirvoCodeUser ? 80 : 232,
       render: (_, record) => (
         <Space size="small">
           {/* Ver detalles — disponible para todos */}
@@ -337,6 +369,25 @@ const UsersAdminPage: React.FC = () => {
                   }}
                 />
               </Tooltip>
+              {isSuperuser && mfaUserIds.has(record.id) && (
+                <Popconfirm
+                  title="¿Resetear su autenticador?"
+                  description="Úsalo si perdió o cambió de celular. Deberá volver a escanear el QR."
+                  onConfirm={() => handleResetMfa(record.id)}
+                  okText="Sí, resetear"
+                  cancelText="Cancelar"
+                >
+                  <Tooltip title="Verificación en dos pasos activa — resetear">
+                    <Button
+                      type="text"
+                      aria-label={`Resetear autenticador de ${record.username}`}
+                      icon={<SafetyCertificateOutlined />}
+                      size="small"
+                      style={{ color: '#16a34a' }}
+                    />
+                  </Tooltip>
+                </Popconfirm>
+              )}
               {record.estado === 1 && record.is_active ? (
                 <Popconfirm
                   title="¿Desactivar este usuario?"
