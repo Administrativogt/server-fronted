@@ -1,6 +1,8 @@
 /* Control de supervisión. Los colores llegan como custom properties desde el
    token de AntD (claro/oscuro) en el wrapper .sv-page. */
 
+.sv-page { padding: 24px; }
+
 /* ── Tira de días hábiles ───────────────────────────────────────── */
 .sv-page .sv-days {
   display: flex;
@@ -68,6 +70,20 @@
   background: var(--sv-bg);
 }
 .sv-page .sv-grid thead .sv-crit { background: var(--sv-header-bg); }
+
+/* La cuadrícula de evaluación tiene su propio scroll para que la fila con los
+   nombres quede fija arriba mientras se bajan los criterios. */
+.sv-page .sv-grid-wrap--scroll {
+  max-height: max(360px, calc(100dvh - 260px));
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.sv-page .sv-grid-wrap--scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.sv-page .sv-grid-wrap--scroll thead th.sv-crit { z-index: 3; }
 .sv-page .sv-grid .sv-person { min-width: 150px; text-align: center; }
 .sv-page .sv-grid .sv-obs { min-width: 220px; }
 .sv-page .sv-grid tr.sv-section td {
@@ -81,12 +97,15 @@
 
 .sv-page .sv-person-name {
   display: block;
+  overflow-wrap: anywhere;
   font-weight: 600;
   line-height: 1.25;
   text-transform: capitalize;
 }
 
 /* ── Selector Cumple / Parcial / No / N/A ───────────────────────── */
+/* Marcado = fondo tenue + texto oscuro del mismo tono (no blanco sobre color
+   lleno: verde/naranja/amarillo con texto blanco no llegan a 4.5:1). */
 .sv-page .sv-opts {
   display: inline-flex;
   border: 1px solid var(--sv-border);
@@ -103,16 +122,21 @@
   font-size: 12px;
   color: var(--sv-muted);
   cursor: pointer;
-  transition: background-color 120ms ease-out, color 120ms ease-out;
+  transition: background-color 120ms ease-out, color 120ms ease-out, box-shadow 120ms ease-out;
 }
 .sv-page .sv-opt:first-child { border-left: 0; }
 .sv-page .sv-opt:hover { background: var(--sv-subtle); color: var(--sv-text); }
 .sv-page .sv-opt:focus-visible { outline: 2px solid var(--sv-primary); outline-offset: -2px; }
-.sv-page .sv-opt[aria-pressed='true'] { color: #fff; font-weight: 600; }
-.sv-page .sv-opt.v-CUMPLE[aria-pressed='true'] { background: var(--sv-ok); }
-.sv-page .sv-opt.v-PARCIAL[aria-pressed='true'] { background: var(--sv-partial); }
-.sv-page .sv-opt.v-NO_CUMPLE[aria-pressed='true'] { background: var(--sv-bad); }
-.sv-page .sv-opt.v-NA[aria-pressed='true'] { background: var(--sv-na); }
+.sv-page .sv-opt[aria-pressed='true'] {
+  font-weight: 600;
+  background: var(--tone-bg);
+  color: var(--tone-text);
+  box-shadow: inset 0 0 0 1px var(--tone-border);
+}
+.sv-page .v-CUMPLE { --tone-bg: var(--sv-ok-bg); --tone-border: var(--sv-ok-border); --tone-text: var(--sv-ok-text); }
+.sv-page .v-PARCIAL { --tone-bg: var(--sv-partial-bg); --tone-border: var(--sv-partial-border); --tone-text: var(--sv-partial-text); }
+.sv-page .v-NO_CUMPLE { --tone-bg: var(--sv-bad-bg); --tone-border: var(--sv-bad-border); --tone-text: var(--sv-bad-text); }
+.sv-page .v-NA { --tone-bg: var(--sv-na-bg); --tone-border: var(--sv-na-border); --tone-text: var(--sv-text); }
 
 /* ── Notas 1 a 5 ────────────────────────────────────────────────── */
 .sv-page .sv-notas { display: inline-flex; gap: 4px; }
@@ -131,22 +155,36 @@
 }
 .sv-page .sv-nota:hover { border-color: var(--sv-primary); color: var(--sv-text); }
 .sv-page .sv-nota:focus-visible { outline: 2px solid var(--sv-primary); outline-offset: 1px; }
-.sv-page .sv-nota[aria-pressed='true'] { color: #fff; border-color: transparent; }
-.sv-page .sv-nota.n1[aria-pressed='true'] { background: var(--sv-n1); }
-.sv-page .sv-nota.n2[aria-pressed='true'] { background: var(--sv-n2); }
-.sv-page .sv-nota.n3[aria-pressed='true'] { background: var(--sv-n3); }
-.sv-page .sv-nota.n4[aria-pressed='true'] { background: var(--sv-n4); }
-.sv-page .sv-nota.n5[aria-pressed='true'] { background: var(--sv-n5); }
-/* Amarillos y verde claro: texto oscuro para que se lea */
-.sv-page .sv-opt.v-PARCIAL[aria-pressed='true'],
-.sv-page .sv-nota.n3[aria-pressed='true'],
-.sv-page .sv-nota.n4[aria-pressed='true'] { color: rgba(0, 0, 0, 0.88); }
+.sv-page .sv-nota[aria-pressed='true'] {
+  background: var(--tone-bg);
+  border-color: var(--tone-border);
+  color: var(--tone-text);
+}
+.sv-page .sv-nota.n1 { --tone-bg: var(--sv-n1-bg); --tone-border: var(--sv-n1-border); --tone-text: var(--sv-n1-text); }
+.sv-page .sv-nota.n2 { --tone-bg: var(--sv-n2-bg); --tone-border: var(--sv-n2-border); --tone-text: var(--sv-n2-text); }
+.sv-page .sv-nota.n3 { --tone-bg: var(--sv-n3-bg); --tone-border: var(--sv-n3-border); --tone-text: var(--sv-n3-text); }
+.sv-page .sv-nota.n4 { --tone-bg: var(--sv-n4-bg); --tone-border: var(--sv-n4-border); --tone-text: var(--sv-n4-text); }
+.sv-page .sv-nota.n5 { --tone-bg: var(--sv-n5-bg); --tone-border: var(--sv-n5-border); --tone-text: var(--sv-n5-text); }
+
+/* ── Etiquetas de campos ────────────────────────────────────────── */
+.sv-page .sv-label {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 12px;
+  color: var(--sv-muted);
+}
+.sv-page .sv-field-title {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: var(--sv-text);
+}
 
 /* Barra de guardado fija al pie del formulario */
 .sv-page .sv-savebar {
   position: sticky;
   bottom: 0;
-  z-index: 3;
+  z-index: 4;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -158,6 +196,25 @@
   border-radius: 8px;
   background: var(--sv-bg);
   box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.06);
+}
+
+/* ── Pantalla táctil: objetivos de 44 px sin engordar el escritorio ── */
+@media (pointer: coarse) {
+  .sv-page .sv-opt { min-width: 44px; min-height: 40px; padding: 6px 10px; font-size: 13px; }
+  .sv-page .sv-nota { width: 40px; height: 40px; }
+  .sv-page .sv-notas { gap: 6px; }
+  .sv-page .sv-day { min-height: 44px; }
+}
+
+/* ── Pantallas angostas ─────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .sv-page { padding: 12px; }
+  .sv-page .sv-grid .sv-crit { min-width: 128px; max-width: 42vw; }
+  .sv-page .sv-grid .sv-person { min-width: 120px; }
+  .sv-page .sv-grid .sv-obs { min-width: 180px; }
+  .sv-page .sv-grid th,
+  .sv-page .sv-grid td { padding: 6px 8px; }
+  .sv-page .sv-savebar { padding: 10px 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

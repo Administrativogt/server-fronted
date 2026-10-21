@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
+  Alert,
   Badge,
   Button,
   Card,
   DatePicker,
   Empty,
-  message,
   Space,
   Table,
   Tabs,
@@ -94,9 +94,22 @@ export default function SupervisionPage() {
   const [mes, setMes] = useState<Dayjs>(dayjs().startOf('month'));
   const [revisiones, setRevisiones] = useState<Revision[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const dias = useMemo(() => diasHabiles(DIAS_TIRA), []);
-  const hoy = dayjs().format('YYYY-MM-DD');
+  // Si la página queda abierta de un día para otro, la tira y "hoy" se
+  // actualizan al volver a la pestaña.
+  const [hoy, setHoy] = useState(() => dayjs().format('YYYY-MM-DD'));
+  useEffect(() => {
+    const sync = () => setHoy(dayjs().format('YYYY-MM-DD'));
+    document.addEventListener('visibilitychange', sync);
+    window.addEventListener('focus', sync);
+    return () => {
+      document.removeEventListener('visibilitychange', sync);
+      window.removeEventListener('focus', sync);
+    };
+  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const dias = useMemo(() => diasHabiles(DIAS_TIRA), [hoy]);
 
   // Un solo GET cubre el mes elegido y la tira de los últimos días hábiles.
   const rango = useMemo(() => {
@@ -109,10 +122,11 @@ export default function SupervisionPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       setRevisiones(await listRevisiones(rango));
     } catch (err) {
-      message.error(apiError(err, 'No se pudieron cargar las revisiones'));
+      setLoadError(apiError(err, 'Revisa tu conexión e intenta de nuevo.'));
     } finally {
       setLoading(false);
     }
@@ -149,7 +163,7 @@ export default function SupervisionPage() {
   const esMens = tipo === 'MENSAJERIA';
 
   return (
-    <div className="sv-page" style={{ padding: 24, ...cssVars }}>
+    <div className="sv-page" style={cssVars}>
       <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }} wrap>
         <div>
           <Title level={3} style={{ margin: 0 }}>
@@ -167,13 +181,28 @@ export default function SupervisionPage() {
         </Space>
       </Space>
 
+      {loadError && (
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="No se pudieron cargar las revisiones"
+          description={loadError}
+          action={
+            <Button size="small" onClick={load} loading={loading}>
+              Reintentar
+            </Button>
+          }
+        />
+      )}
+
       <Tabs
         activeKey={tipo}
         onChange={(k) => setParams({ tipo: k.toLowerCase() }, { replace: true })}
         items={(['MENSAJERIA', 'LIMPIEZA'] as SupervisionTipo[]).map((t) => ({
           key: t,
           label: (
-            <Badge dot={!loading && faltaHoy(t)} offset={[6, 0]} title="Falta la revisión de hoy">
+            <Badge dot={!loading && !loadError && faltaHoy(t)} offset={[6, 0]} title="Falta la revisión de hoy">
               {TIPO_LABEL[t]}
             </Badge>
           ),
@@ -245,7 +274,15 @@ export default function SupervisionPage() {
           loading={loading}
           dataSource={resumen}
           pagination={false}
-          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={`Sin revisiones en ${periodo}.`} /> }}
+          scroll={{ x: 'max-content' }}
+          locale={{
+            emptyText: (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={loadError ? 'No se pudo cargar el resumen.' : `Sin revisiones en ${periodo}.`}
+              />
+            ),
+          }}
           columns={[
             {
               title: 'Persona',
@@ -296,9 +333,14 @@ export default function SupervisionPage() {
           loading={loading}
           dataSource={delMes}
           pagination={{ pageSize: 15, hideOnSinglePage: true }}
+          scroll={{ x: 'max-content' }}
           onRow={(r) => ({ onClick: () => navigate(`/dashboard/supervision/revision/${r.id}`), style: { cursor: 'pointer' } })}
           locale={{
-            emptyText: (
+            emptyText: loadError ? (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No se pudieron cargar las revisiones.">
+                <Button onClick={load}>Reintentar</Button>
+              </Empty>
+            ) : (
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={`Todavía no hay revisiones de ${TIPO_LABEL[tipo].toLowerCase()} en ${periodo}.`}>
                 <Button type="primary" icon={<PlusOutlined />} onClick={() => abrir(tipo, hoy)}>
                   Hacer la de hoy
@@ -311,7 +353,16 @@ export default function SupervisionPage() {
               title: 'Fecha',
               dataIndex: 'fecha',
               width: 170,
-              render: (f: string) => <span style={{ textTransform: 'capitalize' }}>{dayjs(f).format('ddd DD/MM/YYYY')}</span>,
+              // Enlace real: la fila se abre con clic y también con teclado (Tab + Enter).
+              render: (f: string, r) => (
+                <Link
+                  to={`/dashboard/supervision/revision/${r.id}`}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ textTransform: 'capitalize' }}
+                >
+                  {dayjs(f).format('ddd DD/MM/YYYY')}
+                </Link>
+              ),
             },
             { title: esMens ? 'Ruta / Zona' : 'Sede', dataIndex: 'sede', render: (s: string) => s || '—' },
             {

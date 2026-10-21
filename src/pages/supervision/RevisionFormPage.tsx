@@ -47,6 +47,7 @@ import {
 } from '../../api/supervision';
 import { exportRevisionExcel } from './exportSupervision';
 import { useSupervisionVars } from './useSupervisionVars';
+import { useUnsavedChangesGuard } from './useUnsavedChangesGuard';
 import './supervision.css';
 
 const { Title, Text } = Typography;
@@ -63,6 +64,8 @@ const OPCIONES: { value: Cumplimiento; label: string; title: string }[] = [
 
 const apiError = (err: unknown, fallback: string) =>
   (err as { response?: { data?: { message?: string } } })?.response?.data?.message || fallback;
+
+const ATAJO_GUARDAR = /Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘ S' : 'Ctrl + S';
 
 const personaKey = (usuarioId: number | null, nombre: string) =>
   usuarioId != null ? `u${usuarioId}` : `n${nombre.toUpperCase()}`;
@@ -203,18 +206,28 @@ export default function RevisionFormPage() {
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [saved, setSaved] = useState<Revision | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [intento, setIntento] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [dirty, setDirty] = useState(false);
+  const [dirty, setDirtyState] = useState(false);
+  const dirtyRef = useRef(false);
+  const setDirty = useCallback((d: boolean) => {
+    dirtyRef.current = d;
+    setDirtyState(d);
+  }, []);
   const [prefillFrom, setPrefillFrom] = useState<string | null>(null);
   const [nombreLibre, setNombreLibre] = useState('');
   const saveRef = useRef<() => void>(() => {});
 
   const esMens = tipo === 'MENSAJERIA';
 
+  useUnsavedChangesGuard(dirtyRef);
+
   useEffect(() => {
     let alive = true;
     (async () => {
       setLoading(true);
+      setLoadError(null);
       try {
         const cat = await getCatalogo();
         if (revisionId) {
@@ -262,7 +275,7 @@ export default function RevisionFormPage() {
         }
         if (alive) setCatalogo(cat);
       } catch (err) {
-        message.error(apiError(err, 'No se pudo cargar la revisión'));
+        if (alive) setLoadError(apiError(err, 'No se pudo cargar la revisión. Revisa tu conexión e intenta de nuevo.'));
       } finally {
         if (alive) setLoading(false);
       }
@@ -270,7 +283,7 @@ export default function RevisionFormPage() {
     return () => {
       alive = false;
     };
-  }, [revisionId, tipoParam, fechaParam, navigate]);
+  }, [revisionId, tipoParam, fechaParam, navigate, intento]);
 
   // Aviso del navegador si se cierra con cambios sin guardar
   useEffect(() => {
@@ -364,7 +377,7 @@ export default function RevisionFormPage() {
     } catch (err) {
       const data = (err as { response?: { status?: number; data?: { revisionId?: number } } })?.response;
       if (data?.status === 409 && data.data?.revisionId) {
-        message.warning('Ya hay una revisión para esa fecha; se abrió para editarla.');
+        message.warning('Ya hay una revisión para esa fecha. Ábrela para editarla.');
         navigate(`/dashboard/supervision/revision/${data.data.revisionId}`);
         return;
       }
@@ -372,7 +385,7 @@ export default function RevisionFormPage() {
     } finally {
       setSaving(false);
     }
-  }, [saving, personas, tipo, header, saved, navigate]);
+  }, [saving, personas, tipo, header, saved, navigate, setDirty]);
   saveRef.current = save;
 
   const remove = async () => {
@@ -387,9 +400,34 @@ export default function RevisionFormPage() {
     }
   };
 
+  const volver = () => navigate(`/dashboard/supervision?tipo=${tipo.toLowerCase()}`);
+
+  if (loadError) {
+    return (
+      <div className="sv-page" style={cssVars}>
+        <Alert
+          type="error"
+          showIcon
+          message="No se pudo abrir la revisión"
+          description={loadError}
+          action={
+            <Space direction="vertical">
+              <Button type="primary" size="small" onClick={() => setIntento((n) => n + 1)}>
+                Reintentar
+              </Button>
+              <Button size="small" onClick={volver}>
+                Volver al control
+              </Button>
+            </Space>
+          }
+        />
+      </div>
+    );
+  }
+
   if (loading || !catalogo) {
     return (
-      <div className="sv-page" style={{ padding: 24, ...cssVars }}>
+      <div className="sv-page" style={cssVars}>
         <Skeleton active paragraph={{ rows: 10 }} />
       </div>
     );
@@ -421,13 +459,13 @@ export default function RevisionFormPage() {
   const fechaLabel = dayjs(header.fecha).format('dddd D [de] MMMM YYYY');
 
   return (
-    <div className="sv-page" style={{ padding: 24, ...cssVars }}>
+    <div className="sv-page" style={cssVars}>
       <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }} wrap>
         <Space align="start">
           <Tooltip title="Volver al control">
             <Button
               icon={<ArrowLeftOutlined />}
-              onClick={() => navigate(`/dashboard/supervision?tipo=${tipo.toLowerCase()}`)}
+              onClick={volver}
               aria-label="Volver"
             />
           </Tooltip>
@@ -439,7 +477,8 @@ export default function RevisionFormPage() {
               {fechaLabel}
               {saved?.creator && (
                 <span style={{ textTransform: 'none' }}>
-                  {' · '}Creado por {`${saved.creator.first_name} ${saved.creator.last_name}`.trim()}
+                  {' · '}Creado por{' '}
+                  {`${saved.creator.first_name ?? ''} ${saved.creator.last_name ?? ''}`.trim() || saved.creator.username}
                 </span>
               )}
             </Text>
@@ -484,10 +523,11 @@ export default function RevisionFormPage() {
       <Card size="small" title="Datos generales" style={{ marginBottom: 16 }}>
         <Space wrap size={[24, 12]} align="start">
           <div>
-            <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
+            <label className="sv-label" htmlFor="sv-fecha">
               Fecha
-            </Text>
+            </label>
             <DatePicker
+              id="sv-fecha"
               value={dayjs(header.fecha)}
               format="DD/MM/YYYY"
               allowClear={false}
@@ -495,22 +535,23 @@ export default function RevisionFormPage() {
               onChange={(d) => d && patchHeader({ fecha: d.format('YYYY-MM-DD') })}
             />
           </div>
-          <div style={{ minWidth: 260 }}>
-            <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
+          <div style={{ minWidth: 'min(260px, 100%)' }}>
+            <label className="sv-label" htmlFor="sv-sede">
               {esMens ? 'Ruta / Zona' : 'Sede / Oficina'}
-            </Text>
+            </label>
             <Input
+              id="sv-sede"
               value={header.sede}
               maxLength={255}
               placeholder={esMens ? 'Ej. Zona 10, bancos y Torre Internacional' : 'Ej. Oficinas Guatemala'}
               onChange={(e) => patchHeader({ sede: e.target.value })}
             />
           </div>
-          <div style={{ minWidth: 320, flex: 1 }}>
-            <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
+          <div style={{ minWidth: 'min(320px, 100%)', flex: 1 }}>
+            <span className="sv-label" id="sv-personas-label">
               Personas evaluadas
-            </Text>
-            <Space wrap size={[6, 6]}>
+            </span>
+            <Space wrap size={[6, 6]} role="group" aria-labelledby="sv-personas-label">
               {personas.map((p) => (
                 <Tag
                   key={p.key}
@@ -531,6 +572,9 @@ export default function RevisionFormPage() {
                   size="small"
                   style={{ minWidth: 200 }}
                   placeholder="Agregar persona…"
+                  aria-label="Agregar persona"
+                  showSearch
+                  optionFilterProp="label"
                   value={null}
                   options={disponibles.map((p) => ({ value: p.id, label: p.nombre }))}
                   onChange={(v: number) => {
@@ -541,10 +585,11 @@ export default function RevisionFormPage() {
               )}
               <Space.Compact size="small">
                 <Input
-                  style={{ width: 190 }}
+                  style={{ width: 'min(190px, 60vw)' }}
                   value={nombreLibre}
                   maxLength={255}
                   placeholder="Nombre (sin usuario)"
+                  aria-label="Nombre de persona sin usuario"
                   onChange={(e) => setNombreLibre(e.target.value)}
                   onPressEnter={() => {
                     if (!nombreLibre.trim()) return;
@@ -596,6 +641,7 @@ export default function RevisionFormPage() {
                             value={p.vehiculo}
                             maxLength={100}
                             placeholder="Moto P-123ABC"
+                            aria-label={`Vehículo o placa de ${p.nombre}`}
                             onChange={(e) => patchPersona(p.key, (x) => ({ ...x, vehiculo: e.target.value }))}
                           />
                         </td>
@@ -604,6 +650,7 @@ export default function RevisionFormPage() {
                             size="small"
                             value={p.telefono}
                             maxLength={50}
+                            aria-label={`Teléfono de ${p.nombre}`}
                             onChange={(e) => patchPersona(p.key, (x) => ({ ...x, telefono: e.target.value }))}
                           />
                         </td>
@@ -614,6 +661,7 @@ export default function RevisionFormPage() {
                               format="HH:mm"
                               minuteStep={5}
                               needConfirm={false}
+                              aria-label={`${campo === 'hora_salida' ? 'Hora de salida' : 'Hora de retorno'} de ${p.nombre}`}
                               value={p[campo] ? dayjs(p[campo], 'HH:mm') : null}
                               onChange={(t) =>
                                 patchPersona(p.key, (x) => ({ ...x, [campo]: t ? t.format('HH:mm') : null }))
@@ -646,7 +694,7 @@ export default function RevisionFormPage() {
             }
             style={{ marginBottom: 16 }}
           >
-            <div className="sv-grid-wrap">
+            <div className="sv-grid-wrap sv-grid-wrap--scroll">
               <table className="sv-grid">
                 <thead>
                   <tr>
@@ -692,7 +740,8 @@ export default function RevisionFormPage() {
                           <Input
                             size="small"
                             variant="borderless"
-                            placeholder="—"
+                            placeholder="Agregar nota…"
+                            aria-label={`Observaciones: ${c.label}`}
                             value={header.observaciones_items[c.key] ?? ''}
                             onChange={(e) =>
                               patchHeader({
@@ -787,10 +836,12 @@ export default function RevisionFormPage() {
                   </tbody>
                 </table>
               </div>
-              <Text strong>Descripción detallada de anomalías y medidas tomadas</Text>
+              <label className="sv-field-title" htmlFor="sv-desc-incidencias">
+                Descripción detallada de anomalías y medidas tomadas
+              </label>
               <Input.TextArea
+                id="sv-desc-incidencias"
                 rows={3}
-                style={{ marginTop: 6 }}
                 value={header.descripcion_incidencias}
                 onChange={(e) => patchHeader({ descripcion_incidencias: e.target.value })}
               />
@@ -800,12 +851,16 @@ export default function RevisionFormPage() {
               <Space direction="vertical" style={{ width: '100%' }}>
                 {personas.map((p) => (
                   <div key={p.key}>
-                    <Text strong style={{ textTransform: 'capitalize' }}>
+                    <label
+                      className="sv-field-title"
+                      htmlFor={`sv-obs-${p.key}`}
+                      style={{ textTransform: 'capitalize', marginBottom: 4 }}
+                    >
                       {nombreCorto(p.nombre)}
-                    </Text>
+                    </label>
                     <Input.TextArea
+                      id={`sv-obs-${p.key}`}
                       rows={2}
-                      style={{ marginTop: 4 }}
                       placeholder="Áreas que requieren atención inmediata o insumos que hacen falta"
                       value={p.observaciones}
                       onChange={(e) => patchPersona(p.key, (x) => ({ ...x, observaciones: e.target.value }))}
@@ -822,19 +877,23 @@ export default function RevisionFormPage() {
           >
             <Space direction="vertical" style={{ width: '100%' }} size={12}>
               <div>
-                <Text strong>Observaciones generales del supervisor</Text>
+                <label className="sv-field-title" htmlFor="sv-obs-generales">
+                  Observaciones generales del supervisor
+                </label>
                 <Input.TextArea
+                  id="sv-obs-generales"
                   rows={3}
-                  style={{ marginTop: 6 }}
                   value={header.observaciones_generales}
                   onChange={(e) => patchHeader({ observaciones_generales: e.target.value })}
                 />
               </div>
               <div>
-                <Text strong>{esMens ? 'Compromisos de mejora para próximas rutas' : 'Acuerdos'}</Text>
+                <label className="sv-field-title" htmlFor="sv-compromisos">
+                  {esMens ? 'Compromisos de mejora para próximas rutas' : 'Acuerdos'}
+                </label>
                 <Input.TextArea
+                  id="sv-compromisos"
                   rows={3}
-                  style={{ marginTop: 6 }}
                   value={header.compromisos}
                   onChange={(e) => patchHeader({ compromisos: e.target.value })}
                 />
@@ -845,7 +904,7 @@ export default function RevisionFormPage() {
       )}
 
       <div className="sv-savebar">
-        <Text type={dirty ? 'warning' : 'secondary'}>
+        <Text type={dirty ? 'warning' : 'secondary'} role="status">
           {dirty
             ? 'Cambios sin guardar'
             : saved
@@ -854,7 +913,7 @@ export default function RevisionFormPage() {
         </Text>
         <Space>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            Ctrl + S
+            {ATAJO_GUARDAR}
           </Text>
           <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={save} disabled={!personas.length}>
             {saved ? 'Guardar cambios' : 'Guardar revisión'}
