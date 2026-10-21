@@ -340,7 +340,23 @@ const DashboardLayout: React.FC = () => {
           zIndex: 100,
         }}
       >
-        <div style={{ height: 64, margin: '16px', textAlign: 'center' }}>
+        {/* Logo: vuelve al inicio (el grupo solo-vacaciones va a su módulo) */}
+        <div
+          role="link"
+          tabIndex={0}
+          title="Ir al inicio"
+          onClick={() => {
+            navigate(vacationsOnly ? VACATIONS_ONLY_PATH : '/dashboard');
+            if (isMobile) setCollapsed(true);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              navigate(vacationsOnly ? VACATIONS_ONLY_PATH : '/dashboard');
+            }
+          }}
+          style={{ height: 64, margin: '16px', textAlign: 'center', cursor: 'pointer' }}
+        >
           <img
             src={isDark ? logoDark : logoLight}
             alt="Consortium Legal Logo"
