@@ -41,7 +41,21 @@ export interface GastosFilters {
   area?: GastoArea;
   estado?: GastoEstado;
   q?: string;
+  entrega?: 'entregado' | 'sin_entregar';
+  facturacion?: 'sin_facturar' | 'facturado' | 'cobrado';
+  beneficiario?: string;
+  aviso?: GastoAviso;
 }
+
+export type GastoAviso =
+  | 'uso_sin_cheque'
+  | 'sin_entregar'
+  | 'sin_liquidar_30'
+  | 'listo_facturar'
+  | 'facturado_sin_cobrar'
+  | 'nt_sin_catalogo';
+
+export type NtFacturacion = 'FACTURADO' | 'COBRADO';
 
 export interface GastosSummary {
   coordinadores: string[];
@@ -88,6 +102,38 @@ export interface GastoLinea {
   fecha_cheque: string | null;
   estado: GastoEstado;
   dias_pendiente: number | null;
+  // Seguimiento (lo que Sirvo no sabe)
+  fecha_uso: string | null;
+  solicitado_por_id: number | null;
+  solicitado_por: string | null;
+  beneficiario: string | null;
+  entregado_at: string | null;
+  notas: string | null;
+  facturacion: NtFacturacion | null;
+  facturado_at: string | null;
+  cobrado_at: string | null;
+}
+
+export interface GastosAvisos {
+  avisos: Array<{ aviso: GastoAviso; lineas: number; cheques: number; nts: number; monto: number }>;
+  sin_liquidar_por_beneficiario: Array<{ beneficiario: string; cheques: number; monto: number }>;
+  avisos_desde: string;
+}
+
+export interface SeguimientoOpciones {
+  equipo: Array<{ id: number; username: string; nombre: string }>;
+  beneficiarios: Array<{ nombre: string; origen: 'lista' | 'equipo'; id: number }>;
+}
+
+/** Campo ausente = no se toca; null = se borra. */
+export interface SeguimientoPatch {
+  request_ids?: number[];
+  cheques?: number[];
+  fecha_uso?: string | null;
+  solicitado_por_id?: number | null;
+  beneficiario?: string | null;
+  entregado_at?: string | null;
+  notas?: string | null;
 }
 
 export interface GastosFilterOptions {
@@ -110,3 +156,23 @@ export const getGastosLines = (f: GastosFilters, page: number, pageSize: number)
 
 export const getGastosFilterOptions = () =>
   axios.get<GastosFilterOptions>('/api/migracion/gastos/filter-options');
+
+export const getGastosAccess = () =>
+  axios.get<{ canView: boolean; canEdit: boolean }>('/api/migracion/gastos/access');
+
+export const getGastosAvisos = (f: GastosFilters) =>
+  axios.get<GastosAvisos>('/api/migracion/gastos/avisos', { params: clean(f) });
+
+export const getSeguimientoOpciones = () =>
+  axios.get<SeguimientoOpciones>('/api/migracion/gastos/seguimiento/opciones');
+
+export const updateSeguimiento = (patch: SeguimientoPatch) =>
+  axios.patch<{ updated: number }>('/api/migracion/gastos/seguimiento', patch);
+
+export const addBeneficiario = (nombre: string) =>
+  axios.post('/api/migracion/gastos/beneficiarios', { nombre });
+
+export const removeBeneficiario = (id: number) => axios.delete(`/api/migracion/gastos/beneficiarios/${id}`);
+
+export const setNtFacturacion = (nt: number, estado: NtFacturacion | null, fecha?: string) =>
+  axios.put(`/api/migracion/gastos/nt/${nt}/facturacion`, { estado, ...(fecha ? { fecha } : {}) });

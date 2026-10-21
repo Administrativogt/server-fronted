@@ -5,6 +5,7 @@ import {
   Card,
   Col,
   DatePicker,
+  Dropdown,
   Empty,
   Input,
   InputNumber,
@@ -23,11 +24,17 @@ import {
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
+  AlertOutlined,
+  CheckCircleOutlined,
   ClockCircleOutlined,
+  DollarOutlined,
   DownloadOutlined,
+  EditOutlined,
   ExclamationCircleOutlined,
   FileSearchOutlined,
+  InfoCircleOutlined,
   ReloadOutlined,
+  SendOutlined,
   WalletOutlined,
 } from '@ant-design/icons';
 import { ResponsiveBar } from '@nivo/bar';
@@ -39,16 +46,25 @@ import {
   GASTO_ESTADOS,
   areaLabel,
   estadoInfo,
+  getGastosAccess,
+  getGastosAvisos,
   getGastosFilterOptions,
   getGastosLines,
   getGastosSummary,
+  getSeguimientoOpciones,
+  setNtFacturacion,
   type GastoArea,
+  type GastoAviso,
+  type GastosAvisos,
+  type NtFacturacion,
+  type SeguimientoOpciones,
   type GastoEstado,
   type GastoLinea,
   type GastosFilterOptions,
   type GastosFilters,
   type GastosSummary,
 } from '../../api/migracionGastos';
+import SeguimientoModal, { type SeguimientoMode } from './SeguimientoModal';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -79,6 +95,50 @@ const RANGO_COLOR: Record<string, string> = {
 };
 
 const defaultRange = (): [Dayjs, Dayjs] => [dayjs().startOf('year'), dayjs()];
+
+type Nivel = 'alta' | 'media' | 'info';
+const AVISOS: Record<GastoAviso, { titulo: string; nivel: Nivel; detalle: (a: { lineas: number; cheques: number; nts: number }) => string }> = {
+  uso_sin_cheque: {
+    titulo: 'Dinero para hoy o mañana sin cheque',
+    nivel: 'alta',
+    detalle: (a) => `${a.lineas} líneas con fecha de uso cercana y todavía sin cheque`,
+  },
+  sin_liquidar_30: {
+    titulo: 'Más de 30 días sin liquidar',
+    nivel: 'alta',
+    detalle: (a) => `${a.cheques} cheques emitidos hace más de 30 días que siguen pendientes`,
+  },
+  sin_entregar: {
+    titulo: 'Cheques emitidos sin registrar entrega',
+    nivel: 'media',
+    detalle: (a) => `${a.cheques} cheques con más de 3 días: ¿a quién se entregaron?`,
+  },
+  facturado_sin_cobrar: {
+    titulo: 'Facturado hace más de 60 días sin cobrar',
+    nivel: 'media',
+    detalle: (a) => `${a.nts} NT por dar seguimiento al cobro`,
+  },
+  listo_facturar: {
+    titulo: 'Listas para facturar',
+    nivel: 'info',
+    detalle: (a) => `${a.nts} NT sin nada pendiente en Sirvo y sin marcar como facturadas`,
+  },
+  nt_sin_catalogo: {
+    titulo: 'NT sin registrar en Notas de gastos',
+    nivel: 'info',
+    detalle: (a) => `${a.nts} NT clasificadas por palabras del caso; registrarlas afina el área`,
+  },
+};
+const NIVEL_ICON: Record<Nivel, ReactNode> = {
+  alta: <AlertOutlined />,
+  media: <ExclamationCircleOutlined />,
+  info: <InfoCircleOutlined />,
+};
+
+const FACT_TAG: Record<NtFacturacion, { color: string; label: string }> = {
+  FACTURADO: { color: 'geekblue', label: 'Facturada' },
+  COBRADO: { color: 'green', label: 'Cobrada' },
+};
 
 function Kpi({
   label,
@@ -151,6 +211,9 @@ function GastosMigracion() {
   // El coordinador LAS también lleva Penal y Laboral: por defecto, solo Migración
   const [area, setArea] = useState<GastoArea | 'TODAS'>('MIGRACION');
   const [estado, setEstado] = useState<GastoEstado | undefined>();
+  const [entrega, setEntrega] = useState<GastosFilters['entrega']>();
+  const [facturacion, setFacturacion] = useState<GastosFilters['facturacion']>();
+  const [aviso, setAviso] = useState<GastoAviso | undefined>();
   const [search, setSearch] = useState('');
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
@@ -163,6 +226,11 @@ function GastosMigracion() {
   const [loadingLines, setLoadingLines] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [forbidden, setForbidden] = useState(false);
+  const [canEdit, setCanEdit] = useState(false);
+  const [avisos, setAvisos] = useState<GastosAvisos | null>(null);
+  const [opciones, setOpciones] = useState<SeguimientoOpciones | null>(null);
+  const [selected, setSelected] = useState<GastoLinea[]>([]);
+  const [modal, setModal] = useState<{ mode: SeguimientoMode; lines: GastoLinea[] } | null>(null);
 
   // La búsqueda de texto espera a que dejen de escribir
   useEffect(() => {
@@ -179,8 +247,11 @@ function GastosMigracion() {
       area: area === 'TODAS' ? undefined : area,
       estado,
       q: q || undefined,
+      entrega,
+      facturacion,
+      aviso,
     }),
-    [range, cliente, nt, area, estado, q],
+    [range, cliente, nt, area, estado, q, entrega, facturacion, aviso],
   );
 
   useEffect(() => setPage(1), [filters]);
@@ -190,11 +261,29 @@ function GastosMigracion() {
     else message.error(err?.response?.data?.message || fallback);
   }, []);
 
+  const loadOpciones = useCallback(() => {
+    getSeguimientoOpciones()
+      .then(({ data }) => setOpciones(data))
+      .catch(() => setOpciones(null));
+  }, []);
+
   useEffect(() => {
     getGastosFilterOptions()
       .then(({ data }) => setOptions(data))
       .catch((e) => handleError(e, 'No se pudieron cargar los clientes'));
-  }, [handleError]);
+    getGastosAccess()
+      .then(({ data }) => setCanEdit(data.canEdit))
+      .catch(() => setCanEdit(false));
+    loadOpciones();
+  }, [handleError, loadOpciones]);
+
+  // Los avisos solo dependen del área y el cliente (no de las fechas)
+  const loadAvisos = useCallback(() => {
+    getGastosAvisos({ area: area === 'TODAS' ? undefined : area, cliente })
+      .then(({ data }) => setAvisos(data))
+      .catch(() => setAvisos(null));
+  }, [area, cliente]);
+  useEffect(loadAvisos, [loadAvisos]);
 
   const loadSummary = useCallback(() => {
     setLoadingSummary(true);
@@ -214,15 +303,49 @@ function GastosMigracion() {
 
   useEffect(loadSummary, [loadSummary]);
   useEffect(loadLines, [loadLines]);
+  useEffect(() => setSelected([]), [filters, page, pageSize]);
 
-  const hasFilters = !!(cliente || nt || estado || q || area !== 'MIGRACION');
+  const reloadAll = () => {
+    loadSummary();
+    loadLines();
+    loadAvisos();
+  };
+
+  const hasFilters = !!(cliente || nt || estado || q || entrega || facturacion || aviso || area !== 'MIGRACION');
   const resetFilters = () => {
     setRange(defaultRange());
     setCliente(undefined);
     setNt(null);
     setArea('MIGRACION');
     setEstado(undefined);
+    setEntrega(undefined);
+    setFacturacion(undefined);
+    setAviso(undefined);
     setSearch('');
+  };
+
+  // Un aviso no mira fechas: al verlo se quitan para que la tabla cuadre
+  const verAviso = (a: GastoAviso) => {
+    if (aviso === a) {
+      setAviso(undefined);
+      return;
+    }
+    setAviso(a);
+    setRange(null);
+    setEstado(undefined);
+    setEntrega(undefined);
+    setFacturacion(undefined);
+  };
+
+  const marcarNt = async (nts: number[], estadoFact: NtFacturacion | null) => {
+    try {
+      await Promise.all(nts.map((n) => setNtFacturacion(n, estadoFact)));
+      const txt = estadoFact === null ? 'sin marca' : estadoFact === 'COBRADO' ? 'cobrada' : 'facturada';
+      message.success(nts.length === 1 ? `NT ${nts[0]} ${txt}` : `${nts.length} NT ${txt}s`);
+      reloadAll();
+    } catch (e: any) {
+      message.error(e?.response?.data?.message || 'No se pudo marcar la NT');
+    }
   };
   const toggleEstado = (e: GastoEstado) => setEstado((cur) => (cur === e ? undefined : e));
 
@@ -272,6 +395,12 @@ function GastosMigracion() {
         { header: 'FECHA CHEQUE', key: 'fecha_cheque', width: 14 },
         { header: 'ESTADO', key: 'estado', width: 22 },
         { header: 'DÍAS SIN LIQUIDAR', key: 'dias', width: 16 },
+        { header: 'FECHA DE USO', key: 'fecha_uso', width: 14 },
+        { header: 'SOLICITADO POR', key: 'solicitado_por', width: 24 },
+        { header: 'A NOMBRE DE', key: 'beneficiario', width: 24 },
+        { header: 'ENTREGADO', key: 'entregado_at', width: 14 },
+        { header: 'FACTURACIÓN NT', key: 'facturacion', width: 16 },
+        { header: 'NOTAS', key: 'notas', width: 30 },
       ];
       ws.getRow(1).font = { bold: true };
       ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDFC9ED' } };
@@ -290,10 +419,16 @@ function GastosMigracion() {
           fecha_cheque: l.fecha_cheque ?? '',
           estado: estadoInfo(l.estado).label,
           dias: l.dias_pendiente ?? '',
+          fecha_uso: l.fecha_uso ?? '',
+          solicitado_por: l.solicitado_por ?? '',
+          beneficiario: l.beneficiario ?? '',
+          entregado_at: l.entregado_at ?? '',
+          facturacion: l.facturacion ? FACT_TAG[l.facturacion].label : '',
+          notas: l.notas ?? '',
         }),
       );
       ws.views = [{ state: 'frozen', ySplit: 1 }];
-      ws.autoFilter = { from: 'A1', to: 'M1' };
+      ws.autoFilter = { from: 'A1', to: 'S1' };
       const buffer = await wb.xlsx.writeBuffer();
       saveAs(
         new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
@@ -339,13 +474,47 @@ function GastosMigracion() {
     {
       title: 'NT',
       dataIndex: 'nt',
-      width: 96,
-      render: (v: number) => (
-        <Tooltip title="Ver solo esta NT">
-          <Button type="link" size="small" style={{ padding: 0 }} onClick={() => setNt(v)}>
-            {v}
-          </Button>
-        </Tooltip>
+      width: 120,
+      render: (v: number, r) => (
+        <Space size={4} direction="vertical" style={{ rowGap: 0 }}>
+          <Dropdown
+            trigger={['click']}
+            menu={{
+              items: [
+                { key: 'ver', label: 'Ver solo esta NT' },
+                ...(canEdit
+                  ? [
+                      { type: 'divider' as const },
+                      { key: 'FACTURADO', label: 'Marcar facturada', disabled: r.facturacion === 'FACTURADO' },
+                      { key: 'COBRADO', label: 'Marcar cobrada', disabled: r.facturacion === 'COBRADO' },
+                      ...(r.facturacion ? [{ key: 'quitar', label: 'Quitar marca', danger: true }] : []),
+                    ]
+                  : []),
+              ],
+              onClick: ({ key }) => {
+                if (key === 'ver') setNt(v);
+                else marcarNt([v], key === 'quitar' ? null : (key as NtFacturacion));
+              },
+            }}
+          >
+            <Button type="link" size="small" style={{ padding: 0 }}>
+              {v}
+            </Button>
+          </Dropdown>
+          {r.facturacion && (
+            <Tooltip
+              title={
+                r.facturacion === 'COBRADO'
+                  ? `Cobrada el ${dayjs(r.cobrado_at).format('DD/MM/YYYY')}`
+                  : `Facturada el ${dayjs(r.facturado_at).format('DD/MM/YYYY')}`
+              }
+            >
+              <Tag color={FACT_TAG[r.facturacion].color} style={{ marginInlineEnd: 0, fontSize: 11 }}>
+                {FACT_TAG[r.facturacion].label}
+              </Tag>
+            </Tooltip>
+          )}
+        </Space>
       ),
     },
     {
@@ -426,6 +595,66 @@ function GastosMigracion() {
         );
       },
     },
+    {
+      title: 'Seguimiento',
+      key: 'seguimiento',
+      width: 210,
+      render: (_: unknown, r) => {
+        const emitido = r.cheque != null;
+        return (
+          <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+            {r.beneficiario ? (
+              <div>
+                <SendOutlined style={{ marginRight: 4, color: token.colorTextTertiary }} />
+                {r.beneficiario}
+              </div>
+            ) : null}
+            {r.entregado_at ? (
+              <Text type="success" style={{ fontSize: 12 }}>
+                <CheckCircleOutlined style={{ marginRight: 4 }} />
+                Entregado {dayjs(r.entregado_at).format('DD/MM')}
+              </Text>
+            ) : emitido && r.estado === 'pendiente_liquidar' ? (
+              <Text type="warning" style={{ fontSize: 12 }}>
+                Sin registrar entrega
+              </Text>
+            ) : null}
+            {r.fecha_uso && (
+              <div>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Uso {dayjs(r.fecha_uso).format('DD/MM/YYYY')}
+                </Text>
+              </div>
+            )}
+            {r.solicitado_por && (
+              <div>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Pidió {r.solicitado_por}
+                </Text>
+              </div>
+            )}
+            {r.notas && (
+              <Tooltip title={r.notas}>
+                <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
+                  Nota: {r.notas}
+                </Text>
+              </Tooltip>
+            )}
+            {canEdit && (
+              <Button
+                type="link"
+                size="small"
+                icon={<EditOutlined />}
+                style={{ padding: 0, height: 'auto', fontSize: 12 }}
+                onClick={() => setModal({ mode: 'completo', lines: [r] })}
+              >
+                Editar
+              </Button>
+            )}
+          </div>
+        );
+      },
+    },
   ];
 
   return (
@@ -441,7 +670,7 @@ function GastosMigracion() {
           </Text>
         </div>
         <Space wrap>
-          <Button icon={<ReloadOutlined />} onClick={() => { loadSummary(); loadLines(); }}>
+          <Button icon={<ReloadOutlined />} onClick={reloadAll}>
             Actualizar
           </Button>
           <Button type="primary" icon={<DownloadOutlined />} loading={exporting} onClick={exportExcel}>
@@ -520,9 +749,88 @@ function GastosMigracion() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+          <Select
+            allowClear
+            placeholder="Entrega"
+            style={{ width: 150 }}
+            value={entrega}
+            onChange={setEntrega}
+            options={[
+              { value: 'entregado', label: 'Entregados' },
+              { value: 'sin_entregar', label: 'Sin entregar' },
+            ]}
+          />
+          <Select
+            allowClear
+            placeholder="Facturación NT"
+            style={{ width: 170 }}
+            value={facturacion}
+            onChange={setFacturacion}
+            options={[
+              { value: 'sin_facturar', label: 'Sin facturar' },
+              { value: 'facturado', label: 'Facturadas' },
+              { value: 'cobrado', label: 'Cobradas' },
+            ]}
+          />
+          {aviso && (
+            <Tag closable color="orange" onClose={() => setAviso(undefined)} style={{ padding: '4px 8px' }}>
+              Aviso: {AVISOS[aviso].titulo}
+            </Tag>
+          )}
           {(hasFilters || !range) && <Button onClick={resetFilters}>Quitar filtros</Button>}
         </Space>
       </Card>
+
+      {/* Avisos: solo en pantalla. Cada uno filtra la tabla con "Ver". */}
+      {avisos && avisos.avisos.some((a) => a.lineas > 0) && (
+        <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+          {avisos.avisos
+            .filter((a) => a.lineas > 0)
+            .sort((a, b) => ['alta', 'media', 'info'].indexOf(AVISOS[a.aviso].nivel) - ['alta', 'media', 'info'].indexOf(AVISOS[b.aviso].nivel))
+            .map((a) => {
+              const cfg = AVISOS[a.aviso];
+              const color =
+                cfg.nivel === 'alta' ? token.colorError : cfg.nivel === 'media' ? token.colorWarning : token.colorInfo;
+              const activo = aviso === a.aviso;
+              return (
+                <Col key={a.aviso} xs={24} md={12} xl={8}>
+                  <Card
+                    size="small"
+                    style={{ height: '100%', borderLeft: `3px solid ${color}`, background: activo ? token.colorFillTertiary : undefined }}
+                    styles={{ body: { padding: 12 } }}
+                  >
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                      <span style={{ color, fontSize: 18, lineHeight: 1 }}>{NIVEL_ICON[cfg.nivel]}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, color: token.colorText }}>{cfg.titulo}</div>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          {cfg.detalle(a)} · {money(a.monto)}
+                        </Text>
+                        {a.aviso === 'sin_liquidar_30' && avisos.sin_liquidar_por_beneficiario.length > 0 && (
+                          <div style={{ marginTop: 6, fontSize: 12 }}>
+                            {avisos.sin_liquidar_por_beneficiario.map((b) => (
+                              <div key={b.beneficiario} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                                <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
+                                  {b.beneficiario === 'SIN REGISTRAR' ? 'Sin registrar a quién' : b.beneficiario}
+                                </Text>
+                                <span style={{ fontVariantNumeric: 'tabular-nums', color: token.colorText }}>
+                                  {money(b.monto)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <Button size="small" type={activo ? 'primary' : 'default'} onClick={() => verAviso(a.aviso)}>
+                        {activo ? 'Quitar' : 'Ver'}
+                      </Button>
+                    </div>
+                  </Card>
+                </Col>
+              );
+            })}
+        </Row>
+      )}
 
       {!summary && loadingSummary ? (
         <Skeleton active paragraph={{ rows: 8 }} />
@@ -556,8 +864,8 @@ function GastosMigracion() {
                 sub={`${nFmt.format(k?.vencidos_lineas ?? 0)} líneas por revisar`}
                 icon={<ExclamationCircleOutlined />}
                 accent={token.colorError}
-                onClick={() => toggleEstado('pendiente_liquidar')}
-                active={estado === 'pendiente_liquidar'}
+                onClick={() => verAviso('sin_liquidar_30')}
+                active={aviso === 'sin_liquidar_30'}
               />
             </Col>
             <Col xs={24} sm={12} xl={6}>
@@ -835,14 +1143,65 @@ function GastosMigracion() {
             </Text>
           </Space>
         }
+        extra={
+          canEdit && selected.length > 0 ? (
+            <Space wrap>
+              <Text type="secondary">
+                {selected.length} {selected.length === 1 ? 'seleccionada' : 'seleccionadas'}
+              </Text>
+              <Button size="small" type="primary" icon={<SendOutlined />} onClick={() => setModal({ mode: 'entrega', lines: selected })}>
+                Registrar entrega
+              </Button>
+              <Button size="small" icon={<EditOutlined />} onClick={() => setModal({ mode: 'completo', lines: selected })}>
+                Seguimiento
+              </Button>
+              <Dropdown
+                trigger={['click']}
+                menu={{
+                  items: [
+                    { key: 'FACTURADO', label: 'Marcar NT facturadas' },
+                    { key: 'COBRADO', label: 'Marcar NT cobradas' },
+                    { type: 'divider' },
+                    { key: 'quitar', label: 'Quitar marca de las NT', danger: true },
+                  ],
+                  onClick: ({ key }) =>
+                    marcarNt(
+                      [...new Set(selected.map((l) => l.nt))],
+                      key === 'quitar' ? null : (key as NtFacturacion),
+                    ),
+                }}
+              >
+                <Button size="small" icon={<DollarOutlined />}>
+                  Facturación ({new Set(selected.map((l) => l.nt)).size} NT)
+                </Button>
+              </Dropdown>
+              <Button size="small" type="text" onClick={() => setSelected([])}>
+                Limpiar
+              </Button>
+            </Space>
+          ) : canEdit ? (
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Selecciona líneas para registrar entrega, seguimiento o facturación
+            </Text>
+          ) : null
+        }
       >
         <Table
           size="small"
           rowKey="id"
           loading={loadingLines}
+          rowSelection={
+            canEdit
+              ? {
+                  selectedRowKeys: selected.map((l) => l.id),
+                  onChange: (_keys, rows) => setSelected(rows),
+                  columnWidth: 36,
+                }
+              : undefined
+          }
           dataSource={lines.items}
           columns={columns}
-          scroll={{ x: 1280 }}
+          scroll={{ x: 1500 }}
           locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Ningún gasto coincide con los filtros" /> }}
           pagination={{
             current: page,
@@ -858,6 +1217,20 @@ function GastosMigracion() {
           }}
         />
       </Card>
+
+      <SeguimientoModal
+        open={!!modal}
+        mode={modal?.mode ?? 'completo'}
+        lines={modal?.lines ?? []}
+        opciones={opciones}
+        onClose={() => setModal(null)}
+        onSaved={() => {
+          setModal(null);
+          setSelected([]);
+          reloadAll();
+        }}
+        onOpcionesChanged={loadOpciones}
+      />
     </div>
   );
 }
