@@ -47,6 +47,43 @@ export interface HorasCasoEspecial {
   descripcion?: string;
 }
 
+/** Regla por cliente ("ID Cliente" del TM-report) para sus horas no facturables. */
+export interface HorasClienteEspecial {
+  id: number;
+  id_cliente: string;
+  nombre?: string;
+  categoria: CategoriaNF;
+}
+
+/** De dónde sale la categoría de una hora no facturable. */
+export type OrigenCategoria = 'caso' | 'cliente' | 'defecto';
+
+export interface CasoNoFacturable {
+  numeroCaso: string;
+  asunto: string;
+  minutos: number;
+  categoria: CategoriaNF;
+  origen: OrigenCategoria;
+  reglaCasoId: number | null;
+}
+
+export interface ClienteNoFacturable {
+  idCliente: string;
+  cliente: string;
+  minutos: number;
+  /** Minutos que hoy caen en CNC. */
+  minutosCnc: number;
+  reglaClienteId: number | null;
+  categoriaCliente: CategoriaNF | null;
+  casos: CasoNoFacturable[];
+}
+
+export interface NoFacturablesResult {
+  /** FALSE en importaciones sin fila cruda: no se conoce el cliente. */
+  conFilaCruda: boolean;
+  clientes: ClienteNoFacturable[];
+}
+
 export interface HorasDestinatario {
   id: number;
   socio_codigo: string;
@@ -120,6 +157,8 @@ export interface ReporteHoras {
   socios: string[];
   detallesIndividuales: DetalleIndividual[];
   coordinadores: CoordinadorReporte[];
+  /** Hay reglas por cliente pero esta importación no tiene fila cruda: no se aplicaron. */
+  reglasClienteSinAplicar: boolean;
 }
 
 export interface ImportarResult {

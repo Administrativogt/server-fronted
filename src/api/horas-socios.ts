@@ -3,6 +3,9 @@ import type {
   HorasEquipo,
   HorasTimekeeper,
   HorasCasoEspecial,
+  HorasClienteEspecial,
+  CategoriaNF,
+  NoFacturablesResult,
   HorasDestinatario,
   HorasImportacion,
   ReporteHoras,
@@ -36,6 +39,8 @@ export const horasSociosApi = {
   deleteImportacion: (id: number) => api.delete(`${BASE}/importaciones/${id}`),
   getPreview: (id: number) =>
     api.get<ReporteHoras>(`${BASE}/importaciones/${id}/preview`),
+  getNoFacturables: (id: number) =>
+    api.get<NoFacturablesResult>(`${BASE}/importaciones/${id}/no-facturables`),
   getEnvios: (id: number) =>
     api.get<HorasEnvio[]>(`${BASE}/importaciones/${id}/envios`),
 
@@ -111,6 +116,15 @@ export const horasSociosApi = {
   deleteCasoEspecial: (id: number) =>
     api.delete(`${BASE}/casos-especiales/${id}`),
 
+  createClienteEspecial: (data: Omit<HorasClienteEspecial, 'id'>) =>
+    api.post<HorasClienteEspecial>(`${BASE}/clientes-especiales`, data),
+  updateClienteEspecial: (
+    id: number,
+    data: Partial<Omit<HorasClienteEspecial, 'id'>>,
+  ) => api.patch<HorasClienteEspecial>(`${BASE}/clientes-especiales/${id}`, data),
+  deleteClienteEspecial: (id: number) =>
+    api.delete(`${BASE}/clientes-especiales/${id}`),
+
   getDestinatarios: () =>
     api.get<HorasDestinatario[]>(`${BASE}/destinatarios`),
   createDestinatario: (data: Omit<HorasDestinatario, 'id'>) =>
@@ -122,6 +136,16 @@ export const horasSociosApi = {
   deleteDestinatario: (id: number) =>
     api.delete(`${BASE}/destinatarios/${id}`),
 };
+
+/** Categorías de horas no facturables, en el orden del Mapa de Horas. */
+export const CATEGORIAS_NF: { value: CategoriaNF; label: string }[] = [
+  { value: 'FORMACION', label: 'Formación' },
+  { value: 'CONSORTIUM', label: 'Horas Consortium' },
+  { value: 'COBRO_FACTURACION', label: 'Cobro y Facturación' },
+  { value: 'PRO_BONO', label: 'Pro Bono' },
+  { value: 'GESTION_ADMINISTRATIVA', label: 'Gestión Administrativa' },
+  { value: 'CNC', label: 'Cobrables que no se cobran (CNC)' },
+];
 
 /** "IVONNE COLLOY MALDONADO" → "Ivonne Colloy Maldonado" (mismo criterio que el backend). */
 export const nombrePropio = (nombre: string): string =>

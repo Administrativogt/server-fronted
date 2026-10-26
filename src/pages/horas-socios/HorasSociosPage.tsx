@@ -20,12 +20,15 @@ import {
   EyeOutlined,
   FileExcelOutlined,
   MailOutlined,
+  ReloadOutlined,
   SendOutlined,
+  TagsOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Link } from 'react-router-dom';
 import { horasSociosApi, minutosAHoras, nombrePropio } from '../../api/horas-socios';
+import NoFacturablesDrawer from './NoFacturablesDrawer';
 import type {
   EnvioResultado,
   FilaReporte,
@@ -59,24 +62,36 @@ const HorasSociosPage: React.FC = () => {
   const [enviando, setEnviando] = useState(false);
   const [resultadoEnvio, setResultadoEnvio] = useState<EnvioResultado[] | null>(null);
   const [fueDryRun, setFueDryRun] = useState(false);
+  const [noFactOpen, setNoFactOpen] = useState(false);
 
   /** Excluidos del reporte por no tener equipo (viene del reporte calculado). */
   const sinEquipo = reporte?.usuariosSinEquipo ?? [];
 
-  const cargarImportaciones = async () => {
+  const cargarImportaciones = async (): Promise<HorasImportacion[]> => {
     setLoadingImps(true);
     try {
       const { data } = await horasSociosApi.getImportaciones();
       setImportaciones(data);
+      return data;
     } catch {
       message.error('No se pudieron cargar las importaciones');
+      return [];
     } finally {
       setLoadingImps(false);
     }
   };
 
+  // Al entrar se abre la importación más reciente, con sus avisos: siguen a la
+  // vista aunque se salga a Catálogos y se vuelva (pedido del jefe, 2026-10-26).
   useEffect(() => {
-    cargarImportaciones();
+    cargarImportaciones().then((data) => {
+      const ultima = data.reduce<HorasImportacion | null>(
+        (max, i) => (!max || i.id > max.id ? i : max),
+        null,
+      );
+      if (ultima) verPreview(ultima.id);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleImportar = async () => {
@@ -97,12 +112,17 @@ const HorasSociosPage: React.FC = () => {
     }
   };
 
-  const verPreview = async (id: number) => {
+  /**
+   * Calcula el reporte con los catálogos actuales. `mantenerTab` = reprocesar
+   * la misma importación (tras crear un usuario o clasificar horas) sin
+   * volver a la pestaña GENERAL.
+   */
+  const verPreview = async (id: number, mantenerTab = false) => {
     setLoadingPreview(true);
     try {
       const { data } = await horasSociosApi.getPreview(id);
       setReporte(data);
-      setTabSocio('GENERAL');
+      if (!mantenerTab || !data.socios.includes(tabSocio)) setTabSocio('GENERAL');
     } catch (err: any) {
       message.error(err.response?.data?.message || 'Error al calcular el reporte');
     } finally {
@@ -185,9 +205,15 @@ const HorasSociosPage: React.FC = () => {
       width: 220,
       render: (_, r) => (
         <Space>
-          <Button size="small" icon={<EyeOutlined />} onClick={() => verPreview(r.id)}>
-            Ver
-          </Button>
+          {reporte?.importacion.id === r.id ? (
+            <Tag color="green" style={{ marginInlineEnd: 0 }}>
+              En pantalla
+            </Tag>
+          ) : (
+            <Button size="small" icon={<EyeOutlined />} onClick={() => verPreview(r.id)}>
+              Ver
+            </Button>
+          )}
           <Button
             size="small"
             icon={<DownloadOutlined />}
@@ -417,6 +443,15 @@ const HorasSociosPage: React.FC = () => {
             }
           />
         )}
+        {reporte?.reglasClienteSinAplicar && (
+          <Alert
+            style={{ marginTop: 12 }}
+            type="warning"
+            showIcon
+            message="Las clasificaciones por cliente no se aplicaron a esta importación"
+            description="Fue subida antes de que el sistema guardara el cliente de cada registro; sus horas no facturables quedan en CNC salvo los casos clasificados. Vuelve a subir el TM-report para aplicarlas."
+          />
+        )}
         {reporte && reporte.usuariosNoEncontrados?.length > 0 && (
           <Alert
             style={{ marginTop: 12 }}
@@ -457,7 +492,21 @@ const HorasSociosPage: React.FC = () => {
             </>
           }
           extra={
-            <Space>
+            <Space wrap>
+              <Button
+                icon={<ReloadOutlined />}
+                loading={loadingPreview}
+                title="Vuelve a calcular con los catálogos actuales (equipos, casos y clientes) sin volver a subir el archivo"
+                onClick={async () => {
+                  await verPreview(reporte.importacion.id, true);
+                  message.success('Reporte reprocesado con los catálogos actuales');
+                }}
+              >
+                Reprocesar
+              </Button>
+              <Button icon={<TagsOutlined />} onClick={() => setNoFactOpen(true)}>
+                No facturables
+              </Button>
               <Button
                 icon={<DownloadOutlined />}
                 onClick={() =>
@@ -651,6 +700,13 @@ const HorasSociosPage: React.FC = () => {
           </>
         )}
       </Modal>
+
+      <NoFacturablesDrawer
+        open={noFactOpen}
+        importacionId={reporte?.importacion.id ?? null}
+        onClose={() => setNoFactOpen(false)}
+        onChanged={() => reporte && verPreview(reporte.importacion.id, true)}
+      />
     </div>
   );
 };

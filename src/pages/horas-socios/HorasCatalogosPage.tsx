@@ -17,7 +17,7 @@ import {
 } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { horasSociosApi } from '../../api/horas-socios';
+import { CATEGORIAS_NF, horasSociosApi } from '../../api/horas-socios';
 import type {
   CategoriaNF,
   HorasCasoEspecial,
@@ -28,14 +28,7 @@ import type {
 
 const { Title, Text } = Typography;
 
-const CATEGORIAS: { value: CategoriaNF; label: string }[] = [
-  { value: 'FORMACION', label: 'Formación' },
-  { value: 'CONSORTIUM', label: 'Horas Consortium' },
-  { value: 'COBRO_FACTURACION', label: 'Cobro y Facturación' },
-  { value: 'PRO_BONO', label: 'Pro Bono' },
-  { value: 'GESTION_ADMINISTRATIVA', label: 'Gestión Administrativa' },
-  { value: 'CNC', label: 'Cobrables que no se cobran (CNC)' },
-];
+const CATEGORIAS = CATEGORIAS_NF;
 
 const HorasCatalogosPage: React.FC = () => {
   const [equipos, setEquipos] = useState<HorasEquipo[]>([]);
