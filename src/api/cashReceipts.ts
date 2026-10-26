@@ -35,6 +35,12 @@ export interface CashReceipt {
   checks?: Check[];
 }
 
+export interface EmailSuggestion {
+  email: string;
+  name: string;
+  source: 'Enviado' | 'Firma' | 'Cliente' | 'Contacto' | 'Proveedor' | 'Nombramiento';
+}
+
 export interface CashReceiptFilters {
   filter?: number;
   data?: string;
@@ -161,9 +167,9 @@ const cashReceiptsApi = {
   sendMultiple: (ids: number[], email: string) =>
     api.post(`/cash-receipts/send-multiple`, { ids, email }),
 
-  // ✅ Correos de usuarios activos para autocompletar el destinatario
-  getEmailSuggestions: () =>
-    api.get<{ email: string; name: string }[]>(`/cash-receipts/email-suggestions`),
+  // ✅ Buscar correos (firma, clientes, contactos…) para autocompletar el destinatario
+  getEmailSuggestions: (q: string) =>
+    api.get<EmailSuggestion[]>(`/cash-receipts/email-suggestions`, { params: { q } }),
 };
 
 export default cashReceiptsApi;

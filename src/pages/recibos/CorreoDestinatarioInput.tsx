@@ -1,26 +1,22 @@
 // Campo "correo del destinatario" con sugerencias. En Django el navegador
 // autocompletaba porque era un <form> clásico; dentro del modal de React no
 // guarda historial, así que lo reponemos: primero los correos que este
-// navegador ya usó, después los de los usuarios activos de la firma.
+// navegador ya usó y, al escribir, la búsqueda en el servidor por correo o
+// nombre: correos a los que ya se enviaron recibos (cualquier usuario; el
+// backend guarda cada envío), firma, clientes, contactos y proveedores.
 import React, { useEffect, useMemo, useState } from 'react';
 import { AutoComplete } from 'antd';
 import cashReceiptsApi from '../../api/cashReceipts';
+import type { EmailSuggestion } from '../../api/cashReceipts';
 import { leerRecientes } from './correosUsados';
 
-type Sugerencia = { email: string; name: string };
-
-let cacheFirma: Promise<Sugerencia[]> | null = null;
-const cargarFirma = () => {
-  if (!cacheFirma) {
-    cacheFirma = cashReceiptsApi
-      .getEmailSuggestions()
-      .then((r) => r.data)
-      .catch(() => {
-        cacheFirma = null;
-        return [];
-      });
-  }
-  return cacheFirma;
+const GRUPOS: Record<EmailSuggestion['source'], string> = {
+  Enviado: 'Ya se les enviaron recibos',
+  Firma: 'Usuarios de la firma',
+  Cliente: 'Clientes',
+  Contacto: 'Contactos de clientes',
+  Proveedor: 'Proveedores',
+  Nombramiento: 'Nombramientos',
 };
 
 interface Props {
@@ -29,42 +25,48 @@ interface Props {
 }
 
 const CorreoDestinatarioInput: React.FC<Props> = ({ value, onChange }) => {
-  const [firma, setFirma] = useState<Sugerencia[]>([]);
   const [recientes] = useState<string[]>(leerRecientes);
+  const [resultados, setResultados] = useState<EmailSuggestion[]>([]);
+  const q = value.trim();
 
   useEffect(() => {
-    let vivo = true;
-    cargarFirma().then((data) => vivo && setFirma(data));
+    if (q.length < 2) {
+      setResultados([]);
+      return;
+    }
+    let vigente = true;
+    const t = setTimeout(() => {
+      cashReceiptsApi
+        .getEmailSuggestions(q)
+        .then((r) => vigente && setResultados(r.data))
+        .catch(() => vigente && setResultados([]));
+    }, 250);
     return () => {
-      vivo = false;
+      vigente = false;
+      clearTimeout(t);
     };
-  }, []);
+  }, [q]);
 
   const options = useMemo(() => {
-    const q = value.trim().toLowerCase();
-    const coincide = (texto: string) => !q || texto.toLowerCase().includes(q);
-    const nombrePorCorreo = new Map(firma.map((f) => [f.email, f.name]));
-
+    const ql = q.toLowerCase();
+    const nombre = new Map(resultados.map((r) => [r.email, r.name]));
     const usados = recientes
-      .filter((e) => coincide(`${e} ${nombrePorCorreo.get(e) ?? ''}`))
-      .map((e) => ({
-        value: e,
-        label: nombrePorCorreo.has(e) ? `${e} · ${nombrePorCorreo.get(e)}` : e,
-      }));
+      .filter((e) => !ql || e.includes(ql) || (nombre.get(e) ?? '').toLowerCase().includes(ql))
+      .map((e) => ({ value: e, label: nombre.get(e) ? `${e} · ${nombre.get(e)}` : e }));
 
-    // Sin texto no se lista toda la firma (son cientos): solo los recientes.
-    const deFirma = q
-      ? firma
-          .filter((f) => !recientes.includes(f.email) && coincide(`${f.email} ${f.name}`))
-          .slice(0, 20)
-          .map((f) => ({ value: f.email, label: `${f.email} · ${f.name}` }))
-      : [];
+    const grupos = new Map<string, { value: string; label: string }[]>();
+    for (const r of resultados) {
+      if (recientes.includes(r.email)) continue;
+      const g = GRUPOS[r.source] ?? r.source;
+      if (!grupos.has(g)) grupos.set(g, []);
+      grupos.get(g)!.push({ value: r.email, label: r.name ? `${r.email} · ${r.name}` : r.email });
+    }
 
     return [
       ...(usados.length ? [{ label: 'Usados recientemente', options: usados }] : []),
-      ...(deFirma.length ? [{ label: 'Usuarios de la firma', options: deFirma }] : []),
+      ...[...grupos].map(([label, opts]) => ({ label, options: opts })),
     ];
-  }, [value, firma, recientes]);
+  }, [q, resultados, recientes]);
 
   return (
     <AutoComplete
@@ -72,7 +74,7 @@ const CorreoDestinatarioInput: React.FC<Props> = ({ value, onChange }) => {
       value={value}
       options={options}
       onChange={(v) => onChange(v ?? '')}
-      placeholder="Escriba el nombre o correo del destinatario"
+      placeholder="Escriba el nombre, empresa o correo del destinatario"
       autoFocus
       allowClear
     />
