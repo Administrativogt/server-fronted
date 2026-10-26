@@ -43,6 +43,8 @@ import type {
 import cashReceiptsApi from '../../api/cashReceipts';
 import { useNavigate } from 'react-router-dom';
 import EditarRecibo from './EditarRecibo';
+import CorreoDestinatarioInput from './CorreoDestinatarioInput';
+import { recordarCorreo } from './correosUsados';
 
 const { RangePicker } = DatePicker;
 
@@ -404,6 +406,7 @@ const ListarRecibos: React.FC = () => {
         selectedRowKeys.map((k) => Number(k)),
         emailToSend,
       );
+      recordarCorreo(emailToSend);
       message.success('Recibos enviados correctamente');
       setSelectedRowKeys([]);
       setEmailToSend('');
@@ -824,11 +827,7 @@ const ListarRecibos: React.FC = () => {
         okText="Enviar"
       >
         <p>Ingrese el correo al que desea enviar los recibos seleccionados:</p>
-        <Input
-          placeholder="ejemplo@dominio.com"
-          value={emailToSend}
-          onChange={(e) => setEmailToSend(e.target.value)}
-        />
+        <CorreoDestinatarioInput value={emailToSend} onChange={setEmailToSend} />
       </Modal>
 
       {/* Modal de edición */}

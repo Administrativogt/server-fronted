@@ -8,7 +8,6 @@ import {
   Divider,
   Button,
   Modal,
-  Input,
   Typography,
 } from 'antd';
 import {
@@ -18,6 +17,8 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import AgregarCheque from './AgregarCheque';
+import CorreoDestinatarioInput from './CorreoDestinatarioInput';
+import { recordarCorreo } from './correosUsados';
 import type { CashReceipt, Check } from '../../api/cashReceipts';
 import cashReceiptsApi from '../../api/cashReceipts';
 
@@ -79,6 +80,7 @@ const RecibosCaja: React.FC = () => {
 
     try {
       await cashReceiptsApi.sendPdfByEmail(Number(id), emailToSend);
+      recordarCorreo(emailToSend);
       message.success('Recibo enviado correctamente');
       setEmailModalOpen(false);
       setEmailToSend('');
@@ -181,11 +183,7 @@ const RecibosCaja: React.FC = () => {
         cancelText="Cancelar"
       >
         <p>Ingrese el correo del destinatario:</p>
-        <Input
-          placeholder="ejemplo@dominio.com"
-          value={emailToSend}
-          onChange={(e) => setEmailToSend(e.target.value)}
-        />
+        <CorreoDestinatarioInput value={emailToSend} onChange={setEmailToSend} />
       </Modal>
     </Card>
   );

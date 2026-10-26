@@ -160,6 +160,10 @@ const cashReceiptsApi = {
   // ✅ Enviar varios recibos al correo
   sendMultiple: (ids: number[], email: string) =>
     api.post(`/cash-receipts/send-multiple`, { ids, email }),
+
+  // ✅ Correos de usuarios activos para autocompletar el destinatario
+  getEmailSuggestions: () =>
+    api.get<{ email: string; name: string }[]>(`/cash-receipts/email-suggestions`),
 };
 
 export default cashReceiptsApi;
