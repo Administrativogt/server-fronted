@@ -182,7 +182,7 @@ const DashboardLayout: React.FC = () => {
   /* ⭐ Estrella de favorito en los módulos de primer nivel.
      Es un <button> real (accesible por teclado); stopPropagation para que el
      click no expanda/colapse el submenú. */
-  const labelWithStar = (origKey: string, label: React.ReactNode, hasChildren = false) => {
+  const labelWithStar = (origKey: string, label: React.ReactNode) => {
     if (collapsed) return label;
     const isFav = favorites.includes(origKey);
     return (
@@ -192,10 +192,12 @@ const DashboardLayout: React.FC = () => {
           alignItems: 'center',
           gap: 6,
           width: '100%',
+          // En submenús AntD pone el label directo en el título con flex:none,
+          // así que width:100% se desborda; flex-basis 0 toma solo lo que sobra.
+          // El espacio de la flecha lo reserva .sider-menu en index.css.
+          flex: '1 1 0%',
+          minWidth: 0,
           boxSizing: 'border-box',
-          // En submenús, reserva espacio a la derecha para la flecha de AntD
-          // (empieza en ~16px del borde) para que la estrella no la tope.
-          paddingInlineEnd: hasChildren ? 24 : 0,
         }}
       >
         <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -235,7 +237,7 @@ const DashboardLayout: React.FC = () => {
   const addStars = (items: any[], isFavGroup = false): any[] =>
     items.map((it) => {
       const origKey = isFavGroup ? String(it.key).replace(/^fav:/, '') : it.key;
-      return { ...it, label: labelWithStar(origKey, it.label, !!it.children?.length) };
+      return { ...it, label: labelWithStar(origKey, it.label) };
     });
 
   // Clona un módulo con keys prefijadas para usarlo en la sección de favoritos
@@ -391,6 +393,7 @@ const DashboardLayout: React.FC = () => {
           />
         ) : (
           <Menu
+            className="sider-menu"
             theme={isDark ? 'dark' : 'light'}
             mode="inline"
             selectedKeys={[location.pathname]}

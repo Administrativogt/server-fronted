@@ -147,3 +147,14 @@ html, body {
   color: hsl(var(--foreground));
   -webkit-font-smoothing: antialiased;
 }
+
+/* Barra lateral: dentro de los grupos (Favoritos / Todos los módulos) AntD deja
+   solo 16px a la derecha del título del submenú, justo donde va la flecha, y la
+   estrella de favorito la tapaba. Se reservan los 34px que AntD usa fuera de
+   grupos, también en las hojas, para que las estrellas queden en una columna. */
+.sider-menu.ant-menu-inline:not(.ant-menu-inline-collapsed) > .ant-menu-item,
+.sider-menu.ant-menu-inline:not(.ant-menu-inline-collapsed) > .ant-menu-submenu > .ant-menu-submenu-title,
+.sider-menu.ant-menu-inline:not(.ant-menu-inline-collapsed) .ant-menu-item-group-list > .ant-menu-item,
+.sider-menu.ant-menu-inline:not(.ant-menu-inline-collapsed) .ant-menu-item-group-list > .ant-menu-submenu > .ant-menu-submenu-title {
+  padding-inline-end: 34px;
+}
