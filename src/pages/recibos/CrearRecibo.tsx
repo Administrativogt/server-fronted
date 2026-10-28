@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Form,
   Input,
@@ -12,17 +12,21 @@ import {
   Col,
   Table,
   Select,
+  Grid,
   message,
-} from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
-import dayjs, { Dayjs } from 'dayjs';
-import { useNavigate } from 'react-router-dom';
-import type { CashReceipt, Check } from '../../api/cashReceipts';
-import cashReceiptsApi from '../../api/cashReceipts';
-import useAuthStore from '../../auth/useAuthStore';
+} from "antd";
+import { PlusOutlined } from "@ant-design/icons";
+import dayjs, { Dayjs } from "dayjs";
+import { useNavigate } from "react-router-dom";
+import type { CashReceipt, Check } from "../../api/cashReceipts";
+import cashReceiptsApi from "../../api/cashReceipts";
+import useAuthStore from "../../auth/useAuthStore";
 
 // Tipo del formulario
-type CashReceiptForm = Omit<CashReceipt, 'id' | 'checks' | 'creator' | 'date'> & {
+type CashReceiptForm = Omit<
+  CashReceipt,
+  "id" | "checks" | "creator" | "date"
+> & {
   date: Dayjs;
 };
 
@@ -30,32 +34,38 @@ const CrearRecibo: React.FC = () => {
   const [form] = Form.useForm<CashReceiptForm>();
   const navigate = useNavigate();
 
+  // En teléfono: campos apilados, botones a lo ancho y pagos como lista.
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
+
   const username = useAuthStore((s) => s.username); // usuario actual
 
   const [currency, setCurrency] = useState<number>(1);
   const [showCurrencyModal, setShowCurrencyModal] = useState(true);
   const [checks, setChecks] = useState<Check[]>([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentForm] = Form.useForm<Omit<Check, 'id'>>();
-  const [paymentType, setPaymentType] = useState<'cheque' | 'efectivo'>('cheque');
+  const [paymentForm] = Form.useForm<Omit<Check, "id">>();
+  const [paymentType, setPaymentType] = useState<"cheque" | "efectivo">(
+    "cheque",
+  );
   const [loadingPreview, setLoadingPreview] = useState(false);
 
   const [isSuperuser, setIsSuperuser] = useState(false);
-  const [serie, setSerie] = useState<string>('');
+  const [serie, setSerie] = useState<string>("");
   const [serieNumber, setSerieNumber] = useState<number | undefined>(undefined);
-  const [correlative, setCorrelative] = useState<string>('');
+  const [correlative, setCorrelative] = useState<string>("");
 
   // Correlativo editable: solo Amanda (VAL002) y superusers (el backend
   // también lo valida — unicidad por serie incluida)
   const canEditCorrelative =
-    isSuperuser || username?.toUpperCase() === 'VAL002';
+    isSuperuser || username?.toUpperCase() === "VAL002";
 
   const SERIES_OPTIONS = [
-    { label: 'A', value: 1 },
-    { label: 'B', value: 2 },
-    { label: 'C', value: 3 },
-    { label: 'D', value: 4 },
-    { label: 'E', value: 5 },
+    { label: "A", value: 1 },
+    { label: "B", value: 2 },
+    { label: "C", value: 3 },
+    { label: "D", value: 4 },
+    { label: "E", value: 5 },
   ];
 
   const loadPreview = async (serieOverride?: number) => {
@@ -64,17 +74,19 @@ const CrearRecibo: React.FC = () => {
       const { data } = await cashReceiptsApi.getNextCorrelative(serieOverride);
       if (data.is_superuser && serieOverride === undefined) {
         setIsSuperuser(true);
-        setSerie('');
-        setCorrelative('');
+        setSerie("");
+        setCorrelative("");
       } else {
         setIsSuperuser(data.is_superuser ?? false);
         setSerie(data.serie_letter);
         setCorrelative(data.correlative);
       }
     } catch {
-      setSerie('-');
-      setCorrelative('----');
-      message.warning('No fue posible obtener serie/correlativo en este momento');
+      setSerie("-");
+      setCorrelative("----");
+      message.warning(
+        "No fue posible obtener serie/correlativo en este momento",
+      );
     } finally {
       setLoadingPreview(false);
     }
@@ -90,14 +102,15 @@ const CrearRecibo: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleAddPayment = (values: Omit<Check, 'id'>) => {
-    const finalValues = paymentType === 'efectivo'
-      ? { ...values, number: '-', bank: 'Efectivo' }
-      : values;
+  const handleAddPayment = (values: Omit<Check, "id">) => {
+    const finalValues =
+      paymentType === "efectivo"
+        ? { ...values, number: "-", bank: "Efectivo" }
+        : values;
     setChecks((prev) => [...prev, finalValues]);
     setShowPaymentModal(false);
     paymentForm.resetFields();
-    setPaymentType('cheque');
+    setPaymentType("cheque");
   };
 
   const handleSubmit = async (values: CashReceiptForm) => {
@@ -106,23 +119,25 @@ const CrearRecibo: React.FC = () => {
       const cleanedChecks = checks.map((c) => ({
         number: c.number,
         bank: c.bank,
-        value: Number(String(c.value).replace(/[^0-9.]/g, '')),
+        value: Number(String(c.value).replace(/[^0-9.]/g, "")),
       }));
 
       const totalAmount = cleanedChecks.reduce((sum, c) => sum + c.value, 0);
 
       if (!cleanedChecks.length || totalAmount <= 0) {
-        message.error('Agrega al menos una forma de pago (el monto no puede ser Q.0)');
+        message.error(
+          "Agrega al menos una forma de pago (el monto no puede ser Q.0)",
+        );
         return;
       }
 
       if (isSuperuser && !serieNumber) {
-        message.error('Debes seleccionar una serie');
+        message.error("Debes seleccionar una serie");
         return;
       }
 
       const payload: CashReceipt = {
-        date: values.date.format('YYYY-MM-DD'),
+        date: values.date.format("YYYY-MM-DD"),
         received_from: values.received_from,
         concept: values.concept,
         bill_number: values.bill_number,
@@ -138,23 +153,23 @@ const CrearRecibo: React.FC = () => {
           : {}),
       };
 
-      console.log('📦 Payload enviado:', payload);
+      console.log("📦 Payload enviado:", payload);
 
       await cashReceiptsApi.create(payload);
       message.success(`✅ Recibo creado correctamente por ${username}`);
-      navigate('/dashboard/recibos/listar');
+      navigate("/dashboard/recibos/listar");
     } catch (err: any) {
-      console.error('❌ Error al crear recibo:', err);
+      console.error("❌ Error al crear recibo:", err);
       const backendMsg = err?.response?.data?.message;
       message.error(
         Array.isArray(backendMsg)
-          ? backendMsg.join(', ')
-          : backendMsg || 'Error al crear el recibo',
+          ? backendMsg.join(", ")
+          : backendMsg || "Error al crear el recibo",
       );
     }
   };
 
-  const currencySymbol = currency === 1 ? 'Q.' : currency === 2 ? '$' : '€';
+  const currencySymbol = currency === 1 ? "Q." : currency === 2 ? "$" : "€";
 
   return (
     <>
@@ -164,42 +179,61 @@ const CrearRecibo: React.FC = () => {
         open={showCurrencyModal}
         closable={false}
         footer={[
-          <Button key="ok" type="primary" onClick={() => setShowCurrencyModal(false)}>
+          <Button
+            key="ok"
+            type="primary"
+            onClick={() => setShowCurrencyModal(false)}
+          >
             Listo
           </Button>,
         ]}
       >
         <p>Elegí el tipo de moneda que tendrá el recibo:</p>
-        <Radio.Group value={currency} onChange={(e) => setCurrency(e.target.value)}>
+        <Radio.Group
+          value={currency}
+          onChange={(e) => setCurrency(e.target.value)}
+        >
           <Radio value={1}>Quetzales (Q.)</Radio>
           <Radio value={2}>Dólares ($)</Radio>
         </Radio.Group>
       </Modal>
 
       {/* Formulario principal */}
-      <Card bordered={false}>
-        <h2 style={{ textAlign: 'center', fontSize: 28, fontWeight: 700, marginBottom: 24 }}>
+      <Card
+        bordered={false}
+        styles={isMobile ? { body: { padding: 16 } } : undefined}
+      >
+        <h2
+          style={{
+            textAlign: "center",
+            fontSize: isMobile ? 20 : 28,
+            fontWeight: 700,
+            marginBottom: isMobile ? 16 : 24,
+          }}
+        >
           Crear recibo de caja
         </h2>
 
-        {/* Tabla de pagos */}
-        <Table
-          dataSource={checks}
-          rowKey={(r) => `${r.number}-${r.bank}`}
-          pagination={false}
-          size="small"
-          style={{ marginBottom: 24 }}
-          columns={[
-            { title: 'Cheque No.', dataIndex: 'number' },
-            { title: 'Banco', dataIndex: 'bank' },
-            {
-              title: 'Valor',
-              dataIndex: 'value',
-              render: (val: number) =>
-                `${currencySymbol} ${Number(val).toLocaleString()}`,
-            },
-          ]}
-        />
+        {/* Tabla de pagos (en teléfono va como lista junto al botón de agregar) */}
+        {!isMobile && (
+          <Table
+            dataSource={checks}
+            rowKey={(r) => `${r.number}-${r.bank}`}
+            pagination={false}
+            size="small"
+            style={{ marginBottom: 24 }}
+            columns={[
+              { title: "Cheque No.", dataIndex: "number" },
+              { title: "Banco", dataIndex: "bank" },
+              {
+                title: "Valor",
+                dataIndex: "value",
+                render: (val: number) =>
+                  `${currencySymbol} ${Number(val).toLocaleString()}`,
+              },
+            ]}
+          />
+        )}
 
         <Form<CashReceiptForm>
           form={form}
@@ -208,11 +242,11 @@ const CrearRecibo: React.FC = () => {
           initialValues={{ date: dayjs() }}
         >
           <Form.Item name="date" label="Fecha" rules={[{ required: true }]}>
-            <DatePicker style={{ width: '100%' }} />
+            <DatePicker style={{ width: "100%" }} />
           </Form.Item>
 
           <Row gutter={16}>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item label="Serie">
                 {isSuperuser ? (
                   <Select
@@ -223,31 +257,41 @@ const CrearRecibo: React.FC = () => {
                     options={SERIES_OPTIONS}
                   />
                 ) : (
-                  <Input value={loadingPreview ? '...' : serie} disabled />
+                  <Input value={loadingPreview ? "..." : serie} disabled />
                 )}
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 label="Correlativo"
                 help={
                   isSuperuser && !correlative && !loadingPreview
-                    ? 'Selecciona una serie primero'
+                    ? "Selecciona una serie primero"
                     : canEditCorrelative && correlative
-                      ? 'Puedes ajustarlo manualmente'
+                      ? "Puedes ajustarlo manualmente"
                       : undefined
                 }
               >
                 <Input
-                  value={loadingPreview ? '...' : (correlative || (canEditCorrelative ? '' : '—'))}
+                  value={
+                    loadingPreview
+                      ? "..."
+                      : correlative || (canEditCorrelative ? "" : "—")
+                  }
                   disabled={!canEditCorrelative || loadingPreview}
-                  onChange={(e) => setCorrelative(e.target.value.replace(/\D/g, ''))}
+                  onChange={(e) =>
+                    setCorrelative(e.target.value.replace(/\D/g, ""))
+                  }
                 />
               </Form.Item>
             </Col>
           </Row>
 
-          <Form.Item name="received_from" label="Recibimos de" rules={[{ required: true }]}>
+          <Form.Item
+            name="received_from"
+            label="Recibimos de"
+            rules={[{ required: true }]}
+          >
             <Input />
           </Form.Item>
 
@@ -256,21 +300,59 @@ const CrearRecibo: React.FC = () => {
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => setShowPaymentModal(true)}
+              block={isMobile}
             >
               Agregar forma de pago
             </Button>
+            {isMobile && checks.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                {checks.map((c) => (
+                  <div
+                    key={`${c.number}-${c.bank}`}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      padding: "6px 0",
+                      borderBottom: "1px solid rgba(128,128,128,0.2)",
+                    }}
+                  >
+                    <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>
+                      {c.bank === "Efectivo"
+                        ? "Efectivo"
+                        : `Cheque ${c.number} · ${c.bank}`}
+                    </span>
+                    <strong
+                      style={{
+                        flexShrink: 0,
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {currencySymbol} {Number(c.value).toLocaleString()}
+                    </strong>
+                  </div>
+                ))}
+              </div>
+            )}
           </Form.Item>
 
           <Form.Item label="">
             <InputNumber
-              value={checks.reduce<number>((sum, c) => sum + Number(c.value), 0)}
+              value={checks.reduce<number>(
+                (sum, c) => sum + Number(c.value),
+                0,
+              )}
               disabled
-              style={{ width: '100%' }}
+              style={{ width: "100%" }}
               addonBefore={currencySymbol}
             />
           </Form.Item>
 
-          <Form.Item name="concept" label="Por concepto de" rules={[{ required: true }]}>
+          <Form.Item
+            name="concept"
+            label="Por concepto de"
+            rules={[{ required: true }]}
+          >
             <Input />
           </Form.Item>
           <Form.Item name="bill_number" label="Factura No.">
@@ -283,19 +365,39 @@ const CrearRecibo: React.FC = () => {
             <Input />
           </Form.Item>
 
-          <Form.Item style={{ textAlign: 'right' }}>
-            <Button
-              style={{ marginRight: 8, backgroundColor: '#faad14', borderColor: '#faad14', color: '#fff' }}
-              onClick={() => navigate('/dashboard/recibos/listar')}
+          <Form.Item style={{ textAlign: "right" }}>
+            <div
+              style={
+                isMobile
+                  ? { display: "flex", flexDirection: "column-reverse", gap: 8 }
+                  : undefined
+              }
             >
-              Cancelar
-            </Button>
-            <Button
-              style={{ backgroundColor: '#52c41a', borderColor: '#52c41a', color: '#fff' }}
-              htmlType="submit"
-            >
-              Crear
-            </Button>
+              <Button
+                style={{
+                  marginRight: isMobile ? 0 : 8,
+                  backgroundColor: "#faad14",
+                  borderColor: "#faad14",
+                  color: "#fff",
+                }}
+                block={isMobile}
+                onClick={() => navigate("/dashboard/recibos/listar")}
+              >
+                Cancelar
+              </Button>
+              <Button
+                style={{
+                  backgroundColor: "#52c41a",
+                  borderColor: "#52c41a",
+                  color: "#fff",
+                }}
+                block={isMobile}
+                size={isMobile ? "large" : undefined}
+                htmlType="submit"
+              >
+                Crear
+              </Button>
+            </div>
           </Form.Item>
         </Form>
       </Card>
@@ -304,24 +406,38 @@ const CrearRecibo: React.FC = () => {
       <Modal
         title="Agregar cheques"
         open={showPaymentModal}
-        onCancel={() => { setShowPaymentModal(false); setPaymentType('cheque'); paymentForm.resetFields(); }}
+        onCancel={() => {
+          setShowPaymentModal(false);
+          setPaymentType("cheque");
+          paymentForm.resetFields();
+        }}
         footer={null}
       >
-        <div style={{ textAlign: 'center', marginBottom: 12 }}>
-          <span>Tipo de moneda elegido: <strong>{currency === 1 ? 'Quetzales' : 'Dólares'}</strong></span>
+        <div style={{ textAlign: "center", marginBottom: 12 }}>
+          <span>
+            Tipo de moneda elegido:{" "}
+            <strong>{currency === 1 ? "Quetzales" : "Dólares"}</strong>
+          </span>
           <br />
-          <a onClick={() => { setShowPaymentModal(false); setShowCurrencyModal(true); }}>Cambiar</a>
+          <a
+            onClick={() => {
+              setShowPaymentModal(false);
+              setShowCurrencyModal(true);
+            }}
+          >
+            Cambiar
+          </a>
         </div>
 
         <Radio.Group
           value={paymentType}
           onChange={(e) => {
             setPaymentType(e.target.value);
-            if (e.target.value === 'efectivo') {
-              paymentForm.setFieldValue('bank', 'Efectivo');
-              paymentForm.setFieldValue('number', undefined);
+            if (e.target.value === "efectivo") {
+              paymentForm.setFieldValue("bank", "Efectivo");
+              paymentForm.setFieldValue("number", undefined);
             } else {
-              paymentForm.setFieldValue('bank', undefined);
+              paymentForm.setFieldValue("bank", undefined);
             }
           }}
           style={{ marginBottom: 16 }}
@@ -330,20 +446,43 @@ const CrearRecibo: React.FC = () => {
           <Radio value="efectivo">Efectivo</Radio>
         </Radio.Group>
 
-        <Form<Omit<Check, 'id'>> form={paymentForm} layout="vertical" onFinish={handleAddPayment}>
-          {paymentType === 'cheque' && (
-            <Form.Item name="number" label="Cheque No." rules={[{ required: true }]}>
+        <Form<Omit<Check, "id">>
+          form={paymentForm}
+          layout="vertical"
+          onFinish={handleAddPayment}
+        >
+          {paymentType === "cheque" && (
+            <Form.Item
+              name="number"
+              label="Cheque No."
+              rules={[{ required: true }]}
+            >
               <Input />
             </Form.Item>
           )}
-          <Form.Item name="bank" label="Banco" rules={paymentType === 'cheque' ? [{ required: true }] : []}>
-            <Input value={paymentType === 'efectivo' ? 'Efectivo' : undefined} disabled={paymentType === 'efectivo'} placeholder={paymentType === 'efectivo' ? 'Efectivo' : ''} />
+          <Form.Item
+            name="bank"
+            label="Banco"
+            rules={paymentType === "cheque" ? [{ required: true }] : []}
+          >
+            <Input
+              value={paymentType === "efectivo" ? "Efectivo" : undefined}
+              disabled={paymentType === "efectivo"}
+              placeholder={paymentType === "efectivo" ? "Efectivo" : ""}
+            />
           </Form.Item>
           <Form.Item name="value" label="Valor" rules={[{ required: true }]}>
-            <InputNumber min={0} style={{ width: '100%' }} />
+            <InputNumber min={0} style={{ width: "100%" }} />
           </Form.Item>
           <Form.Item>
-            <Button onClick={() => { setShowPaymentModal(false); setPaymentType('cheque'); paymentForm.resetFields(); }} style={{ marginRight: 8 }}>
+            <Button
+              onClick={() => {
+                setShowPaymentModal(false);
+                setPaymentType("cheque");
+                paymentForm.resetFields();
+              }}
+              style={{ marginRight: 8 }}
+            >
               Cancelar
             </Button>
             <Button type="primary" htmlType="submit">

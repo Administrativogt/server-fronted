@@ -20,6 +20,12 @@ import {
   Row,
   Col,
   Typography,
+  Grid,
+  Card,
+  Checkbox,
+  Pagination,
+  Spin,
+  Empty,
 } from 'antd';
 import type { TableProps } from 'antd';
 import {
@@ -141,6 +147,10 @@ const ListarRecibos: React.FC = () => {
   const [editOpen, setEditOpen] = useState(false);
 
   const navigate = useNavigate();
+
+  // En teléfono la tabla no cabe: se muestran tarjetas y controles a lo ancho.
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
 
   // Paginación en servidor
   const [page, setPage] = useState(1);
@@ -492,39 +502,112 @@ const ListarRecibos: React.FC = () => {
 
   const showCreatorFilter = !!options?.can_view_all && (options?.creators.length ?? 0) > 0;
 
+  const renderActions = (record: CashReceipt) => (
+    <Space size={isMobile ? 0 : undefined} wrap={isMobile}>
+      <Button
+        type="link"
+        icon={<EyeOutlined />}
+        aria-label="Ver recibo"
+        onClick={() => navigate(`/dashboard/recibos/${record.id ?? ''}`)}
+      />
+      <Button
+        type="link"
+        icon={<DownloadOutlined />}
+        aria-label="Descargar PDF"
+        onClick={() => handleDownloadPdf(record.id!)}
+      />
+      <Button
+        type="link"
+        icon={<MailOutlined />}
+        aria-label="Enviar por correo"
+        onClick={() => handleSendEmail(record.id!)}
+      />
+      <Button
+        type="link"
+        icon={<EditOutlined />}
+        aria-label="Editar recibo"
+        disabled={record.active === false}
+        onClick={() => {
+          setEditingReciboId(record.id ?? null);
+          setEditOpen(true);
+        }}
+      />
+      {record.active === false ? (
+        <Tooltip title="Restaurar recibo">
+          <Button
+            type="link"
+            icon={<RollbackOutlined />}
+            aria-label="Restaurar recibo"
+            onClick={() => handleRestore(record.id!)}
+          />
+        </Tooltip>
+      ) : (
+        <Popconfirm
+          title="¿Seguro de anular este recibo?"
+          onConfirm={() => handleDelete(record.id!)}
+        >
+          <Button type="link" danger icon={<DeleteOutlined />} aria-label="Anular recibo" />
+        </Popconfirm>
+      )}
+    </Space>
+  );
+
+  const fmtListDate = (val?: string) =>
+    val ? dayjs(String(val).slice(0, 10)).format('DD/MM/YYYY') : '—';
+
+  const toggleSelected = (id: number, checked: boolean) =>
+    setSelectedRowKeys((prev) => (checked ? [...prev, id] : prev.filter((k) => k !== id)));
+
   return (
     <>
-      <Space style={{ marginBottom: 12 }} wrap>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => navigate('/dashboard/recibos/crear')}
-        >
-          Agregar recibo
-        </Button>
-
-        <Button icon={<ReloadOutlined />} onClick={() => fetchData()} disabled={loading}>
-          Actualizar
-        </Button>
-
-        <Button
-          icon={<MailOutlined />}
-          disabled={selectedRowKeys.length === 0}
-          onClick={handleSendMultiple}
-        >
-          Enviar seleccionados
-        </Button>
-
-        <Badge count={activeChips.length} size="small" offset={[-4, 4]}>
-          <Button icon={<FilterOutlined />} onClick={() => setFilterOpen(true)}>
-            Filtrar
+      <Space
+        style={{ marginBottom: 12, width: isMobile ? '100%' : undefined }}
+        direction={isMobile ? 'vertical' : 'horizontal'}
+        wrap={!isMobile}
+      >
+        <Space wrap>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => navigate('/dashboard/recibos/crear')}
+          >
+            {isMobile ? 'Agregar' : 'Agregar recibo'}
           </Button>
-        </Badge>
+
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() => fetchData()}
+            disabled={loading}
+            aria-label="Actualizar"
+          >
+            {!isMobile && 'Actualizar'}
+          </Button>
+
+          <Badge count={activeChips.length} size="small" offset={[-4, 4]}>
+            <Button icon={<FilterOutlined />} onClick={() => setFilterOpen(true)}>
+              Filtrar
+            </Button>
+          </Badge>
+
+          <Button
+            icon={<MailOutlined />}
+            disabled={selectedRowKeys.length === 0}
+            onClick={handleSendMultiple}
+          >
+            {isMobile
+              ? `Enviar${selectedRowKeys.length ? ` (${selectedRowKeys.length})` : ''}`
+              : 'Enviar seleccionados'}
+          </Button>
+        </Space>
 
         <Input.Search
           allowClear
-          placeholder="Buscar: No. de RC (B-25575), nombre, concepto, factura, NT o cheque"
-          style={{ width: 380 }}
+          placeholder={
+            isMobile
+              ? 'Buscar No. de RC, nombre, factura…'
+              : 'Buscar: No. de RC (B-25575), nombre, concepto, factura, NT o cheque'
+          }
+          style={{ width: isMobile ? '100%' : 380 }}
           value={quickSearch}
           onChange={(e) => setQuickSearch(e.target.value)}
           onSearch={applyQuickSearch}
@@ -565,6 +648,104 @@ const ListarRecibos: React.FC = () => {
         </Space>
       )}
 
+      {isMobile ? (
+        <Spin spinning={loading}>
+          {data.length === 0 && !loading ? (
+            <Empty description="No hay recibos" />
+          ) : (
+            <Space direction="vertical" size={10} style={{ width: '100%' }}>
+              {data.map((r) => (
+                <Card
+                  key={r.id}
+                  size="small"
+                  styles={{ body: { padding: 12 } }}
+                  actions={[
+                    <div key="acciones" style={{ display: 'flex', justifyContent: 'center' }}>
+                      {renderActions(r)}
+                    </div>,
+                  ]}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <Checkbox
+                      checked={selectedRowKeys.includes(r.id!)}
+                      onChange={(e) => toggleSelected(r.id!, e.target.checked)}
+                      aria-label="Seleccionar recibo"
+                      style={{ marginTop: 2 }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'baseline',
+                          gap: 8,
+                        }}
+                      >
+                        <Typography.Text strong>
+                          RC {serieToLetter(r.serie)}-{r.correlative}
+                        </Typography.Text>
+                        <Typography.Text type="secondary" style={{ fontSize: 12, flexShrink: 0 }}>
+                          {fmtListDate(r.date)}
+                        </Typography.Text>
+                      </div>
+                      <Typography.Paragraph
+                        ellipsis={{ rows: 2 }}
+                        style={{ margin: '4px 0 2px' }}
+                      >
+                        {r.received_from || '—'}
+                      </Typography.Paragraph>
+                      {r.concept && (
+                        <Typography.Paragraph
+                          type="secondary"
+                          ellipsis={{ rows: 2 }}
+                          style={{ fontSize: 12, margin: 0 }}
+                        >
+                          {r.concept}
+                        </Typography.Paragraph>
+                      )}
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'baseline',
+                          marginTop: 6,
+                          gap: 8,
+                        }}
+                      >
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                          {r.bill_number ? `Factura ${r.bill_number}` : ''}
+                        </Typography.Text>
+                        <Typography.Text strong style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          {formatAmount(r.amount, r.currency)}
+                        </Typography.Text>
+                      </div>
+                      {isDeletedView && r.delete_reason && (
+                        <Typography.Text type="danger" style={{ fontSize: 12 }}>
+                          Anulado: {r.delete_reason}
+                        </Typography.Text>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </Space>
+          )}
+          <Pagination
+            style={{ marginTop: 12, textAlign: 'center' }}
+            current={page}
+            pageSize={pageSize}
+            total={total}
+            simple
+            onChange={(p) => setPage(p)}
+          />
+          <Typography.Text
+            type="secondary"
+            style={{ display: 'block', textAlign: 'center', fontSize: 12, marginTop: 4 }}
+          >
+            {total.toLocaleString('es-GT')} recibos
+          </Typography.Text>
+        </Spin>
+      ) : (
       <Table<CashReceipt>
         rowKey="id"
         dataSource={data}
@@ -634,50 +815,7 @@ const ListarRecibos: React.FC = () => {
           {
             title: 'Opciones',
             align: 'center',
-            render: (record: CashReceipt) => (
-              <Space>
-                <Button
-                  type="link"
-                  icon={<EyeOutlined />}
-                  onClick={() => navigate(`/dashboard/recibos/${record.id ?? ''}`)}
-                />
-                <Button
-                  type="link"
-                  icon={<DownloadOutlined />}
-                  onClick={() => handleDownloadPdf(record.id!)}
-                />
-                <Button
-                  type="link"
-                  icon={<MailOutlined />}
-                  onClick={() => handleSendEmail(record.id!)}
-                />
-                <Button
-                  type="link"
-                  icon={<EditOutlined />}
-                  disabled={record.active === false}
-                  onClick={() => {
-                    setEditingReciboId(record.id ?? null);
-                    setEditOpen(true);
-                  }}
-                />
-                {record.active === false ? (
-                  <Tooltip title="Restaurar recibo">
-                    <Button
-                      type="link"
-                      icon={<RollbackOutlined />}
-                      onClick={() => handleRestore(record.id!)}
-                    />
-                  </Tooltip>
-                ) : (
-                  <Popconfirm
-                    title="¿Seguro de anular este recibo?"
-                    onConfirm={() => handleDelete(record.id!)}
-                  >
-                    <Button type="link" danger icon={<DeleteOutlined />} />
-                  </Popconfirm>
-                )}
-              </Space>
-            ),
+            render: (record: CashReceipt) => renderActions(record),
           },
         ]}
         pagination={{
@@ -689,13 +827,14 @@ const ListarRecibos: React.FC = () => {
           showTotal: (t, range) => `${range[0]}-${range[1]} de ${t.toLocaleString('es-GT')} recibos`,
         }}
       />
+      )}
 
       {/* Panel de filtros combinables */}
       <Drawer
         title="Filtros de recibos"
         open={filterOpen}
         onClose={() => setFilterOpen(false)}
-        width={520}
+        width={isMobile ? '100%' : 520}
         footer={
           <Space style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <Button onClick={clearFilters}>Limpiar</Button>
@@ -715,12 +854,12 @@ const ListarRecibos: React.FC = () => {
           </Form.Item>
 
           <Row gutter={12}>
-            <Col span={8}>
+            <Col xs={24} sm={8}>
               <Form.Item name="serie" label="Serie">
                 <Select allowClear placeholder="Todas" options={serieOptions} />
               </Form.Item>
             </Col>
-            <Col span={16}>
+            <Col xs={24} sm={16}>
               <Form.Item name="correlative" label="Correlativo exacto (No. de RC)">
                 <Input allowClear placeholder="Ej. 25575 o RC B-25575" />
               </Form.Item>
@@ -728,12 +867,12 @@ const ListarRecibos: React.FC = () => {
           </Row>
 
           <Row gutter={12}>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item name="correlative_from" label="Correlativo desde">
                 <Input allowClear />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item name="correlative_to" label="Correlativo hasta">
                 <Input allowClear />
               </Form.Item>
@@ -759,17 +898,17 @@ const ListarRecibos: React.FC = () => {
           </Form.Item>
 
           <Row gutter={12}>
-            <Col span={8}>
+            <Col xs={24} sm={8}>
               <Form.Item name="amount" label="Cantidad exacta">
                 <InputNumber style={{ width: '100%' }} min={0} step={0.01} controls={false} placeholder="2005" />
               </Form.Item>
             </Col>
-            <Col span={8}>
+            <Col xs={24} sm={8}>
               <Form.Item name="amount_min" label="Cantidad mínima">
                 <InputNumber style={{ width: '100%' }} min={0} step={0.01} controls={false} />
               </Form.Item>
             </Col>
-            <Col span={8}>
+            <Col xs={24} sm={8}>
               <Form.Item name="amount_max" label="Cantidad máxima">
                 <InputNumber style={{ width: '100%' }} min={0} step={0.01} controls={false} />
               </Form.Item>
@@ -777,17 +916,17 @@ const ListarRecibos: React.FC = () => {
           </Row>
 
           <Row gutter={12}>
-            <Col span={8}>
+            <Col xs={24} sm={8}>
               <Form.Item name="currency" label="Moneda">
                 <Select allowClear placeholder="Todas" options={currencyOptions} />
               </Form.Item>
             </Col>
-            <Col span={8}>
+            <Col xs={24} sm={8}>
               <Form.Item name="bill_number" label="Factura">
                 <Input allowClear placeholder="Contiene…" />
               </Form.Item>
             </Col>
-            <Col span={8}>
+            <Col xs={24} sm={8}>
               <Form.Item name="work_note_number" label="Nota de trabajo">
                 <Input allowClear placeholder="Contiene…" />
               </Form.Item>
@@ -795,12 +934,12 @@ const ListarRecibos: React.FC = () => {
           </Row>
 
           <Row gutter={12}>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item name="check_number" label="No. de cheque / documento">
                 <Input allowClear placeholder="Contiene…" />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item name="bank" label="Banco">
                 <AutoComplete
                   allowClear
