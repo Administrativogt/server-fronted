@@ -54,6 +54,20 @@ const serieToLetter = (serie?: string | number) => {
   return serie ?? '-';
 };
 
+/**
+ * Interpreta lo que escriben como número de recibo: "25575", "B-25575", "RC B 25575",
+ * "RC-B25575". Devuelve el correlativo (solo dígitos) y la serie si trae letra A–E.
+ */
+const parseReceiptNumber = (text?: string | number): { serie?: number; correlative?: string } => {
+  const raw = String(text ?? '').toUpperCase().replace(/^\s*RC[\s.:#-]*/, '');
+  const digits = raw.replace(/\D/g, '');
+  const letter = raw.match(/(?:^|[^A-Z])([A-E])(?=[^A-Z]|$)/)?.[1];
+  return {
+    correlative: digits || undefined,
+    serie: letter ? letter.charCodeAt(0) - 64 : undefined,
+  };
+};
+
 const currencyLabel = (c?: number) =>
   c === 2 ? 'Dólares ($)' : c === 3 ? 'Euros (EUR)' : 'Quetzales (Q)';
 const currencySymbol = (c?: number) => (c === 2 ? '$' : c === 3 ? 'EUR' : 'Q');
@@ -78,9 +92,9 @@ const formatAmount = (val: string | number | undefined | null, currency?: number
 interface FilterFormValues {
   q?: string;
   serie?: number;
-  correlative?: number;
-  correlative_from?: number;
-  correlative_to?: number;
+  correlative?: string;
+  correlative_from?: string;
+  correlative_to?: string;
   received_from?: string;
   concept?: string;
   amount?: number;
@@ -144,10 +158,14 @@ const ListarRecibos: React.FC = () => {
     };
     const q = (f.q ?? quickSearch)?.trim();
     if (q) params.q = q;
-    if (f.serie) params.serie = f.serie;
-    if (f.correlative != null) params.correlative = String(f.correlative);
-    if (f.correlative_from != null) params.correlative_from = String(f.correlative_from);
-    if (f.correlative_to != null) params.correlative_to = String(f.correlative_to);
+    const exact = parseReceiptNumber(f.correlative);
+    const serie = f.serie ?? exact.serie;
+    if (serie) params.serie = serie;
+    if (exact.correlative) params.correlative = exact.correlative;
+    const from = parseReceiptNumber(f.correlative_from).correlative;
+    const to = parseReceiptNumber(f.correlative_to).correlative;
+    if (from) params.correlative_from = from;
+    if (to) params.correlative_to = to;
     if (f.received_from?.trim()) params.received_from = f.received_from.trim();
     if (f.concept?.trim()) params.concept = f.concept.trim();
     if (f.amount != null) params.amount = f.amount;
@@ -253,12 +271,12 @@ const ListarRecibos: React.FC = () => {
         : '';
     if (f.q?.trim()) chips.push({ key: 'q', label: `Buscar: "${f.q.trim()}"` });
     if (f.serie) chips.push({ key: 'serie', label: `Serie ${serieToLetter(f.serie)}` });
-    if (f.correlative != null)
-      chips.push({ key: 'correlative', label: `Correlativo ${f.correlative}` });
-    if (f.correlative_from != null || f.correlative_to != null)
+    if (f.correlative?.trim())
+      chips.push({ key: 'correlative', label: `Correlativo ${f.correlative.trim()}` });
+    if (f.correlative_from?.trim() || f.correlative_to?.trim())
       chips.push({
         key: 'correlative_range',
-        label: `Correlativo ${f.correlative_from ?? '…'} – ${f.correlative_to ?? '…'}`,
+        label: `Correlativo ${f.correlative_from?.trim() || '…'} – ${f.correlative_to?.trim() || '…'}`,
       });
     if (f.received_from?.trim())
       chips.push({ key: 'received_from', label: `Recibimos de: ${f.received_from.trim()}` });
@@ -697,8 +715,8 @@ const ListarRecibos: React.FC = () => {
               </Form.Item>
             </Col>
             <Col span={16}>
-              <Form.Item name="correlative" label="Correlativo exacto">
-                <InputNumber style={{ width: '100%' }} min={1} placeholder="Ej. 25575" controls={false} />
+              <Form.Item name="correlative" label="Correlativo exacto (No. de RC)">
+                <Input allowClear placeholder="Ej. 25575 o RC B-25575" />
               </Form.Item>
             </Col>
           </Row>
@@ -706,12 +724,12 @@ const ListarRecibos: React.FC = () => {
           <Row gutter={12}>
             <Col span={12}>
               <Form.Item name="correlative_from" label="Correlativo desde">
-                <InputNumber style={{ width: '100%' }} min={1} controls={false} />
+                <Input allowClear />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item name="correlative_to" label="Correlativo hasta">
-                <InputNumber style={{ width: '100%' }} min={1} controls={false} />
+                <Input allowClear />
               </Form.Item>
             </Col>
           </Row>
