@@ -68,6 +68,9 @@ const parseReceiptNumber = (text?: string | number): { serie?: number; correlati
   };
 };
 
+/** Texto que es claramente un No. de RC: lleva "RC" o letra de serie antes del número. */
+const RC_NUMBER_RE = /^\s*(?:RC[\s.:#-]*[A-E]?|[A-E])[\s.:#-]*\d+\s*$/i;
+
 const currencyLabel = (c?: number) =>
   c === 2 ? 'Dólares ($)' : c === 3 ? 'Euros (EUR)' : 'Quetzales (Q)';
 const currencySymbol = (c?: number) => (c === 2 ? '$' : c === 3 ? 'EUR' : 'Q');
@@ -157,9 +160,12 @@ const ListarRecibos: React.FC = () => {
       sort_dir: sort.dir,
     };
     const q = (f.q ?? quickSearch)?.trim();
-    if (q) params.q = q;
-    const exact = parseReceiptNumber(f.correlative);
-    const serie = f.serie ?? exact.serie;
+    // "RC B-25575" / "B25575" en la búsqueda → serie + correlativo exactos; un número
+    // suelto sigue yendo a la búsqueda general (también puede ser factura, NT o cheque).
+    const qAsRc = q && RC_NUMBER_RE.test(q) ? parseReceiptNumber(q) : null;
+    if (q && !qAsRc) params.q = q;
+    const exact = parseReceiptNumber(f.correlative ?? qAsRc?.correlative);
+    const serie = f.serie ?? exact.serie ?? qAsRc?.serie;
     if (serie) params.serie = serie;
     if (exact.correlative) params.correlative = exact.correlative;
     const from = parseReceiptNumber(f.correlative_from).correlative;
@@ -517,7 +523,7 @@ const ListarRecibos: React.FC = () => {
 
         <Input.Search
           allowClear
-          placeholder="Buscar: nombre, concepto, factura, NT, correlativo o cheque"
+          placeholder="Buscar: No. de RC (B-25575), nombre, concepto, factura, NT o cheque"
           style={{ width: 380 }}
           value={quickSearch}
           onChange={(e) => setQuickSearch(e.target.value)}
