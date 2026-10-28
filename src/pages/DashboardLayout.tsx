@@ -1,6 +1,6 @@
 // src/pages/DashboardLayout.tsx
-import React, { Suspense, useEffect, useState } from 'react';
-import { Layout, Menu, Button, Switch, Tooltip, Grid, Input, Empty, Dropdown, Avatar, Tag, theme as antdTheme } from 'antd';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
+import { Layout, Menu, Button, Switch, Tooltip, Grid, Input, Empty, Dropdown, Avatar, Tag, message, theme as antdTheme } from 'antd';
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -12,6 +12,8 @@ import {
   StarFilled,
   SearchOutlined,
   DownOutlined,
+  CameraOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import { useNavigate, Outlet, useLocation, Navigate } from 'react-router-dom';
 import useAuthStore from '../auth/useAuthStore';
@@ -41,6 +43,9 @@ const DashboardLayout: React.FC = () => {
   const [canSeeReport, setCanSeeReport] = useState<boolean | null>(null);
   const [search, setSearch] = useState('');
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const themeMode = useThemeStore((s) => s.mode);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
@@ -123,6 +128,59 @@ const DashboardLayout: React.FC = () => {
       mounted = false;
     };
   }, []);
+
+  // Foto de perfil (S3, URL firmada que se pide al cargar)
+  useEffect(() => {
+    let mounted = true;
+    api
+      .get<{ url: string | null }>('/users/me/avatar')
+      .then(({ data }) => mounted && setAvatarUrl(data?.url ?? null))
+      .catch(() => mounted && setAvatarUrl(null));
+    return () => {
+      mounted = false;
+    };
+  }, [username]);
+
+  const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!/^image\/(jpeg|png|webp|gif)$/.test(file.type)) {
+      message.error('Formato no permitido (usa JPG, PNG, WEBP o GIF)');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      message.error('La imagen no puede pasar de 5 MB');
+      return;
+    }
+    const form = new FormData();
+    form.append('file', file);
+    setAvatarBusy(true);
+    try {
+      const { data } = await api.post<{ url: string }>('/users/me/avatar', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setAvatarUrl(data.url);
+      message.success('Foto de perfil actualizada');
+    } catch (err: any) {
+      message.error(err?.response?.data?.message || 'No se pudo subir la foto');
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  const handleAvatarRemove = async () => {
+    setAvatarBusy(true);
+    try {
+      await api.delete('/users/me/avatar');
+      setAvatarUrl(null);
+      message.success('Foto de perfil eliminada');
+    } catch {
+      message.error('No se pudo quitar la foto');
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -472,9 +530,58 @@ const DashboardLayout: React.FC = () => {
                   }}
                 >
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: 16 }}>
-                    <Avatar size={44} style={{ backgroundColor: PRIMARY, flexShrink: 0, fontWeight: 600 }}>
-                      {initials}
-                    </Avatar>
+                    <Tooltip title="Cambiar foto">
+                      <button
+                        type="button"
+                        className="avatar-edit"
+                        aria-label="Cambiar foto de perfil"
+                        disabled={avatarBusy}
+                        onClick={() => avatarInputRef.current?.click()}
+                        style={{
+                          position: 'relative',
+                          padding: 0,
+                          border: 'none',
+                          background: 'none',
+                          borderRadius: '50%',
+                          cursor: avatarBusy ? 'wait' : 'pointer',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Avatar
+                          size={56}
+                          src={avatarUrl || undefined}
+                          style={{ backgroundColor: PRIMARY, fontWeight: 600, fontSize: 20 }}
+                        >
+                          {initials}
+                        </Avatar>
+                        <span
+                          style={{
+                            position: 'absolute',
+                            right: -2,
+                            bottom: -2,
+                            width: 22,
+                            height: 22,
+                            borderRadius: '50%',
+                            background: colorBgElevated,
+                            border: `1px solid ${colorBorderSecondary}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 12,
+                            color: colorText,
+                          }}
+                        >
+                          <CameraOutlined />
+                        </span>
+                      </button>
+                    </Tooltip>
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      style={{ display: 'none' }}
+                      onChange={handleAvatarFile}
+                    />
                     <div style={{ minWidth: 0 }}>
                       <div
                         style={{
@@ -495,6 +602,28 @@ const DashboardLayout: React.FC = () => {
                   </div>
                   <div style={{ height: 1, background: colorBorderSecondary }} />
                   <div style={{ padding: 8 }}>
+                    <Button
+                      type="text"
+                      block
+                      icon={<CameraOutlined />}
+                      loading={avatarBusy}
+                      onClick={() => avatarInputRef.current?.click()}
+                      style={{ justifyContent: 'flex-start' }}
+                    >
+                      {avatarUrl ? 'Cambiar foto de perfil' : 'Subir foto de perfil'}
+                    </Button>
+                    {avatarUrl && (
+                      <Button
+                        type="text"
+                        block
+                        icon={<DeleteOutlined />}
+                        disabled={avatarBusy}
+                        onClick={handleAvatarRemove}
+                        style={{ justifyContent: 'flex-start', color: colorTextSecondary }}
+                      >
+                        Quitar foto
+                      </Button>
+                    )}
                     <Button
                       type="text"
                       danger
@@ -525,7 +654,7 @@ const DashboardLayout: React.FC = () => {
                   color: colorText,
                 }}
               >
-                <Avatar size={32} style={{ backgroundColor: PRIMARY, fontWeight: 600 }}>
+                <Avatar size={32} src={avatarUrl || undefined} style={{ backgroundColor: PRIMARY, fontWeight: 600 }}>
                   {initials}
                 </Avatar>
                 {!isMobile && (
