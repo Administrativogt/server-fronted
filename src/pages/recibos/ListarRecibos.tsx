@@ -26,6 +26,7 @@ import {
   Pagination,
   Spin,
   Empty,
+  Collapse,
 } from 'antd';
 import type { TableProps } from 'antd';
 import {
@@ -288,7 +289,7 @@ const ListarRecibos: React.FC = () => {
     if (f.q?.trim()) chips.push({ key: 'q', label: `Buscar: "${f.q.trim()}"` });
     if (f.serie) chips.push({ key: 'serie', label: `Serie ${serieToLetter(f.serie)}` });
     if (f.correlative?.trim())
-      chips.push({ key: 'correlative', label: `Correlativo ${f.correlative.trim()}` });
+      chips.push({ key: 'correlative', label: `Recibo ${f.correlative.trim()}` });
     if (f.correlative_from?.trim() || f.correlative_to?.trim())
       chips.push({
         key: 'correlative_range',
@@ -846,138 +847,156 @@ const ListarRecibos: React.FC = () => {
         }
       >
         <Form form={filterForm} layout="vertical" onFinish={applyFilters}>
-          <Form.Item name="q" label="Búsqueda general">
-            <Input
-              allowClear
-              placeholder="Nombre, concepto, factura, nota de trabajo, correlativo o No. de cheque"
-            />
+          {/* Lo de uso diario va a la vista; lo demás queda guardado en "Más filtros". */}
+          <Form.Item name="q" label="Buscar">
+            <Input allowClear placeholder="Nombre, concepto, factura o NT" />
           </Form.Item>
 
-          <Row gutter={12}>
-            <Col xs={24} sm={8}>
-              <Form.Item name="serie" label="Serie">
-                <Select allowClear placeholder="Todas" options={serieOptions} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={16}>
-              <Form.Item name="correlative" label="Correlativo exacto (No. de RC)">
-                <Input allowClear placeholder="Ej. 25575 o RC B-25575" />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Row gutter={12}>
-            <Col xs={24} sm={12}>
-              <Form.Item name="correlative_from" label="Correlativo desde">
-                <Input allowClear />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12}>
-              <Form.Item name="correlative_to" label="Correlativo hasta">
-                <Input allowClear />
-              </Form.Item>
-            </Col>
-          </Row>
+          <Form.Item name="correlative" label="No. de recibo">
+            <Input allowClear placeholder="B-25575" />
+          </Form.Item>
 
           <Form.Item name="received_from" label="Recibimos de">
-            <Input allowClear placeholder="Contiene… (no distingue acentos ni mayúsculas)" />
+            <Input allowClear />
           </Form.Item>
 
-          <Form.Item name="concept" label="Concepto">
-            <AutoComplete
-              allowClear
-              placeholder="Contiene… (elija uno frecuente o escriba)"
-              options={options?.concepts.map((c) => ({
-                value: c.value,
-                label: `${c.value}  ·  ${c.count.toLocaleString('es-GT')}`,
-              }))}
-              filterOption={(input, opt) =>
-                String(opt?.value ?? '').toLowerCase().includes(input.toLowerCase())
-              }
+          <Form.Item name="date_range" label="Fecha del recibo">
+            <RangePicker
+              style={{ width: '100%' }}
+              format="DD/MM/YYYY"
+              allowEmpty={[true, true]}
+              placeholder={['Desde', 'Hasta']}
             />
           </Form.Item>
 
-          <Row gutter={12}>
-            <Col xs={24} sm={8}>
-              <Form.Item name="amount" label="Cantidad exacta">
-                <InputNumber style={{ width: '100%' }} min={0} step={0.01} controls={false} placeholder="2005" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item name="amount_min" label="Cantidad mínima">
-                <InputNumber style={{ width: '100%' }} min={0} step={0.01} controls={false} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item name="amount_max" label="Cantidad máxima">
-                <InputNumber style={{ width: '100%' }} min={0} step={0.01} controls={false} />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Row gutter={12}>
-            <Col xs={24} sm={8}>
-              <Form.Item name="currency" label="Moneda">
-                <Select allowClear placeholder="Todas" options={currencyOptions} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item name="bill_number" label="Factura">
-                <Input allowClear placeholder="Contiene…" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item name="work_note_number" label="Nota de trabajo">
-                <Input allowClear placeholder="Contiene…" />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Row gutter={12}>
-            <Col xs={24} sm={12}>
-              <Form.Item name="check_number" label="No. de cheque / documento">
-                <Input allowClear placeholder="Contiene…" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12}>
-              <Form.Item name="bank" label="Banco">
-                <AutoComplete
-                  allowClear
-                  placeholder="Contiene…"
-                  options={options?.banks.map((b) => ({
-                    value: b.value,
-                    label: `${b.value}  ·  ${b.count.toLocaleString('es-GT')}`,
-                  }))}
-                  filterOption={(input, opt) =>
-                    String(opt?.value ?? '').toLowerCase().includes(input.toLowerCase())
-                  }
-                />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Form.Item name="date_range" label="Fecha del recibo">
-            <RangePicker style={{ width: '100%' }} format="DD/MM/YYYY" allowEmpty={[true, true]} />
+          <Form.Item name="amount" label="Cantidad">
+            <InputNumber style={{ width: '100%' }} min={0} step={0.01} controls={false} />
           </Form.Item>
 
-          <Form.Item name="created_range" label="Fecha de registro en el sistema">
-            <RangePicker style={{ width: '100%' }} format="DD/MM/YYYY" allowEmpty={[true, true]} />
-          </Form.Item>
+          <Collapse
+            ghost
+            items={[
+              {
+                key: 'mas',
+                label: 'Más filtros',
+                forceRender: true,
+                children: (
+                  <>
+                    <Row gutter={12}>
+                      <Col xs={24} sm={8}>
+                        <Form.Item name="serie" label="Serie">
+                          <Select allowClear placeholder="Todas" options={serieOptions} />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} sm={16}>
+                        <Form.Item name="currency" label="Moneda">
+                          <Select allowClear placeholder="Todas" options={currencyOptions} />
+                        </Form.Item>
+                      </Col>
+                    </Row>
 
-          {showCreatorFilter && (
-            <Form.Item name="creator_id" label="Usuario que lo registró">
-              <Select
-                allowClear
-                showSearch
-                placeholder="Todos"
-                optionFilterProp="label"
-                options={options?.creators.map((c) => ({
-                  value: c.id,
-                  label: `${c.label} (${c.username})  ·  ${c.count.toLocaleString('es-GT')}`,
-                }))}
-              />
-            </Form.Item>
-          )}
+                    <Row gutter={12}>
+                      <Col xs={12}>
+                        <Form.Item name="correlative_from" label="Recibo desde">
+                          <Input allowClear />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={12}>
+                        <Form.Item name="correlative_to" label="Recibo hasta">
+                          <Input allowClear />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+
+                    <Row gutter={12}>
+                      <Col xs={12}>
+                        <Form.Item name="amount_min" label="Cantidad mínima">
+                          <InputNumber style={{ width: '100%' }} min={0} step={0.01} controls={false} />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={12}>
+                        <Form.Item name="amount_max" label="Cantidad máxima">
+                          <InputNumber style={{ width: '100%' }} min={0} step={0.01} controls={false} />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+
+                    <Form.Item name="concept" label="Concepto">
+                      <AutoComplete
+                        allowClear
+                        options={options?.concepts.map((c) => ({
+                          value: c.value,
+                          label: `${c.value}  ·  ${c.count.toLocaleString('es-GT')}`,
+                        }))}
+                        filterOption={(input, opt) =>
+                          String(opt?.value ?? '').toLowerCase().includes(input.toLowerCase())
+                        }
+                      />
+                    </Form.Item>
+
+                    <Row gutter={12}>
+                      <Col xs={12}>
+                        <Form.Item name="bill_number" label="Factura">
+                          <Input allowClear />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={12}>
+                        <Form.Item name="work_note_number" label="Nota de trabajo">
+                          <Input allowClear />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+
+                    <Row gutter={12}>
+                      <Col xs={12}>
+                        <Form.Item name="check_number" label="No. de cheque">
+                          <Input allowClear />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={12}>
+                        <Form.Item name="bank" label="Banco">
+                          <AutoComplete
+                            allowClear
+                            options={options?.banks.map((b) => ({
+                              value: b.value,
+                              label: `${b.value}  ·  ${b.count.toLocaleString('es-GT')}`,
+                            }))}
+                            filterOption={(input, opt) =>
+                              String(opt?.value ?? '').toLowerCase().includes(input.toLowerCase())
+                            }
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+
+                    <Form.Item name="created_range" label="Fecha de registro en el sistema">
+                      <RangePicker
+                        style={{ width: '100%' }}
+                        format="DD/MM/YYYY"
+                        allowEmpty={[true, true]}
+                        placeholder={['Desde', 'Hasta']}
+                      />
+                    </Form.Item>
+
+                    {showCreatorFilter && (
+                      <Form.Item name="creator_id" label="Usuario que lo registró">
+                        <Select
+                          allowClear
+                          showSearch
+                          placeholder="Todos"
+                          optionFilterProp="label"
+                          options={options?.creators.map((c) => ({
+                            value: c.id,
+                            label: `${c.label} (${c.username})  ·  ${c.count.toLocaleString('es-GT')}`,
+                          }))}
+                        />
+                      </Form.Item>
+                    )}
+                  </>
+                ),
+              },
+            ]}
+          />
         </Form>
       </Drawer>
 
