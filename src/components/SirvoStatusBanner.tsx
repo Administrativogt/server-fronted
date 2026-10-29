@@ -6,6 +6,8 @@ interface SirvoAvailability {
   available: boolean;
   since: string | null;
   lastCheckedAt: string | null;
+  liquidationAvailable?: boolean;
+  liquidationSince?: string | null;
 }
 
 const POLL_MS = 60_000;
@@ -48,24 +50,48 @@ const SirvoStatusBanner: React.FC = () => {
     };
   }, []);
 
-  if (!status || status.available) return null;
+  if (!status) return null;
 
-  return (
-    <Alert
-      type="warning"
-      showIcon
-      style={{ margin: '16px 16px 0' }}
-      message="Sirvo no está disponible en este momento"
-      description={
-        <>
-          El sistema de Sirvo no responde{status.since ? ` desde ${formatSince(status.since)}` : ''}, por
-          lo que por ahora <strong>no se pueden autorizar ni liquidar cheques</strong>. Ya estamos
-          trabajando con el proveedor para resolverlo. Este aviso desaparecerá cuando el servicio
-          vuelva a la normalidad.
-        </>
-      }
-    />
-  );
+  if (!status.available) {
+    return (
+      <Alert
+        type="warning"
+        showIcon
+        style={{ margin: '16px 16px 0' }}
+        message="Sirvo no está disponible en este momento"
+        description={
+          <>
+            El sistema de Sirvo no responde{status.since ? ` desde ${formatSince(status.since)}` : ''}, por
+            lo que por ahora <strong>no se pueden autorizar ni liquidar cheques</strong>. Ya estamos
+            trabajando con el proveedor para resolverlo. Este aviso desaparecerá cuando el servicio
+            vuelva a la normalidad.
+          </>
+        }
+      />
+    );
+  }
+
+  if (status.liquidationAvailable === false) {
+    return (
+      <Alert
+        type="warning"
+        showIcon
+        style={{ margin: '16px 16px 0' }}
+        message="La liquidación de cheques no está funcionando"
+        description={
+          <>
+            {status.liquidationSince ? `Desde ${formatSince(status.liquidationSince)}, ` : ''}Sirvo está
+            rechazando las liquidaciones por un problema en su sistema contable, por lo que{' '}
+            <strong>por ahora no se pueden liquidar cheques</strong>. No es un error de los datos
+            ingresados. Ya lo reportamos al proveedor y estamos dando seguimiento. Este aviso desaparecerá
+            cuando las liquidaciones vuelvan a funcionar.
+          </>
+        }
+      />
+    );
+  }
+
+  return null;
 };
 
 export default SirvoStatusBanner;
