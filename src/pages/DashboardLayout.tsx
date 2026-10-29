@@ -31,6 +31,7 @@ import { canSeeMigracionGastos } from '../utils/migracion';
 import { canAccessSupervision } from '../routes/SupervisionRoute';
 import ErrorBoundary from '../components/ErrorBoundary';
 import ContentSkeleton from '../components/ContentSkeleton';
+import SirvoStatusBanner from '../components/SirvoStatusBanner';
 
 import logoLight from '../assets/logo-cosortium.png';
 import logoDark from '../assets/logo-dark.png';
@@ -685,6 +686,8 @@ const DashboardLayout: React.FC = () => {
             </Dropdown>
           </div>
         </Header>
+
+        <SirvoStatusBanner />
 
         <Content
           style={{
