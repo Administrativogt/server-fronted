@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Barras del sistema del color de la app (tokens de DESIGN.md). -->
+<resources>
+    <color name="app_bg">#EFF4FB</color>
+    <color name="app_surface">#FFFFFF</color>
+    <bool name="app_light_bars">true</bool>
+</resources>

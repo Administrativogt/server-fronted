@@ -30,3 +30,6 @@ dist-ssr
 .playwright-mcp/
 .impeccable/
 /*.png
+
+# App Android (Capacitor)
+dist-mobile
