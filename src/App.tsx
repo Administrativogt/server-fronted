@@ -147,6 +147,8 @@ const NotasGastos = lazy(() => import('./pages/notas-gastos/NotasGastos'));
 const SupervisionPage = lazy(() => import('./pages/supervision/SupervisionPage'));
 const RevisionFormPage = lazy(() => import('./pages/supervision/RevisionFormPage'));
 const GastosMigracion = lazy(() => import('./pages/migracion/GastosMigracion'));
+const NtActivas = lazy(() => import('./pages/migracion/NtActivas'));
+const ControlDinero = lazy(() => import('./pages/migracion/ControlDinero'));
 
 dayjs.locale('es');
 
@@ -392,6 +394,8 @@ function AppInner() {
               <Route path="/dashboard/notas-gastos" element={<NotasGastos />} />
               {/* Migración: gastos por NT (cheques LAS de Sirvo) */}
               <Route path="/dashboard/migracion/gastos" element={<GastosMigracion />} />
+              <Route path="/dashboard/migracion/nt" element={<NtActivas />} />
+              <Route path="/dashboard/migracion/dinero" element={<ControlDinero />} />
 
               {/* Módulo de Jurisprudencia */}
               <Route path="/dashboard/jurisprudencia" element={<JurisprudenceListPage />} />
