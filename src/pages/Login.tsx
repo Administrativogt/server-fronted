@@ -1,11 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Row, Col, Form, Input, Button, Typography, message, Checkbox, ConfigProvider, Modal, theme as antdTheme } from 'antd';
 import api from '../api/axios';
-import useAuthStore from '../auth/useAuthStore';
+import { applySession } from '../auth/applySession';
+import {
+  MS_SSO_USED_KEY,
+  getMicrosoftConfig,
+  startMicrosoftLogin,
+  type MicrosoftSsoConfig,
+} from '../auth/microsoftSso';
 import loginImage from '../assets/new_cover_consortium copy.jpg';
 import logoDark from '../assets/logo-dark.png';
-import type { ModuleAccessItem } from '../types/module-access.types';
 
 import './Login.css';
 
@@ -34,24 +39,36 @@ function Login() {
   const [forceChangeOpen, setForceChangeOpen] = useState(false);
   const [forceChangeLoading, setForceChangeLoading] = useState(false);
   const [forceChangeForm] = Form.useForm();
-  const setToken = useAuthStore((state) => state.setToken);
-  const setUsername = useAuthStore((state) => state.setUsername);
-  const setFirstName = useAuthStore((state) => state.setFirstName);
-  const setLastName = useAuthStore((state) => state.setLastName);
-  const setUserId = useAuthStore((state) => state.setUserId);
-  const setRefreshToken = useAuthStore((state) => state.setRefreshToken);
-  const setTipoUsuario = useAuthStore((state) => state.setTipoUsuario);
-  const setIsSuperuser = useAuthStore((state) => state.setIsSuperuser);
-  const setPermissions = useAuthStore((state) => state.setPermissions);
-  const setModules = useAuthStore((state) => state.setModules);
+  const [msConfig, setMsConfig] = useState<MicrosoftSsoConfig | null>(null);
+  const [msLoading, setMsLoading] = useState(false);
 
-  const decodeJwt = (token: string) => {
+  useEffect(() => {
+    getMicrosoftConfig()
+      .then(setMsConfig)
+      .catch(() => setMsConfig(null));
+  }, []);
+
+  // Piloto: con MS_SSO_BUTTON=hidden el botón solo sale con /login?microsoft=1
+  // o si ya se usó en este navegador.
+  const msUsado = (() => {
     try {
-      const base64Payload = token.split('.')[1];
-      const payload = atob(base64Payload);
-      return JSON.parse(payload);
+      return localStorage.getItem(MS_SSO_USED_KEY) === '1';
     } catch {
-      return null;
+      return false;
+    }
+  })();
+  const showMicrosoft =
+    !!msConfig?.enabled &&
+    (msConfig.button === 'visible' || new URLSearchParams(location.search).has('microsoft') || msUsado);
+
+  const onMicrosoft = async () => {
+    if (!msConfig) return;
+    setMsLoading(true);
+    try {
+      await startMicrosoftLogin(msConfig, redirectTo);
+    } catch (e: any) {
+      setMsLoading(false);
+      message.error(e?.message || 'No se pudo iniciar sesión con Microsoft');
     }
   };
 
@@ -65,27 +82,7 @@ function Login() {
       const response = await api.post('/auth/login', transformedValues);
       const { access_token, user } = response.data;
 
-      console.log('📦 Respuesta del backend:', response.data);
-
-      const decoded = decodeJwt(access_token);
-      console.log('🔓 JWT decodificado:', decoded);
-
-      if (!decoded) {
-        throw new Error('Token inválido');
-      }
-
-      setToken(access_token);
-      setRefreshToken('');
-      setUsername(decoded.username || transformedValues.username);
-      setFirstName(user?.first_name || '');
-      setLastName(user?.last_name || '');
-      setUserId(decoded.sub);
-      setTipoUsuario(user?.tipo_usuario ?? null);
-      useAuthStore.getState().setAreaId(user?.area?.id ?? null);
-      useAuthStore.getState().setEquipoId(user?.equipo?.id ?? null);
-      setIsSuperuser(user?.is_superuser === true);
-      setPermissions(Array.isArray(user?.codenames) ? user.codenames : []);
-      setModules(Array.isArray(user?.modules) ? (user.modules as ModuleAccessItem[]) : []);
+      applySession(access_token, user, transformedValues.username);
 
       if (user?.must_change_password === true) {
         forceChangeForm.setFieldsValue({
@@ -271,6 +268,32 @@ function Login() {
                   Entrar
                 </Button>
               </Form.Item>
+              {showMicrosoft && (
+                <>
+                  <div className="login-divider" style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '4px 0 16px' }}>
+                    <span style={{ flex: 1, height: 1, background: darkBorder }} />
+                    <Text style={{ color: textMuted, fontSize: 13 }}>o</Text>
+                    <span style={{ flex: 1, height: 1, background: darkBorder }} />
+                  </div>
+                  <Button
+                    block
+                    size="large"
+                    loading={msLoading}
+                    onClick={onMicrosoft}
+                    style={{ height: 48, fontWeight: 600, fontSize: 15, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}
+                    icon={
+                      <svg width="18" height="18" viewBox="0 0 21 21" aria-hidden="true">
+                        <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+                        <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+                        <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+                        <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+                      </svg>
+                    }
+                  >
+                    Iniciar sesión con Microsoft
+                  </Button>
+                </>
+              )}
             </Form>
           </div>
         </Col>

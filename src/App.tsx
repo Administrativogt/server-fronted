@@ -11,6 +11,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 
 // Páginas públicas
 import Login from './pages/Login';
+import MicrosoftCallback from './pages/MicrosoftCallback';
 const CrearContrasena = lazy(() => import('./pages/CrearContrasena'));
 const InduccionPublic = lazy(() => import('./pages/induccion/InduccionPublic'));
 const InduccionAdmin = lazy(() => import('./pages/induccion/InduccionAdmin'));
@@ -208,6 +209,7 @@ function AppInner() {
         <Routes>
           {/* Ruta pública */}
           <Route path="/login" element={<Login />} />
+          <Route path="/login/microsoft" element={<MicrosoftCallback />} />
           <Route path="/crear-contrasena" element={<CrearContrasena />} />
           <Route path="/autorizacion-parcial" element={<AutorizacionParcial />} />
           <Route path="/induccion" element={<InduccionPublic />} />
