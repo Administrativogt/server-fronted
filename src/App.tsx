@@ -143,11 +143,8 @@ const JurisprudenceDashboardPage = lazy(() => import('./pages/jurisprudence/Juri
 const SentenceDetailPage = lazy(() => import('./pages/jurisprudence/SentenceDetailPage'));
 const SentenceFormPage = lazy(() => import('./pages/jurisprudence/SentenceFormPage'));
 
-// Notas de gastos e impresiones
-const NotasGastos = lazy(() => import('./pages/notas-gastos/NotasGastos'));
 const SupervisionPage = lazy(() => import('./pages/supervision/SupervisionPage'));
 const RevisionFormPage = lazy(() => import('./pages/supervision/RevisionFormPage'));
-const GastosMigracion = lazy(() => import('./pages/migracion/GastosMigracion'));
 const NtActivas = lazy(() => import('./pages/migracion/NtActivas'));
 const ControlDinero = lazy(() => import('./pages/migracion/ControlDinero'));
 
@@ -392,10 +389,7 @@ function AppInner() {
                 <Route path="/dashboard/casos/solicitud/editar/:id" element={<EditCasePage />} />
               </Route>
 
-              {/* Notas de gastos e impresiones (NT por caso) */}
-              <Route path="/dashboard/notas-gastos" element={<NotasGastos />} />
-              {/* Migración: gastos por NT (cheques LAS de Sirvo) */}
-              <Route path="/dashboard/migracion/gastos" element={<GastosMigracion />} />
+              {/* Migración: notas de Sirvo y control de dinero */}
               <Route path="/dashboard/migracion/nt" element={<NtActivas />} />
               <Route path="/dashboard/migracion/dinero" element={<ControlDinero />} />
 
