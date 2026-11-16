@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   AutoComplete,
@@ -17,7 +17,7 @@ import {
   message,
 } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
-import { getNt, type NtItem } from '../../api/migracionNt';
+import { getNt, getNts, type NtItem } from '../../api/migracionNt';
 import {
   createDinero,
   estatusInfo,
@@ -63,12 +63,49 @@ export default function DineroModal({ open, item, opciones, onClose, onSaved }: 
   const [nota, setNota] = useState<NtItem | null>(null);
   const [notaError, setNotaError] = useState<string | null>(null);
   const [buscandoNt, setBuscandoNt] = useState(false);
+  // Búsqueda inversa: escribir el cliente (o el caso) y elegir la NT.
+  const [clienteQ, setClienteQ] = useState('');
+  const [sugerencias, setSugerencias] = useState<NtItem[]>([]);
+  const [buscandoCliente, setBuscandoCliente] = useState(false);
+  const busquedaSeq = useRef(0);
   const editando = !!item;
+
+  useEffect(() => {
+    const q = clienteQ.trim();
+    const seq = ++busquedaSeq.current;
+    if (q.length < 2 || /^\d+$/.test(q)) {
+      setSugerencias([]);
+      setBuscandoCliente(false);
+      return;
+    }
+    setBuscandoCliente(true);
+    const t = setTimeout(async () => {
+      try {
+        const { data } = await getNts({ q, estado: 'activa', solo_migracion: true, page_size: 30 });
+        if (seq === busquedaSeq.current) setSugerencias(data.items);
+      } catch {
+        if (seq === busquedaSeq.current) setSugerencias([]);
+      } finally {
+        if (seq === busquedaSeq.current) setBuscandoCliente(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [clienteQ]);
+
+  const elegirNt = (n: NtItem) => {
+    form.setFieldsValue({ nt: n.nt });
+    setNota(n);
+    setNotaError(null);
+    setClienteQ('');
+    setSugerencias([]);
+  };
 
   useEffect(() => {
     if (!open) return;
     setNota(null);
     setNotaError(null);
+    setClienteQ('');
+    setSugerencias([]);
     form.resetFields();
     form.setFieldsValue(
       item
@@ -158,6 +195,52 @@ export default function DineroModal({ open, item, opciones, onClose, onSaved }: 
     >
       <Form form={form} layout="vertical" requiredMark="optional">
         <Row gutter={12}>
+          <Col xs={24} sm={16}>
+            <Form.Item label="Cliente y caso" style={{ marginBottom: 4 }}>
+              <AutoComplete
+                value={clienteQ}
+                onChange={(v) => setClienteQ(v ?? '')}
+                onSelect={(v) => {
+                  const n = sugerencias.find((x) => String(x.nt) === String(v));
+                  if (n) elegirNt(n);
+                }}
+                allowClear
+                placeholder="Escribe el nombre del cliente o del caso"
+                filterOption={false}
+                popupMatchSelectWidth={false}
+                notFoundContent={
+                  buscandoCliente ? (
+                    <Spin size="small" />
+                  ) : clienteQ.trim().length >= 2 ? (
+                    'Sin notas de Migración activas con ese cliente o caso'
+                  ) : null
+                }
+                options={sugerencias.map((n) => ({
+                  value: String(n.nt),
+                  label: (
+                    <div style={{ lineHeight: 1.3, padding: '2px 0', maxWidth: 520, whiteSpace: 'normal' }}>
+                      <Text strong>NT {n.nt}</Text> · <Text code>{n.cliente_codigo}</Text> {n.cliente_nombre}
+                      <br />
+                      <Text type="secondary">{n.caso || 'Caso sin nombre'}</Text>
+                    </div>
+                  ),
+                }))}
+              />
+            </Form.Item>
+            <div style={{ marginBottom: 16, minHeight: 22 }}>
+              {buscandoNt ? (
+                <Spin size="small" />
+              ) : ntInfo && !notaError ? (
+                <div style={{ lineHeight: 1.35 }}>
+                  <Text code>{ntInfo.cliente_codigo}</Text> <Text>{ntInfo.cliente_nombre}</Text>
+                  <br />
+                  <Text type="secondary">{ntInfo.caso || 'Caso sin nombre'}</Text>
+                </div>
+              ) : (
+                <Text type="secondary">Busca por cliente o escribe la NT</Text>
+              )}
+            </div>
+          </Col>
           <Col xs={24} sm={8}>
             <Form.Item name="nt" label="NT (nota de trabajo)" rules={[{ required: true, message: 'Indica la NT' }]}>
               <InputNumber
@@ -168,21 +251,6 @@ export default function DineroModal({ open, item, opciones, onClose, onSaved }: 
                 onBlur={(e) => buscarNt(Number(e.target.value) || null)}
                 onPressEnter={(e) => buscarNt(Number((e.target as HTMLInputElement).value) || null)}
               />
-            </Form.Item>
-          </Col>
-          <Col xs={24} sm={16}>
-            <Form.Item label="Cliente y caso">
-              {buscandoNt ? (
-                <Spin size="small" />
-              ) : ntInfo && !notaError ? (
-                <div style={{ lineHeight: 1.35 }}>
-                  <Text code>{ntInfo.cliente_codigo}</Text> <Text>{ntInfo.cliente_nombre}</Text>
-                  <br />
-                  <Text type="secondary">{ntInfo.caso || 'Caso sin nombre'}</Text>
-                </div>
-              ) : (
-                <Text type="secondary">Se llena solo al escribir la NT</Text>
-              )}
             </Form.Item>
           </Col>
         </Row>
