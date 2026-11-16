@@ -33,9 +33,9 @@ import dayjs from 'dayjs';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import useAuthStore from '../../auth/useAuthStore';
-import { getGastosAccess } from '../../api/migracionGastos';
 import {
   DINERO_ESTATUS,
+  getDineroAccess,
   MESES,
   buscarEnSirvo,
   deleteDinero,
@@ -61,6 +61,7 @@ const f = (v?: string | null) => (v ? dayjs(v).format('DD/MM/YY') : '');
 export default function ControlDinero() {
   const isSuperuser = useAuthStore((s) => s.is_superuser) === true;
   const [forbidden, setForbidden] = useState(false);
+  const [soloMias, setSoloMias] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
   const [opciones, setOpciones] = useState<DineroOpciones | null>(null);
   const [data, setData] = useState<DineroList | null>(null);
@@ -93,10 +94,11 @@ export default function ControlDinero() {
   }, []);
 
   useEffect(() => {
-    getGastosAccess()
+    getDineroAccess()
       .then(({ data }) => {
         if (!data.canView) setForbidden(true);
         setCanEdit(data.canEdit);
+        setSoloMias(!data.verTodo);
       })
       .catch(() => setForbidden(true));
     loadOpciones();
@@ -447,6 +449,14 @@ export default function ControlDinero() {
             Solicitudes de dinero del equipo de Migración. Cuando Sirvo emite el cheque se liga solo y trae el No. de cheque y
             el estatus.
           </Text>
+          {soloMias && (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginTop: 8 }}
+              message="Solo ves tus solicitudes (las que pediste o registraste)."
+            />
+          )}
         </div>
         <Space wrap>
           <Button icon={<ReloadOutlined />} onClick={load}>

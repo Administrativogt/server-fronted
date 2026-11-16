@@ -130,6 +130,15 @@ export const getDinero = (f: DineroFilters, page: number, pageSize: number) =>
 
 export const getDineroOpciones = () => axios.get<DineroOpciones>('/api/migracion/dinero/opciones');
 
+/** verTodo = false: solo ve sus solicitudes (las que pidió o registró). */
+export interface DineroAccess {
+  canView: boolean;
+  verTodo: boolean;
+  canEdit: boolean;
+}
+
+export const getDineroAccess = () => axios.get<DineroAccess>('/api/migracion/dinero/access');
+
 export const createDinero = (body: DineroInput) => axios.post<DineroItem>('/api/migracion/dinero', body);
 
 export const updateDinero = (id: number, body: DineroInput) => axios.patch<DineroItem>(`/api/migracion/dinero/${id}`, body);

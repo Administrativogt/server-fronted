@@ -27,7 +27,7 @@ import { PRIMARY } from './dashboard/theme';
 import { canManageInduction } from '../utils/induction';
 import { canAccessHorasSocios } from '../routes/HorasSociosRoute';
 import { canAccessVacationHr } from '../routes/VacationHrRoute';
-import { canSeeMigracionGastos } from '../utils/migracion';
+import { canSeeMigracionDinero, canSeeMigracionGastos } from '../utils/migracion';
 import { canAccessSupervision } from '../routes/SupervisionRoute';
 import ErrorBoundary from '../components/ErrorBoundary';
 import ContentSkeleton from '../components/ContentSkeleton';
@@ -208,6 +208,7 @@ const DashboardLayout: React.FC = () => {
     canAccessVacationHr: canAccessVacationHr(username),
     canManageCoordinators: isSuperuser === true,
     canSeeMigracionGastos: canSeeMigracionGastos(isSuperuser, tipoUsuario, equipoId),
+    canSeeMigracionDinero: canSeeMigracionDinero(isSuperuser, equipoId),
     canAccessSupervision: canAccessSupervision(isSuperuser, username),
   };
 

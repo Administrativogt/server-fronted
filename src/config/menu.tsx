@@ -49,6 +49,8 @@ export interface MenuCaps {
   canManageCoordinators: boolean;
   /** Gastos por NT de Migración: superusuario, contabilidad, socios y secretarias de LAS. */
   canSeeMigracionGastos: boolean;
+  /** Control de dinero: superusuario y equipo de Migración (cada quien ve lo suyo, salvo los jefes). */
+  canSeeMigracionDinero: boolean;
   /** Control de supervisión de mensajería y limpieza: MARA, TOR002 y superusuarios. */
   canAccessSupervision: boolean;
 }
@@ -310,7 +312,7 @@ export const MENU: NavItem[] = [
         key: '/dashboard/migracion/dinero',
         label: 'Control de dinero',
         icon: <DollarOutlined />,
-        visible: (c) => c.canSeeMigracionGastos,
+        visible: (c) => c.canSeeMigracionDinero,
       },
       {
         key: '/dashboard/migracion/nt',
