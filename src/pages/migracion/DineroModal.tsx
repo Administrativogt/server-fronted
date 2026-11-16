@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   AutoComplete,
+  Checkbox,
   Col,
   DatePicker,
   Descriptions,
@@ -11,17 +12,24 @@ import {
   Modal,
   Row,
   Select,
+  Space,
   Spin,
   Tag,
   Typography,
   message,
 } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
-import { getNt, getNts, type NtItem } from '../../api/migracionNt';
 import {
   createDinero,
+  createDineroVarias,
   estatusInfo,
+  getCatalogoCasos,
+  getCatalogoClientes,
+  getCatalogoNt,
   updateDinero,
+  type CatalogoCaso,
+  type CatalogoCliente,
+  type CatalogoNt,
   type DineroInput,
   type DineroItem,
   type DineroOpciones,
@@ -60,59 +68,57 @@ interface Props {
 
 const d = (v?: string | null) => (v ? dayjs(v) : null);
 const s = (v?: Dayjs | null) => (v ? v.format('YYYY-MM-DD') : null);
+const q = (v: number) => `Q${v.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const casoKey = (c: CatalogoCaso) => c.caso_numero ?? `nt:${c.nts[0]?.nt}`;
+const casoLabel = (c: CatalogoCaso) =>
+  `${c.caso_numero ? `#${c.caso_numero} · ` : ''}${c.caso || 'Caso sin nombre'} (${c.nts.length} NT)`;
 
-/** Alta / edición de una solicitud de dinero. La NT debe ser nota de Migración activa. */
+/**
+ * Alta / edición de una solicitud de dinero. Alta: cliente → caso → una o
+ * varias NT del caso (una solicitud por NT, cada una con su monto). Solo notas
+ * de Migración activas.
+ */
 export default function DineroModal({ open, item, opciones, modo = 'jefe', onClose, onSaved }: Props) {
   const jefe = modo === 'jefe';
   const lectura = modo === 'lectura';
   const [form] = Form.useForm<FormValues>();
   const [saving, setSaving] = useState(false);
-  const [nota, setNota] = useState<NtItem | null>(null);
-  const [notaError, setNotaError] = useState<string | null>(null);
-  const [buscandoNt, setBuscandoNt] = useState(false);
-  // Búsqueda inversa: escribir el cliente (o el caso) y elegir la NT.
-  const [clienteQ, setClienteQ] = useState('');
-  const [sugerencias, setSugerencias] = useState<NtItem[]>([]);
-  const [buscandoCliente, setBuscandoCliente] = useState(false);
-  const busquedaSeq = useRef(0);
   const editando = !!item;
 
-  useEffect(() => {
-    const q = clienteQ.trim();
-    const seq = ++busquedaSeq.current;
-    if (q.length < 2 || /^\d+$/.test(q)) {
-      setSugerencias([]);
-      setBuscandoCliente(false);
-      return;
-    }
-    setBuscandoCliente(true);
-    const t = setTimeout(async () => {
-      try {
-        const { data } = await getNts({ q, estado: 'activa', solo_migracion: true, page_size: 30 });
-        if (seq === busquedaSeq.current) setSugerencias(data.items);
-      } catch {
-        if (seq === busquedaSeq.current) setSugerencias([]);
-      } finally {
-        if (seq === busquedaSeq.current) setBuscandoCliente(false);
-      }
-    }, 300);
-    return () => clearTimeout(t);
-  }, [clienteQ]);
+  // ── alta: cliente → caso → NT ──
+  const [clienteQ, setClienteQ] = useState('');
+  const [clientes, setClientes] = useState<CatalogoCliente[]>([]);
+  const [buscandoClientes, setBuscandoClientes] = useState(false);
+  const [cliente, setCliente] = useState<CatalogoCliente | null>(null);
+  const [casos, setCasos] = useState<CatalogoCaso[]>([]);
+  const [cargandoCasos, setCargandoCasos] = useState(false);
+  const [casoSel, setCasoSel] = useState<string | null>(null);
+  const [ntsSel, setNtsSel] = useState<number[]>([]);
+  const [montos, setMontos] = useState<Record<number, number | null>>({});
+  const busquedaSeq = useRef(0);
+  /** Al buscar por número de NT, la NT a dejar marcada al cargar los casos. */
+  const ntBuscada = useRef<number | null>(null);
 
-  const elegirNt = (n: NtItem) => {
-    form.setFieldsValue({ nt: n.nt });
-    setNota(n);
-    setNotaError(null);
-    setClienteQ('');
-    setSugerencias([]);
-  };
+  // ── edición: NT única ──
+  const [nota, setNota] = useState<CatalogoNt | null>(null);
+  const [notaError, setNotaError] = useState<string | null>(null);
+  const [buscandoNt, setBuscandoNt] = useState(false);
+
+  const caso = useMemo(() => casos.find((c) => casoKey(c) === casoSel) ?? null, [casos, casoSel]);
+  const varias = ntsSel.length > 1;
 
   useEffect(() => {
     if (!open) return;
     setNota(null);
     setNotaError(null);
     setClienteQ('');
-    setSugerencias([]);
+    setClientes([]);
+    setCliente(null);
+    setCasos([]);
+    setCasoSel(null);
+    setNtsSel([]);
+    setMontos({});
+    ntBuscada.current = null;
     form.resetFields();
     form.setFieldsValue(
       item
@@ -134,17 +140,82 @@ export default function DineroModal({ open, item, opciones, modo = 'jefe', onClo
     );
   }, [open, item, form]);
 
+  // Buscar clientes (por nombre, código o número de NT)
+  useEffect(() => {
+    const t = clienteQ.trim();
+    const seq = ++busquedaSeq.current;
+    if (t.length < 2) {
+      setClientes([]);
+      setBuscandoClientes(false);
+      return;
+    }
+    setBuscandoClientes(true);
+    const timer = setTimeout(async () => {
+      try {
+        const { data } = await getCatalogoClientes(t);
+        if (seq !== busquedaSeq.current) return;
+        setClientes(data);
+        // Escribió una NT: se elige sola su cliente, caso y NT
+        if (/^\d+$/.test(t) && data.length === 1) {
+          ntBuscada.current = Number(t);
+          elegirCliente(data[0]);
+        }
+      } catch {
+        if (seq === busquedaSeq.current) setClientes([]);
+      } finally {
+        if (seq === busquedaSeq.current) setBuscandoClientes(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clienteQ]);
+
+  const elegirCliente = async (c: CatalogoCliente | null) => {
+    setCliente(c);
+    setCasos([]);
+    setCasoSel(null);
+    setNtsSel([]);
+    if (!c) return;
+    setCargandoCasos(true);
+    try {
+      const { data } = await getCatalogoCasos(c.cliente_codigo);
+      setCasos(data);
+      const nt = ntBuscada.current;
+      ntBuscada.current = null;
+      const conNt = nt ? data.find((x) => x.nts.some((n) => n.nt === nt)) : null;
+      if (conNt) elegirCaso(casoKey(conNt), data, [nt!]);
+      else if (data.length === 1) elegirCaso(casoKey(data[0]), data);
+    } catch (e: any) {
+      message.error(e?.response?.data?.message || 'No se pudieron cargar los casos');
+    } finally {
+      setCargandoCasos(false);
+    }
+  };
+
+  const elegirCaso = (key: string | null, lista = casos, marcar?: number[]) => {
+    setCasoSel(key);
+    const c = lista.find((x) => casoKey(x) === key);
+    setNtsSel(marcar ?? (c && c.nts.length === 1 ? [c.nts[0].nt] : []));
+  };
+
+  // Al pasar a varias NT, cada una arranca con el monto general
+  useEffect(() => {
+    if (!varias) return;
+    const general = form.getFieldValue('monto') ?? null;
+    setMontos((prev) => Object.fromEntries(ntsSel.map((nt) => [nt, prev[nt] ?? general])));
+  }, [ntsSel, varias, form]);
+
+  // Edición: validar la NT si la cambian
   const buscarNt = async (nt?: number | null) => {
     setNota(null);
     setNotaError(null);
-    if (!nt) return;
-    if (editando && nt === item?.nt) return; // la que ya tenía, aunque hoy esté cerrada
+    if (!nt || nt === item?.nt) return; // la que ya tenía, aunque hoy esté cerrada
     setBuscandoNt(true);
     try {
-      const { data } = await getNt(nt);
+      const { data } = await getCatalogoNt(nt);
       setNota(data);
       if (!data.activa) setNotaError(`La NT ${nt} ya está cerrada en Sirvo.`);
-      else if (!data.es_nota_migracion)
+      else if (!data.es_migracion)
         setNotaError(`La NT ${nt} no es nota de Migración (es de otro equipo o no tiene saldo ni gastos presupuestados).`);
     } catch (e: any) {
       setNotaError(e?.response?.data?.message || `La NT ${nt} no está en el reporte de Sirvo.`);
@@ -154,19 +225,25 @@ export default function DineroModal({ open, item, opciones, modo = 'jefe', onClo
   };
 
   const guardar = async () => {
+    if (!editando && !ntsSel.length) {
+      message.error('Elige el cliente, el caso y al menos una NT');
+      return;
+    }
+    if (varias && ntsSel.some((nt) => !montos[nt])) {
+      message.error('Indica el monto de cada NT');
+      return;
+    }
     const v = await form.validateFields();
     if (notaError) {
       message.error(notaError);
       return;
     }
-    const body: DineroInput = {
-      nt: v.nt,
+    const comun: DineroInput = {
       concepto: v.concepto?.trim(),
       fecha_solicitud: s(v.fecha_solicitud) ?? undefined,
       fecha_uso: s(v.fecha_uso),
       solicitado_por_id: v.solicitado_por_id ?? null,
       cantidad: v.cantidad ?? null,
-      monto: v.monto,
       beneficiario: v.beneficiario?.trim() || null,
       fecha_entrega: s(v.fecha_entrega),
       estatus_liquidacion: v.estatus_liquidacion?.trim() || null,
@@ -175,9 +252,22 @@ export default function DineroModal({ open, item, opciones, modo = 'jefe', onClo
     };
     setSaving(true);
     try {
-      const { data } = editando ? await updateDinero(item!.id, body) : await createDinero(body);
-      message.success(editando ? 'Solicitud actualizada' : 'Solicitud registrada');
-      onSaved(data);
+      if (editando) {
+        const { data } = await updateDinero(item!.id, { ...comun, nt: v.nt, monto: v.monto });
+        message.success('Solicitud actualizada');
+        onSaved(data);
+      } else if (varias) {
+        const { data } = await createDineroVarias({
+          ...comun,
+          lineas: ntsSel.map((nt) => ({ nt, monto: montos[nt]! })),
+        });
+        message.success(`${data.length} solicitudes registradas (una por NT)`);
+        onSaved(data[0]);
+      } else {
+        const { data } = await createDinero({ ...comun, nt: ntsSel[0], monto: v.monto });
+        message.success('Solicitud registrada');
+        onSaved(data);
+      }
     } catch (e: any) {
       message.error(e?.response?.data?.message || 'No se pudo guardar');
     } finally {
@@ -185,8 +275,143 @@ export default function DineroModal({ open, item, opciones, modo = 'jefe', onClo
     }
   };
 
-  const ntInfo = nota ?? (item ? { cliente_codigo: item.cliente_codigo, cliente_nombre: item.cliente_nombre, caso: item.caso_nombre } : null);
   const ligado = item?.request_id != null;
+  const editInfo = nota ?? (item ? { cliente_codigo: item.cliente_codigo, cliente_nombre: item.cliente_nombre, caso: item.caso_nombre } : null);
+
+  /* ─────────── alta: cliente → caso → NT ─────────── */
+  const seleccionAlta = (
+    <>
+      <Row gutter={12}>
+        <Col xs={24} sm={12}>
+          <Form.Item label="Cliente" required>
+            <Select
+              showSearch
+              allowClear
+              value={cliente?.cliente_codigo}
+              placeholder="Nombre o código del cliente (o una NT)"
+              filterOption={false}
+              onSearch={setClienteQ}
+              onChange={(code) => elegirCliente(clientes.find((c) => c.cliente_codigo === code) ?? null)}
+              onClear={() => setClienteQ('')}
+              notFoundContent={
+                buscandoClientes ? (
+                  <Spin size="small" />
+                ) : clienteQ.trim().length >= 2 ? (
+                  'Sin notas de Migración activas para ese cliente'
+                ) : (
+                  'Escribe al menos 2 letras'
+                )
+              }
+              options={(cliente && !clientes.some((c) => c.cliente_codigo === cliente.cliente_codigo)
+                ? [cliente, ...clientes]
+                : clientes
+              ).map((c) => ({
+                value: c.cliente_codigo,
+                label: (
+                  <span>
+                    {c.cliente_nombre || c.cliente_codigo}{' '}
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {c.cliente_codigo} · {c.casos} caso{c.casos === 1 ? '' : 's'}
+                    </Text>
+                  </span>
+                ),
+              }))}
+            />
+          </Form.Item>
+        </Col>
+        <Col xs={24} sm={12}>
+          <Form.Item label="Caso" required>
+            <Select
+              showSearch
+              value={casoSel ?? undefined}
+              disabled={!cliente}
+              loading={cargandoCasos}
+              placeholder={cliente ? 'Elige el caso' : 'Primero elige el cliente'}
+              optionFilterProp="label"
+              onChange={(k) => elegirCaso(k)}
+              options={casos.map((c) => ({ value: casoKey(c), label: casoLabel(c) }))}
+            />
+          </Form.Item>
+        </Col>
+      </Row>
+
+      {caso && (
+        <Form.Item
+          label="Notas de trabajo (NT)"
+          required
+          extra={
+            caso.nts.length > 1
+              ? 'Si marcas varias, se registra una solicitud por cada NT, cada una con su monto.'
+              : undefined
+          }
+        >
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            {caso.nts.length > 1 && (
+              <Checkbox
+                checked={ntsSel.length === caso.nts.length}
+                indeterminate={ntsSel.length > 0 && ntsSel.length < caso.nts.length}
+                onChange={(e) => setNtsSel(e.target.checked ? caso.nts.map((n) => n.nt) : [])}
+              >
+                <Text type="secondary">Todas ({caso.nts.length})</Text>
+              </Checkbox>
+            )}
+            <Checkbox.Group
+              value={ntsSel}
+              onChange={(v) => setNtsSel(v as number[])}
+              style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px' }}
+              options={caso.nts.map((n) => ({
+                value: n.nt,
+                label: (
+                  <span>
+                    <Text strong>{n.nt}</Text>{' '}
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {n.gastos_presup > 0 ? `presup. ${q(n.gastos_presup)}` : ''}
+                      {n.encargado ? ` · ${n.encargado}` : ''}
+                    </Text>
+                  </span>
+                ),
+              }))}
+            />
+          </Space>
+        </Form.Item>
+      )}
+    </>
+  );
+
+  /* ─────────── edición: NT única ─────────── */
+  const seleccionEdicion = (
+    <>
+      <Row gutter={12}>
+        <Col xs={24} sm={16}>
+          <Form.Item label="Cliente y caso">
+            {buscandoNt ? (
+              <Spin size="small" />
+            ) : editInfo && !notaError ? (
+              <div style={{ lineHeight: 1.35 }}>
+                <Text code>{editInfo.cliente_codigo}</Text> <Text>{editInfo.cliente_nombre}</Text>
+                <br />
+                <Text type="secondary">{editInfo.caso || 'Caso sin nombre'}</Text>
+              </div>
+            ) : (
+              <Text type="secondary">—</Text>
+            )}
+          </Form.Item>
+        </Col>
+        <Col xs={24} sm={8}>
+          <Form.Item name="nt" label="NT (nota de trabajo)" rules={[{ required: true, message: 'Indica la NT' }]}>
+            <InputNumber
+              style={{ width: '100%' }}
+              controls={false}
+              min={1}
+              onBlur={(e) => buscarNt(Number(e.target.value) || null)}
+              onPressEnter={(e) => buscarNt(Number((e.target as HTMLInputElement).value) || null)}
+            />
+          </Form.Item>
+        </Col>
+      </Row>
+      {notaError && <Alert type="error" showIcon style={{ marginTop: -8, marginBottom: 12 }} message={notaError} />}
+    </>
+  );
 
   return (
     <Modal
@@ -195,74 +420,14 @@ export default function DineroModal({ open, item, opciones, modo = 'jefe', onClo
       open={open}
       onCancel={() => !saving && onClose()}
       onOk={guardar}
-      okText={editando ? 'Guardar cambios' : 'Registrar'}
+      okText={editando ? 'Guardar cambios' : varias ? `Registrar ${ntsSel.length} solicitudes` : 'Registrar'}
       confirmLoading={saving}
-      okButtonProps={{ disabled: !!notaError || buscandoNt }}
-      width={760}
+      okButtonProps={{ disabled: !!notaError || buscandoNt || (!editando && !ntsSel.length) }}
+      width={780}
       destroyOnClose
     >
       <Form form={form} layout="vertical" requiredMark="optional" disabled={lectura}>
-        <Row gutter={12}>
-          <Col xs={24} sm={16}>
-            <Form.Item label="Cliente y caso" style={{ marginBottom: 4 }}>
-              <AutoComplete
-                value={clienteQ}
-                onChange={(v) => setClienteQ(v ?? '')}
-                onSelect={(v) => {
-                  const n = sugerencias.find((x) => String(x.nt) === String(v));
-                  if (n) elegirNt(n);
-                }}
-                allowClear
-                placeholder="Escribe el nombre del cliente o del caso"
-                filterOption={false}
-                popupMatchSelectWidth={false}
-                notFoundContent={
-                  buscandoCliente ? (
-                    <Spin size="small" />
-                  ) : clienteQ.trim().length >= 2 ? (
-                    'Sin notas de Migración activas con ese cliente o caso'
-                  ) : null
-                }
-                options={sugerencias.map((n) => ({
-                  value: String(n.nt),
-                  label: (
-                    <div style={{ lineHeight: 1.3, padding: '2px 0', maxWidth: 520, whiteSpace: 'normal' }}>
-                      <Text strong>NT {n.nt}</Text> · <Text code>{n.cliente_codigo}</Text> {n.cliente_nombre}
-                      <br />
-                      <Text type="secondary">{n.caso || 'Caso sin nombre'}</Text>
-                    </div>
-                  ),
-                }))}
-              />
-            </Form.Item>
-            <div style={{ marginBottom: 16, minHeight: 22 }}>
-              {buscandoNt ? (
-                <Spin size="small" />
-              ) : ntInfo && !notaError ? (
-                <div style={{ lineHeight: 1.35 }}>
-                  <Text code>{ntInfo.cliente_codigo}</Text> <Text>{ntInfo.cliente_nombre}</Text>
-                  <br />
-                  <Text type="secondary">{ntInfo.caso || 'Caso sin nombre'}</Text>
-                </div>
-              ) : (
-                <Text type="secondary">Busca por cliente o escribe la NT</Text>
-              )}
-            </div>
-          </Col>
-          <Col xs={24} sm={8}>
-            <Form.Item name="nt" label="NT (nota de trabajo)" rules={[{ required: true, message: 'Indica la NT' }]}>
-              <InputNumber
-                style={{ width: '100%' }}
-                controls={false}
-                min={1}
-                placeholder="Ej. 182190"
-                onBlur={(e) => buscarNt(Number(e.target.value) || null)}
-                onPressEnter={(e) => buscarNt(Number((e.target as HTMLInputElement).value) || null)}
-              />
-            </Form.Item>
-          </Col>
-        </Row>
-        {notaError && <Alert type="error" showIcon style={{ marginTop: -8, marginBottom: 12 }} message={notaError} />}
+        {editando ? seleccionEdicion : seleccionAlta}
 
         <Form.Item name="concepto" label="Concepto" rules={[{ required: true, min: 2, message: 'Describe el gasto' }]}>
           <Input.TextArea autoSize={{ minRows: 1, maxRows: 4 }} placeholder="Ej. VISA MÚLTIPLE SILVIA SEGOVIA" />
@@ -274,8 +439,8 @@ export default function DineroModal({ open, item, opciones, modo = 'jefe', onClo
               <InputNumber style={{ width: '100%' }} min={1} max={9999} precision={0} />
             </Form.Item>
           </Col>
-          <Col xs={12} sm={6}>
-            <Form.Item name="monto" label="Monto (Q)" rules={[{ required: true, message: 'Indica el monto' }]}>
+          <Col xs={12} sm={6} style={varias ? { display: 'none' } : undefined}>
+            <Form.Item name="monto" label="Monto (Q)" rules={[{ required: !varias, message: 'Indica el monto' }]}>
               <InputNumber style={{ width: '100%' }} min={0.01} precision={2} prefix="Q" />
             </Form.Item>
           </Col>
@@ -290,6 +455,30 @@ export default function DineroModal({ open, item, opciones, modo = 'jefe', onClo
             </Form.Item>
           </Col>
         </Row>
+
+        {varias && (
+          <Form.Item label="Monto por NT (Q)" required>
+            <Row gutter={[12, 8]}>
+              {ntsSel.map((nt) => (
+                <Col xs={12} sm={6} key={nt}>
+                  <InputNumber
+                    style={{ width: '100%' }}
+                    min={0.01}
+                    precision={2}
+                    prefix="Q"
+                    addonBefore={nt}
+                    value={montos[nt] ?? null}
+                    status={montos[nt] ? undefined : 'error'}
+                    onChange={(v) => setMontos((p) => ({ ...p, [nt]: v ?? null }))}
+                  />
+                </Col>
+              ))}
+            </Row>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Total: {q(ntsSel.reduce((sum, nt) => sum + (montos[nt] ?? 0), 0))}
+            </Text>
+          </Form.Item>
+        )}
 
         <Row gutter={12}>
           <Col xs={24} sm={12} style={jefe ? undefined : { display: 'none' }}>
@@ -343,7 +532,8 @@ export default function DineroModal({ open, item, opciones, modo = 'jefe', onClo
             <Descriptions.Item label="Fecha cheque">{item!.sirvo_fecha_cheque ?? '—'}</Descriptions.Item>
           </Descriptions>
         ) : (
-          editando && jefe && (
+          editando &&
+          jefe && (
             <Form.Item
               name="numero_cheque"
               label="No. de cheque (solo si Sirvo no lo liga)"

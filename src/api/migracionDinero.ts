@@ -181,3 +181,48 @@ export const importarDineroExcel = (file: File, anio: number, force = false) => 
     { params: { anio, ...(force ? { force: 'true' } : {}) }, headers: { 'Content-Type': 'multipart/form-data' }, timeout: 180_000 },
   );
 };
+
+// ─────────── catálogo para capturar: cliente → caso → NT (notas de Migración activas) ───────────
+
+export interface CatalogoCliente {
+  cliente_codigo: string;
+  cliente_nombre: string | null;
+  casos: number;
+  nts: number;
+}
+
+export interface CatalogoNtDeCaso {
+  nt: number;
+  gastos_presup: number;
+  gastos_usado: number;
+  encargado: string | null;
+}
+
+export interface CatalogoCaso {
+  caso_numero: string | null;
+  caso: string | null;
+  nts: CatalogoNtDeCaso[];
+}
+
+export interface CatalogoNt {
+  nt: number;
+  activa: boolean;
+  es_migracion: boolean;
+  cliente_codigo: string;
+  cliente_nombre: string | null;
+  caso_numero: string | null;
+  caso: string | null;
+}
+
+/** Por nombre o código del cliente; si q es un número, el cliente de esa NT. */
+export const getCatalogoClientes = (q: string) =>
+  axios.get<CatalogoCliente[]>('/api/migracion/dinero/catalogo/clientes', { params: { q } });
+
+export const getCatalogoCasos = (cliente: string) =>
+  axios.get<CatalogoCaso[]>('/api/migracion/dinero/catalogo/casos', { params: { cliente } });
+
+export const getCatalogoNt = (nt: number) => axios.get<CatalogoNt>(`/api/migracion/dinero/catalogo/nt/${nt}`);
+
+/** Una solicitud por NT con el mismo concepto y datos; monto por NT. */
+export const createDineroVarias = (body: Omit<DineroInput, 'nt' | 'monto'> & { lineas: Array<{ nt: number; monto: number }> }) =>
+  axios.post<DineroItem[]>('/api/migracion/dinero/varias', body);
