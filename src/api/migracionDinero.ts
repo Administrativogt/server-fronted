@@ -7,6 +7,7 @@ import axios from './axios';
 
 export type DineroEstatus =
   | 'solicitado'
+  | 'en_sirvo'
   | 'por_autorizar'
   | 'autorizado'
   | 'cheque_emitido'
@@ -15,7 +16,8 @@ export type DineroEstatus =
   | 'anulado';
 
 export const DINERO_ESTATUS: Array<{ value: DineroEstatus; label: string; color: string; hint: string }> = [
-  { value: 'solicitado', label: 'Solicitado', color: 'blue', hint: 'Aún no aparece en Sirvo' },
+  { value: 'solicitado', label: 'Solicitado', color: 'blue', hint: 'Falta que cobros la pida en Sirvo' },
+  { value: 'en_sirvo', label: 'Enviado a Sirvo', color: 'purple', hint: 'Cobros ya puso el ID; el estatus llega del módulo de cheques en unos minutos' },
   { value: 'por_autorizar', label: 'Por autorizar', color: 'cyan', hint: 'En Sirvo, falta autorización' },
   { value: 'autorizado', label: 'Autorizado', color: 'geekblue', hint: 'Autorizado, aún sin cheque' },
   { value: 'cheque_emitido', label: 'Cheque emitido', color: 'orange', hint: 'Cheque emitido, falta liquidar' },
@@ -134,10 +136,28 @@ export const getDineroOpciones = () => axios.get<DineroOpciones>('/api/migracion
 export interface DineroAccess {
   canView: boolean;
   verTodo: boolean;
+  /** Jefes: editan y ligan cualquier solicitud. */
   canEdit: boolean;
+  /** Registra solicitudes (las suyas si no es jefe). */
+  canCreate: boolean;
+  /** Lleva la bandeja "Solicitudes a Sirvo" (cobros). */
+  bandeja: boolean;
 }
 
 export const getDineroAccess = () => axios.get<DineroAccess>('/api/migracion/dinero/access');
+
+/** pendientes = falta pedirla en Sirvo; enviadas = ya tiene ID (60 días). */
+export type BandejaVista = 'pendientes' | 'enviadas';
+
+export const getBandeja = (vista: BandejaVista) =>
+  axios.get<DineroItem[]>('/api/migracion/dinero/bandeja', { params: { vista } });
+
+export const getBandejaCount = () =>
+  axios.get<{ pendientes: number }>('/api/migracion/dinero/bandeja/count');
+
+/** Cobros pone (o quita con null) el ID de la solicitud de Sirvo. */
+export const asignarSirvoId = (id: number, request_id: number | null) =>
+  axios.put<DineroItem>(`/api/migracion/dinero/${id}/sirvo-id`, { request_id });
 
 export const createDinero = (body: DineroInput) => axios.post<DineroItem>('/api/migracion/dinero', body);
 

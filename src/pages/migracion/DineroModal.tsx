@@ -49,6 +49,11 @@ interface Props {
   /** null = nueva solicitud */
   item: DineroItem | null;
   opciones: DineroOpciones | null;
+  /**
+   * jefe = todos los campos; propia = la suya, sin datos de cobros (se registra
+   * a su nombre); lectura = solo ver.
+   */
+  modo?: 'jefe' | 'propia' | 'lectura';
   onClose: () => void;
   onSaved: (item: DineroItem) => void;
 }
@@ -57,7 +62,9 @@ const d = (v?: string | null) => (v ? dayjs(v) : null);
 const s = (v?: Dayjs | null) => (v ? v.format('YYYY-MM-DD') : null);
 
 /** Alta / edición de una solicitud de dinero. La NT debe ser nota de Migración activa. */
-export default function DineroModal({ open, item, opciones, onClose, onSaved }: Props) {
+export default function DineroModal({ open, item, opciones, modo = 'jefe', onClose, onSaved }: Props) {
+  const jefe = modo === 'jefe';
+  const lectura = modo === 'lectura';
   const [form] = Form.useForm<FormValues>();
   const [saving, setSaving] = useState(false);
   const [nota, setNota] = useState<NtItem | null>(null);
@@ -184,6 +191,7 @@ export default function DineroModal({ open, item, opciones, onClose, onSaved }: 
   return (
     <Modal
       title={editando ? `Solicitud #${item!.id}` : 'Nueva solicitud de dinero'}
+      footer={lectura ? null : undefined}
       open={open}
       onCancel={() => !saving && onClose()}
       onOk={guardar}
@@ -193,7 +201,7 @@ export default function DineroModal({ open, item, opciones, onClose, onSaved }: 
       width={760}
       destroyOnClose
     >
-      <Form form={form} layout="vertical" requiredMark="optional">
+      <Form form={form} layout="vertical" requiredMark="optional" disabled={lectura}>
         <Row gutter={12}>
           <Col xs={24} sm={16}>
             <Form.Item label="Cliente y caso" style={{ marginBottom: 4 }}>
@@ -284,7 +292,7 @@ export default function DineroModal({ open, item, opciones, onClose, onSaved }: 
         </Row>
 
         <Row gutter={12}>
-          <Col xs={24} sm={12}>
+          <Col xs={24} sm={12} style={jefe ? undefined : { display: 'none' }}>
             <Form.Item name="solicitado_por_id" label="Solicitado por">
               <Select
                 allowClear
@@ -307,7 +315,7 @@ export default function DineroModal({ open, item, opciones, onClose, onSaved }: 
           </Col>
         </Row>
 
-        <Row gutter={12}>
+        <Row gutter={12} style={jefe || lectura ? undefined : { display: 'none' }}>
           <Col xs={24} sm={8}>
             <Form.Item name="fecha_entrega" label="Entregado al procurador">
               <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
@@ -335,7 +343,7 @@ export default function DineroModal({ open, item, opciones, onClose, onSaved }: 
             <Descriptions.Item label="Fecha cheque">{item!.sirvo_fecha_cheque ?? '—'}</Descriptions.Item>
           </Descriptions>
         ) : (
-          editando && (
+          editando && jefe && (
             <Form.Item
               name="numero_cheque"
               label="No. de cheque (solo si Sirvo no lo liga)"

@@ -27,7 +27,13 @@ import { PRIMARY } from './dashboard/theme';
 import { canManageInduction } from '../utils/induction';
 import { canAccessHorasSocios } from '../routes/HorasSociosRoute';
 import { canAccessVacationHr } from '../routes/VacationHrRoute';
-import { canSeeMigracionDinero, canSeeMigracionGastos } from '../utils/migracion';
+import {
+  BANDEJA_EVENT,
+  canSeeMigracionBandeja,
+  canSeeMigracionDinero,
+  canSeeMigracionGastos,
+} from '../utils/migracion';
+import { getBandejaCount } from '../api/migracionDinero';
 import { canAccessSupervision } from '../routes/SupervisionRoute';
 import ErrorBoundary from '../components/ErrorBoundary';
 import ContentSkeleton from '../components/ContentSkeleton';
@@ -89,6 +95,24 @@ const DashboardLayout: React.FC = () => {
   const { canAccessUserAdmin } = useUserAdminPermissions(); // ✅ Permisos de administración
   const hasModule = (moduleKey: ModuleKey) =>
     modules.some((module) => module.key === moduleKey);
+
+  // Contador de la bandeja "Solicitudes a Sirvo" (cobros de Migración)
+  const verBandeja = canSeeMigracionBandeja(isSuperuser === true, username);
+  const [bandejaPendientes, setBandejaPendientes] = useState(0);
+  useEffect(() => {
+    if (!verBandeja) return;
+    const refresh = () =>
+      getBandejaCount()
+        .then(({ data }) => setBandejaPendientes(data.pendientes))
+        .catch(() => undefined);
+    refresh();
+    const t = window.setInterval(refresh, 60_000);
+    window.addEventListener(BANDEJA_EVENT, refresh);
+    return () => {
+      window.clearInterval(t);
+      window.removeEventListener(BANDEJA_EVENT, refresh);
+    };
+  }, [verBandeja]);
 
   // ⭐ Favoritos: persistidos en localStorage por usuario
   const favKey = `menu_favorites_${username ?? 'anon'}`;
@@ -209,6 +233,8 @@ const DashboardLayout: React.FC = () => {
     canManageCoordinators: isSuperuser === true,
     canSeeMigracionGastos: canSeeMigracionGastos(isSuperuser, tipoUsuario, equipoId),
     canSeeMigracionDinero: canSeeMigracionDinero(isSuperuser, equipoId),
+    canSeeMigracionBandeja: verBandeja,
+    badges: { '/dashboard/migracion/sirvo': bandejaPendientes },
     canAccessSupervision: canAccessSupervision(isSuperuser, username),
   };
 
@@ -312,6 +338,7 @@ const DashboardLayout: React.FC = () => {
   const isSearching = term.length > 0;
 
   const labelText = (item: any): string => {
+    if (typeof item.searchText === 'string') return item.searchText.toLowerCase();
     if (typeof item.label === 'string') return item.label.toLowerCase();
     return '';
   };

@@ -63,6 +63,9 @@ export default function ControlDinero() {
   const [forbidden, setForbidden] = useState(false);
   const [soloMias, setSoloMias] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
+  const [canCreate, setCanCreate] = useState(false);
+  /** Jefes: todo. El resto: las suyas mientras cobros no las pida en Sirvo. */
+  const puedeCambiar = (r: DineroItem) => canEdit || (canCreate && r.request_id == null);
   const [opciones, setOpciones] = useState<DineroOpciones | null>(null);
   const [data, setData] = useState<DineroList | null>(null);
   const [loading, setLoading] = useState(false);
@@ -98,6 +101,7 @@ export default function ControlDinero() {
       .then(({ data }) => {
         if (!data.canView) setForbidden(true);
         setCanEdit(data.canEdit);
+        setCanCreate(data.canCreate);
         setSoloMias(!data.verTodo);
       })
       .catch(() => setForbidden(true));
@@ -412,9 +416,9 @@ export default function ControlDinero() {
           trigger={['click']}
           menu={{
             items: [
-              { key: 'edit', icon: <EditOutlined />, label: canEdit ? 'Editar' : 'Ver detalle' },
+              { key: 'edit', icon: <EditOutlined />, label: puedeCambiar(r) ? 'Editar' : 'Ver detalle' },
               ...(canEdit ? [{ key: 'link', icon: <LinkOutlined />, label: 'Ligar cheque de Sirvo' }] : []),
-              ...(canEdit ? [{ key: 'del', icon: <DeleteOutlined />, label: 'Eliminar', danger: true }] : []),
+              ...(puedeCambiar(r) ? [{ key: 'del', icon: <DeleteOutlined />, label: 'Eliminar', danger: true }] : []),
             ],
             onClick: ({ key }) => {
               if (key === 'edit') setModal({ item: r });
@@ -454,7 +458,7 @@ export default function ControlDinero() {
               type="info"
               showIcon
               style={{ marginTop: 8 }}
-              message="Solo ves tus solicitudes (las que pediste o registraste)."
+              message="Solo ves tus solicitudes (las que pediste o registraste). Las puedes cambiar hasta que cobros las pida en Sirvo."
             />
           )}
         </div>
@@ -486,7 +490,7 @@ export default function ControlDinero() {
               </Tooltip>
             </Upload>
           )}
-          {canEdit && (
+          {canCreate && (
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setModal({ item: null })}>
               Nueva solicitud
             </Button>
@@ -603,6 +607,7 @@ export default function ControlDinero() {
       <DineroModal
         open={!!modal}
         item={modal?.item ?? null}
+        modo={canEdit ? 'jefe' : modal?.item && !puedeCambiar(modal.item) ? 'lectura' : 'propia'}
         opciones={opciones}
         onClose={() => setModal(null)}
         onSaved={() => {

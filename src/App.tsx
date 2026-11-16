@@ -147,6 +147,7 @@ const SupervisionPage = lazy(() => import('./pages/supervision/SupervisionPage')
 const RevisionFormPage = lazy(() => import('./pages/supervision/RevisionFormPage'));
 const NtActivas = lazy(() => import('./pages/migracion/NtActivas'));
 const ControlDinero = lazy(() => import('./pages/migracion/ControlDinero'));
+const SolicitudesSirvo = lazy(() => import('./pages/migracion/SolicitudesSirvo'));
 
 dayjs.locale('es');
 
@@ -392,6 +393,7 @@ function AppInner() {
               {/* Migración: notas de Sirvo y control de dinero */}
               <Route path="/dashboard/migracion/nt" element={<NtActivas />} />
               <Route path="/dashboard/migracion/dinero" element={<ControlDinero />} />
+              <Route path="/dashboard/migracion/sirvo" element={<SolicitudesSirvo />} />
 
               {/* Módulo de Jurisprudencia */}
               <Route path="/dashboard/jurisprudencia" element={<JurisprudenceListPage />} />
