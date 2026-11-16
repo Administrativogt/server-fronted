@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Button,
   Card,
@@ -48,8 +49,11 @@ function ChequesLiquidados() {
   const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState<UserLite[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  // ?request_id= abre la lista ya filtrada (enlace desde la búsqueda global del inicio)
+  const [searchParams] = useSearchParams();
+  const initialRequestId = Number(searchParams.get('request_id')) || undefined;
   const [filters, setFilters] = useState({
-    request_id: undefined as number | undefined,
+    request_id: initialRequestId as number | undefined,
     work_note_number: undefined as number | undefined,
     client: '',
     description: '',

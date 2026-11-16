@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Button,
   Card,
@@ -133,9 +133,12 @@ function AutorizacionCheque() {
   const [authorizersLoading, setAuthorizersLoading] = useState(false);
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [authorizerId, setAuthorizerId] = useState<number | null>(null);
+  // ?request_id= abre la lista ya filtrada (enlace desde la búsqueda global del inicio)
+  const [searchParams] = useSearchParams();
+  const initialRequestId = Number(searchParams.get('request_id')) || undefined;
   const [filters, setFilters] = useState({
     anio: undefined as number | undefined,
-    request_id: undefined as number | undefined,
+    request_id: initialRequestId as number | undefined,
     client: '',
     responsible_id: canViewAll ? (undefined as number | undefined) : (userId ?? undefined),
     page: 1,

@@ -15,6 +15,8 @@ export interface Tokens {
   border: string; borderCss: string;
   divider: string; subtle: string;
   shadow: string;
+  /** Índigo para TEXTO (enlaces): el #3C50E0 no llega a 4.5:1 sobre la superficie oscura. */
+  accentText: string;
 }
 
 export function makeTokens(isDark: boolean): Tokens {
@@ -25,6 +27,7 @@ export function makeTokens(isDark: boolean): Tokens {
         border:"#2C2F40", borderCss:"1px solid #2C2F40",
         divider:"#262936", subtle:"#232634",
         shadow:"0 1px 4px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.3)",
+        accentText:"#8C9BFF",
       }
     : {
         bg:"#EFF4FB", surface:"#FFFFFF",
@@ -32,6 +35,7 @@ export function makeTokens(isDark: boolean): Tokens {
         border:"#E2E8F0", borderCss:"1px solid #E2E8F0",
         divider:"#F1F5F9", subtle:"#F8FAFC",
         shadow:"0 1px 4px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04)",
+        accentText:PRIMARY,
       };
 }
 
@@ -39,7 +43,7 @@ export const wcard = (tk: Tokens, extra?: React.CSSProperties): React.CSSPropert
   background: tk.surface, borderRadius: RADIUS, border: tk.borderCss, boxShadow: tk.shadow, ...extra,
 });
 
-/* ─── chart theme (Nivo) ─────────────────────────────────────────────────── */
+/* ─── chart theme (Nivo) — lo usa Auditoría ──────────────────────────────── */
 export const makeChartTheme = (tk: Tokens) => ({
   axis:    { ticks: { text: { fill:tk.t2, fontSize:11, fontFamily:"'Plus Jakarta Sans',sans-serif" } } },
   grid:    { line: { stroke:tk.divider } },
@@ -104,4 +108,38 @@ export const makeCSS = (tk: Tokens) => `
 }
 .ta-table .ant-table-tbody > tr:hover > td { background: ${tk.subtle} !important; }
 .ta-table .ant-empty-description { color: ${tk.t3} !important; font-size: 12px; }
+`;
+
+/* ─── CSS del inicio ─────────────────────────────────────────────────────────
+   Una sola entrada para toda la página (no coreografía por sección) y nada
+   en bucle. Con reduced-motion no hay animación. */
+export const makeDashCSS = (tk: Tokens) => `
+@keyframes dashIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+.dash-in { animation: dashIn .22s cubic-bezier(.22,1,.36,1) both; }
+
+.dash-row {
+  display:flex; align-items:center; gap:14px; width:100%;
+  padding:14px 20px; background:transparent; border:0; border-top:1px solid ${tk.divider};
+  text-align:left; cursor:pointer; font:inherit; color:${tk.t1};
+  transition: background .15s;
+}
+.dash-row:hover { background:${tk.subtle}; }
+.dash-row:focus-visible, .dash-link:focus-visible {
+  outline:2px solid ${tk.accentText}; outline-offset:-2px; border-radius:6px;
+}
+.dash-link {
+  background:none; border:0; padding:0; cursor:pointer; font:inherit;
+  font-size:13px; font-weight:600; color:${tk.accentText};
+  display:inline-flex; align-items:center; gap:5px;
+}
+.dash-link:hover { text-decoration:underline; text-underline-offset:3px; }
+.dash-num { font-variant-numeric: tabular-nums; }
+.gs-field { transition: border-color .15s, box-shadow .15s; }
+.gs-field:focus-within { border-color:${tk.accentText} !important; box-shadow:0 0 0 3px ${tk.accentText}26; }
+.gs-clear:focus-visible { outline:2px solid ${tk.accentText}; outline-offset:2px; border-radius:50%; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-in { animation:none; }
+  .dash-row, .gs-field { transition:none; }
+}
 `;

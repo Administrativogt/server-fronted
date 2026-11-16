@@ -17,6 +17,7 @@ import {
   Badge,
   message,
 } from 'antd';
+import { useSearchParams } from 'react-router-dom';
 import { SearchOutlined, ClearOutlined, PrinterOutlined, EditOutlined, DeleteOutlined, FilePdfOutlined } from '@ant-design/icons';
 import { Form, InputNumber } from 'antd';
 import { printMoneyRequirement } from './printReceipt';
@@ -68,7 +69,13 @@ type ListScope = 'mine' | 'to_authorize';
 const MoneyReqList: React.FC = () => {
   const [data, setData] = useState<MoneyRequirement[]>([]);
   // 'mine' = los que yo solicité; 'to_authorize' = los que esperan MI autorización
-  const [scope, setScope] = useState<ListScope>('mine');
+  // ?vista=por-autorizar abre directo la pestaña (enlace desde la bandeja del inicio)
+  const [searchParams] = useSearchParams();
+  const initialScope: ListScope =
+    searchParams.get('vista') === 'por-autorizar' ? 'to_authorize' : 'mine';
+  // ?correlativo= llega desde la búsqueda global del inicio
+  const initialFilters: Filters = { ...defaultFilters, correlative: searchParams.get('correlativo') ?? '' };
+  const [scope, setScope] = useState<ListScope>(initialScope);
   const [toAuthorizeCount, setToAuthorizeCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
@@ -84,7 +91,7 @@ const MoneyReqList: React.FC = () => {
   const [reportApplicants, setReportApplicants] = useState<ReportApplicant[]>([]);
   const [applicantsLoading, setApplicantsLoading] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
-  const [filters, setFilters] = useState<Filters>(defaultFilters);
+  const [filters, setFilters] = useState<Filters>(initialFilters);
   // Edición (solo NO aprobados; mismos campos editables que el Django viejo)
   const [editRow, setEditRow] = useState<MoneyRequirement | null>(null);
   const [editForm] = Form.useForm();
@@ -145,7 +152,7 @@ const MoneyReqList: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchRequirements(defaultFilters, 'mine');
+    fetchRequirements(initialFilters, initialScope);
     refreshToAuthorizeCount();
     // Solo autorizadores (grupo "money requirements authorizers"), no las 295
     // personas. Aquí sin acotar al equipo propio: contabilidad edita y envía

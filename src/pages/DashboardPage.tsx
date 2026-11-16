@@ -1,645 +1,561 @@
-import React, { useEffect, useState, useCallback, Suspense, lazy } from "react";
-const ExchangeRateWidget = lazy(() => import("../components/ExchangeRateWidget"));
-const DashboardCharts = lazy(() => import("./dashboard/DashboardCharts"));
-import { Col, Row, Table, Tag, Skeleton, type TableColumnsType } from "antd";
+import { useEffect, useState, useCallback, lazy, Suspense, type CSSProperties, type ReactNode } from "react";
+import { Button, Col, Dropdown, Row, Skeleton, type MenuProps } from "antd";
 import {
-  MailOutlined, FileTextOutlined, ClockCircleOutlined,
-  CloseCircleOutlined, ArrowRightOutlined, ReloadOutlined,
-  TeamOutlined, CalendarOutlined, ThunderboltOutlined, PlusOutlined,
+  CheckCircleOutlined, ClockCircleOutlined, DownOutlined, PlusOutlined, ReloadOutlined, RightOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import useAuthStore from "../auth/useAuthStore";
 import useThemeStore from "../hooks/useThemeStore";
-import { type NotificationDto, NOTIFICATION_STATES } from "../api/notifications";
-import { type DocumentDto, DOCUMENT_STATES } from "../api/documents";
+import type { ModuleKey } from "../types/module-access.types";
 import {
-  fetchDashboardStats,
-  fetchVacationSummary,
-  fetchUpcomingItems,
-  type VacationSummary,
-  type UpcomingItems,
+  fetchInbox, fetchMine, fetchVacationSummary, fetchUpcomingItems,
+  type AgendaItem, type Inbox, type InboxKey, type Mine, type MyRequestKey, type RoomNow, type VacationBalance,
+  type VacationSummary, type UpcomingItems,
 } from "../api/dashboard";
-import {
-  PRIMARY, SUCCESS, DANGER, WARNING, INFO, RADIUS,
-  type Tokens, makeTokens, wcard, makeCSS,
-} from "./dashboard/theme";
+import GlobalSearch from "./dashboard/GlobalSearch";
+import { DANGER, INFO, SUCCESS, WARNING, type Tokens, makeTokens, wcard, makeDashCSS } from "./dashboard/theme";
 
-/* ─── StatCard ────────────────────────────────────────────────────────────────
-   Tile de acción: superficie limpia, sin barra de acento ni caja de ícono
-   teñida. El color aparece SOLO cuando la métrica requiere acción del usuario
-   (urgente y > 0) → estado, no decoración. */
-interface StatCardProps {
-  label: string; value: number; icon: React.ReactNode;
-  tk: Tokens; urgent?: boolean; onClick?: () => void;
-}
-function StatCard({ label, value, icon, tk, urgent, onClick }: StatCardProps) {
-  const active = !!urgent && value > 0;
-  return (
-    <div className="ta-card" onClick={onClick}
-      role="button" tabIndex={0} aria-label={`${label}: ${value}`}
-      onKeyDown={(e) => {
-        if (onClick && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onClick(); }
-      }}
-      style={{ ...wcard(tk, { padding:"20px 22px", cursor:"pointer" }) }}>
+const ExchangeRateCard = lazy(() => import("./dashboard/ExchangeRateCard"));
 
-      {/* label micro + icono monocromo (ámbar si requiere acción) */}
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, marginBottom:18 }}>
-        <span style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:11, fontWeight:700,
-          textTransform:"uppercase", letterSpacing:".07em", color:tk.t3,
-          overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-          {label}
-        </span>
-        <span style={{ fontSize:16, color: active ? WARNING : tk.t3, display:"inline-flex", flexShrink:0 }}>
-          {icon}
-        </span>
-      </div>
+/* El inicio es una bandeja: lo que espera la acción del usuario en SUS
+   módulos (decidido por el backend con la misma lógica de cada pantalla).
+   Lo demás —equipo, encargos, tipo de cambio— es contexto y va después. */
 
-      <div style={{ display:"flex", alignItems:"baseline", gap:10, flexWrap:"wrap" }}>
-        <span style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:28, fontWeight:700,
-          color: value > 0 ? tk.t1 : tk.t3, letterSpacing:"-.02em", lineHeight:1 }}>
-          {value.toLocaleString()}
-        </span>
-        {active && (
-          <span style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"3px 9px",
-            borderRadius:20, background:WARNING+"1c", color:WARNING,
-            fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:11, fontWeight:700 }}>
-            <span className="pulsedot" style={{ width:6, height:6, borderRadius:"50%", background:WARNING }} />
-            Requiere acción
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
+type Load<T> = { status: "loading" } | { status: "ok"; data: T } | { status: "error" };
 
-/* ─── MetricChip ──────────────────────────────────────────────────────────────
-   Total acumulado (referencia, no accionable): recesado sobre fondo sutil, sin
-   sombra ni ícono. Monocromo salvo un estado negativo real (danger). */
-function MetricChip({ label, value, tk, danger }: {
-  label:string; value:number; tk:Tokens; danger?:boolean;
+const fmtDay = (iso: string) =>
+  new Date(iso.slice(0, 10) + "T12:00:00").toLocaleDateString("es-GT", { day:"numeric", month:"short" });
+
+/* ─── Listas de conteos (Pendientes / Mis solicitudes) ───────────────────── */
+type CountItem<K extends string> = {
+  key: K; label: string; path: string;
+  /** Segunda línea opcional (p. ej. antigüedad); severe = rojo, si no ámbar. */
+  detail?: (d: Partial<Record<K, number | null>>) => { text: string; severe: boolean } | null;
+};
+
+const pl = (n: number, one: string, many: string) => `${n.toLocaleString("es-GT")} ${n === 1 ? one : many}`;
+
+const INBOX_ITEMS: CountItem<InboxKey>[] = [
+  { key:"checksToAuthorize",     label:"Cheques por autorizar",              path:"/dashboard/cheques/autorizacion" },
+  { key:"checksToLiquidate",     label:"Cheques por liquidar",               path:"/dashboard/cheques/liquidacion",
+    detail: (d) => {
+      const o30 = d.checksToLiquidateOver30 ?? 0, o60 = d.checksToLiquidateOver60 ?? 0;
+      if (o30 <= 0) return null;
+      // Si todos los viejos pasan de 60 días, decirlo una sola vez.
+      if (o60 >= o30) return { text: pl(o60, "lleva más de 60 días", "llevan más de 60 días"), severe: true };
+      const text = pl(o30, "lleva más de 30 días", "llevan más de 30 días")
+        + (o60 > 0 ? ` (${o60.toLocaleString("es-GT")} más de 60)` : "");
+      return { text, severe: o60 > 0 };
+    } },
+  { key:"moneyReqToAuthorize",   label:"Requerimientos de dinero por autorizar", path:"/dashboard/money-req?vista=por-autorizar" },
+  { key:"vacationsToApprove",    label:"Vacaciones de tu equipo por aprobar", path:"/dashboard/recursos-humanos/vacaciones" },
+  { key:"roomsToApprove",        label:"Reservas de sala por aprobar",       path:"/dashboard/reservaciones/listar" },
+  { key:"sirvoRequests",         label:"Solicitudes por pedir en Sirvo",     path:"/dashboard/migracion/sirvo" },
+  { key:"appointmentsExpiring",  label:"Nombramientos que vencen en 60 días", path:"/dashboard/appointments" },
+  { key:"notificationsToAccept", label:"Notificaciones por aceptar",         path:"/dashboard/notificaciones/entregadas" },
+  { key:"documentsToAccept",     label:"Documentos por aceptar",             path:"/dashboard/documentos/entregados" },
+  { key:"encargosToday",         label:"Envíos programados para hoy",        path:"/dashboard/mensajeria" },
+];
+
+const MY_REQUEST_ITEMS: CountItem<MyRequestKey>[] = [
+  { key:"checksAwaitingAuth", label:"Mis cheques esperando autorización",  path:"/dashboard/cheques/autorizacion" },
+  { key:"moneyReqPending",    label:"Mis requerimientos de dinero sin autorizar", path:"/dashboard/money-req" },
+  { key:"roomsPending",       label:"Mis reservas de sala sin aprobar",    path:"/dashboard/reservaciones/listar" },
+  { key:"vacationPending",    label:"Mis vacaciones por aprobar",          path:"/dashboard/recursos-humanos/vacaciones" },
+];
+
+/* Pendientes = espera TU acción (punto ámbar). Mis solicitudes = espera a
+   OTROS (sin punto de estado: no hay nada que hagas tú). */
+function CountPanel<K extends string>({ id, title, subtitle, items, data, tone, emptyText, tk, onOpen, onRetry }: {
+  id: string; title: string; subtitle: string;
+  items: CountItem<K>[]; data: Load<Partial<Record<K, number | null>>>;
+  tone: "action" | "waiting"; emptyText: string;
+  tk: Tokens; onOpen: (path: string) => void; onRetry: () => void;
 }) {
-  const alert = !!danger && value > 0;
-  return (
-    <div style={{ flex:"1 1 150px", minWidth:0, padding:"13px 16px",
-      borderRadius:RADIUS, background:tk.subtle, border:tk.borderCss }}>
-      <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:10.5, fontWeight:700,
-        textTransform:"uppercase", letterSpacing:".07em", color:tk.t3, marginBottom:6,
-        whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-        {label}
-      </div>
-      <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:20, fontWeight:700,
-        color: alert ? DANGER : tk.t1, lineHeight:1 }}>
-        {value.toLocaleString()}
-      </div>
+  const header = (
+    <div style={{ padding:"18px 20px 14px" }}>
+      <h2 id={id} style={{ margin:0, fontSize: tone === "action" ? 18 : 16, fontWeight:600, color:tk.t1 }}>{title}</h2>
+      <p style={{ margin:"4px 0 0", fontSize:13, color:tk.t2 }}>{subtitle}</p>
     </div>
   );
-}
 
-/* ─── Initials Avatar ────────────────────────────────────────────────────── */
-const AVATAR_COLORS = [PRIMARY, INFO, SUCCESS, "#8B5CF6", "#EC4899", WARNING];
-function InitialsAvatar({ name, size = 30 }: { name: string; size?: number }) {
-  const parts = name.split(" ").filter(Boolean);
-  const initials = parts.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("");
-  const color = AVATAR_COLORS[(name.charCodeAt(0) ?? 0) % AVATAR_COLORS.length];
-  return (
-    <div style={{ width:size, height:size, borderRadius:"50%", flexShrink:0,
-      background: color + "22", display:"flex", alignItems:"center",
-      justifyContent:"center", fontSize:size * 0.36, fontWeight:700, color,
-      fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-      {initials || "?"}
-    </div>
-  );
-}
+  let body: ReactNode;
+  if (data.status === "loading") {
+    body = (
+      <div style={{ padding:"4px 20px 18px" }}>
+        <Skeleton active title={false} paragraph={{ rows: tone === "action" ? 4 : 2 }} />
+      </div>
+    );
+  } else if (data.status === "error") {
+    body = (
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap",
+        padding:"14px 20px 18px", borderTop:`1px solid ${tk.divider}`, fontSize:14, color:tk.t1 }}>
+        No se pudo cargar. Tus módulos siguen disponibles en el menú.
+        <Button icon={<ReloadOutlined />} onClick={onRetry}>Reintentar</Button>
+      </div>
+    );
+  } else {
+    const d = data.data;
+    const shown   = items.filter((i) => i.key in d);
+    const pending = shown.filter((i) => (d[i.key] ?? 0) > 0);
+    const failed  = shown.filter((i) => d[i.key] === null);
+    const clear   = shown.filter((i) => d[i.key] === 0);
 
-/* ─── VacationWidget ──────────────────────────────────────────────────────── */
-function VacationWidget({ data, onNavigate, tk }: { data: VacationSummary; onNavigate: () => void; tk: Tokens }) {
-  const fmt = (iso: string) =>
-    new Date(iso + "T12:00:00").toLocaleDateString("es-ES", { day:"numeric", month:"short" });
-
-  return (
-    <div style={{ ...wcard(tk, { padding:"20px 22px", height:"100%", display:"flex", flexDirection:"column" }) }}>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <div style={{ width:34, height:34, borderRadius:8, background:SUCCESS+"1c",
-            display:"flex", alignItems:"center", justifyContent:"center",
-            fontSize:15, color:SUCCESS }}>
-            <TeamOutlined />
+    body = (
+      <>
+        {pending.length === 0 && failed.length === 0 && (
+          <div style={{ display:"flex", alignItems:"center", gap:10, padding:"16px 20px",
+            borderTop:`1px solid ${tk.divider}`, fontSize:14, color: tone === "action" ? tk.t1 : tk.t2 }}>
+            {tone === "action" && <CheckCircleOutlined style={{ color:SUCCESS, fontSize:16 }} />}
+            {emptyText}
           </div>
-          <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:14, fontWeight:700, color:tk.t1 }}>
-            Vacaciones del equipo
-          </div>
-        </div>
-        {data.pending > 0 && (
-          <button onClick={onNavigate}
-            style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 10px",
-              borderRadius:20, background: WARNING+"18", border:`1px solid ${WARNING}44`,
-              cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif",
-              fontSize:11, fontWeight:700, color:WARNING }}>
-            {data.pending} pendiente{data.pending > 1 ? "s" : ""}
-          </button>
         )}
-      </div>
 
-      {/* on vacation today */}
-      <div style={{ marginBottom:14 }}>
-        <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase",
-          letterSpacing:".08em", color:tk.t3, marginBottom:8,
-          fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-          Hoy ausentes
-        </div>
-        {data.onVacation.length === 0 ? (
-          <div style={{ fontSize:12, color:tk.t3, fontFamily:"'Plus Jakarta Sans',sans-serif",
-            padding:"8px 0" }}>Sin ausencias hoy</div>
-        ) : (
-          <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
-            {data.onVacation.map((v, i) => (
-              <div key={i} style={{ display:"flex", alignItems:"center", gap:10 }}>
-                <InitialsAvatar name={v.name} size={28} />
-                <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:12, fontWeight:600, color:tk.t1, overflow:"hidden",
-                    textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{v.name}</div>
-                  <div style={{ fontSize:10, color:tk.t2 }}>regresa {fmt(v.fechaFin)}</div>
-                </div>
-              </div>
+        {pending.length > 0 && (
+          <ul style={{ listStyle:"none", margin:0, padding:0 }}>
+            {pending.map((i) => (
+              <li key={i.key}>
+                <button type="button" className="dash-row" onClick={() => onOpen(i.path)}>
+                  {tone === "action" && (
+                    <span aria-hidden style={{ width:8, height:8, borderRadius:"50%", background:WARNING, flexShrink:0 }} />
+                  )}
+                  <span style={{ flex:1, minWidth:0 }}>
+                    <span style={{ display:"block", fontSize:14, fontWeight:500 }}>{i.label}</span>
+                    {(() => {
+                      const det = i.detail?.(d);
+                      return det ? (
+                        <span style={{ display:"flex", alignItems:"center", gap:6, marginTop:3, fontSize:13, color:tk.t2 }}>
+                          <ClockCircleOutlined aria-hidden style={{ color: det.severe ? DANGER : WARNING }} />
+                          {det.text}
+                        </span>
+                      ) : null;
+                    })()}
+                  </span>
+                  <span className="dash-num" style={{ fontSize: tone === "action" ? 18 : 16, fontWeight:700 }}>
+                    {(d[i.key] as number).toLocaleString("es-GT")}
+                  </span>
+                  <RightOutlined aria-hidden style={{ fontSize:11, color:tk.t2 }} />
+                </button>
+              </li>
             ))}
+          </ul>
+        )}
+
+        {failed.length > 0 && (
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap",
+            padding:"12px 20px", borderTop:`1px solid ${tk.divider}`, fontSize:13, color:tk.t2 }}>
+            <span>No se pudo contar: {failed.map((i) => i.label.toLowerCase()).join(", ")}.</span>
+            <button type="button" className="dash-link" onClick={onRetry}>
+              <ReloadOutlined /> Reintentar
+            </button>
           </div>
         )}
-      </div>
 
-      {data.upcoming.length > 0 && (
-        <>
-          <div style={{ height:1, background:tk.border, marginBottom:14 }} />
-          <div>
-            <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase",
-              letterSpacing:".08em", color:tk.t3, marginBottom:8,
-              fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-              Próxima semana
-            </div>
-            <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
-              {data.upcoming.map((v, i) => (
-                <div key={i} style={{ display:"flex", alignItems:"center", gap:10 }}>
-                  <InitialsAvatar name={v.name} size={28} />
-                  <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:12, fontWeight:600, color:tk.t1, overflow:"hidden",
-                      textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{v.name}</div>
-                    <div style={{ fontSize:10, color:tk.t2 }}>
-                      desde {fmt(v.fechaInicio)} · {v.dias} día{v.dias !== 1 ? "s" : ""}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
+        {tone === "action" && clear.length > 0 && (pending.length > 0 || failed.length > 0) && (
+          <p style={{ margin:0, padding:"12px 20px 16px", borderTop:`1px solid ${tk.divider}`, fontSize:13, color:tk.t2 }}>
+            <CheckCircleOutlined style={{ color:SUCCESS, marginRight:6 }} />
+            Al día: {clear.map((i) => i.label.toLowerCase()).join(" · ")}
+          </p>
+        )}
+      </>
+    );
+  }
+
+  return (
+    <section aria-labelledby={id} style={{ ...wcard(tk), overflow:"hidden" }}>
+      {header}
+      {body}
+    </section>
+  );
+}
+
+/* ─── Mi agenda (reservas de sala de hoy y mañana) ────────────────────────── */
+function RoomsNow({ rooms, tk, onCreate }: { rooms: RoomNow[]; tk: Tokens; onCreate: () => void }) {
+  const free = rooms.filter((r) => r.free);
+  const freeUntil = free.filter((r) => r.until).sort((a, b) => (b.until ?? "").localeCompare(a.until ?? ""));
+  const freeAllDay = free.filter((r) => !r.until);
+  const busy = rooms.filter((r) => !r.free);
+  const dot = (
+    <span aria-hidden style={{ display:"inline-block", width:7, height:7, borderRadius:"50%",
+      background:SUCCESS, marginRight:8, verticalAlign:"middle" }} />
+  );
+  return (
+    <div style={{ marginTop:16, paddingTop:14, borderTop:`1px solid ${tk.border}` }}>
+      <h3 style={{ fontSize:12, fontWeight:600, color:tk.t2, margin:"0 0 6px" }}>Salas libres ahora</h3>
+      {free.length === 0 && (
+        <p style={{ margin:0, fontSize:13, color:tk.t2 }}>Todas las salas están ocupadas en este momento.</p>
+      )}
+      {freeAllDay.length > 0 && (
+        <p style={{ margin:"0 0 4px", fontSize:13, color:tk.t1, lineHeight:1.55 }}>
+          {dot}<span style={{ fontWeight:600 }}>Resto del día:</span>{" "}
+          {freeAllDay.map((r) => r.name).join(", ")}
+        </p>
+      )}
+      {freeUntil.length > 0 && (
+        <ul style={{ listStyle:"none", margin:0, padding:0 }}>
+          {freeUntil.map((r) => (
+            <li key={r.id} style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:10,
+              padding:"4px 0", fontSize:13 }}>
+              <span style={{ color:tk.t1, fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                {dot}{r.name}
+              </span>
+              <span className="dash-num" style={{ color:tk.t2, flexShrink:0 }}>hasta {r.until}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {busy.length > 0 && (
+        <p style={{ margin:"8px 0 0", fontSize:13, color:tk.t2 }}>
+          Ocupadas: {busy.map((r) => `${r.name} (hasta ${r.until})`).join(", ")}
+        </p>
+      )}
+      {free.length > 0 && (
+        <button type="button" className="dash-link" style={{ marginTop:10 }} onClick={onCreate}>
+          Reservar una sala <RightOutlined style={{ fontSize:10 }} />
+        </button>
       )}
     </div>
   );
 }
 
-/* ─── UpcomingEncargoWidget ───────────────────────────────────────────────── */
-const PRIORIDAD_COLOR: Record<number, string> = {
-  1: DANGER, 2: WARNING, 3: INFO, 4: "#94A3B8",
-};
-const PRIORIDAD_LABEL: Record<number, string> = {
-  1: "A", 2: "B", 3: "C", 4: "D",
-};
+function AgendaPanel({ data, rooms, tk, onOpen, onCreate, onRetry }: {
+  data: Load<AgendaItem[] | null>; rooms: RoomNow[] | null | undefined;
+  tk: Tokens; onOpen: () => void; onCreate: () => void; onRetry: () => void;
+}) {
+  const todayIso = new Date().toLocaleDateString("en-CA", { timeZone:"America/Guatemala" });
+  const groups = data.status === "ok" && data.data
+    ? [
+        { title:"Hoy",    items: data.data.filter((a) => a.date === todayIso) },
+        { title:"Mañana", items: data.data.filter((a) => a.date !== todayIso) },
+      ].filter((g) => g.items.length > 0)
+    : [];
 
-function UpcomingWidget({ data, onNavigate, tk }: { data: UpcomingItems; onNavigate: () => void; tk: Tokens }) {
-  const fmtDate = (iso: string) =>
-    new Date(iso + "T12:00:00").toLocaleDateString("es-ES", { day:"numeric", month:"short" });
-  const fmtTime = (t: string | null) => (t ? t.slice(0, 5) : null);
-
-  const EncargoRow = ({ e, showDate }: { e: UpcomingItems["today"][0]; showDate?: boolean }) => {
-    const color = PRIORIDAD_COLOR[e.prioridad] ?? tk.t2;
-    return (
-      <div style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"9px 0",
-        borderBottom:`1px solid ${tk.divider}` }}>
-        <div style={{ width:22, height:22, borderRadius:5, flexShrink:0,
-          background: color + "1c", display:"flex", alignItems:"center",
-          justifyContent:"center", fontSize:10, fontWeight:800, color,
-          fontFamily:"'Plus Jakarta Sans',sans-serif", marginTop:1 }}>
-          {PRIORIDAD_LABEL[e.prioridad] ?? "?"}
-        </div>
-        <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontSize:12, fontWeight:600, color:tk.t1, overflow:"hidden",
-            textOverflow:"ellipsis", whiteSpace:"nowrap",
-            fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-            {e.destinatario}
-            <span style={{ color:tk.t2, fontWeight:400 }}> · {e.empresa}</span>
-          </div>
-          <div style={{ fontSize:11, color:tk.t2, fontFamily:"'Plus Jakarta Sans',sans-serif", marginTop:2 }}>
-            {e.municipio}
-            {showDate && <span style={{ color:PRIMARY, marginLeft:6 }}>{fmtDate(e.fecha_realizacion)}</span>}
-            {fmtTime(e.hora_minima) && (
-              <span style={{ marginLeft:6, color:tk.t3 }}>
-                {fmtTime(e.hora_minima)}{e.hora_maxima ? `–${fmtTime(e.hora_maxima)}` : ""}
-              </span>
-            )}
-          </div>
-        </div>
+  return (
+    <section aria-labelledby="agenda-title" style={{ ...wcard(tk, { padding:"18px 20px" }) }}>
+      <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:8, marginBottom:8 }}>
+        <h2 id="agenda-title" style={{ margin:0, fontSize:16, fontWeight:600, color:tk.t1 }}>Mi agenda</h2>
+        <button type="button" className="dash-link" onClick={onOpen}>Mis reservas <RightOutlined style={{ fontSize:10 }} /></button>
       </div>
+
+      {data.status === "loading" && <Skeleton active title={false} paragraph={{ rows:2 }} />}
+
+      {(data.status === "error" || (data.status === "ok" && data.data === null)) && (
+        <div style={{ fontSize:13, color:tk.t2 }}>
+          No se pudo cargar tu agenda.{" "}
+          <button type="button" className="dash-link" onClick={onRetry}>Reintentar</button>
+        </div>
+      )}
+
+      {data.status === "ok" && data.data && data.data.length === 0 && (
+        <p style={{ margin:0, fontSize:13, color:tk.t2 }}>No tienes salas reservadas hoy ni mañana.</p>
+      )}
+
+      {groups.map((g, gi) => (
+        <div key={g.title}>
+          <h3 style={{ fontSize:12, fontWeight:600, color:tk.t2, margin: gi === 0 ? "4px 0 2px" : "14px 0 2px" }}>{g.title}</h3>
+          <ul style={{ listStyle:"none", margin:0, padding:0 }}>
+            {g.items.map((a) => (
+              <li key={a.id} style={{ display:"flex", gap:12, padding:"10px 0", borderTop:`1px solid ${tk.divider}`, fontSize:13 }}>
+                <span className="dash-num" style={{ color:tk.t1, fontWeight:600, flexShrink:0, minWidth:88 }}>
+                  {a.start}–{a.end}
+                </span>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ color:tk.t1, fontWeight:500, display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                    Sala {a.room}
+                    {a.pending && (
+                      <span style={{ fontSize:12, fontWeight:600, color:tk.t1, background:WARNING + "29",
+                        borderRadius:4, padding:"1px 6px" }}>
+                        Por aprobar
+                      </span>
+                    )}
+                  </div>
+                  {a.reason && (
+                    <div style={{ color:tk.t2, marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                      {a.reason}
+                    </div>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+
+      {rooms && rooms.length > 0 && <RoomsNow rooms={rooms} tk={tk} onCreate={onCreate} />}
+    </section>
+  );
+}
+
+/* ─── Equipo hoy (vacaciones) ─────────────────────────────────────────────── */
+function TeamPanel({ data, balance, tk, onOpen, onRetry }: {
+  data: Load<VacationSummary>; balance: VacationBalance | null | undefined;
+  tk: Tokens; onOpen?: () => void; onRetry: () => void;
+}) {
+  // Máx. 2 decimales y sin ceros sobrantes: 15 → "15", 14.5 → "14.5", 1.88 → "1.88"
+  const fmtDays = (n: number) => {
+    const v = Math.round(n * 100) / 100;
+    return `${v.toLocaleString("es-GT", { maximumFractionDigits: 2 })} día${Math.abs(v) === 1 ? "" : "s"}`;
+  };
+  const sub: CSSProperties = { fontSize:12, fontWeight:600, color:tk.t2, margin:"0 0 6px" };
+  const person = (name: string, detail: string, k: number) => (
+    <li key={k} style={{ display:"flex", justifyContent:"space-between", gap:10, padding:"6px 0", fontSize:13 }}>
+      <span style={{ color:tk.t1, fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{name}</span>
+      <span style={{ color:tk.t2, flexShrink:0 }}>{detail}</span>
+    </li>
+  );
+
+  return (
+    <section aria-labelledby="team-title" style={{ ...wcard(tk, { padding:"18px 20px" }) }}>
+      <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:8, marginBottom:12 }}>
+        <h2 id="team-title" style={{ margin:0, fontSize:16, fontWeight:600, color:tk.t1 }}>Equipo</h2>
+        {onOpen && (
+          <button type="button" className="dash-link" onClick={onOpen}>Vacaciones <RightOutlined style={{ fontSize:10 }} /></button>
+        )}
+      </div>
+
+      {balance && (
+        <div style={{ padding:"10px 12px", marginBottom:14, borderRadius:8, background:tk.subtle, border:tk.borderCss }}>
+          <div style={{ fontSize:13, color:tk.t2 }}>Tu saldo de vacaciones</div>
+          <div className="dash-num" style={{ fontSize:16, fontWeight:700, color: balance.days < 0 ? DANGER : tk.t1, marginTop:2 }}>
+            {fmtDays(balance.days)}
+          </div>
+          {balance.pendingDays > 0 && (
+            <div style={{ fontSize:12, color:tk.t2, marginTop:2 }}>
+              Ya descontados {fmtDays(balance.pendingDays)} por aprobar
+            </div>
+          )}
+        </div>
+      )}
+
+      {data.status === "loading" && <Skeleton active title={false} paragraph={{ rows:3 }} />}
+
+      {data.status === "error" && (
+        <div style={{ fontSize:13, color:tk.t2 }}>
+          No se pudo cargar quién está fuera.{" "}
+          <button type="button" className="dash-link" onClick={onRetry}>Reintentar</button>
+        </div>
+      )}
+
+      {data.status === "ok" && (
+        <>
+          <h3 style={sub}>Fuera hoy</h3>
+          {data.data.onVacation.length === 0
+            ? <p style={{ margin:"0 0 4px", fontSize:13, color:tk.t2 }}>Todo el equipo está hoy.</p>
+            : <ul style={{ listStyle:"none", margin:0, padding:0 }}>
+                {data.data.onVacation.map((v, i) => person(v.name, `regresa ${fmtDay(v.fechaFin)}`, i))}
+              </ul>}
+
+          {data.data.upcoming.length > 0 && (
+            <>
+              <h3 style={{ ...sub, marginTop:14 }}>Próximos 7 días</h3>
+              <ul style={{ listStyle:"none", margin:0, padding:0 }}>
+                {data.data.upcoming.map((v, i) =>
+                  person(v.name, `${fmtDay(v.fechaInicio)} · ${v.dias} día${v.dias !== 1 ? "s" : ""}`, i))}
+              </ul>
+            </>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+/* ─── Encargos próximos (solo con módulo de mensajería) ───────────────────── */
+const PRIORIDAD: Record<number, { letter: string; color: string }> = {
+  1: { letter:"A", color:DANGER }, 2: { letter:"B", color:WARNING },
+  3: { letter:"C", color:INFO },   4: { letter:"D", color:"#64748B" },
+};
+
+function EncargosPanel({ data, tk, onOpen, onRetry }: {
+  data: Load<UpcomingItems>; tk: Tokens; onOpen: () => void; onRetry: () => void;
+}) {
+  const time = (t: string | null) => (t ? t.slice(0, 5) : null);
+  const row = (e: UpcomingItems["today"][number], showDate: boolean) => {
+    const p = PRIORIDAD[e.prioridad];
+    const from = time(e.hora_minima); const to = time(e.hora_maxima);
+    return (
+      <li key={e.id} style={{ display:"flex", alignItems:"flex-start", gap:12, padding:"10px 0", borderTop:`1px solid ${tk.divider}` }}>
+        <span title={`Prioridad ${p?.letter ?? "?"}`} aria-label={`Prioridad ${p?.letter ?? "sin definir"}`}
+          style={{ width:22, height:22, borderRadius:5, flexShrink:0, display:"inline-flex", alignItems:"center",
+            justifyContent:"center", fontSize:11, fontWeight:700, color:p?.color ?? tk.t2,
+            background:(p?.color ?? tk.t2) + "1f" }}>
+          {p?.letter ?? "?"}
+        </span>
+        <div style={{ flex:1, minWidth:0, fontSize:13 }}>
+          <div style={{ color:tk.t1, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+            {e.destinatario}<span style={{ color:tk.t2, fontWeight:400 }}> · {e.empresa}</span>
+          </div>
+          <div style={{ color:tk.t2, marginTop:2 }}>
+            {e.municipio}
+            {showDate && <> · {fmtDay(e.fecha_realizacion)}</>}
+            {from && <> · {from}{to ? `–${to}` : ""}</>}
+          </div>
+        </div>
+      </li>
     );
   };
 
-  const empty = data.today.length === 0 && data.nextDays.length === 0;
-
   return (
-    <div style={{ ...wcard(tk, { padding:"20px 22px", height:"100%", display:"flex", flexDirection:"column" }) }}>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <div style={{ width:34, height:34, borderRadius:8, background:WARNING+"1c",
-            display:"flex", alignItems:"center", justifyContent:"center",
-            fontSize:15, color:WARNING }}>
-            <CalendarOutlined />
-          </div>
-          <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:14, fontWeight:700, color:tk.t1 }}>
-            Encargos próximos
-          </div>
-        </div>
-        <button onClick={onNavigate}
-          style={{ background:"none", border:"none", cursor:"pointer",
-            display:"flex", alignItems:"center", gap:4,
-            fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:12, fontWeight:600, color:PRIMARY }}>
-          Ver todos <ArrowRightOutlined style={{ fontSize:9 }} />
-        </button>
+    <section aria-labelledby="enc-title" style={{ ...wcard(tk, { padding:"18px 20px" }) }}>
+      <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:8, marginBottom:8 }}>
+        <h2 id="enc-title" style={{ margin:0, fontSize:16, fontWeight:600, color:tk.t1 }}>Encargos próximos</h2>
+        <button type="button" className="dash-link" onClick={onOpen}>Ver envíos <RightOutlined style={{ fontSize:10 }} /></button>
       </div>
 
-      {empty ? (
-        <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center",
-          color:tk.t3, fontSize:13, fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-          Sin encargos próximos
-        </div>
-      ) : (
-        <div style={{ flex:1, overflow:"auto" }}>
-          {data.today.length > 0 && (
-            <>
-              <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase",
-                letterSpacing:".08em", color:DANGER, marginBottom:4,
-                fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Hoy</div>
-              {data.today.map((e) => <EncargoRow key={e.id} e={e} />)}
-            </>
-          )}
-          {data.nextDays.length > 0 && (
-            <div style={{ marginTop: data.today.length > 0 ? 12 : 0 }}>
-              <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase",
-                letterSpacing:".08em", color:tk.t3, marginBottom:4,
-                fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Próximos días</div>
-              {data.nextDays.map((e) => <EncargoRow key={e.id} e={e} showDate />)}
-            </div>
-          )}
+      {data.status === "loading" && <Skeleton active title={false} paragraph={{ rows:4 }} />}
+      {data.status === "error" && (
+        <div style={{ fontSize:13, color:tk.t2 }}>
+          No se pudieron cargar los encargos.{" "}
+          <button type="button" className="dash-link" onClick={onRetry}>Reintentar</button>
         </div>
       )}
-    </div>
+      {data.status === "ok" && (data.data.today.length + data.data.nextDays.length === 0
+        ? <p style={{ margin:0, fontSize:13, color:tk.t2 }}>No hay encargos para hoy ni los próximos 5 días.</p>
+        : <>
+            {data.data.today.length > 0 && (
+              <>
+                <h3 style={{ fontSize:12, fontWeight:600, color:tk.t2, margin:"4px 0 2px" }}>Hoy</h3>
+                <ul style={{ listStyle:"none", margin:0, padding:0 }}>{data.data.today.map((e) => row(e, false))}</ul>
+              </>
+            )}
+            {data.data.nextDays.length > 0 && (
+              <>
+                <h3 style={{ fontSize:12, fontWeight:600, color:tk.t2, margin:"14px 0 2px" }}>Próximos días</h3>
+                <ul style={{ listStyle:"none", margin:0, padding:0 }}>{data.data.nextDays.map((e) => row(e, true))}</ul>
+              </>
+            )}
+          </>)}
+    </section>
   );
 }
 
-/* ─── DashboardStats ──────────────────────────────────────────────────────── */
-interface DashboardStats {
-  notifPending:number; notifDelivered:number; notifFinalized:number;
-  docsPending:number;  docsDelivered:number;  docsFinalized:number;
-  docsRejected:number; myNotifToAccept:number; myDocsToAccept:number;
+/* ─── Página ──────────────────────────────────────────────────────────────── */
+async function settle<T>(p: Promise<T>): Promise<Load<T>> {
+  try { return { status:"ok", data: await p }; } catch { return { status:"error" }; }
 }
 
-/* ─── DashboardPage ───────────────────────────────────────────────────────── */
 export default function DashboardPage() {
-  const [stats, setStats] = useState<DashboardStats>({
-    notifPending:0, notifDelivered:0, notifFinalized:0,
-    docsPending:0,  docsDelivered:0,  docsFinalized:0,
-    docsRejected:0, myNotifToAccept:0, myDocsToAccept:0,
-  });
-  const [recentNotifs,  setRecentNotifs]  = useState<NotificationDto[]>([]);
-  const [recentDocs,    setRecentDocs]    = useState<DocumentDto[]>([]);
-  const [vacations,     setVacations]     = useState<VacationSummary>({ pending:0, onVacation:[], upcoming:[] });
-  const [upcoming,      setUpcoming]      = useState<UpcomingItems>({ today:[], nextDays:[] });
-  const [refreshing,    setRefreshing]    = useState(false);
-  const [loading,       setLoading]       = useState(true);
-  const [error,         setError]         = useState(false);
+  const [inbox, setInbox]         = useState<Load<Inbox>>({ status:"loading" });
+  const [mine, setMine]           = useState<Load<Mine>>({ status:"loading" });
+  const [team, setTeam]           = useState<Load<VacationSummary>>({ status:"loading" });
+  const [encargos, setEncargos]   = useState<Load<UpcomingItems>>({ status:"loading" });
+  const [refreshing, setRefreshing] = useState(false);
 
-  const navigate  = useNavigate();
-  const username  = useAuthStore((s) => s.username);
-  const firstName = useAuthStore((s) => s.firstName);
-  const lastName  = useAuthStore((s) => s.lastName);
-  const isDark    = useThemeStore((s) => s.mode === "dark");
-  const tk        = makeTokens(isDark);
+  const navigate   = useNavigate();
+  const username   = useAuthStore((s) => s.username);
+  const firstName  = useAuthStore((s) => s.firstName);
+  const tipo       = useAuthStore((s) => s.tipo_usuario);
+  const modules    = useAuthStore((s) => s.modules);
+  const isDark     = useThemeStore((s) => s.mode === "dark");
+  const tk         = makeTokens(isDark);
 
-  const load = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    try {
-      const [s, vac, up] = await Promise.all([
-        fetchDashboardStats(),
-        fetchVacationSummary().catch(() => ({ pending:0, onVacation:[], upcoming:[] })),
-        fetchUpcomingItems().catch(() => ({ today:[], nextDays:[] })),
-      ]);
-      setStats({
-        notifPending:s.notifications.pending,   notifDelivered:s.notifications.delivered,
-        notifFinalized:s.notifications.finalized, docsPending:s.documents.pending,
-        docsDelivered:s.documents.delivered,     docsFinalized:s.documents.finalized,
-        docsRejected:s.documents.rejected,       myNotifToAccept:s.notifications.myPending,
-        myDocsToAccept:s.documents.myPending,
-      });
-      setRecentNotifs(s.notifications.recent);
-      setRecentDocs(s.documents.recent);
-      setVacations(vac);
-      setUpcoming(up);
-      setError(false);
-    } catch (e) {
-      console.error("No se pudo cargar el panel:", e);
-      setError(true);
-    }
-    finally { setRefreshing(false); setLoading(false); }
-  }, []);
+  const has = useCallback((k: ModuleKey) => modules.some((m) => m.key === k), [modules]);
+  const showEncargos = has("encargos");
+  const hasHr = has("recursos_humanos");
+  const hasRooms = has("reservas_salas");
+
+  const load = useCallback(async () => {
+    setRefreshing(true);
+    const [i, m, t, e] = await Promise.all([
+      settle(fetchInbox()),
+      settle(fetchMine()),
+      settle(fetchVacationSummary()),
+      showEncargos ? settle(fetchUpcomingItems()) : Promise.resolve<Load<UpcomingItems>>({ status:"loading" }),
+    ]);
+    setInbox(i); setMine(m); setTeam(t); setEncargos(e);
+    setRefreshing(false);
+  }, [showEncargos]);
 
   useEffect(() => { load(); }, [load]);
 
-  const displayName = firstName ? `${firstName} ${lastName}`.trim() : username || "Usuario";
-  const dateStr = new Date().toLocaleDateString("es-ES",
-    { weekday:"long", year:"numeric", month:"long", day:"numeric" });
+  /* "Nuevo": solo lo que el usuario puede crear (mismo criterio que el menú). */
+  const createItems: MenuProps["items"] = [
+    has("notificaciones") && { key:"/dashboard/notificaciones/crear", label:"Notificación" },
+    { key:"/dashboard/documentos/crear", label:"Documento" },
+    showEncargos && tipo !== 8 && { key:"/dashboard/mensajeria/crear", label:"Envío de mensajería" },
+    has("solicitudes_dinero") && { key:"/dashboard/money-req/create", label:"Requerimiento de dinero" },
+    hasRooms && { key:"/dashboard/reservaciones/crear", label:"Reserva de sala" },
+    hasHr && { key:"/dashboard/recursos-humanos/vacaciones", label:"Solicitud de vacaciones" },
+  ].filter(Boolean) as MenuProps["items"];
 
-  /* color por id para que NO se desfase al filtrar valores en 0 */
-  const docsPieData = [
-    { id:"Entregados",  label:"Entregados",  value:stats.docsDelivered, color:INFO    },
-    { id:"Finalizados", label:"Finalizados", value:stats.docsFinalized, color:SUCCESS },
-    { id:"Pendientes",  label:"Pendientes",  value:stats.docsPending,   color:WARNING },
-    { id:"Rechazados",  label:"Rechazados",  value:stats.docsRejected,  color:DANGER  },
-  ].filter((d) => d.value > 0);
+  // Solo el primer nombre, en tipo oración: en BD muchos vienen en MAYÚSCULAS
+  // y el nombre completo ocupaba tres líneas en el teléfono.
+  const first = (firstName || "").trim().split(/\s+/)[0];
+  const displayName = first
+    ? first.charAt(0).toUpperCase() + first.slice(1).toLowerCase()
+    : username || "Usuario";
+  /* Derivados de /mine: una sola llamada alimenta "Mis solicitudes" y la agenda. */
+  const myRequests: Load<Mine["requests"]> =
+    mine.status === "ok" ? { status:"ok", data: mine.data.requests } : mine;
+  const showMyRequests = mine.status !== "ok" || Object.keys(mine.data.requests).length > 0;
+  const agenda: Load<AgendaItem[] | null> =
+    mine.status === "ok" ? { status:"ok", data: mine.data.agenda ?? null } : mine;
+  const showAgenda = hasRooms && (mine.status !== "ok" || mine.data.agenda !== undefined);
 
-  const barData = [
-    { estado:"Pendientes",  N:stats.notifPending,   D:stats.docsPending   },
-    { estado:"Entregados",  N:stats.notifDelivered, D:stats.docsDelivered },
-    { estado:"Finalizados", N:stats.notifFinalized, D:stats.docsFinalized },
-  ];
-
-  const pillTag = (color: string, text: string) => (
-    <Tag color={color} style={{ borderRadius:20, fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:11, fontWeight:600 }}>
-      {text}
-    </Tag>
-  );
-
-  const notifCols = [
-    { title:"Dirigida a",  dataIndex:"directedTo", ellipsis:true },
-    { title:"Cédula",      dataIndex:"cedule",      ellipsis:true },
-    { title:"Provenencia", ellipsis:true,
-      render:(_:unknown, r:NotificationDto) => r.provenience?.name || r.otherProvenience || "—" },
-    { title:"Estado", dataIndex:"state", width:110,
-      render:(v:number) => {
-        if (v===NOTIFICATION_STATES.DELIVERED) return pillTag("orange","Entregado");
-        if (v===NOTIFICATION_STATES.FINALIZED) return pillTag("green","Finalizado");
-        return pillTag("default", String(v));
-      }},
-  ];
-
-  const docsCols = [
-    { title:"Tipo", dataIndex:"documentType",
-      render:(v:string) => pillTag("blue", v) },
-    { title:"Dirigido a", dataIndex:"submitTo", ellipsis:true },
-    { title:"Cant.",      dataIndex:"amount",   width:58 },
-    { title:"Estado",     dataIndex:"state",    width:110,
-      render:(v:number) => {
-        if (v===DOCUMENT_STATES.DELIVERED) return pillTag("orange","Entregado");
-        if (v===DOCUMENT_STATES.FINALIZED) return pillTag("green","Finalizado");
-        if (v===DOCUMENT_STATES.REJECTED)  return pillTag("red","Rechazado");
-        return pillTag("default", String(v));
-      }},
-  ];
-
-  const renderRecentTable = <T extends object>(
-    columns: TableColumnsType<T>,
-    dataSource: T[],
-    emptyText: string,
-  ) => (
-    <Table<T>
-      className="ta-table"
-      rowKey="id"
-      columns={columns}
-      dataSource={dataSource}
-      pagination={false}
-      size="small"
-      loading={loading}
-      locale={{
-        emptyText: (
-          <span style={{ color: tk.t3, fontSize: 12, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-            {emptyText}
-          </span>
-        ),
-      }}
-    />
-  );
-
-  /* section header */
-  const sh = (title: string, cta?: { label:string; to:string }) => (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
-      <h3 style={{ margin:0, fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:16, fontWeight:700, color:tk.t1 }}>
-        {title}
-      </h3>
-      {cta && (
-        <button onClick={() => navigate(cta.to)}
-          style={{ background:"none", border:"none", cursor:"pointer", display:"flex", alignItems:"center", gap:5,
-            fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:12, fontWeight:600, color:PRIMARY }}>
-          {cta.label} <ArrowRightOutlined style={{ fontSize:9 }} />
-        </button>
-      )}
-    </div>
-  );
+  const dateStr = new Date().toLocaleDateString("es-GT", { weekday:"long", day:"numeric", month:"long", year:"numeric" });
 
   return (
     <>
-      <style>{makeCSS(tk)}</style>
+      <style>{makeDashCSS(tk)}</style>
 
-      <div style={{ margin:-24, background:tk.bg, minHeight:"calc(100vh - 112px)", padding:"28px 28px 48px",
-        fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+      <div className="dash-in" style={{ margin:-24, background:tk.bg, minHeight:"calc(100vh - 112px)",
+        padding:"28px 28px 48px", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
 
-        {/* ── HEADER ─────────────────────────────────────────────────────── */}
-        <div className="f1" style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between",
-          marginBottom:28, flexWrap:"wrap", gap:12 }}>
+        <header style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between",
+          flexWrap:"wrap", gap:16, marginBottom:24 }}>
           <div>
-            <div style={{ fontSize:11, fontWeight:600, letterSpacing:".1em", textTransform:"uppercase",
-              color:tk.t3, marginBottom:6 }}>
-              Panel principal
-            </div>
-            <h2 style={{ margin:0, fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:24, fontWeight:800,
-              color:tk.t1, letterSpacing:"-.3px" }}>
+            <h1 style={{ margin:0, fontSize:24, fontWeight:700, letterSpacing:"-.01em", color:tk.t1 }}>
               Bienvenido, {displayName}
-            </h2>
-            <p style={{ margin:"5px 0 0", fontSize:13, color:tk.t2, fontWeight:500, textTransform:"capitalize" }}>
-              {dateStr}
+            </h1>
+            <p style={{ margin:"4px 0 0", fontSize:14, color:tk.t2 }}>
+              {dateStr.charAt(0).toUpperCase() + dateStr.slice(1)}
             </p>
           </div>
-
-          <button className="refresh-btn" onClick={() => load(true)} disabled={refreshing}
-            style={{ display:"flex", alignItems:"center", gap:8, padding:"9px 20px",
-              borderRadius:RADIUS, border:tk.borderCss, background:tk.surface, cursor:"pointer",
-              fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:13, fontWeight:600, color:tk.t1,
-              boxShadow:tk.shadow }}>
-            <ReloadOutlined spin={refreshing} style={{ fontSize:13 }} />
-            Actualizar
-          </button>
-        </div>
-
-        {/* ── ERROR BANNER ───────────────────────────────────────────────── */}
-        {error && (
-          <div className="f1" style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
-            gap:12, flexWrap:"wrap", marginBottom:24, padding:"12px 18px", borderRadius:RADIUS,
-            background:DANGER+"14", border:`1px solid ${DANGER}44`,
-            fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:10, color:DANGER, fontSize:13, fontWeight:600 }}>
-              <CloseCircleOutlined />
-              No se pudieron cargar algunos datos del panel.
-            </div>
-            <button onClick={() => load(true)} disabled={refreshing}
-              style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", borderRadius:8,
-                border:`1px solid ${DANGER}66`, background:"transparent", cursor:"pointer",
-                fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:12, fontWeight:600, color:DANGER }}>
-              <ReloadOutlined spin={refreshing} style={{ fontSize:12 }} />
-              Reintentar
-            </button>
+          <div style={{ flex:"1 1 320px", display:"flex", justifyContent:"flex-end", minWidth:0 }}>
+            <GlobalSearch tk={tk} />
           </div>
-        )}
+          <div style={{ display:"flex", gap:8 }}>
+            <Button icon={<ReloadOutlined spin={refreshing} />} onClick={load} disabled={refreshing}>
+              Actualizar
+            </Button>
+            {createItems && createItems.length > 0 && (
+              <Dropdown trigger={["click"]} menu={{ items:createItems, onClick:({ key }) => navigate(key) }}>
+                <Button icon={<PlusOutlined />}>Nuevo <DownOutlined style={{ fontSize:10 }} /></Button>
+              </Dropdown>
+            )}
+          </div>
+        </header>
 
-        {/* ── QUICK ACTIONS ───────────────────────────────────────────────── */}
-        <div className="f2" style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:24 }}>
-          {[
-            { label:"Nueva notificación", icon:<PlusOutlined />,        accent:PRIMARY, path:"/dashboard/notificaciones/crear"          },
-            { label:"Nuevo documento",    icon:<PlusOutlined />,        accent:INFO,    path:"/dashboard/documentos/crear"              },
-            { label:"Ver encargos",       icon:<ThunderboltOutlined />, accent:WARNING, path:"/dashboard/mensajeria"                    },
-            { label:"Recursos humanos",   icon:<TeamOutlined />,        accent:SUCCESS, path:"/dashboard/recursos-humanos/vacaciones"    },
-          ].map((a) => (
-            <button key={a.label} onClick={() => navigate(a.path)}
-              style={{ display:"flex", alignItems:"center", gap:8, padding:"9px 18px",
-                borderRadius:8, border:`1.5px solid ${a.accent}30`,
-                background: a.accent + "0c", cursor:"pointer",
-                fontFamily:"'Plus Jakarta Sans',sans-serif",
-                fontSize:13, fontWeight:600, color: a.accent,
-                transition:"background .18s, border-color .18s, transform .18s, box-shadow .18s",
-                boxShadow:"none" }}
-              onMouseEnter={(e) => {
-                const b = e.currentTarget as HTMLButtonElement;
-                b.style.background = a.accent + "18";
-                b.style.borderColor = a.accent + "66";
-                b.style.transform = "translateY(-2px)";
-                b.style.boxShadow = `0 4px 14px ${a.accent}22`;
-              }}
-              onMouseLeave={(e) => {
-                const b = e.currentTarget as HTMLButtonElement;
-                b.style.background = a.accent + "0c";
-                b.style.borderColor = a.accent + "30";
-                b.style.transform = "";
-                b.style.boxShadow = "none";
-              }}>
-              {a.icon}
-              {a.label}
-            </button>
-          ))}
-        </div>
-
-        {/* ── 4 STAT CARDS ────────────────────────────────────────────────── */}
-        <Row gutter={[16, 16]} style={{ marginBottom:16 }} className="f3">
-          {[
-            { label:"Notificaciones pendientes", value:stats.notifPending,    icon:<MailOutlined />,        path:"/dashboard/notificaciones",            urgent:false },
-            { label:"Documentos pendientes",     value:stats.docsPending,     icon:<FileTextOutlined />,    path:"/dashboard/documentos",                urgent:false },
-            { label:"Mis notif. por aceptar",    value:stats.myNotifToAccept, icon:<ClockCircleOutlined />, path:"/dashboard/notificaciones/entregadas",  urgent:true  },
-            { label:"Mis docs. por aceptar",     value:stats.myDocsToAccept,  icon:<ClockCircleOutlined />, path:"/dashboard/documentos/entregados",      urgent:true  },
-          ].map((c) => (
-            <Col key={c.label} xs={24} sm={12} lg={6}>
-              {loading ? (
-                <div style={{ ...wcard(tk, { padding:"20px 22px" }) }}>
-                  <Skeleton active title={{ width:"60%" }} paragraph={{ rows:2 }} />
-                </div>
-              ) : (
-                <StatCard label={c.label} value={c.value} icon={c.icon}
-                  urgent={c.urgent} tk={tk}
-                  onClick={() => navigate(c.path)} />
-              )}
-            </Col>
-          ))}
+        <Row gutter={[16, 16]}>
+          <Col xs={24} lg={16} style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            <CountPanel id="inbox-title" title="Pendientes" subtitle="Lo que espera tu acción en tus módulos."
+              items={INBOX_ITEMS} data={inbox} tone="action"
+              emptyText="Todo al día. Nada espera tu acción por ahora."
+              tk={tk} onOpen={navigate} onRetry={load} />
+            {showMyRequests && (
+              <CountPanel id="mine-title" title="Mis solicitudes" subtitle="Lo que pediste y sigue en trámite."
+                items={MY_REQUEST_ITEMS} data={myRequests} tone="waiting"
+                emptyText="No tienes solicitudes en trámite."
+                tk={tk} onOpen={navigate} onRetry={load} />
+            )}
+            {showEncargos && (
+              <EncargosPanel data={encargos} tk={tk} onRetry={load}
+                onOpen={() => navigate("/dashboard/mensajeria")} />
+            )}
+          </Col>
+          <Col xs={24} lg={8} style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            {showAgenda && (
+              <AgendaPanel data={agenda} rooms={mine.status === "ok" ? mine.data.roomsNow : undefined} tk={tk} onRetry={load}
+                onOpen={() => navigate("/dashboard/reservaciones/listar")}
+                onCreate={() => navigate("/dashboard/reservaciones/crear")} />
+            )}
+            <TeamPanel data={team} balance={mine.status === "ok" ? mine.data.vacationBalance : undefined} tk={tk} onRetry={load}
+              onOpen={hasHr ? () => navigate("/dashboard/recursos-humanos/vacaciones") : undefined} />
+            <Suspense fallback={<div style={{ ...wcard(tk, { padding:"18px 20px" }) }}><Skeleton active paragraph={{ rows:4 }} /></div>}>
+              <ExchangeRateCard tk={tk} />
+            </Suspense>
+          </Col>
         </Row>
-
-        {/* ── 5 TOTALES (referencia) ──────────────────────────────────────── */}
-        <div className="f4" style={{ display:"flex", gap:10, marginBottom:28, flexWrap:"wrap" }}>
-          {[
-            { label:"Notif. entregadas",  value:stats.notifDelivered },
-            { label:"Notif. finalizadas", value:stats.notifFinalized },
-            { label:"Docs. entregados",   value:stats.docsDelivered  },
-            { label:"Docs. finalizados",  value:stats.docsFinalized  },
-            { label:"Docs. rechazados",   value:stats.docsRejected, danger:true },
-          ].map((c) => (
-            <MetricChip key={c.label} label={c.label} value={c.value} danger={c.danger} tk={tk} />
-          ))}
-        </div>
-
-        {/* ── ANÁLISIS VISUAL ─────────────────────────────────────────────── */}
-        <div className="f5" style={{ marginBottom:28 }}>
-          {sh("Análisis visual")}
-          <Suspense fallback={
-            <Row gutter={[16, 16]}>
-              <Col xs={24} lg={16}><div style={{ ...wcard(tk, { padding:"20px 22px", height:286 }) }}>
-                <Skeleton active paragraph={{ rows:6 }} /></div></Col>
-              <Col xs={24} lg={8}><div style={{ ...wcard(tk, { padding:"20px 22px", height:286 }) }}>
-                <Skeleton active paragraph={{ rows:6 }} /></div></Col>
-            </Row>
-          }>
-            <DashboardCharts bar={barData} pie={docsPieData} tk={tk} />
-          </Suspense>
-        </div>
-
-        {/* ── VACACIONES & ENCARGOS ───────────────────────────────────────── */}
-        <div className="f6" style={{ marginBottom:28 }}>
-          {sh("Equipo & operaciones")}
-          <Row gutter={[16, 16]}>
-            <Col xs={24} lg={8}>
-              <VacationWidget
-                data={vacations} tk={tk}
-                onNavigate={() => navigate("/dashboard/recursos-humanos/vacaciones")}
-              />
-            </Col>
-            <Col xs={24} lg={16}>
-              <UpcomingWidget
-                data={upcoming} tk={tk}
-                onNavigate={() => navigate("/dashboard/mensajeria")}
-              />
-            </Col>
-          </Row>
-        </div>
-
-        {/* ── TIPO DE CAMBIO ───────────────────────────────────────────────── */}
-        <div className="f7" style={{ marginBottom:28 }}>
-          {sh("Tipo de cambio")}
-          <Suspense fallback={
-            <div style={{ height:340, borderRadius:RADIUS, background:tk.subtle, opacity:.6, border:tk.borderCss }} />
-          }>
-            <ExchangeRateWidget />
-          </Suspense>
-        </div>
-
-        {/* ── ACTIVIDAD RECIENTE ───────────────────────────────────────────── */}
-        <div className="f8">
-          {sh("Actividad reciente")}
-          <Row gutter={[16, 16]}>
-            {[
-              { title:"Últimas notificaciones", path:"/dashboard/notificaciones/entregadas", cta:"Ver todas",
-                table: renderRecentTable<NotificationDto>(notifCols, recentNotifs, "Sin notificaciones recientes") },
-              { title:"Últimos documentos", path:"/dashboard/documentos/entregados", cta:"Ver todos",
-                table: renderRecentTable<DocumentDto>(docsCols, recentDocs, "Sin documentos recientes") },
-            ].map((t) => (
-              <Col key={t.title} xs={24} lg={12}>
-                <div style={{ ...wcard(tk) }}>
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
-                    padding:"16px 20px 12px", borderBottom:tk.borderCss }}>
-                    <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:14, fontWeight:700, color:tk.t1 }}>
-                      {t.title}
-                    </div>
-                    <button onClick={() => navigate(t.path)}
-                      style={{ background:"none", border:"none", cursor:"pointer", display:"flex", alignItems:"center", gap:5,
-                        fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:12, fontWeight:600, color:PRIMARY }}>
-                      {t.cta} <ArrowRightOutlined style={{ fontSize:9 }} />
-                    </button>
-                  </div>
-                  {t.table}
-                </div>
-              </Col>
-            ))}
-          </Row>
-        </div>
-
       </div>
     </>
   );

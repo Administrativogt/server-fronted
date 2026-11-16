@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Button,
@@ -63,8 +64,11 @@ function LiquidacionCheque() {
   const [litigioExpenses, setLitigioExpenses] = useState<LitigioExpense[]>([]);
   const [selectedExpenseIds, setSelectedExpenseIds] = useState<number[]>([]);
   const [selectedLitigioIds, setSelectedLitigioIds] = useState<number[]>([]);
+  // ?request_id= abre la lista ya filtrada (enlace desde la búsqueda global del inicio)
+  const [searchParams] = useSearchParams();
+  const initialRequestId = Number(searchParams.get('request_id')) || undefined;
   const [filters, setFilters] = useState({
-    request_id: undefined as number | undefined,
+    request_id: initialRequestId as number | undefined,
     work_note_number: undefined as number | undefined,
     client: '',
     responsible_id: canFilterResponsible ? (undefined as number | undefined) : (userId ?? undefined),
