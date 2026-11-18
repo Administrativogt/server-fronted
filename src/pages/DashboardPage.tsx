@@ -11,7 +11,7 @@ import useThemeStore from "../hooks/useThemeStore";
 import type { ModuleKey } from "../types/module-access.types";
 import {
   fetchInbox, fetchMine, fetchVacationSummary, fetchUpcomingItems,
-  type AgendaItem, type Inbox, type InboxKey, type Mine, type MyRequestKey, type RoomNow, type VacationBalance,
+  type AgendaItem, type Inbox, type InboxDetail, type InboxKey, type Mine, type MyRequestKey, type RoomNow, type VacationBalance,
   type VacationSummary, type UpcomingItems,
 } from "../api/dashboard";
 import GlobalSearch from "./dashboard/GlobalSearch";
@@ -51,48 +51,137 @@ function PanelTitle({ id, title, k, icon, tk, size = 16 }: {
 }
 
 /* ─── Listas de conteos (Pendientes / Mis solicitudes) ───────────────────── */
+/* Cada fila dice qué hay (conteo), lo que cambia la decisión (monto, el más
+   antiguo, el próximo que vence) y qué hacer (verbo). Pendientes se ordena por
+   urgencia; la urgencia también tiñe el reloj de la segunda línea. */
+type Severity = 0 | 1 | 2;
+type DetailFn<K extends string> = (
+  counts: Partial<Record<K, number | null>>,
+  det: InboxDetail | undefined,
+) => { text: string; sev: Severity } | null;
+
 type CountItem<K extends string> = {
   key: K; label: string; path: string; hue: HueKey; icon: ReactNode;
-  /** Segunda línea opcional (p. ej. antigüedad); severe = rojo, si no ámbar. */
-  detail?: (d: Partial<Record<K, number | null>>) => { text: string; severe: boolean } | null;
+  /** Acción que se hace al abrir (Autorizar, Liquidar, Aceptar…) */
+  verb: string;
+  detail?: DetailFn<K>;
 };
 
 const pl = (n: number, one: string, many: string) => `${n.toLocaleString("es-GT")} ${n === 1 ? one : many}`;
 
+/* Fechas en hora de Guatemala */
+const todayGT = () => new Date().toLocaleDateString("en-CA", { timeZone:"America/Guatemala" });
+const dayDiff = (iso: string) =>
+  Math.round((Date.parse(iso.slice(0, 10) + "T12:00:00Z") - Date.parse(todayGT() + "T12:00:00Z")) / 86_400_000);
+/** "de hoy", "de ayer", "de hace 9 días", "desde mar 2025" */
+const ago = (iso: string) => {
+  const d = -dayDiff(iso);
+  if (d <= 0) return "de hoy";
+  if (d === 1) return "de ayer";
+  if (d < 60) return `de hace ${d} días`;
+  return `desde ${new Date(iso.slice(0, 10) + "T12:00:00").toLocaleDateString("es-GT", { month:"short", year:"numeric" })}`;
+};
+/** "hoy a las 09:00", "mañana", "el 25 nov" */
+const when = (iso: string, time?: string | null) => {
+  const d = dayDiff(iso);
+  const day = d === 0 ? "hoy" : d === 1 ? "mañana" : `el ${fmtDay(iso)}`;
+  return time ? `${day} a las ${time}` : day;
+};
+const money = (a?: InboxDetail["amounts"]) =>
+  (a ?? []).map((x) => `${x.currency} ${x.total.toLocaleString("es-GT", { maximumFractionDigits: 0 })}`).join(" + ");
+const join = (...p: (string | null | undefined | false)[]) => p.filter(Boolean).join(" · ");
+
+/** Monto + "el más antiguo de hace N días"; urgencia por antigüedad. */
+const moneyAndAge = (warnDays: number, dangerDays: number): DetailFn<string> => (_c, det) => {
+  if (!det) return null;
+  const age = det.oldest ? -dayDiff(det.oldest) : 0;
+  const text = join(money(det.amounts), det.oldest && `el más antiguo ${ago(det.oldest)}`);
+  return text ? { text, sev: age > dangerDays ? 2 : age > warnDays ? 1 : 0 } : null;
+};
+/** "el más antiguo de hace N días" (para bandejas de aceptación) */
+const oldestOnly = (noun: string): DetailFn<string> => (_c, det) => {
+  if (!det?.oldest) return null;
+  const age = -dayDiff(det.oldest);
+  return { text: `${noun} ${ago(det.oldest)}`, sev: age > 7 ? 2 : age > 2 ? 1 : 0 };
+};
+
 const INBOX_ITEMS: CountItem<InboxKey>[] = [
-  { key:"checksToAuthorize", hue:"cheques", icon:<BankOutlined />,     label:"Cheques por autorizar",              path:"/dashboard/cheques/autorizacion" },
-  { key:"checksToLiquidate", hue:"cheques", icon:<BankOutlined />,     label:"Cheques por liquidar",               path:"/dashboard/cheques/liquidacion",
-    detail: (d) => {
-      const o30 = d.checksToLiquidateOver30 ?? 0, o60 = d.checksToLiquidateOver60 ?? 0;
+  { key:"checksToAuthorize", hue:"cheques", icon:<BankOutlined />, verb:"Autorizar",
+    label:"Cheques por autorizar", path:"/dashboard/cheques/autorizacion",
+    detail: moneyAndAge(5, 14) },
+  { key:"checksToLiquidate", hue:"cheques", icon:<BankOutlined />, verb:"Liquidar",
+    label:"Cheques por liquidar", path:"/dashboard/cheques/liquidacion",
+    detail: (c) => {
+      const o30 = c.checksToLiquidateOver30 ?? 0, o60 = c.checksToLiquidateOver60 ?? 0;
       if (o30 <= 0) return null;
       // Si todos los viejos pasan de 60 días, decirlo una sola vez.
-      if (o60 >= o30) return { text: pl(o60, "lleva más de 60 días", "llevan más de 60 días"), severe: true };
-      const text = pl(o30, "lleva más de 30 días", "llevan más de 30 días")
-        + (o60 > 0 ? ` (${o60.toLocaleString("es-GT")} más de 60)` : "");
-      return { text, severe: o60 > 0 };
+      if (o60 >= o30) return { text: pl(o60, "lleva más de 60 días", "llevan más de 60 días"), sev: 2 };
+      return {
+        text: pl(o30, "lleva más de 30 días", "llevan más de 30 días") + (o60 > 0 ? ` (${o60.toLocaleString("es-GT")} más de 60)` : ""),
+        sev: o60 > 0 ? 2 : 1,
+      };
     } },
-  { key:"moneyReqToAuthorize", hue:"dinero", icon:<WalletOutlined />,   label:"Requerimientos de dinero por autorizar", path:"/dashboard/money-req?vista=por-autorizar" },
-  { key:"vacationsToApprove", hue:"equipo", icon:<CalendarOutlined />,    label:"Vacaciones de tu equipo por aprobar", path:"/dashboard/recursos-humanos/vacaciones" },
-  { key:"roomsToApprove", hue:"salas", icon:<ScheduleOutlined />,        label:"Reservas de sala por aprobar",       path:"/dashboard/reservaciones/listar" },
-  { key:"sirvoRequests", hue:"sirvo", icon:<SendOutlined />,         label:"Solicitudes por pedir en Sirvo",     path:"/dashboard/migracion/sirvo" },
-  { key:"appointmentsExpiring", hue:"nombramientos", icon:<IdcardOutlined />,  label:"Nombramientos que vencen en 60 días", path:"/dashboard/appointments" },
-  { key:"notificationsToAccept", hue:"notificaciones", icon:<BellOutlined />, label:"Notificaciones por aceptar",         path:"/dashboard/notificaciones/entregadas" },
-  { key:"documentsToAccept", hue:"documentos", icon:<FileTextOutlined />,     label:"Documentos por aceptar",             path:"/dashboard/documentos/entregados" },
-  { key:"encargosToday", hue:"envios", icon:<CarOutlined />,         label:"Envíos programados para hoy",        path:"/dashboard/mensajeria" },
+  { key:"moneyReqToAuthorize", hue:"dinero", icon:<WalletOutlined />, verb:"Autorizar",
+    label:"Requerimientos de dinero por autorizar", path:"/dashboard/money-req?vista=por-autorizar",
+    detail: moneyAndAge(3, 7) },
+  { key:"vacationsToApprove", hue:"equipo", icon:<CalendarOutlined />, verb:"Revisar",
+    label:"Vacaciones de tu equipo por aprobar", path:"/dashboard/recursos-humanos/vacaciones",
+    detail: (_c, det) => {
+      if (!det?.next) return null;
+      const d = dayDiff(det.next);
+      return { text: `la próxima inicia ${when(det.next)}`, sev: d <= 2 ? 2 : d <= 7 ? 1 : 0 };
+    } },
+  { key:"roomsToApprove", hue:"salas", icon:<ScheduleOutlined />, verb:"Aprobar",
+    label:"Reservas de sala por aprobar", path:"/dashboard/reservaciones/listar",
+    detail: (_c, det) => {
+      if (!det?.next) return null;
+      const today = det.today ?? 0;
+      return {
+        text: join(today > 0 && `${today} para hoy`, `la próxima ${when(det.next, det.nextTime)}`),
+        sev: today > 0 ? 2 : dayDiff(det.next) <= 1 ? 1 : 0,
+      };
+    } },
+  { key:"sirvoRequests", hue:"sirvo", icon:<SendOutlined />, verb:"Pedir",
+    label:"Solicitudes por pedir en Sirvo", path:"/dashboard/migracion/sirvo" },
+  { key:"appointmentsExpiring", hue:"nombramientos", icon:<IdcardOutlined />, verb:"Revisar",
+    label:"Nombramientos que vencen en 60 días", path:"/dashboard/appointments",
+    detail: (_c, det) => {
+      if (!det?.next) return null;
+      const d = dayDiff(det.next);
+      return { text: join(`el próximo vence ${when(det.next)}`, det.nextLabel), sev: d <= 7 ? 2 : d <= 30 ? 1 : 0 };
+    } },
+  { key:"notificationsToAccept", hue:"notificaciones", icon:<BellOutlined />, verb:"Aceptar",
+    label:"Notificaciones por aceptar", path:"/dashboard/notificaciones/entregadas",
+    detail: oldestOnly("la más antigua") },
+  { key:"documentsToAccept", hue:"documentos", icon:<FileTextOutlined />, verb:"Aceptar",
+    label:"Documentos por aceptar", path:"/dashboard/documentos/entregados",
+    detail: oldestOnly("el más antiguo") },
+  { key:"encargosToday", hue:"envios", icon:<CarOutlined />, verb:"Ver",
+    label:"Envíos programados para hoy", path:"/dashboard/mensajeria",
+    detail: (_c, det) => (det?.priorityA ? { text: pl(det.priorityA, "de prioridad A", "de prioridad A"), sev: 1 } : null) },
 ];
 
 const MY_REQUEST_ITEMS: CountItem<MyRequestKey>[] = [
-  { key:"checksAwaitingAuth", hue:"cheques", icon:<BankOutlined />, label:"Mis cheques esperando autorización",  path:"/dashboard/cheques/autorizacion" },
-  { key:"moneyReqPending", hue:"dinero", icon:<WalletOutlined />,    label:"Mis requerimientos de dinero sin autorizar", path:"/dashboard/money-req" },
-  { key:"roomsPending", hue:"salas", icon:<ScheduleOutlined />,       label:"Mis reservas de sala sin aprobar",    path:"/dashboard/reservaciones/listar" },
-  { key:"vacationPending", hue:"equipo", icon:<CalendarOutlined />,    label:"Mis vacaciones por aprobar",          path:"/dashboard/recursos-humanos/vacaciones" },
+  { key:"checksAwaitingAuth", hue:"cheques", icon:<BankOutlined />, verb:"Ver",
+    label:"Mis cheques esperando autorización", path:"/dashboard/cheques/autorizacion",
+    detail: (_c, det) => det ? { text: join(money(det.amounts), det.oldest && `el más antiguo ${ago(det.oldest)}`), sev: 0 } : null },
+  { key:"moneyReqPending", hue:"dinero", icon:<WalletOutlined />, verb:"Ver",
+    label:"Mis requerimientos de dinero sin autorizar", path:"/dashboard/money-req",
+    detail: (_c, det) => det ? { text: join(money(det.amounts), det.oldest && `el más antiguo ${ago(det.oldest)}`), sev: 0 } : null },
+  { key:"roomsPending", hue:"salas", icon:<ScheduleOutlined />, verb:"Ver",
+    label:"Mis reservas de sala sin aprobar", path:"/dashboard/reservaciones/listar",
+    detail: (_c, det) => det?.next ? { text: `la próxima ${when(det.next, det.nextTime)}`, sev: 0 } : null },
+  { key:"vacationPending", hue:"equipo", icon:<CalendarOutlined />, verb:"Ver",
+    label:"Mis vacaciones por aprobar", path:"/dashboard/recursos-humanos/vacaciones",
+    detail: (_c, det) => det?.next ? { text: `inician ${when(det.next)}`, sev: 0 } : null },
 ];
 
-/* Pendientes = espera TU acción (punto ámbar). Mis solicitudes = espera a
-   OTROS (sin punto de estado: no hay nada que hagas tú). */
-function CountPanel<K extends string>({ id, title, subtitle, titleHue, titleIcon, items, data, tone, emptyText, tk, onOpen, onRetry }: {
+/* Pendientes = espera TU acción: orden por urgencia, reloj ámbar/rojo.
+   Mis solicitudes = espera a OTROS: contexto neutro, orden fijo. */
+function CountPanel<K extends string>({ id, title, subtitle, titleHue, titleIcon, items, data, details, tone, emptyText, tk, onOpen, onRetry }: {
   id: string; title: string; subtitle: string; titleHue: HueKey; titleIcon: ReactNode;
   items: CountItem<K>[]; data: Load<Partial<Record<K, number | null>>>;
+  details?: Partial<Record<K, InboxDetail>>;
   tone: "action" | "waiting"; emptyText: string;
   tk: Tokens; onOpen: (path: string) => void; onRetry: () => void;
 }) {
@@ -121,9 +210,13 @@ function CountPanel<K extends string>({ id, title, subtitle, titleHue, titleIcon
   } else {
     const d = data.data;
     const shown   = items.filter((i) => i.key in d);
-    const pending = shown.filter((i) => (d[i.key] ?? 0) > 0);
     const failed  = shown.filter((i) => d[i.key] === null);
     const clear   = shown.filter((i) => d[i.key] === 0);
+    const pending = shown
+      .filter((i) => (d[i.key] ?? 0) > 0)
+      .map((i, order) => ({ i, order, det: i.detail?.(d, details?.[i.key]) ?? null }))
+      // Lo urgente primero (estable: a igual urgencia, el orden de siempre)
+      .sort((a, b) => tone === "action" ? ((b.det?.sev ?? 0) - (a.det?.sev ?? 0)) || a.order - b.order : a.order - b.order);
 
     body = (
       <>
@@ -137,26 +230,28 @@ function CountPanel<K extends string>({ id, title, subtitle, titleHue, titleIcon
 
         {pending.length > 0 && (
           <ul style={{ listStyle:"none", margin:0, padding:0 }}>
-            {pending.map((i) => (
+            {pending.map(({ i, det }) => (
               <li key={i.key}>
                 <button type="button" className="dash-row" onClick={() => onOpen(i.path)}>
                   <HueChip k={i.hue} icon={i.icon} tk={tk} />
                   <span style={{ flex:1, minWidth:0 }}>
                     <span style={{ display:"block", fontSize:14, fontWeight:500 }}>{i.label}</span>
-                    {(() => {
-                      const det = i.detail?.(d);
-                      return det ? (
-                        <span style={{ display:"flex", alignItems:"center", gap:6, marginTop:3, fontSize:13, color:tk.t2 }}>
-                          <ClockCircleOutlined aria-hidden style={{ color: det.severe ? DANGER : WARNING }} />
-                          {det.text}
-                        </span>
-                      ) : null;
-                    })()}
+                    {det && (
+                      <span style={{ display:"flex", alignItems:"baseline", gap:6, marginTop:3, fontSize:13, color:tk.t2 }}>
+                        {tone === "action" && det.sev > 0 && (
+                          <ClockCircleOutlined aria-hidden style={{ color: det.sev === 2 ? DANGER : WARNING, flexShrink:0 }} />
+                        )}
+                        <span>{det.text}</span>
+                      </span>
+                    )}
                   </span>
                   <span className="dash-num" style={{ fontSize: tone === "action" ? 18 : 16, fontWeight:700 }}>
                     {(d[i.key] as number).toLocaleString("es-GT")}
                   </span>
-                  <RightOutlined aria-hidden style={{ fontSize:11, color:tk.t2 }} />
+                  <span className="dash-verb" style={{ color:tk.accentText }}>
+                    <span className="dash-verb-text">{i.verb}</span>
+                    <RightOutlined aria-hidden style={{ fontSize:10 }} />
+                  </span>
                 </button>
               </li>
             ))}
@@ -537,11 +632,11 @@ export default function DashboardPage() {
     <>
       <style>{makeDashCSS(tk)}</style>
 
-      <div className="dash-in" style={{ margin:-24, background:tk.bg, minHeight:"calc(100vh - 112px)",
-        padding:"28px 28px 48px", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+      <div className="dash-in dash-page" style={{ background:tk.bg, minHeight:"calc(100vh - 112px)",
+        fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
 
         <header className="dash-band" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap",
-          gap:"16px 24px", marginBottom:24, padding:"24px 28px", borderRadius:14,
+          gap:"16px 24px", marginBottom:24, borderRadius:14,
           background:band.bg, color:band.text, boxShadow:"0 10px 30px -12px rgba(60,80,224,.55)" }}>
           <div style={{ minWidth:0 }}>
             <h1 style={{ margin:0, fontSize:24, fontWeight:700, letterSpacing:"-.01em", color:band.text }}>
@@ -574,12 +669,14 @@ export default function DashboardPage() {
             <CountPanel id="inbox-title" title="Pendientes" subtitle="Lo que espera tu acción en tus módulos."
               titleHue="cheques" titleIcon={<InboxOutlined />}
               items={INBOX_ITEMS} data={inbox} tone="action"
+              details={inbox.status === "ok" ? inbox.data.details : undefined}
               emptyText="Todo al día. Nada espera tu acción por ahora."
               tk={tk} onOpen={navigate} onRetry={load} />
             {showMyRequests && (
               <CountPanel id="mine-title" title="Mis solicitudes" subtitle="Lo que pediste y sigue en trámite."
                 titleHue="tramite" titleIcon={<HourglassOutlined />}
                 items={MY_REQUEST_ITEMS} data={myRequests} tone="waiting"
+                details={mine.status === "ok" ? mine.data.requestDetails : undefined}
                 emptyText="No tienes solicitudes en trámite."
                 tk={tk} onOpen={navigate} onRetry={load} />
             )}

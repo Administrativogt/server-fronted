@@ -81,6 +81,7 @@ const DashboardLayout: React.FC = () => {
 
   const navigate = useNavigate();
   const location = useLocation();
+  const isHome = location.pathname === '/dashboard';
   const logout = useAuthStore((s) => s.logout);
   const username = useAuthStore((s) => s.username);
   const firstName = useAuthStore((s) => s.firstName);
@@ -718,14 +719,21 @@ const DashboardLayout: React.FC = () => {
         <SirvoStatusBanner />
 
         <Content
-          style={{
-            margin: '24px 16px',
-            padding: 24,
-            minHeight: 280,
-            background: colorBgContainer,
-            borderRadius: borderRadiusLG,
-            overflowX: 'auto',
-          }}
+          style={
+            // El inicio pinta su propio lienzo a todo el ancho: sin el marco
+            // blanco (margen + relleno + fondo) que envuelve al resto de
+            // pantallas, que en móvil dejaba 44px de margen lateral.
+            isHome
+              ? { margin: 0, padding: 0, minHeight: 280, background: 'transparent' }
+              : {
+                  margin: '24px 16px',
+                  padding: 24,
+                  minHeight: 280,
+                  background: colorBgContainer,
+                  borderRadius: borderRadiusLG,
+                  overflowX: 'auto',
+                }
+          }
         >
           {/* Suspense interno: al navegar entre páginas lazy, el shell queda fijo
               y solo el contenido muestra un skeleton. El Error Boundary con scope
@@ -738,7 +746,13 @@ const DashboardLayout: React.FC = () => {
           </ErrorBoundary>
         </Content>
 
-        <Footer style={{ textAlign: 'center', background: 'transparent' }}>
+        <Footer
+          style={{
+            textAlign: 'center',
+            // En el inicio, el pie continúa el lienzo de la página (DESIGN.md: fondo app)
+            background: isHome ? (isDark ? '#161824' : '#EFF4FB') : 'transparent',
+          }}
+        >
           © {new Date().getFullYear()} Consortium Legal
         </Footer>
       </Layout>

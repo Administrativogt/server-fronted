@@ -76,7 +76,20 @@ export type InboxKey =
   | 'checksToLiquidateOver30'
   | 'checksToLiquidateOver60';
 
-export type Inbox = Partial<Record<InboxKey, number | null>>;
+/** Contexto de una fila de la bandeja (solo filas con conteo > 0). */
+export interface InboxDetail {
+  oldest?: string | null;     // YYYY-MM-DD del más antiguo
+  next?: string | null;       // YYYY-MM-DD del próximo
+  nextTime?: string | null;   // HH:MM
+  nextLabel?: string | null;  // referencia corta (acta/cliente)
+  amounts?: { currency: 'Q' | '$'; total: number }[];
+  today?: number;
+  priorityA?: number;
+}
+
+export type Inbox = Partial<Record<InboxKey, number | null>> & {
+  details?: Partial<Record<InboxKey, InboxDetail>>;
+};
 
 export async function fetchInbox(): Promise<Inbox> {
   const { data } = await api.get('/api/dashboard/inbox');
@@ -112,6 +125,7 @@ export interface VacationBalance {
 
 export interface Mine {
   requests: Partial<Record<MyRequestKey, number | null>>;
+  requestDetails?: Partial<Record<MyRequestKey, InboxDetail>>;
   /** ausente = sin módulo de salas; null = la consulta falló */
   agenda?: AgendaItem[] | null;
   /** ausente = sin módulo de salas; null = la consulta falló */

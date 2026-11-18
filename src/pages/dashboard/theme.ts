@@ -150,6 +150,13 @@ export const makeCSS = (tk: Tokens) => `
    Una sola entrada para toda la página (no coreografía por sección) y nada
    en bucle. Con reduced-motion no hay animación. */
 export const makeDashCSS = (tk: Tokens) => `
+/* Lienzo del inicio: 24-28px en escritorio, 16px en móvil (DESIGN.md: gutter 16px) */
+.dash-page { padding:24px 28px 40px; }
+.dash-band { padding:24px 28px; }
+@media (max-width: 640px) {
+  .dash-page { padding:16px 16px 32px; }
+  .dash-band { padding:20px 18px; border-radius:12px !important; }
+}
 @keyframes dashIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
 .dash-in { animation: dashIn .22s cubic-bezier(.22,1,.36,1) both; }
 
@@ -171,6 +178,10 @@ export const makeDashCSS = (tk: Tokens) => `
 @media (max-width: 640px), (hover: none) { .gs-kbd { display:none !important; } }
 .dash-link:hover { text-decoration:underline; text-underline-offset:3px; }
 .dash-num { font-variant-numeric: tabular-nums; }
+.dash-verb { display:inline-flex; align-items:center; gap:4px; min-width:84px; justify-content:flex-end;
+  font-size:13px; font-weight:600; white-space:nowrap; }
+.dash-row:hover .dash-verb-text { text-decoration:underline; text-underline-offset:3px; }
+@media (max-width: 520px) { .dash-verb { min-width:0; } .dash-verb-text { display:none; } }
 .gs-field { transition: border-color .15s, box-shadow .15s; }
 .gs-field:focus-within { border-color:${tk.accentText} !important; box-shadow:0 0 0 3px ${tk.accentText}26; }
 .dash-band .gs-field { border-color:transparent !important; }
@@ -180,6 +191,8 @@ export const makeDashCSS = (tk: Tokens) => `
 .dash-band .band-primary.ant-btn { color:${PRIMARY}; background:#FFFFFF; border-color:#FFFFFF; font-weight:600; }
 .dash-band .band-primary.ant-btn:not(:disabled):hover { color:${PRIMARY} !important; background:#EEF0FD !important; border-color:#EEF0FD !important; }
 .dash-band .ant-btn:focus-visible { outline:2px solid #FFFFFF !important; outline-offset:2px; }
+.gs-field input::placeholder { color:${tk.t2}; opacity:1; }
+.dash-card-picker .ant-picker-input > input::placeholder { color:${tk.t2}; opacity:1; }
 .gs-clear:focus-visible { outline:2px solid ${tk.accentText}; outline-offset:2px; border-radius:50%; }
 
 @media (prefers-reduced-motion: reduce) {
