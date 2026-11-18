@@ -17,6 +17,7 @@ export interface Tokens {
   shadow: string;
   /** Índigo para TEXTO (enlaces): el #3C50E0 no llega a 4.5:1 sobre la superficie oscura. */
   accentText: string;
+  isDark: boolean;
 }
 
 export function makeTokens(isDark: boolean): Tokens {
@@ -28,6 +29,7 @@ export function makeTokens(isDark: boolean): Tokens {
         divider:"#262936", subtle:"#232634",
         shadow:"0 1px 4px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.3)",
         accentText:"#8C9BFF",
+        isDark:true,
       }
     : {
         bg:"#EFF4FB", surface:"#FFFFFF",
@@ -36,12 +38,46 @@ export function makeTokens(isDark: boolean): Tokens {
         divider:"#F1F5F9", subtle:"#F8FAFC",
         shadow:"0 1px 4px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04)",
         accentText:PRIMARY,
+        isDark:false,
       };
 }
 
 export const wcard = (tk: Tokens, extra?: React.CSSProperties): React.CSSProperties => ({
   background: tk.surface, borderRadius: RADIUS, border: tk.borderCss, boxShadow: tk.shadow, ...extra,
 });
+
+/* ─── Color por módulo (inicio) ──────────────────────────────────────────────
+   Orientación, no decoración: cada módulo conserva SIEMPRE el mismo color en
+   el inicio (filas de Pendientes/Mis solicitudes y títulos de tarjeta), para
+   reconocerlo de un vistazo. El texto y los números siguen neutros; el color
+   vive en el ícono y su fondo teñido. Claro: tonos 600-700 (ícono ≥3:1 sobre
+   su fondo); oscuro: tonos 300-400. */
+export type HueKey =
+  | "cheques" | "dinero" | "equipo" | "salas" | "notificaciones" | "documentos"
+  | "nombramientos" | "sirvo" | "envios" | "tramite";
+
+const HUES: Record<HueKey, [light: string, dark: string]> = {
+  cheques:        ["#3C50E0", "#8C9BFF"],
+  dinero:         ["#047857", "#34D399"],
+  equipo:         ["#0F766E", "#2DD4BF"],
+  salas:          ["#7C3AED", "#A78BFA"],
+  notificaciones: ["#0369A1", "#38BDF8"],
+  documentos:     ["#A21CAF", "#E879F9"],
+  nombramientos:  ["#B45309", "#FBBF24"],
+  sirvo:          ["#C2410C", "#FB923C"],
+  envios:         ["#4D7C0F", "#A3E635"],
+  tramite:        ["#BE185D", "#F472B6"],
+};
+
+export const hue = (tk: Tokens, key: HueKey) => {
+  const fg = HUES[key][tk.isDark ? 1 : 0];
+  return { fg, bg: fg + (tk.isDark ? "2b" : "1a") };
+};
+
+/** Franja de bienvenida: el índigo de marca como región propia. */
+export const bandColors = (tk: Tokens) => tk.isDark
+  ? { bg:"#28348F", text:"#FFFFFF", sub:"#D3D8FA" }
+  : { bg:PRIMARY,   text:"#FFFFFF", sub:"#E3E6FC" };
 
 /* ─── chart theme (Nivo) — lo usa Auditoría ──────────────────────────────── */
 export const makeChartTheme = (tk: Tokens) => ({
@@ -130,12 +166,20 @@ export const makeDashCSS = (tk: Tokens) => `
 .dash-link {
   background:none; border:0; padding:0; cursor:pointer; font:inherit;
   font-size:13px; font-weight:600; color:${tk.accentText};
-  display:inline-flex; align-items:center; gap:5px;
+  display:inline-flex; align-items:center; gap:5px; white-space:nowrap; flex-shrink:0;
 }
+@media (max-width: 640px), (hover: none) { .gs-kbd { display:none !important; } }
 .dash-link:hover { text-decoration:underline; text-underline-offset:3px; }
 .dash-num { font-variant-numeric: tabular-nums; }
 .gs-field { transition: border-color .15s, box-shadow .15s; }
 .gs-field:focus-within { border-color:${tk.accentText} !important; box-shadow:0 0 0 3px ${tk.accentText}26; }
+.dash-band .gs-field { border-color:transparent !important; }
+.dash-band .gs-field:focus-within { border-color:#FFFFFF !important; box-shadow:0 0 0 3px rgba(255,255,255,.45); }
+.dash-band .band-ghost.ant-btn { color:#FFFFFF; border-color:rgba(255,255,255,.7); background:transparent; }
+.dash-band .band-ghost.ant-btn:not(:disabled):hover { color:#FFFFFF !important; border-color:#FFFFFF !important; background:rgba(255,255,255,.14) !important; }
+.dash-band .band-primary.ant-btn { color:${PRIMARY}; background:#FFFFFF; border-color:#FFFFFF; font-weight:600; }
+.dash-band .band-primary.ant-btn:not(:disabled):hover { color:${PRIMARY} !important; background:#EEF0FD !important; border-color:#EEF0FD !important; }
+.dash-band .ant-btn:focus-visible { outline:2px solid #FFFFFF !important; outline-offset:2px; }
 .gs-clear:focus-visible { outline:2px solid ${tk.accentText}; outline-offset:2px; border-radius:50%; }
 
 @media (prefers-reduced-motion: reduce) {

@@ -139,7 +139,7 @@ export default function GlobalSearch({ tk }: { tk: Tokens }) {
             <CloseCircleFilled />
           </button>
         ) : (
-          <kbd aria-hidden style={{ fontFamily:"inherit", fontSize:12, color:tk.t2, border:tk.borderCss,
+          <kbd aria-hidden className="gs-kbd" style={{ fontFamily:"inherit", fontSize:12, color:tk.t2, border:tk.borderCss,
             borderRadius:4, padding:"1px 6px", background:tk.subtle }}>
             {isMac ? "⌘K" : "Ctrl K"}
           </kbd>

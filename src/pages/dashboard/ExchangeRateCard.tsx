@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { Button, DatePicker, Skeleton } from "antd";
-import { ReloadOutlined } from "@ant-design/icons";
+import { ReloadOutlined, SwapOutlined } from "@ant-design/icons";
 import dayjs, { type Dayjs } from "dayjs";
 import {
   fetchExchangeRate, fetchRateOnDate,
   type ExchangeRateData, type DateLookupResult,
 } from "../../api/exchangeRate";
-import { type Tokens, wcard } from "./theme";
+import { type Tokens, hue, wcard } from "./theme";
 
 /* Tipo de cambio en formato de consulta: una tabla corta (moneda · compra ·
    venta), la fecha de la fuente y la consulta por fecha. Sin gráfica ni
@@ -78,8 +78,14 @@ export default function ExchangeRateCard({ tk }: { tk: Tokens }) {
 
   return (
     <section aria-labelledby="tc-title" style={{ ...wcard(tk, { padding:"18px 20px" }) }}>
-      <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:8, marginBottom:10 }}>
-        <h2 id="tc-title" style={{ margin:0, fontSize:16, fontWeight:600, color:tk.t1 }}>Tipo de cambio</h2>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexWrap:"wrap", marginBottom:10 }}>
+        <h2 id="tc-title" style={{ margin:0, display:"flex", alignItems:"center", gap:10, fontSize:16, fontWeight:600, color:tk.t1 }}>
+          <span aria-hidden style={{ width:28, height:28, borderRadius:8, display:"inline-flex", alignItems:"center",
+            justifyContent:"center", background:hue(tk, "dinero").bg, color:hue(tk, "dinero").fg, fontSize:13 }}>
+            <SwapOutlined />
+          </span>
+          Tipo de cambio
+        </h2>
         {state === "ok" && data && (
           <span style={{ fontSize:12, color:tk.t2 }}>
             {data.source === "banguat" ? "Banguat" : "Mercado"} · {fmtDate(data.main.fecha)}

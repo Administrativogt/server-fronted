@@ -1,7 +1,9 @@
 import { useEffect, useState, useCallback, lazy, Suspense, type CSSProperties, type ReactNode } from "react";
 import { Button, Col, Dropdown, Row, Skeleton, type MenuProps } from "antd";
 import {
-  CheckCircleOutlined, ClockCircleOutlined, DownOutlined, PlusOutlined, ReloadOutlined, RightOutlined,
+  BankOutlined, BellOutlined, CalendarOutlined, CarOutlined, CheckCircleOutlined, ClockCircleOutlined,
+  DownOutlined, FileTextOutlined, HourglassOutlined, IdcardOutlined, InboxOutlined, ScheduleOutlined,
+  SendOutlined, TeamOutlined, WalletOutlined, PlusOutlined, ReloadOutlined, RightOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import useAuthStore from "../auth/useAuthStore";
@@ -13,7 +15,7 @@ import {
   type VacationSummary, type UpcomingItems,
 } from "../api/dashboard";
 import GlobalSearch from "./dashboard/GlobalSearch";
-import { DANGER, INFO, SUCCESS, WARNING, type Tokens, makeTokens, wcard, makeDashCSS } from "./dashboard/theme";
+import { DANGER, INFO, SUCCESS, WARNING, type HueKey, type Tokens, bandColors, hue, makeTokens, wcard, makeDashCSS } from "./dashboard/theme";
 
 const ExchangeRateCard = lazy(() => import("./dashboard/ExchangeRateCard"));
 
@@ -26,9 +28,31 @@ type Load<T> = { status: "loading" } | { status: "ok"; data: T } | { status: "er
 const fmtDay = (iso: string) =>
   new Date(iso.slice(0, 10) + "T12:00:00").toLocaleDateString("es-GT", { day:"numeric", month:"short" });
 
+/* ─── Color por módulo ─────────────────────────────────────────────────────── */
+function HueChip({ k, icon, tk, size = 32 }: { k: HueKey; icon: ReactNode; tk: Tokens; size?: number }) {
+  const c = hue(tk, k);
+  return (
+    <span aria-hidden style={{ width:size, height:size, borderRadius:8, flexShrink:0, display:"inline-flex",
+      alignItems:"center", justifyContent:"center", background:c.bg, color:c.fg, fontSize: size * 0.47 }}>
+      {icon}
+    </span>
+  );
+}
+
+function PanelTitle({ id, title, k, icon, tk, size = 16 }: {
+  id: string; title: string; k: HueKey; icon: ReactNode; tk: Tokens; size?: number;
+}) {
+  return (
+    <h2 id={id} style={{ margin:0, display:"flex", alignItems:"center", gap:10, fontSize:size, fontWeight:600, color:tk.t1 }}>
+      <HueChip k={k} icon={icon} tk={tk} size={28} />
+      {title}
+    </h2>
+  );
+}
+
 /* ─── Listas de conteos (Pendientes / Mis solicitudes) ───────────────────── */
 type CountItem<K extends string> = {
-  key: K; label: string; path: string;
+  key: K; label: string; path: string; hue: HueKey; icon: ReactNode;
   /** Segunda línea opcional (p. ej. antigüedad); severe = rojo, si no ámbar. */
   detail?: (d: Partial<Record<K, number | null>>) => { text: string; severe: boolean } | null;
 };
@@ -36,8 +60,8 @@ type CountItem<K extends string> = {
 const pl = (n: number, one: string, many: string) => `${n.toLocaleString("es-GT")} ${n === 1 ? one : many}`;
 
 const INBOX_ITEMS: CountItem<InboxKey>[] = [
-  { key:"checksToAuthorize",     label:"Cheques por autorizar",              path:"/dashboard/cheques/autorizacion" },
-  { key:"checksToLiquidate",     label:"Cheques por liquidar",               path:"/dashboard/cheques/liquidacion",
+  { key:"checksToAuthorize", hue:"cheques", icon:<BankOutlined />,     label:"Cheques por autorizar",              path:"/dashboard/cheques/autorizacion" },
+  { key:"checksToLiquidate", hue:"cheques", icon:<BankOutlined />,     label:"Cheques por liquidar",               path:"/dashboard/cheques/liquidacion",
     detail: (d) => {
       const o30 = d.checksToLiquidateOver30 ?? 0, o60 = d.checksToLiquidateOver60 ?? 0;
       if (o30 <= 0) return null;
@@ -47,35 +71,35 @@ const INBOX_ITEMS: CountItem<InboxKey>[] = [
         + (o60 > 0 ? ` (${o60.toLocaleString("es-GT")} más de 60)` : "");
       return { text, severe: o60 > 0 };
     } },
-  { key:"moneyReqToAuthorize",   label:"Requerimientos de dinero por autorizar", path:"/dashboard/money-req?vista=por-autorizar" },
-  { key:"vacationsToApprove",    label:"Vacaciones de tu equipo por aprobar", path:"/dashboard/recursos-humanos/vacaciones" },
-  { key:"roomsToApprove",        label:"Reservas de sala por aprobar",       path:"/dashboard/reservaciones/listar" },
-  { key:"sirvoRequests",         label:"Solicitudes por pedir en Sirvo",     path:"/dashboard/migracion/sirvo" },
-  { key:"appointmentsExpiring",  label:"Nombramientos que vencen en 60 días", path:"/dashboard/appointments" },
-  { key:"notificationsToAccept", label:"Notificaciones por aceptar",         path:"/dashboard/notificaciones/entregadas" },
-  { key:"documentsToAccept",     label:"Documentos por aceptar",             path:"/dashboard/documentos/entregados" },
-  { key:"encargosToday",         label:"Envíos programados para hoy",        path:"/dashboard/mensajeria" },
+  { key:"moneyReqToAuthorize", hue:"dinero", icon:<WalletOutlined />,   label:"Requerimientos de dinero por autorizar", path:"/dashboard/money-req?vista=por-autorizar" },
+  { key:"vacationsToApprove", hue:"equipo", icon:<CalendarOutlined />,    label:"Vacaciones de tu equipo por aprobar", path:"/dashboard/recursos-humanos/vacaciones" },
+  { key:"roomsToApprove", hue:"salas", icon:<ScheduleOutlined />,        label:"Reservas de sala por aprobar",       path:"/dashboard/reservaciones/listar" },
+  { key:"sirvoRequests", hue:"sirvo", icon:<SendOutlined />,         label:"Solicitudes por pedir en Sirvo",     path:"/dashboard/migracion/sirvo" },
+  { key:"appointmentsExpiring", hue:"nombramientos", icon:<IdcardOutlined />,  label:"Nombramientos que vencen en 60 días", path:"/dashboard/appointments" },
+  { key:"notificationsToAccept", hue:"notificaciones", icon:<BellOutlined />, label:"Notificaciones por aceptar",         path:"/dashboard/notificaciones/entregadas" },
+  { key:"documentsToAccept", hue:"documentos", icon:<FileTextOutlined />,     label:"Documentos por aceptar",             path:"/dashboard/documentos/entregados" },
+  { key:"encargosToday", hue:"envios", icon:<CarOutlined />,         label:"Envíos programados para hoy",        path:"/dashboard/mensajeria" },
 ];
 
 const MY_REQUEST_ITEMS: CountItem<MyRequestKey>[] = [
-  { key:"checksAwaitingAuth", label:"Mis cheques esperando autorización",  path:"/dashboard/cheques/autorizacion" },
-  { key:"moneyReqPending",    label:"Mis requerimientos de dinero sin autorizar", path:"/dashboard/money-req" },
-  { key:"roomsPending",       label:"Mis reservas de sala sin aprobar",    path:"/dashboard/reservaciones/listar" },
-  { key:"vacationPending",    label:"Mis vacaciones por aprobar",          path:"/dashboard/recursos-humanos/vacaciones" },
+  { key:"checksAwaitingAuth", hue:"cheques", icon:<BankOutlined />, label:"Mis cheques esperando autorización",  path:"/dashboard/cheques/autorizacion" },
+  { key:"moneyReqPending", hue:"dinero", icon:<WalletOutlined />,    label:"Mis requerimientos de dinero sin autorizar", path:"/dashboard/money-req" },
+  { key:"roomsPending", hue:"salas", icon:<ScheduleOutlined />,       label:"Mis reservas de sala sin aprobar",    path:"/dashboard/reservaciones/listar" },
+  { key:"vacationPending", hue:"equipo", icon:<CalendarOutlined />,    label:"Mis vacaciones por aprobar",          path:"/dashboard/recursos-humanos/vacaciones" },
 ];
 
 /* Pendientes = espera TU acción (punto ámbar). Mis solicitudes = espera a
    OTROS (sin punto de estado: no hay nada que hagas tú). */
-function CountPanel<K extends string>({ id, title, subtitle, items, data, tone, emptyText, tk, onOpen, onRetry }: {
-  id: string; title: string; subtitle: string;
+function CountPanel<K extends string>({ id, title, subtitle, titleHue, titleIcon, items, data, tone, emptyText, tk, onOpen, onRetry }: {
+  id: string; title: string; subtitle: string; titleHue: HueKey; titleIcon: ReactNode;
   items: CountItem<K>[]; data: Load<Partial<Record<K, number | null>>>;
   tone: "action" | "waiting"; emptyText: string;
   tk: Tokens; onOpen: (path: string) => void; onRetry: () => void;
 }) {
   const header = (
     <div style={{ padding:"18px 20px 14px" }}>
-      <h2 id={id} style={{ margin:0, fontSize: tone === "action" ? 18 : 16, fontWeight:600, color:tk.t1 }}>{title}</h2>
-      <p style={{ margin:"4px 0 0", fontSize:13, color:tk.t2 }}>{subtitle}</p>
+      <PanelTitle id={id} title={title} k={titleHue} icon={titleIcon} tk={tk} size={tone === "action" ? 18 : 16} />
+      <p style={{ margin:"6px 0 0 38px", fontSize:13, color:tk.t2 }}>{subtitle}</p>
     </div>
   );
 
@@ -116,9 +140,7 @@ function CountPanel<K extends string>({ id, title, subtitle, items, data, tone, 
             {pending.map((i) => (
               <li key={i.key}>
                 <button type="button" className="dash-row" onClick={() => onOpen(i.path)}>
-                  {tone === "action" && (
-                    <span aria-hidden style={{ width:8, height:8, borderRadius:"50%", background:WARNING, flexShrink:0 }} />
-                  )}
+                  <HueChip k={i.hue} icon={i.icon} tk={tk} />
                   <span style={{ flex:1, minWidth:0 }}>
                     <span style={{ display:"block", fontSize:14, fontWeight:500 }}>{i.label}</span>
                     {(() => {
@@ -233,7 +255,7 @@ function AgendaPanel({ data, rooms, tk, onOpen, onCreate, onRetry }: {
   return (
     <section aria-labelledby="agenda-title" style={{ ...wcard(tk, { padding:"18px 20px" }) }}>
       <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:8, marginBottom:8 }}>
-        <h2 id="agenda-title" style={{ margin:0, fontSize:16, fontWeight:600, color:tk.t1 }}>Mi agenda</h2>
+        <PanelTitle id="agenda-title" title="Mi agenda" k="salas" icon={<ScheduleOutlined />} tk={tk} />
         <button type="button" className="dash-link" onClick={onOpen}>Mis reservas <RightOutlined style={{ fontSize:10 }} /></button>
       </div>
 
@@ -307,7 +329,7 @@ function TeamPanel({ data, balance, tk, onOpen, onRetry }: {
   return (
     <section aria-labelledby="team-title" style={{ ...wcard(tk, { padding:"18px 20px" }) }}>
       <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:8, marginBottom:12 }}>
-        <h2 id="team-title" style={{ margin:0, fontSize:16, fontWeight:600, color:tk.t1 }}>Equipo</h2>
+        <PanelTitle id="team-title" title="Equipo" k="equipo" icon={<TeamOutlined />} tk={tk} />
         {onOpen && (
           <button type="button" className="dash-link" onClick={onOpen}>Vacaciones <RightOutlined style={{ fontSize:10 }} /></button>
         )}
@@ -398,7 +420,7 @@ function EncargosPanel({ data, tk, onOpen, onRetry }: {
   return (
     <section aria-labelledby="enc-title" style={{ ...wcard(tk, { padding:"18px 20px" }) }}>
       <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:8, marginBottom:8 }}>
-        <h2 id="enc-title" style={{ margin:0, fontSize:16, fontWeight:600, color:tk.t1 }}>Encargos próximos</h2>
+        <PanelTitle id="enc-title" title="Encargos próximos" k="envios" icon={<CarOutlined />} tk={tk} />
         <button type="button" className="dash-link" onClick={onOpen}>Ver envíos <RightOutlined style={{ fontSize:10 }} /></button>
       </div>
 
@@ -492,6 +514,23 @@ export default function DashboardPage() {
     mine.status === "ok" ? { status:"ok", data: mine.data.agenda ?? null } : mine;
   const showAgenda = hasRooms && (mine.status !== "ok" || mine.data.agenda !== undefined);
 
+  /* Resumen de la franja: cuánto espera tu acción y qué tienes hoy. */
+  const band = bandColors(tk);
+  const summary = (() => {
+    if (inbox.status !== "ok") return null;
+    const counts = INBOX_ITEMS.map((i) => inbox.data[i.key]).filter((n): n is number => typeof n === "number" && n > 0);
+    const total = counts.reduce((a, b) => a + b, 0);
+    const today = new Date().toLocaleDateString("en-CA", { timeZone:"America/Guatemala" });
+    const meetings = mine.status === "ok" ? (mine.data.agenda ?? []).filter((a) => a.date === today).length : 0;
+    const parts = [
+      total > 0
+        ? `Tienes ${total.toLocaleString("es-GT")} pendiente${total === 1 ? "" : "s"} en ${counts.length} módulo${counts.length === 1 ? "" : "s"}`
+        : "Estás al día: nada espera tu acción",
+      meetings > 0 ? `${meetings} sala${meetings === 1 ? "" : "s"} reservada${meetings === 1 ? "" : "s"} hoy` : null,
+    ].filter(Boolean);
+    return parts.join(" · ") + ".";
+  })();
+
   const dateStr = new Date().toLocaleDateString("es-GT", { weekday:"long", day:"numeric", month:"long", year:"numeric" });
 
   return (
@@ -501,39 +540,45 @@ export default function DashboardPage() {
       <div className="dash-in" style={{ margin:-24, background:tk.bg, minHeight:"calc(100vh - 112px)",
         padding:"28px 28px 48px", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
 
-        <header style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between",
-          flexWrap:"wrap", gap:16, marginBottom:24 }}>
-          <div>
-            <h1 style={{ margin:0, fontSize:24, fontWeight:700, letterSpacing:"-.01em", color:tk.t1 }}>
+        <header className="dash-band" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap",
+          gap:"16px 24px", marginBottom:24, padding:"24px 28px", borderRadius:14,
+          background:band.bg, color:band.text, boxShadow:"0 10px 30px -12px rgba(60,80,224,.55)" }}>
+          <div style={{ minWidth:0 }}>
+            <h1 style={{ margin:0, fontSize:24, fontWeight:700, letterSpacing:"-.01em", color:band.text }}>
               Bienvenido, {displayName}
             </h1>
-            <p style={{ margin:"4px 0 0", fontSize:14, color:tk.t2 }}>
+            <p style={{ margin:"4px 0 0", fontSize:14, color:band.sub }}>
               {dateStr.charAt(0).toUpperCase() + dateStr.slice(1)}
             </p>
-          </div>
-          <div style={{ flex:"1 1 320px", display:"flex", justifyContent:"flex-end", minWidth:0 }}>
-            <GlobalSearch tk={tk} />
-          </div>
-          <div style={{ display:"flex", gap:8 }}>
-            <Button icon={<ReloadOutlined spin={refreshing} />} onClick={load} disabled={refreshing}>
-              Actualizar
-            </Button>
-            {createItems && createItems.length > 0 && (
-              <Dropdown trigger={["click"]} menu={{ items:createItems, onClick:({ key }) => navigate(key) }}>
-                <Button icon={<PlusOutlined />}>Nuevo <DownOutlined style={{ fontSize:10 }} /></Button>
-              </Dropdown>
+            {summary && (
+              <p style={{ margin:"12px 0 0", fontSize:15, fontWeight:500, color:band.text }}>{summary}</p>
             )}
+          </div>
+          <div style={{ flex:"1 1 340px", display:"flex", flexDirection:"column", alignItems:"flex-end", gap:12, minWidth:0 }}>
+            <GlobalSearch tk={tk} />
+            <div style={{ display:"flex", gap:8 }}>
+              <Button ghost className="band-ghost" icon={<ReloadOutlined spin={refreshing} />} onClick={load} disabled={refreshing}>
+                Actualizar
+              </Button>
+              {createItems && createItems.length > 0 && (
+                <Dropdown trigger={["click"]} menu={{ items:createItems, onClick:({ key }) => navigate(key) }}>
+                  <Button className="band-primary" icon={<PlusOutlined />}>Nuevo <DownOutlined style={{ fontSize:10 }} /></Button>
+                </Dropdown>
+              )}
+            </div>
           </div>
         </header>
 
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={16} style={{ display:"flex", flexDirection:"column", gap:16 }}>
             <CountPanel id="inbox-title" title="Pendientes" subtitle="Lo que espera tu acción en tus módulos."
+              titleHue="cheques" titleIcon={<InboxOutlined />}
               items={INBOX_ITEMS} data={inbox} tone="action"
               emptyText="Todo al día. Nada espera tu acción por ahora."
               tk={tk} onOpen={navigate} onRetry={load} />
             {showMyRequests && (
               <CountPanel id="mine-title" title="Mis solicitudes" subtitle="Lo que pediste y sigue en trámite."
+                titleHue="tramite" titleIcon={<HourglassOutlined />}
                 items={MY_REQUEST_ITEMS} data={myRequests} tone="waiting"
                 emptyText="No tienes solicitudes en trámite."
                 tk={tk} onOpen={navigate} onRetry={load} />
