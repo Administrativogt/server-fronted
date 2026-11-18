@@ -125,7 +125,7 @@ export default function GlobalSearch({ tk }: { tk: Tokens }) {
           autoComplete="off"
           spellCheck={false}
           value={q}
-          placeholder="Buscar cheque, NT, recibo, cliente, envío…"
+          placeholder="Buscar cheque, NT, recibo, cliente…"
           onChange={(e) => { setQ(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}

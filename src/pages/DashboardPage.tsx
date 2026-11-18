@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, lazy, Suspense, type CSSProperties, type ReactNode } from "react";
-import { Button, Col, Dropdown, Row, Skeleton, type MenuProps } from "antd";
+import { Button, Col, Dropdown, Row, Skeleton, Tooltip, type MenuProps } from "antd";
 import {
   BankOutlined, BellOutlined, CalendarOutlined, CarOutlined, CheckCircleOutlined, ClockCircleOutlined,
   DownOutlined, FileTextOutlined, HourglassOutlined, IdcardOutlined, InboxOutlined, ScheduleOutlined,
@@ -176,6 +176,19 @@ const MY_REQUEST_ITEMS: CountItem<MyRequestKey>[] = [
     detail: (_c, det) => det?.next ? { text: `inician ${when(det.next)}`, sev: 0 } : null },
 ];
 
+/** Filas con conteo > 0, con su contexto, ordenadas por urgencia (estable). */
+function rankRows<K extends string>(
+  items: CountItem<K>[],
+  counts: Partial<Record<K, number | null>>,
+  details: Partial<Record<K, InboxDetail>> | undefined,
+  byUrgency: boolean,
+) {
+  return items
+    .filter((i) => i.key in counts && (counts[i.key] ?? 0) > 0)
+    .map((i, order) => ({ i, order, det: i.detail?.(counts, details?.[i.key]) ?? null }))
+    .sort((a, b) => byUrgency ? ((b.det?.sev ?? 0) - (a.det?.sev ?? 0)) || a.order - b.order : a.order - b.order);
+}
+
 /* Pendientes = espera TU acción: orden por urgencia, reloj ámbar/rojo.
    Mis solicitudes = espera a OTROS: contexto neutro, orden fijo. */
 function CountPanel<K extends string>({ id, title, subtitle, titleHue, titleIcon, items, data, details, tone, emptyText, tk, onOpen, onRetry }: {
@@ -212,11 +225,8 @@ function CountPanel<K extends string>({ id, title, subtitle, titleHue, titleIcon
     const shown   = items.filter((i) => i.key in d);
     const failed  = shown.filter((i) => d[i.key] === null);
     const clear   = shown.filter((i) => d[i.key] === 0);
-    const pending = shown
-      .filter((i) => (d[i.key] ?? 0) > 0)
-      .map((i, order) => ({ i, order, det: i.detail?.(d, details?.[i.key]) ?? null }))
-      // Lo urgente primero (estable: a igual urgencia, el orden de siempre)
-      .sort((a, b) => tone === "action" ? ((b.det?.sev ?? 0) - (a.det?.sev ?? 0)) || a.order - b.order : a.order - b.order);
+    // Lo urgente primero (estable: a igual urgencia, el orden de siempre)
+    const pending = rankRows(shown, d, details, tone === "action");
 
     body = (
       <>
@@ -557,6 +567,7 @@ export default function DashboardPage() {
   const [team, setTeam]           = useState<Load<VacationSummary>>({ status:"loading" });
   const [encargos, setEncargos]   = useState<Load<UpcomingItems>>({ status:"loading" });
   const [refreshing, setRefreshing] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
   const navigate   = useNavigate();
   const username   = useAuthStore((s) => s.username);
@@ -580,6 +591,7 @@ export default function DashboardPage() {
       showEncargos ? settle(fetchUpcomingItems()) : Promise.resolve<Load<UpcomingItems>>({ status:"loading" }),
     ]);
     setInbox(i); setMine(m); setTeam(t); setEncargos(e);
+    setUpdatedAt(new Date());
     setRefreshing(false);
   }, [showEncargos]);
 
@@ -609,22 +621,27 @@ export default function DashboardPage() {
     mine.status === "ok" ? { status:"ok", data: mine.data.agenda ?? null } : mine;
   const showAgenda = hasRooms && (mine.status !== "ok" || mine.data.agenda !== undefined);
 
-  /* Resumen de la franja: cuánto espera tu acción y qué tienes hoy. */
+  /* Franja: lo MÁS urgente (la primera fila de Pendientes por urgencia), no
+     una suma de cosas distintas. Si nada urgente, un estado tranquilo. */
   const band = bandColors(tk);
-  const summary = (() => {
+  const todayIso = todayGT();
+  const roomsToday = mine.status === "ok" ? (mine.data.agenda ?? []).filter((a) => a.date === todayIso).length : 0;
+  const urgent = (() => {
     if (inbox.status !== "ok") return null;
-    const counts = INBOX_ITEMS.map((i) => inbox.data[i.key]).filter((n): n is number => typeof n === "number" && n > 0);
-    const total = counts.reduce((a, b) => a + b, 0);
-    const today = new Date().toLocaleDateString("en-CA", { timeZone:"America/Guatemala" });
-    const meetings = mine.status === "ok" ? (mine.data.agenda ?? []).filter((a) => a.date === today).length : 0;
-    const parts = [
-      total > 0
-        ? `Tienes ${total.toLocaleString("es-GT")} pendiente${total === 1 ? "" : "s"} en ${counts.length} módulo${counts.length === 1 ? "" : "s"}`
-        : "Estás al día: nada espera tu acción",
-      meetings > 0 ? `${meetings} sala${meetings === 1 ? "" : "s"} reservada${meetings === 1 ? "" : "s"} hoy` : null,
-    ].filter(Boolean);
-    return parts.join(" · ") + ".";
+    const ranked = rankRows(INBOX_ITEMS, inbox.data, inbox.data.details, true);
+    const top = ranked[0];
+    if (top && (top.det?.sev ?? 0) > 0) {
+      return { kind:"urgent" as const, path: top.i.path,
+        text: `${top.i.label} (${(inbox.data[top.i.key] as number).toLocaleString("es-GT")})`, detail: top.det?.text ?? null };
+    }
+    const total = ranked.reduce((a, r) => a + ((inbox.data[r.i.key] as number) ?? 0), 0);
+    return { kind:"calm" as const, path: null,
+      text: total > 0 ? `Tienes ${pl(total, "pendiente", "pendientes")} y nada urgente por ahora.` : "Estás al día: nada espera tu acción.",
+      detail: null };
   })();
+  const updatedStr = updatedAt
+    ? `Actualizado ${updatedAt.toLocaleTimeString("es-GT", { hour:"2-digit", minute:"2-digit", hour12:false })}`
+    : null;
 
   const dateStr = new Date().toLocaleDateString("es-GT", { weekday:"long", day:"numeric", month:"long", year:"numeric" });
 
@@ -635,39 +652,56 @@ export default function DashboardPage() {
       <div className="dash-in dash-page" style={{ background:tk.bg, minHeight:"calc(100vh - 112px)",
         fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
 
-        <header className="dash-band" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap",
-          gap:"16px 24px", marginBottom:24, borderRadius:14,
-          background:band.bg, color:band.text, boxShadow:"0 10px 30px -12px rgba(60,80,224,.55)" }}>
+        <header className="dash-band" style={{ background:band.bg, color:band.text }}>
           <div style={{ minWidth:0 }}>
-            <h1 style={{ margin:0, fontSize:24, fontWeight:700, letterSpacing:"-.01em", color:band.text }}>
-              Bienvenido, {displayName}
-            </h1>
-            <p style={{ margin:"4px 0 0", fontSize:14, color:band.sub }}>
-              {dateStr.charAt(0).toUpperCase() + dateStr.slice(1)}
-            </p>
-            {summary && (
-              <p style={{ margin:"12px 0 0", fontSize:15, fontWeight:500, color:band.text }}>{summary}</p>
+            <div style={{ display:"flex", alignItems:"baseline", columnGap:14, rowGap:2, flexWrap:"wrap" }}>
+              <h1 style={{ margin:0, fontSize:22, fontWeight:700, letterSpacing:"-.01em", color:band.text }}>
+                Bienvenido, {displayName}
+              </h1>
+              <span style={{ fontSize:13, color:band.sub }}>
+                {dateStr.charAt(0).toUpperCase() + dateStr.slice(1)}
+                {updatedStr && <> · {updatedStr}</>}
+              </span>
+            </div>
+            {urgent && (urgent.kind === "urgent" ? (
+              <button type="button" className="band-urgent" onClick={() => navigate(urgent.path)}>
+                <span className="band-urgent-tag">Lo más urgente</span>
+                <span>
+                  <strong style={{ fontWeight:600 }}>{urgent.text}</strong>
+                  {urgent.detail && <span style={{ color:band.sub }}> · {urgent.detail}</span>}
+                </span>
+                <RightOutlined aria-hidden style={{ fontSize:11 }} />
+              </button>
+            ) : (
+              <p style={{ margin:"10px 0 0", fontSize:14, color:band.text, display:"flex", alignItems:"center", gap:8 }}>
+                <CheckCircleOutlined aria-hidden />
+                {urgent.text}
+              </p>
+            ))}
+            {roomsToday > 0 && (
+              <p style={{ margin:"4px 0 0", fontSize:13, color:band.sub }}>
+                {pl(roomsToday, "sala reservada hoy", "salas reservadas hoy")} · ver Mi agenda
+              </p>
             )}
           </div>
-          <div style={{ flex:"1 1 340px", display:"flex", flexDirection:"column", alignItems:"flex-end", gap:12, minWidth:0 }}>
+          <div className="dash-band-tools">
             <GlobalSearch tk={tk} />
-            <div style={{ display:"flex", gap:8 }}>
-              <Button ghost className="band-ghost" icon={<ReloadOutlined spin={refreshing} />} onClick={load} disabled={refreshing}>
-                Actualizar
-              </Button>
-              {createItems && createItems.length > 0 && (
-                <Dropdown trigger={["click"]} menu={{ items:createItems, onClick:({ key }) => navigate(key) }}>
-                  <Button className="band-primary" icon={<PlusOutlined />}>Nuevo <DownOutlined style={{ fontSize:10 }} /></Button>
-                </Dropdown>
-              )}
-            </div>
+            <Tooltip title={updatedStr ?? "Actualizar"}>
+              <Button ghost className="band-ghost" aria-label="Actualizar" icon={<ReloadOutlined spin={refreshing} />}
+                onClick={load} disabled={refreshing} />
+            </Tooltip>
+            {createItems && createItems.length > 0 && (
+              <Dropdown trigger={["click"]} menu={{ items:createItems, onClick:({ key }) => navigate(key) }}>
+                <Button className="band-primary" icon={<PlusOutlined />}>Nuevo <DownOutlined style={{ fontSize:10 }} /></Button>
+              </Dropdown>
+            )}
           </div>
         </header>
 
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={16} style={{ display:"flex", flexDirection:"column", gap:16 }}>
             <CountPanel id="inbox-title" title="Pendientes" subtitle="Lo que espera tu acción en tus módulos."
-              titleHue="cheques" titleIcon={<InboxOutlined />}
+              titleHue="bandeja" titleIcon={<InboxOutlined />}
               items={INBOX_ITEMS} data={inbox} tone="action"
               details={inbox.status === "ok" ? inbox.data.details : undefined}
               emptyText="Todo al día. Nada espera tu acción por ahora."

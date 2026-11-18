@@ -54,10 +54,13 @@ export const wcard = (tk: Tokens, extra?: React.CSSProperties): React.CSSPropert
    su fondo); oscuro: tonos 300-400. */
 export type HueKey =
   | "cheques" | "dinero" | "equipo" | "salas" | "notificaciones" | "documentos"
-  | "nombramientos" | "sirvo" | "envios" | "tramite";
+  | "nombramientos" | "sirvo" | "envios" | "tramite" | "bandeja";
 
 const HUES: Record<HueKey, [light: string, dark: string]> = {
-  cheques:        ["#3C50E0", "#8C9BFF"],
+  // El índigo de marca queda SOLO para la bandeja (y la franja); cheques
+  // tiene su propio cian para no confundir módulo con marca.
+  bandeja:        ["#3C50E0", "#8C9BFF"],
+  cheques:        ["#0E7490", "#22D3EE"],
   dinero:         ["#047857", "#34D399"],
   equipo:         ["#0F766E", "#2DD4BF"],
   salas:          ["#7C3AED", "#A78BFA"],
@@ -152,10 +155,26 @@ export const makeCSS = (tk: Tokens) => `
 export const makeDashCSS = (tk: Tokens) => `
 /* Lienzo del inicio: 24-28px en escritorio, 16px en móvil (DESIGN.md: gutter 16px) */
 .dash-page { padding:24px 28px 40px; }
-.dash-band { padding:24px 28px; }
+/* Franja: plana (sin halo), compacta; herramientas en una sola fila */
+.dash-band { display:grid; grid-template-columns:minmax(0,1fr) minmax(300px,520px); align-items:center;
+  gap:14px 24px; margin-bottom:20px; padding:20px 24px; border-radius:12px; }
+.dash-band-tools { display:flex; align-items:center; gap:8px; min-width:0; }
+.dash-band-tools > :first-child { flex:1; min-width:0; max-width:none !important; }
+.band-urgent { display:inline-flex; align-items:baseline; flex-wrap:wrap; gap:4px 10px; margin-top:10px; padding:0;
+  background:none; border:0; cursor:pointer; font:inherit; font-size:14px; color:#FFFFFF; text-align:left; }
+.band-urgent:hover strong { text-decoration:underline; text-underline-offset:3px; }
+.band-urgent:focus-visible { outline:2px solid #FFFFFF; outline-offset:4px; border-radius:6px; }
+.band-urgent-tag { font-size:12px; font-weight:600; padding:2px 8px; border-radius:999px;
+  background:rgba(255,255,255,.16); color:#FFFFFF; }
+@media (max-width: 900px) {
+  .dash-band { grid-template-columns:minmax(0,1fr); }
+}
 @media (max-width: 640px) {
   .dash-page { padding:16px 16px 32px; }
-  .dash-band { padding:20px 18px; border-radius:12px !important; }
+  .dash-band { padding:18px 16px; }
+  .dash-band-tools { flex-wrap:wrap; }
+  .dash-band-tools > :first-child { flex-basis:100%; }
+  .dash-band-tools > .ant-dropdown-trigger { flex:1; }
 }
 @keyframes dashIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
 .dash-in { animation: dashIn .22s cubic-bezier(.22,1,.36,1) both; }
