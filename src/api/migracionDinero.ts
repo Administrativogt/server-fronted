@@ -196,6 +196,7 @@ export interface CatalogoNtDeCaso {
   gastos_presup: number;
   gastos_usado: number;
   encargado: string | null;
+  coordinador: string | null;
 }
 
 export interface CatalogoCaso {
