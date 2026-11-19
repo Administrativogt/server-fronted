@@ -366,7 +366,7 @@ export default function DineroModal({ open, item, opciones, modo = 'jefe', onClo
                     <Text strong>{n.nt}</Text>{' '}
                     <Text type="secondary" style={{ fontSize: 12 }}>
                       {n.gastos_presup > 0 ? `presup. ${q(n.gastos_presup)}` : ''}
-                      {n.encargado ? ` · enc. ${n.encargado}` : ''}
+                      {n.coordinador ? ` · coord. ${n.coordinador}` : ''}
                     </Text>
                   </span>
                 ),
