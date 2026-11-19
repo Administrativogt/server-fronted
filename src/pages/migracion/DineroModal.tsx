@@ -218,7 +218,7 @@ export default function DineroModal({ open, item, opciones, modo = 'jefe', onClo
       else if (!data.es_migracion)
         setNotaError(`La NT ${nt} no es nota de Migración (es de otro equipo o no tiene saldo ni gastos presupuestados).`);
     } catch (e: any) {
-      setNotaError(e?.response?.data?.message || `La NT ${nt} no está en el reporte de Sirvo.`);
+      setNotaError(e?.response?.data?.message || `La NT ${nt} no se encuentra migrada en administrativogt, por favor comunicarse con Maria Estela Gómez para actualizar esa base de datos.`);
     } finally {
       setBuscandoNt(false);
     }
