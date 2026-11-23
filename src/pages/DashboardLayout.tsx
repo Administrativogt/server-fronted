@@ -26,7 +26,13 @@ import { PRIMARY } from './dashboard/theme';
 import { canManageInduction } from '../utils/induction';
 import { canAccessHorasSocios } from '../routes/HorasSociosRoute';
 import { canAccessVacationHr } from '../routes/VacationHrRoute';
-import { canSeeMigracionGastos } from '../utils/migracion';
+import {
+  BANDEJA_EVENT,
+  canSeeMigracionBandeja,
+  canSeeMigracionDinero,
+  canSeeMigracionGastos,
+} from '../utils/migracion';
+import { getBandejaCount } from '../api/migracionDinero';
 import { canAccessSupervision } from '../routes/SupervisionRoute';
 import ErrorBoundary from '../components/ErrorBoundary';
 import ContentSkeleton from '../components/ContentSkeleton';
@@ -74,6 +80,7 @@ const DashboardLayout: React.FC = () => {
 
   const navigate = useNavigate();
   const location = useLocation();
+  const isHome = location.pathname === '/dashboard';
   const logout = useAuthStore((s) => s.logout);
   const username = useAuthStore((s) => s.username);
   const firstName = useAuthStore((s) => s.firstName);
@@ -88,6 +95,24 @@ const DashboardLayout: React.FC = () => {
   const { canAccessUserAdmin } = useUserAdminPermissions(); // ✅ Permisos de administración
   const hasModule = (moduleKey: ModuleKey) =>
     modules.some((module) => module.key === moduleKey);
+
+  // Contador de la bandeja "Solicitudes a Sirvo" (cobros de Migración)
+  const verBandeja = canSeeMigracionBandeja(isSuperuser === true, username);
+  const [bandejaPendientes, setBandejaPendientes] = useState(0);
+  useEffect(() => {
+    if (!verBandeja) return;
+    const refresh = () =>
+      getBandejaCount()
+        .then(({ data }) => setBandejaPendientes(data.pendientes))
+        .catch(() => undefined);
+    refresh();
+    const t = window.setInterval(refresh, 60_000);
+    window.addEventListener(BANDEJA_EVENT, refresh);
+    return () => {
+      window.clearInterval(t);
+      window.removeEventListener(BANDEJA_EVENT, refresh);
+    };
+  }, [verBandeja]);
 
   // ⭐ Favoritos: persistidos en localStorage por usuario
   const favKey = `menu_favorites_${username ?? 'anon'}`;
@@ -207,6 +232,9 @@ const DashboardLayout: React.FC = () => {
     canAccessVacationHr: canAccessVacationHr(username),
     canManageCoordinators: isSuperuser === true,
     canSeeMigracionGastos: canSeeMigracionGastos(isSuperuser, tipoUsuario, equipoId),
+    canSeeMigracionDinero: canSeeMigracionDinero(isSuperuser, equipoId),
+    canSeeMigracionBandeja: verBandeja,
+    badges: { '/dashboard/migracion/sirvo': bandejaPendientes },
     canAccessSupervision: canAccessSupervision(isSuperuser, username),
   };
 
@@ -308,6 +336,7 @@ const DashboardLayout: React.FC = () => {
   const isSearching = term.length > 0;
 
   const labelText = (item: any): string => {
+    if (typeof item.searchText === 'string') return item.searchText.toLowerCase();
     if (typeof item.label === 'string') return item.label.toLowerCase();
     return '';
   };
@@ -701,14 +730,21 @@ const DashboardLayout: React.FC = () => {
         <SirvoStatusBanner />
 
         <Content
-          style={{
-            margin: '24px 16px',
-            padding: 24,
-            minHeight: 280,
-            background: colorBgContainer,
-            borderRadius: borderRadiusLG,
-            overflowX: 'auto',
-          }}
+          style={
+            // El inicio pinta su propio lienzo a todo el ancho: sin el marco
+            // blanco (margen + relleno + fondo) que envuelve al resto de
+            // pantallas, que en móvil dejaba 44px de margen lateral.
+            isHome
+              ? { margin: 0, padding: 0, minHeight: 280, background: 'transparent' }
+              : {
+                  margin: '24px 16px',
+                  padding: 24,
+                  minHeight: 280,
+                  background: colorBgContainer,
+                  borderRadius: borderRadiusLG,
+                  overflowX: 'auto',
+                }
+          }
         >
           {/* Suspense interno: al navegar entre páginas lazy, el shell queda fijo
               y solo el contenido muestra un skeleton. El Error Boundary con scope
@@ -721,7 +757,13 @@ const DashboardLayout: React.FC = () => {
           </ErrorBoundary>
         </Content>
 
-        <Footer style={{ textAlign: 'center', background: 'transparent' }}>
+        <Footer
+          style={{
+            textAlign: 'center',
+            // En el inicio, el pie continúa el lienzo de la página (DESIGN.md: fondo app)
+            background: isHome ? (isDark ? '#161824' : '#EFF4FB') : 'transparent',
+          }}
+        >
           © {new Date().getFullYear()} Consortium Legal
         </Footer>
       </Layout>

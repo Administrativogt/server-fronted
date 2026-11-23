@@ -2,7 +2,9 @@
 // Configuración declarativa del menú lateral. Fuente única de verdad para la
 // navegación: agregar un módulo es añadir un nodo aquí, no tocar el layout.
 import type { ReactNode } from 'react';
+import { Badge } from 'antd';
 import {
+  SendOutlined,
   HomeOutlined,
   ScheduleOutlined,
   DollarOutlined,
@@ -50,6 +52,12 @@ export interface MenuCaps {
   canManageCoordinators: boolean;
   /** Gastos por NT de Migración: superusuario, contabilidad, socios y secretarias de LAS. */
   canSeeMigracionGastos: boolean;
+  /** Control de dinero: superusuario y equipo de Migración (cada quien ve lo suyo, salvo los jefes). */
+  canSeeMigracionDinero: boolean;
+  /** Bandeja de cobros "Solicitudes a Sirvo": AMA001, GOM006 y superusuarios. */
+  canSeeMigracionBandeja: boolean;
+  /** Contadores junto al nombre (ruta → número); el padre suma los de sus hijos. */
+  badges?: Record<string, number>;
   /** Control de supervisión de mensajería y limpieza: MARA, TOR002 y superusuarios. */
   canAccessSupervision: boolean;
 }
@@ -313,6 +321,24 @@ export const MENU: NavItem[] = [
         icon: <BarChartOutlined />,
         visible: (c) => c.canSeeMigracionGastos,
       },
+      {
+        key: '/dashboard/migracion/dinero',
+        label: 'Control de dinero',
+        icon: <DollarOutlined />,
+        visible: (c) => c.canSeeMigracionDinero,
+      },
+      {
+        key: '/dashboard/migracion/sirvo',
+        label: 'Solicitudes a Sirvo',
+        icon: <SendOutlined />,
+        visible: (c) => c.canSeeMigracionBandeja,
+      },
+      {
+        key: '/dashboard/migracion/nt',
+        label: 'Notas de Migración (Sirvo)',
+        icon: <FileTextOutlined />,
+        visible: (c) => c.canSeeMigracionGastos,
+      },
     ],
   },
   {
@@ -337,6 +363,8 @@ export const VACATIONS_ONLY_MENU: NavItem[] = [
 export type AntdMenuItem = {
   key: string;
   label: ReactNode;
+  /** Texto plano del label (para el buscador del menú cuando el label lleva contador). */
+  searchText?: string;
   icon?: ReactNode;
   children?: AntdMenuItem[];
 };
@@ -345,11 +373,26 @@ export const buildMenuItems = (nodes: NavItem[], caps: MenuCaps): AntdMenuItem[]
   nodes
     .filter((n) => !n.visible || n.visible(caps))
     .map((n) => {
-      const item: AntdMenuItem = { key: n.key, label: n.label };
+      const item: AntdMenuItem = { key: n.key, label: n.label, searchText: n.label };
       if (n.icon) item.icon = n.icon;
       if (n.children) item.children = buildMenuItems(n.children, caps);
+      const count = badgeCount(n, caps);
+      if (count > 0) {
+        item.label = (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            {n.label}
+            <Badge count={count} size="small" overflowCount={99} />
+          </span>
+        );
+      }
       return item;
     });
+
+const badgeCount = (n: NavItem, caps: MenuCaps): number =>
+  (caps.badges?.[n.key] ?? 0) +
+  (n.children ?? [])
+    .filter((c) => !c.visible || c.visible(caps))
+    .reduce((sum, c) => sum + badgeCount(c, caps), 0);
 
 /**
  * Secciones del menú lateral (por área de trabajo). Las claves son las `key`

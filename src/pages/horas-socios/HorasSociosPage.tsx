@@ -7,6 +7,7 @@ import {
   Modal,
   Popconfirm,
   Space,
+  Spin,
   Table,
   Tabs,
   Tag,
@@ -48,6 +49,14 @@ const periodoLabel = (imp: HorasImportacion) =>
 const HorasSociosPage: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadPercent, setUploadPercent] = useState(0);
+  const [importError, setImportError] = useState<string | null>(null);
+  /** Resultado de la última importación de esta sesión (aviso fijo, no se va solo). */
+  const [ultimaImportacion, setUltimaImportacion] = useState<{
+    imp: HorasImportacion;
+    archivo: string;
+    at: Date;
+  } | null>(null);
 
   const [importaciones, setImportaciones] = useState<HorasImportacion[]>([]);
   const [loadingImps, setLoadingImps] = useState(false);
@@ -94,19 +103,43 @@ const HorasSociosPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Mientras se importa, avisar si intentan cerrar o refrescar la pestaña: el
+  // aviso de "proceso finalizado" se pierde y parece que no se cargó.
+  useEffect(() => {
+    if (!uploading) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [uploading]);
+
   const handleImportar = async () => {
     if (!file) return message.warning('Selecciona el TM-report (Excel)');
+    const nombreArchivo = file.name;
     setUploading(true);
+    setUploadPercent(0);
+    setImportError(null);
+    setUltimaImportacion(null);
     try {
-      const { data } = await horasSociosApi.importar(file);
+      const { data } = await horasSociosApi.importar(file, setUploadPercent);
+      setUltimaImportacion({ imp: data.importacion, archivo: nombreArchivo, at: new Date() });
+      // 8 s (antd usa 3 por defecto): la importación tarda ~1 s y el aviso
+      // se iba antes de que el usuario lo viera. El recuadro verde queda fijo.
       message.success(
-        `Importados ${data.importacion.total_registros} registros (${periodoLabel(data.importacion)})`,
+        `Importación finalizada: ${data.importacion.total_registros.toLocaleString()} registros`,
+        8,
       );
       setFile(null);
       await cargarImportaciones();
       await verPreview(data.importacion.id);
     } catch (err: any) {
-      message.error(err.response?.data?.message || 'Error al importar el archivo');
+      const msg =
+        err.code === 'ECONNABORTED'
+          ? 'El servidor tardó demasiado en responder. Presiona "Actualizar" en Importaciones: puede que sí se haya cargado.'
+          : err.response?.data?.message || 'Error al importar el archivo';
+      setImportError(Array.isArray(msg) ? msg.join(', ') : msg);
     } finally {
       setUploading(false);
     }
@@ -178,7 +211,21 @@ const HorasSociosPage: React.FC = () => {
 
   // ── Tabla de importaciones ──
   const colsImportaciones: ColumnsType<HorasImportacion> = [
-    { title: 'ID', dataIndex: 'id', width: 60 },
+    {
+      title: 'ID',
+      dataIndex: 'id',
+      width: 90,
+      render: (id: number) => (
+        <Space size={4}>
+          {id}
+          {ultimaImportacion?.imp.id === id && (
+            <Tag color="success" style={{ marginInlineEnd: 0 }}>
+              Nueva
+            </Tag>
+          )}
+        </Space>
+      ),
+    },
     {
       title: 'Período',
       render: (_, r) => <Tag color="blue">{periodoLabel(r)}</Tag>,
@@ -386,7 +433,15 @@ const HorasSociosPage: React.FC = () => {
       </Text>
 
       <Card title="Importar TM-report" style={{ marginTop: 16 }}>
-        <Space>
+        <Spin
+          spinning={uploading}
+          tip={
+            uploadPercent < 100
+              ? `Subiendo archivo… ${uploadPercent}%`
+              : 'Procesando registros… puede tardar un par de minutos, no cierres ni refresques la página'
+          }
+        >
+          <Space>
           <Upload
             beforeUpload={(f) => {
               setFile(f);
@@ -402,7 +457,30 @@ const HorasSociosPage: React.FC = () => {
           <Button type="primary" loading={uploading} onClick={handleImportar} disabled={!file}>
             Importar
           </Button>
-        </Space>
+          </Space>
+          {ultimaImportacion && (
+            <Alert
+              style={{ marginTop: 12 }}
+              type="success"
+              showIcon
+              closable
+              onClose={() => setUltimaImportacion(null)}
+              message={`Importación finalizada: ${ultimaImportacion.imp.total_registros.toLocaleString()} registros (${periodoLabel(ultimaImportacion.imp)})`}
+              description={`${ultimaImportacion.archivo} · datos del ${ultimaImportacion.imp.fecha_min} al ${ultimaImportacion.imp.fecha_max} · cargado a las ${ultimaImportacion.at.toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' })}. Ya aparece en Importaciones (marcada como "Nueva") y el reporte está abajo.`}
+            />
+          )}
+          {importError && (
+            <Alert
+              style={{ marginTop: 12 }}
+              type="error"
+              showIcon
+              closable
+              onClose={() => setImportError(null)}
+              message="No se pudo importar el archivo"
+              description={importError}
+            />
+          )}
+        </Spin>
         {sinEquipo.length > 0 && (
           <Alert
             style={{ marginTop: 12 }}

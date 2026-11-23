@@ -10,7 +10,6 @@ import {
   Space,
   Table,
   Tabs,
-  Tag,
   Tooltip,
   Typography,
 } from 'antd';
@@ -19,12 +18,12 @@ import dayjs, { type Dayjs } from 'dayjs';
 import {
   formatPuntaje,
   listRevisiones,
-  nivelPuntaje,
   TIPO_LABEL,
   type Revision,
   type SupervisionTipo,
 } from '../../api/supervision';
 import { exportResumenExcel, type ResumenPersona } from './exportSupervision';
+import { ScorePill } from './ScorePill';
 import { useSupervisionVars } from './useSupervisionVars';
 import './supervision.css';
 
@@ -296,7 +295,7 @@ export default function SupervisionPage() {
               align: 'right',
               width: 150,
               sorter: (a, b) => (a.promedio ?? -1) - (b.promedio ?? -1),
-              render: (p: number | null) => <Tag color={nivelPuntaje(tipo, p)}>{formatPuntaje(tipo, p)}</Tag>,
+              render: (p: number | null) => <ScorePill tipo={tipo} puntaje={p} />,
             },
             ...(esMens
               ? [
@@ -371,9 +370,12 @@ export default function SupervisionPage() {
               render: (_: unknown, r) => (
                 <Space size={[4, 4]} wrap>
                   {r.evaluados.map((e) => (
-                    <Tag key={e.id} color={nivelPuntaje(tipo, e.resumen.puntaje)} style={{ textTransform: 'capitalize' }}>
-                      {e.nombre.toLowerCase().split(' ')[0]} · {formatPuntaje(tipo, e.resumen.puntaje)}
-                    </Tag>
+                    <ScorePill key={e.id} tipo={tipo} puntaje={e.resumen.puntaje}>
+                      <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>
+                        {e.nombre.toLowerCase().split(' ')[0]}
+                      </span>
+                      · {formatPuntaje(tipo, e.resumen.puntaje)}
+                    </ScorePill>
                   ))}
                 </Space>
               ),

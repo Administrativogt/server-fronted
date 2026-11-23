@@ -1,0 +1,228 @@
+import axios from './axios';
+
+/**
+ * Control de dinero de Migración (reemplaza la hoja "DINERO 2026" del Excel
+ * "NT Honorarios y Gastos"). Ver MigracionDineroController (backend).
+ */
+
+export type DineroEstatus =
+  | 'solicitado'
+  | 'en_sirvo'
+  | 'por_autorizar'
+  | 'autorizado'
+  | 'cheque_emitido'
+  | 'liquidado'
+  | 'cerrado_sirvo'
+  | 'anulado';
+
+export const DINERO_ESTATUS: Array<{ value: DineroEstatus; label: string; color: string; hint: string }> = [
+  { value: 'solicitado', label: 'Solicitado', color: 'blue', hint: 'Falta que cobros la pida en Sirvo' },
+  { value: 'en_sirvo', label: 'Enviado a Sirvo', color: 'purple', hint: 'Cobros ya puso el ID; el estatus llega del módulo de cheques en unos minutos' },
+  { value: 'por_autorizar', label: 'Por autorizar', color: 'cyan', hint: 'En Sirvo, falta autorización' },
+  { value: 'autorizado', label: 'Autorizado', color: 'geekblue', hint: 'Autorizado, aún sin cheque' },
+  { value: 'cheque_emitido', label: 'Cheque emitido', color: 'orange', hint: 'Cheque emitido, falta liquidar' },
+  { value: 'liquidado', label: 'Liquidado', color: 'green', hint: 'Liquidado' },
+  { value: 'cerrado_sirvo', label: 'Cerrado en Sirvo', color: 'default', hint: 'Ya no está pendiente en Sirvo' },
+  { value: 'anulado', label: 'Anulado / rechazado', color: 'red', hint: 'Anulado o rechazado en Sirvo' },
+];
+
+export const estatusInfo = (e: DineroEstatus) => DINERO_ESTATUS.find((x) => x.value === e) ?? DINERO_ESTATUS[0];
+
+export const MESES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+];
+
+export interface DineroItem {
+  id: number;
+  anio: number;
+  mes: number;
+  fecha_solicitud: string | null;
+  fecha_uso: string | null;
+  solicitado_por_id: number | null;
+  solicitado_por_iniciales: string;
+  solicitado_por_nombre: string | null;
+  nt: number | null;
+  cliente_codigo: string | null;
+  cliente_nombre: string | null;
+  caso_nombre: string | null;
+  concepto: string;
+  cantidad: number | null;
+  monto: number | null;
+  beneficiario: string | null;
+  /** De Sirvo si está ligado; si no, el escrito a mano. */
+  numero_cheque: string | null;
+  numero_cheque_manual: string | null;
+  fecha_entrega: string | null;
+  estatus_liquidacion: string | null;
+  notas: string | null;
+  request_id: number | null;
+  ligado_manual: boolean;
+  estatus: DineroEstatus;
+  sirvo_descripcion: string | null;
+  sirvo_monto: number | null;
+  sirvo_fecha_cheque: string | null;
+  sirvo_fecha: string | null;
+  nt_activa: boolean | null;
+  origen: 'CAPTURA' | 'EXCEL';
+  created_at: string;
+  updated_at: string;
+  creado_por: string | null;
+}
+
+export interface DineroFilters {
+  anio?: number;
+  mes?: number;
+  nt?: number;
+  estatus?: DineroEstatus;
+  solicitado_por?: string;
+  beneficiario?: string;
+  entrega?: 'entregado' | 'sin_entregar';
+  q?: string;
+}
+
+export interface DineroList {
+  items: DineroItem[];
+  total: number;
+  monto_total: number;
+  por_estatus: Array<{ estatus: DineroEstatus; n: number; monto: number }>;
+  page: number;
+  page_size: number;
+}
+
+export interface DineroOpciones {
+  anios: number[];
+  iniciales: string[];
+  equipo: Array<{ id: number; username: string; nombre: string }>;
+  beneficiarios: Array<{ nombre: string; origen: 'lista' | 'equipo'; id: number }>;
+}
+
+export interface DineroInput {
+  nt?: number;
+  concepto?: string;
+  fecha_solicitud?: string;
+  fecha_uso?: string | null;
+  solicitado_por_id?: number | null;
+  cantidad?: number | null;
+  monto?: number;
+  beneficiario?: string | null;
+  fecha_entrega?: string | null;
+  estatus_liquidacion?: string | null;
+  notas?: string | null;
+  numero_cheque?: string | null;
+}
+
+export interface SirvoCandidato {
+  request_id: number;
+  numero_cheque: string | null;
+  description: string;
+  monto: number;
+  fecha: string;
+  fecha_cheque: string | null;
+  state_id: number;
+  invoice_name: string | null;
+  ligado_a: number | null;
+}
+
+const clean = (o: object) =>
+  Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== '' && v !== null));
+
+export const getDinero = (f: DineroFilters, page: number, pageSize: number) =>
+  axios.get<DineroList>('/api/migracion/dinero', { params: { ...clean(f), page, page_size: pageSize } });
+
+export const getDineroOpciones = () => axios.get<DineroOpciones>('/api/migracion/dinero/opciones');
+
+/** verTodo = false: solo ve sus solicitudes (las que pidió o registró). */
+export interface DineroAccess {
+  canView: boolean;
+  verTodo: boolean;
+  /** Jefes: editan y ligan cualquier solicitud. */
+  canEdit: boolean;
+  /** Registra solicitudes (las suyas si no es jefe). */
+  canCreate: boolean;
+  /** Lleva la bandeja "Solicitudes a Sirvo" (cobros). */
+  bandeja: boolean;
+}
+
+export const getDineroAccess = () => axios.get<DineroAccess>('/api/migracion/dinero/access');
+
+/** pendientes = falta pedirla en Sirvo; enviadas = ya tiene ID (60 días). */
+export type BandejaVista = 'pendientes' | 'enviadas';
+
+export const getBandeja = (vista: BandejaVista) =>
+  axios.get<DineroItem[]>('/api/migracion/dinero/bandeja', { params: { vista } });
+
+export const getBandejaCount = () =>
+  axios.get<{ pendientes: number }>('/api/migracion/dinero/bandeja/count');
+
+/** Cobros pone (o quita con null) el ID de la solicitud de Sirvo. */
+export const asignarSirvoId = (id: number, request_id: number | null) =>
+  axios.put<DineroItem>(`/api/migracion/dinero/${id}/sirvo-id`, { request_id });
+
+export const createDinero = (body: DineroInput) => axios.post<DineroItem>('/api/migracion/dinero', body);
+
+export const updateDinero = (id: number, body: DineroInput) => axios.patch<DineroItem>(`/api/migracion/dinero/${id}`, body);
+
+export const deleteDinero = (id: number) => axios.delete(`/api/migracion/dinero/${id}`);
+
+export const getCandidatosSirvo = (id: number) => axios.get<SirvoCandidato[]>(`/api/migracion/dinero/${id}/candidatos`);
+
+export const ligarSirvo = (id: number, requestId: number | null) =>
+  axios.put<DineroItem>(`/api/migracion/dinero/${id}/sirvo`, { request_id: requestId });
+
+export const buscarEnSirvo = () => axios.post<{ ligadas: number }>('/api/migracion/dinero/ligar-sirvo');
+
+export const importarDineroExcel = (file: File, anio: number, force = false) => {
+  const form = new FormData();
+  form.append('file', file);
+  return axios.post<{ hoja: string; filas: number; reemplazadas: number; ligadas: number; advertencias: string[] }>(
+    '/api/migracion/dinero/importar',
+    form,
+    { params: { anio, ...(force ? { force: 'true' } : {}) }, headers: { 'Content-Type': 'multipart/form-data' }, timeout: 180_000 },
+  );
+};
+
+// ─────────── catálogo para capturar: cliente → caso → NT (notas de Migración activas) ───────────
+
+export interface CatalogoCliente {
+  cliente_codigo: string;
+  cliente_nombre: string | null;
+  casos: number;
+  nts: number;
+}
+
+export interface CatalogoNtDeCaso {
+  nt: number;
+  gastos_presup: number;
+  gastos_usado: number;
+  encargado: string | null;
+}
+
+export interface CatalogoCaso {
+  caso_numero: string | null;
+  caso: string | null;
+  nts: CatalogoNtDeCaso[];
+}
+
+export interface CatalogoNt {
+  nt: number;
+  activa: boolean;
+  es_migracion: boolean;
+  cliente_codigo: string;
+  cliente_nombre: string | null;
+  caso_numero: string | null;
+  caso: string | null;
+}
+
+/** Por nombre o código del cliente; si q es un número, el cliente de esa NT. */
+export const getCatalogoClientes = (q: string) =>
+  axios.get<CatalogoCliente[]>('/api/migracion/dinero/catalogo/clientes', { params: { q } });
+
+export const getCatalogoCasos = (cliente: string) =>
+  axios.get<CatalogoCaso[]>('/api/migracion/dinero/catalogo/casos', { params: { cliente } });
+
+export const getCatalogoNt = (nt: number) => axios.get<CatalogoNt>(`/api/migracion/dinero/catalogo/nt/${nt}`);
+
+/** Una solicitud por NT con el mismo concepto y datos; monto por NT. */
+export const createDineroVarias = (body: Omit<DineroInput, 'nt' | 'monto'> & { lineas: Array<{ nt: number; monto: number }> }) =>
+  axios.post<DineroItem[]>('/api/migracion/dinero/varias', body);

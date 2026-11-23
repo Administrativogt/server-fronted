@@ -28,11 +28,16 @@ const descargarBlob = (data: Blob, filename: string) => {
 
 export const horasSociosApi = {
   // Importación
-  importar: (file: File) => {
+  importar: (file: File, onProgress?: (percent: number) => void) => {
     const form = new FormData();
     form.append('file', file);
     return api.post<ImportarResult>(`${BASE}/importar`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      // Un TM-report semestral trae miles de filas: más margen que el default.
+      timeout: 300_000,
+      onUploadProgress: (e) => {
+        if (onProgress && e.total) onProgress(Math.round((e.loaded * 100) / e.total));
+      },
     });
   },
   getImportaciones: () => api.get<HorasImportacion[]>(`${BASE}/importaciones`),

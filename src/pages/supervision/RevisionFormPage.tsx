@@ -29,12 +29,10 @@ import dayjs from 'dayjs';
 import {
   createRevision,
   deleteRevision,
-  formatPuntaje,
   getCatalogo,
   getPersonal,
   getRevision,
   listRevisiones,
-  nivelPuntaje,
   TIPO_LABEL,
   updateRevision,
   type Cumplimiento,
@@ -45,7 +43,10 @@ import {
   type SupervisionCatalogo,
   type SupervisionTipo,
 } from '../../api/supervision';
+import useThemeStore from '../../hooks/useThemeStore';
 import { exportRevisionExcel } from './exportSupervision';
+import { ScorePill } from './ScorePill';
+import { useIsNarrow } from './useIsNarrow';
 import { useSupervisionVars } from './useSupervisionVars';
 import { useUnsavedChangesGuard } from './useUnsavedChangesGuard';
 import './supervision.css';
@@ -189,14 +190,37 @@ function NotaPicker({
   );
 }
 
+function IncidenciaToggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <span className="sv-opts" role="group" aria-label={label}>
+      {[true, false].map((v) => (
+        <button
+          key={String(v)}
+          type="button"
+          className={`sv-opt ${v ? 'v-NO_CUMPLE' : 'v-NA'}`}
+          aria-pressed={on === v}
+          onClick={() => onChange(v)}
+        >
+          {v ? 'Sí' : 'No'}
+        </button>
+      ))}
+    </span>
+  );
+}
+
 // Formulario diario de Mara: una columna por persona, como el Excel/Word que
-// llenaba a mano. Sirve para crear (/nueva/:tipo?fecha=) y editar (/revision/:id).
+// llenaba a mano (en teléfono, una persona a la vez). Sirve para crear
+// (/nueva/:tipo?fecha=) y editar (/revision/:id).
 export default function RevisionFormPage() {
   const { id, tipo: tipoParam } = useParams();
   const [search] = useSearchParams();
   const fechaParam = search.get('fecha');
   const navigate = useNavigate();
   const cssVars = useSupervisionVars();
+  const isNarrow = useIsNarrow();
+  const isDark = useThemeStore((s) => s.mode === 'dark');
+  const pageClass = `sv-page${isDark ? ' is-dark' : ''}`;
+  const [activeKey, setActiveKey] = useState<string | null>(null);
   const revisionId = id ? Number(id) : null;
 
   const [tipo, setTipo] = useState<SupervisionTipo>(tipoParam === 'limpieza' ? 'LIMPIEZA' : 'MENSAJERIA');
@@ -348,6 +372,14 @@ export default function RevisionFormPage() {
     setDirty(true);
   };
 
+  const setIncidencia = (key: string, inc: string, v: boolean) =>
+    patchPersona(key, (x) => {
+      const incidencias = { ...x.incidencias };
+      if (v) incidencias[inc] = true;
+      else delete incidencias[inc];
+      return { ...x, incidencias };
+    });
+
   const disponibles = personal.filter((p) => !personas.some((x) => x.usuario_id === p.id));
 
   const save = useCallback(async () => {
@@ -435,31 +467,152 @@ export default function RevisionFormPage() {
 
   const nombreCorto = (n: string) => n.toLowerCase();
 
+  /** Criterios con alguna marca (incluye N/A), para el avance de llenado. */
+  const marcados = (p: Persona) => criterioKeys.filter((k) => p.calificaciones[k] != null).length;
+
   const personHeader = (p: Persona) => {
     const s = puntajeVivo(tipo, criterioKeys, p);
+    const hechos = marcados(p);
+    const total = criterioKeys.length;
     return (
       <th key={p.key} className="sv-person" scope="col">
         <span className="sv-person-name">{nombreCorto(p.nombre)}</span>
-        <Space size={4} style={{ marginTop: 4 }}>
-          <Tag color={nivelPuntaje(tipo, s.puntaje)} style={{ marginInlineEnd: 0 }}>
-            {formatPuntaje(tipo, s.puntaje)}
-          </Tag>
-          {esMens && s.calificados < criterioKeys.length && (
-            <Tooltip title="Marca 'Sí' en los criterios que aún están vacíos">
-              <Button size="small" type="link" icon={<CheckOutlined />} onClick={() => todoCumple(p.key)}>
-                Resto Sí
-              </Button>
-            </Tooltip>
-          )}
-        </Space>
+        <span className="sv-person-meta">
+          <ScorePill tipo={tipo} puntaje={s.puntaje} />
+          <span className="sv-progress-text" aria-label={`${hechos} de ${total} criterios marcados`}>
+            {hechos}/{total}
+          </span>
+        </span>
+        <div className={`sv-meter${hechos === total ? ' is-full' : ''}`} aria-hidden>
+          <span style={{ transform: `scaleX(${total ? hechos / total : 0})` }} />
+        </div>
+        {esMens && hechos < total && (
+          <button
+            type="button"
+            className="sv-fill-rest"
+            title="Marca 'Sí' en los criterios que aún están vacíos"
+            onClick={() => todoCumple(p.key)}
+          >
+            <CheckOutlined /> Resto Sí
+          </button>
+        )}
       </th>
     );
   };
 
+  const activa = personas.find((p) => p.key === activeKey) ?? personas[0];
+  const activaIdx = activa ? personas.indexOf(activa) : -1;
+
+  const notaInput = (c: { key: string; label: string }, className: string) => (
+    <Input
+      size="small"
+      variant={isNarrow ? 'outlined' : 'borderless'}
+      className={className}
+      placeholder="Agregar nota…"
+      aria-label={`Observaciones: ${c.label}`}
+      value={header.observaciones_items[c.key] ?? ''}
+      onChange={(e) =>
+        patchHeader({
+          observaciones_items: { ...header.observaciones_items, [c.key]: e.target.value },
+        })
+      }
+    />
+  );
+
+  /** Teléfono: selector de persona fijo arriba y criterios apilados, uno debajo de otro. */
+  const evaluacionMovil = activa && (() => {
+    const s = puntajeVivo(tipo, criterioKeys, activa);
+    const hechos = marcados(activa);
+    return (
+      <div className="sv-m">
+        <div className="sv-m-people" role="tablist" aria-label="Persona a calificar">
+          {personas.map((p) => {
+            const sp = puntajeVivo(tipo, criterioKeys, p);
+            return (
+              <button
+                key={p.key}
+                type="button"
+                role="tab"
+                aria-selected={p.key === activa.key}
+                className="sv-m-person"
+                onClick={() => setActiveKey(p.key)}
+              >
+                <span className="sv-m-person-name">{nombreCorto(p.nombre)}</span>
+                <ScorePill tipo={tipo} puntaje={sp.puntaje} />
+              </button>
+            );
+          })}
+        </div>
+        <div className="sv-m-toolbar">
+          <span className="sv-progress-text" style={{ fontSize: 13 }}>
+            {hechos} de {criterioKeys.length} marcados
+          </span>
+          {esMens && hechos < criterioKeys.length && (
+            <Button size="small" icon={<CheckOutlined />} onClick={() => todoCumple(activa.key)}>
+              Resto Sí
+            </Button>
+          )}
+        </div>
+        {secciones.map((sec, i) => (
+          <section key={sec.key} aria-labelledby={`sv-m-sec-${sec.key}`}>
+            <h4 className="sv-m-section-title" id={`sv-m-sec-${sec.key}`}>
+              {esMens ? i + 2 : i + 1}. {sec.titulo}
+            </h4>
+            {sec.criterios.map((c) => (
+              <div key={c.key} className="sv-m-item">
+                <div className="sv-m-label">{c.label}</div>
+                {esMens ? (
+                  <CumplimientoPicker
+                    label={`${c.label} — ${activa.nombre}`}
+                    value={activa.calificaciones[c.key] as Cumplimiento | undefined}
+                    onChange={(v) => setCalificacion(activa.key, c.key, v)}
+                  />
+                ) : (
+                  <NotaPicker
+                    label={`${c.label} — ${activa.nombre}`}
+                    escala={catalogo.limpieza.escala}
+                    value={activa.calificaciones[c.key] as number | undefined}
+                    onChange={(v) => setCalificacion(activa.key, c.key, v)}
+                  />
+                )}
+                {notaInput(c, 'sv-note-input sv-m-note')}
+              </div>
+            ))}
+          </section>
+        ))}
+        {!esMens && (
+          <div className="sv-m-totals">
+            <span>Total {s.calificados ? `${s.total} / ${s.calificados * 5}` : '—'}</span>
+            <span>Promedio {s.puntaje ?? '—'}</span>
+          </div>
+        )}
+        {personas.length > 1 && (
+          <div className="sv-m-nav">
+            <Button
+              disabled={activaIdx <= 0}
+              onClick={() => setActiveKey(personas[activaIdx - 1].key)}
+              icon={<ArrowLeftOutlined />}
+            >
+              Anterior
+            </Button>
+            <Button
+              type="primary"
+              ghost
+              disabled={activaIdx >= personas.length - 1}
+              onClick={() => setActiveKey(personas[activaIdx + 1].key)}
+            >
+              Siguiente persona
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  })();
+
   const fechaLabel = dayjs(header.fecha).format('dddd D [de] MMMM YYYY');
 
   return (
-    <div className="sv-page" style={cssVars}>
+    <div className={pageClass} style={cssVars}>
       <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }} wrap>
         <Space align="start">
           <Tooltip title="Volver al control">
@@ -618,6 +771,52 @@ export default function RevisionFormPage() {
         <>
           {esMens && (
             <Card size="small" title="1. Datos de los mensajeros" style={{ marginBottom: 16 }}>
+              {isNarrow ? (
+                personas.map((p) => (
+                  <div key={p.key} className="sv-m-block">
+                    <div className="sv-m-block-title">{nombreCorto(p.nombre)}</div>
+                    <div className="sv-m-fields">
+                      <div>
+                        <label className="sv-label" htmlFor={`sv-veh-${p.key}`}>Vehículo / Placa</label>
+                        <Input
+                          id={`sv-veh-${p.key}`}
+                          value={p.vehiculo}
+                          maxLength={100}
+                          placeholder="Moto P-123ABC"
+                          onChange={(e) => patchPersona(p.key, (x) => ({ ...x, vehiculo: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="sv-label" htmlFor={`sv-tel-${p.key}`}>Teléfono</label>
+                        <Input
+                          id={`sv-tel-${p.key}`}
+                          inputMode="tel"
+                          value={p.telefono}
+                          maxLength={50}
+                          onChange={(e) => patchPersona(p.key, (x) => ({ ...x, telefono: e.target.value }))}
+                        />
+                      </div>
+                      {(['hora_salida', 'hora_retorno'] as const).map((campo) => (
+                        <div key={campo}>
+                          <span className="sv-label">{campo === 'hora_salida' ? 'Hora salida' : 'Hora retorno'}</span>
+                          <TimePicker
+                            style={{ width: '100%' }}
+                            format="HH:mm"
+                            minuteStep={5}
+                            needConfirm={false}
+                            inputReadOnly
+                            aria-label={`${campo === 'hora_salida' ? 'Hora de salida' : 'Hora de retorno'} de ${p.nombre}`}
+                            value={p[campo] ? dayjs(p[campo], 'HH:mm') : null}
+                            onChange={(t) =>
+                              patchPersona(p.key, (x) => ({ ...x, [campo]: t ? t.format('HH:mm') : null }))
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              ) : (
               <div className="sv-grid-wrap">
                 <table className="sv-grid">
                   <thead>
@@ -674,6 +873,7 @@ export default function RevisionFormPage() {
                   </tbody>
                 </table>
               </div>
+              )}
             </Card>
           )}
 
@@ -694,6 +894,9 @@ export default function RevisionFormPage() {
             }
             style={{ marginBottom: 16 }}
           >
+            {isNarrow ? (
+              evaluacionMovil
+            ) : (
             <div className="sv-grid-wrap sv-grid-wrap--scroll">
               <table className="sv-grid">
                 <thead>
@@ -736,20 +939,7 @@ export default function RevisionFormPage() {
                             )}
                           </td>
                         ))}
-                        <td className="sv-obs">
-                          <Input
-                            size="small"
-                            variant="borderless"
-                            placeholder="Agregar nota…"
-                            aria-label={`Observaciones: ${c.label}`}
-                            value={header.observaciones_items[c.key] ?? ''}
-                            onChange={(e) =>
-                              patchHeader({
-                                observaciones_items: { ...header.observaciones_items, [c.key]: e.target.value },
-                              })
-                            }
-                          />
-                        </td>
+                        <td className="sv-obs">{notaInput(c, 'sv-note-input')}</td>
                       </tr>
                     )),
                   ])}
@@ -784,10 +974,30 @@ export default function RevisionFormPage() {
                 </tbody>
               </table>
             </div>
+            )}
           </Card>
 
           {esMens ? (
             <Card size="small" title="7. Anomalías e incidencias en ruta" style={{ marginBottom: 16 }}>
+              {isNarrow ? (
+                <div style={{ marginBottom: 16 }}>
+                  {personas.map((p) => (
+                    <div key={p.key} className="sv-m-block">
+                      <div className="sv-m-block-title">{nombreCorto(p.nombre)}</div>
+                      {catalogo.mensajeria.incidencias.map((inc) => (
+                        <div key={inc.key} className="sv-m-inc">
+                          <span>{inc.label}</span>
+                          <IncidenciaToggle
+                            label={`${inc.label} — ${p.nombre}`}
+                            on={!!p.incidencias[inc.key]}
+                            onChange={(v) => setIncidencia(p.key, inc.key, v)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              ) : (
               <div className="sv-grid-wrap" style={{ marginBottom: 12 }}>
                 <table className="sv-grid">
                   <thead>
@@ -804,38 +1014,21 @@ export default function RevisionFormPage() {
                     {catalogo.mensajeria.incidencias.map((inc) => (
                       <tr key={inc.key}>
                         <td className="sv-crit">{inc.label}</td>
-                        {personas.map((p) => {
-                          const on = !!p.incidencias[inc.key];
-                          return (
-                            <td key={p.key} className="sv-person">
-                              <span className="sv-opts" role="group" aria-label={`${inc.label} — ${p.nombre}`}>
-                                {[true, false].map((v) => (
-                                  <button
-                                    key={String(v)}
-                                    type="button"
-                                    className={`sv-opt ${v ? 'v-NO_CUMPLE' : 'v-NA'}`}
-                                    aria-pressed={on === v}
-                                    onClick={() =>
-                                      patchPersona(p.key, (x) => {
-                                        const incidencias = { ...x.incidencias };
-                                        if (v) incidencias[inc.key] = true;
-                                        else delete incidencias[inc.key];
-                                        return { ...x, incidencias };
-                                      })
-                                    }
-                                  >
-                                    {v ? 'Sí' : 'No'}
-                                  </button>
-                                ))}
-                              </span>
-                            </td>
-                          );
-                        })}
+                        {personas.map((p) => (
+                          <td key={p.key} className="sv-person">
+                            <IncidenciaToggle
+                              label={`${inc.label} — ${p.nombre}`}
+                              on={!!p.incidencias[inc.key]}
+                              onChange={(v) => setIncidencia(p.key, inc.key, v)}
+                            />
+                          </td>
+                        ))}
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+              )}
               <label className="sv-field-title" htmlFor="sv-desc-incidencias">
                 Descripción detallada de anomalías y medidas tomadas
               </label>
@@ -912,7 +1105,7 @@ export default function RevisionFormPage() {
               : 'Revisión nueva'}
         </Text>
         <Space>
-          <Text type="secondary" style={{ fontSize: 12 }}>
+          <Text type="secondary" className="sv-shortcut" style={{ fontSize: 12 }}>
             {ATAJO_GUARDAR}
           </Text>
           <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={save} disabled={!personas.length}>

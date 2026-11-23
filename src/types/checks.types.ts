@@ -53,6 +53,14 @@ export interface CheckRequest {
   remainder_request_id?: number | null;
   /** true si ese saldo ya se liquidó (o Sirvo ya no lo reporta pendiente). */
   remainder_liquidated?: boolean;
+  /** Solo en pendientes de autorización: ya se pidió la autorización (a quién, quién, cuándo). */
+  authorization_request?: {
+    requested: true;
+    requested_at?: string;
+    requested_to_id?: number | null;
+    requested_to_name?: string | null;
+    requested_by_name?: string | null;
+  };
 }
 
 export interface CheckListResponse {

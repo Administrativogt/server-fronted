@@ -32,11 +32,27 @@ import {
   updateInmobiliarioExpense,
   verifyParentCheck,
 } from '../../api/checks';
-import { fetchUsers, fullName, userFilterOptions, type UserLite } from '../../api/users';
+import {
+  fetchUsers,
+  fullName,
+  isInactiveUser,
+  userFilterOptions,
+  type UserLite,
+} from '../../api/users';
 import api from '../../api/axios';
 import useAuthStore from '../../auth/useAuthStore';
 
 const { Title } = Typography;
+
+// Siguen activos con equipo 4 en users_usuario pero ya no son del equipo
+// Inmobiliario: no deben salir en "Entregado por" (form ni filtros).
+const NOT_IN_INMOB_TEAM = new Set(['ROD016', 'BAT001', 'DIE001', 'GON021', 'REC001', 'OVA001']);
+// Únicos dados de baja que se conservan en los filtros (2026-11-18): el resto de ex-miembros ya no aparece aunque tenga gastos viejos.
+const INACTIVE_KEPT_IN_FILTER = new Set(['BAR007', 'FEL001']); // Mariana Barrientos, Carlos Felipe
+
+const isCurrentInmobMember = (u: UserLite) =>
+  !NOT_IN_INMOB_TEAM.has(u.username) &&
+  (!isInactiveUser(u) || INACTIVE_KEPT_IN_FILTER.has(u.username));
 
 function GastosInmobiliarios() {
   const userId = useAuthStore((s) => s.userId);
@@ -284,9 +300,11 @@ function GastosInmobiliarios() {
   }, [filters.page, filters.per_page]);
 
   useEffect(() => {
-    fetchUsers(4).then(setUsers).catch(() => setUsers([]));
+    fetchUsers(4)
+      .then((list) => setUsers(list.filter(isCurrentInmobMember)))
+      .catch(() => setUsers([]));
     fetchUsers(4, { includeInactive: true })
-      .then(setFilterUsers)
+      .then((list) => setFilterUsers(list.filter(isCurrentInmobMember)))
       .catch(() => setFilterUsers([]));
   }, []);
 
