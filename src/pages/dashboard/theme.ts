@@ -219,15 +219,19 @@ export const makeDashCSS = (tk: Tokens) => `
 .dash-li { display:grid; grid-template-columns:minmax(0,1fr) auto; }
 .dash-li > .dash-row { padding-right:8px; }
 .dash-li:hover > .dash-row, .dash-li:hover > .dash-peek-btn { background:${tk.subtle}; }
-.dash-peek-btn { display:inline-flex; align-items:center; gap:6px; padding:0 20px 0 12px; min-width:44px;
-  background:transparent; border:0; border-top:1px solid ${tk.divider}; cursor:pointer; font:inherit; font-size:13px;
-  font-weight:500; color:${tk.t2}; white-space:nowrap; transition:background .15s, color .15s; }
-.dash-peek-btn:hover { color:${tk.t1}; }
-.dash-peek-btn[aria-expanded="true"] { color:${tk.t1}; }
-.dash-peek-btn:focus-visible { outline:2px solid ${tk.accentText}; outline-offset:-2px; border-radius:6px; }
+.dash-peek-btn { display:inline-flex; align-items:center; padding:0 16px 0 8px; min-width:44px;
+  background:transparent; border:0; border-top:1px solid ${tk.divider}; cursor:pointer; font:inherit; transition:background .15s; }
+/* Forma de botón en reposo: es la única acción distinta de la fila. */
+.dash-peek-pill { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border:${tk.borderCss}; border-radius:6px;
+  background:${tk.surface}; font-size:12px; font-weight:600; color:${tk.t1}; white-space:nowrap;
+  transition:border-color .15s, color .15s; }
+.dash-peek-btn:hover .dash-peek-pill { border-color:${tk.accentText}; color:${tk.accentText}; }
+.dash-peek-btn[aria-expanded="true"] .dash-peek-pill { border-color:${tk.accentText}; color:${tk.accentText}; }
+.dash-peek-btn:focus-visible { outline:none; }
+.dash-peek-btn:focus-visible .dash-peek-pill { outline:2px solid ${tk.accentText}; outline-offset:2px; }
 .dash-chev { font-size:10px; transition:transform .18s; }
 .dash-peek-btn[aria-expanded="true"] .dash-chev { transform:rotate(180deg); }
-@media (max-width: 520px) { .dash-peek-text { display:none; } .dash-peek-btn { padding:0 16px 0 8px; } }
+@media (max-width: 520px) { .dash-peek-text { display:none; } .dash-peek-pill { padding:6px 8px; } }
 .dash-peek-panel:focus { outline:none; }
 .dash-peek-panel:focus-visible { outline:2px solid ${tk.accentText}; outline-offset:-2px; }
 .dash-peek-panel { grid-column:1 / -1; padding:4px 20px 14px 66px; background:${tk.subtle}; border-top:1px solid ${tk.divider}; }
@@ -256,11 +260,13 @@ li + li > .dash-peek-item { border-top:1px solid ${tk.divider}; border-radius:0;
 }
 /* Recientes en la franja: enlaces de texto en una línea (la píldora queda
    para nada más; cada tipo de contenido tiene su propia forma). */
-/* Una sola línea: lo que no cabe pasa a una segunda línea oculta, nunca a medias. */
-.dash-recent { display:flex; flex-wrap:wrap; align-items:baseline; gap:0 16px; margin-top:10px; font-size:13px;
-  line-height:22px; max-height:22px; overflow:hidden; min-width:0; }
+/* Máximo 4 enlaces; si no caben pasan a otra línea (nada queda oculto y
+   enfocable). Un nombre muy largo se recorta con "…" y su nombre completo
+   va en el title. */
+.dash-recent { display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 16px; margin-top:10px; font-size:13px;
+  line-height:22px; min-width:0; }
 .dash-recent-link { background:none; border:0; padding:0; font:inherit; line-height:inherit; color:${tk.t1}; cursor:pointer;
-  white-space:nowrap; transition:color .15s; }
+  white-space:nowrap; max-width:240px; overflow:hidden; text-overflow:ellipsis; transition:color .15s; }
 .dash-recent-link:hover { color:${tk.accentText}; text-decoration:underline; text-underline-offset:3px; }
 .dash-recent-link:focus-visible { outline:2px solid ${tk.accentText}; outline-offset:2px; border-radius:4px; }
 /* Plazos */
@@ -270,7 +276,7 @@ li + li > .dash-peek-item { border-top:1px solid ${tk.divider}; border-radius:0;
 .dash-date small { font-size:11px; color:${tk.t2}; text-transform:uppercase; letter-spacing:.04em; }
 
 @media (prefers-reduced-motion: reduce) {
-  .dash-chev, .dash-peek-btn, .dash-recent-link { transition:none; }
+  .dash-chev, .dash-peek-btn, .dash-peek-pill, .dash-recent-link { transition:none; }
   .dash-in { animation:none; }
   .dash-row, .gs-field { transition:none; }
 }

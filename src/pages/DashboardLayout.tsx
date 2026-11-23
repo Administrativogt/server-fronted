@@ -410,6 +410,14 @@ const DashboardLayout: React.FC = () => {
     return out;
   };
 
+  // searchText solo sirve para filtrar; AntD lo pasaría al <li> (aviso de React).
+  const withoutSearchText = (items: any[]): any[] =>
+    items.map((item: any) => {
+      const { children, ...rest } = item;
+      delete rest.searchText;
+      return children ? { ...rest, children: withoutSearchText(children) } : rest;
+    });
+
   const finalItems: any[] = [];
   if (showFavorites) {
     finalItems.push({
@@ -516,7 +524,7 @@ const DashboardLayout: React.FC = () => {
               if (path.startsWith('/')) navigate(path);
               if (isMobile) setCollapsed(true);
             }}
-            items={finalItems}
+            items={withoutSearchText(finalItems)}
           />
         )}
       </Sider>
@@ -574,7 +582,7 @@ const DashboardLayout: React.FC = () => {
             <Dropdown
               trigger={['click']}
               placement="bottomRight"
-              dropdownRender={() => (
+              popupRender={() => (
                 <div
                   style={{
                     minWidth: 244,

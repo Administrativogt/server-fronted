@@ -66,7 +66,7 @@ type Severity = 0 | 1 | 2;
 type DetailFn<K extends string> = (
   counts: Partial<Record<K, number | null>>,
   det: InboxDetail | undefined,
-) => { text: string; sev: Severity } | null;
+) => { text: string; sev: Severity; /** parte neutra al inicio (p. ej. el monto): nunca se tiñe */ lead?: string } | null;
 
 type CountItem<K extends string> = {
   key: K; label: string; path: string; hue: HueKey; icon: ReactNode;
@@ -93,13 +93,13 @@ function AgingBar({ total, over30, over60, tk }: { total: number; over30: number
           <span key={p.label} style={{ width:`${(p.n / total) * 100}%`, background:p.color }} />
         ))}
       </span>
-      <span className="dash-aging-legend" aria-hidden>
+      {parts.filter((p) => p.n > 0).length > 1 && <span className="dash-aging-legend" aria-hidden>
         {parts.filter((p) => p.n > 0).map((p) => (
           <span key={p.label} className="dash-num">
             <i style={{ background:p.color }} />{p.n.toLocaleString("es-GT")} {p.label}
           </span>
         ))}
-      </span>
+      </span>}
     </span>
   );
 }
@@ -134,8 +134,11 @@ const join = (...p: (string | null | undefined | false)[]) => p.filter(Boolean).
 const moneyAndAge = (warnDays: number): DetailFn<string> => (_c, det) => {
   if (!det) return null;
   const age = det.oldest ? -dayDiff(det.oldest) : 0;
-  const text = join(money(det.amounts), det.oldest && `el más antiguo ${ago(det.oldest)}`);
-  return text ? { text, sev: ageSev(age, warnDays) } : null;
+  const lead = money(det.amounts);
+  const aging = det.oldest ? `el más antiguo ${ago(det.oldest)}` : "";
+  if (!lead && !aging) return null;
+  // El monto va en tinta: solo la antigüedad lleva el color del atraso.
+  return { lead: lead || undefined, text: aging, sev: aging ? ageSev(age, warnDays) : 0 };
 };
 /** "el más antiguo de hace N días" (bandejas de aceptación): atraso → ámbar. */
 const oldestOnly = (noun: string): DetailFn<string> => (_c, det) => {
@@ -400,12 +403,13 @@ function CountPanel<K extends string>({ id, title, subtitle, titleHue, titleIcon
                   <HueChip k={i.hue} icon={i.icon} tk={tk} />
                   <span style={{ flex:1, minWidth:0 }}>
                     <span style={{ display:"block", fontSize:14, fontWeight:500 }}>{i.label}</span>
-                    {det && !i.visual && (
-                      <span style={{ display:"flex", alignItems:"baseline", gap:6, marginTop:3, fontSize:13,
+                    {det && (
+                      <span style={{ display:"flex", alignItems:"baseline", flexWrap:"wrap", gap:"0 6px", marginTop:3, fontSize:13,
                         color: tone === "action" && det.sev > 0 ? sevColor(tk, det.sev) : tk.t2 }}>
+                        {det.lead && <span style={{ color:tk.t1 }}>{det.lead}{det.text ? " ·" : ""}</span>}
                         {tone === "action" && det.sev === 2 && <ExclamationCircleOutlined aria-label="Urgente" style={{ flexShrink:0 }} />}
                         {tone === "action" && det.sev === 1 && <ClockCircleOutlined aria-label="Atrasado" style={{ flexShrink:0 }} />}
-                        <span>{det.text}</span>
+                        {det.text && <span>{det.text}</span>}
                       </span>
                     )}
                     {i.visual?.(d, tk)}
@@ -443,8 +447,10 @@ function CountPanel<K extends string>({ id, title, subtitle, titleHue, titleIcon
                   <button type="button" className="dash-peek-btn" aria-expanded={open} aria-controls={`peek-${i.key}`}
                     aria-label={`${open ? "Ocultar" : "Ver"} ${PREVIEW_NOUN[i.key] ?? "los más antiguos"}: ${i.label}`}
                     onClick={() => togglePreview(i.key)}>
-                    <span className="dash-peek-text">Ver {shown}</span>
-                    <DownOutlined aria-hidden className="dash-chev" />
+                    <span className="dash-peek-pill">
+                      <span className="dash-peek-text">{count <= 5 ? "Ver todos" : `Ver ${shown}`}</span>
+                      <DownOutlined aria-hidden className="dash-chev" />
+                    </span>
                   </button>
                   {open && (
                     <div id={`peek-${i.key}`} className="dash-peek-panel" ref={focusPanel} tabIndex={-1}
@@ -832,7 +838,7 @@ function DeadlinesPanel({ data, tk, onOpen, onRetry }: {
               borderTop:`1px solid ${tk.divider}`, fontSize:14, color: data.data.staleOverdue > 0 ? tk.t2 : tk.t1 }}>
               {/* Con vencidos no hay "todo bien": sin check verde. */}
               {data.data.staleOverdue === 0 && <CheckCircleOutlined style={{ color:SUCCESS, fontSize:16 }} />}
-              Ningún plazo vence en los próximos {data.data.windowDays} días.
+              {data.data.staleOverdue > 0 ? "Ninguno más vence" : "Ningún plazo vence"} en los próximos {data.data.windowDays} días.
             </div>
           ) : (
             <ul style={{ listStyle:"none", margin:0, padding:0 }}>
@@ -1048,7 +1054,7 @@ function RecentChips({ username, onOpen, tk }: { username: string | null; onOpen
       <span style={{ display:"inline-flex", alignItems:"center", gap:6, fontWeight:600, color:tk.t2, flexShrink:0 }}>
         <HistoryOutlined aria-hidden /> Recientes
       </span>
-      {pages.slice(0, 5).map((p) => {
+      {pages.slice(0, 4).map((p) => {
         const full = p.parent ? `${p.parent} · ${p.label}` : p.label;
         // El nombre de la pantalla basta; el módulo solo si el nombre es genérico.
         const text = p.parent && GENERIC_PAGE.test(p.label) ? full : p.label;
@@ -1184,6 +1190,10 @@ export default function DashboardPage() {
   const overduePlazos = plazos.status === "ok" && plazos.data
     ? plazos.data.staleOverdue + plazos.data.items.filter((i) => dayDiff(i.due) < 0).length
     : 0;
+  const plazosPanel = hasPlazos && !(plazos.status === "ok" && plazos.data === null) && (
+    <DeadlinesPanel tk={tk} onRetry={() => load()} onOpen={() => navigate("/dashboard/agendador")}
+      data={plazos.status === "ok" ? { status:"ok", data: plazos.data as Deadlines } : plazos} />
+  );
   const updatedStr = updatedAt
     ? `Actualizado ${updatedAt.toLocaleTimeString("es-GT", { hour:"2-digit", minute:"2-digit", hour12:false })}`
     : null;
@@ -1269,16 +1279,15 @@ export default function DashboardPage() {
 
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={16} style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            {/* Con plazos legales vencidos, Plazos va primero: es el mayor riesgo del despacho. */}
+            {overduePlazos > 0 && plazosPanel}
             <CountPanel id="inbox-title" title="Pendientes" subtitle="Lo que espera tu acción en tus módulos."
               titleHue="bandeja" titleIcon={<InboxOutlined />}
               items={INBOX_ITEMS} data={inbox} tone="action" preview
               details={inbox.status === "ok" ? inbox.data.details : undefined}
               emptyText="Todo al día. Nada espera tu acción por ahora."
               tk={tk} onOpen={navigate} onRetry={() => load()} />
-            {hasPlazos && !(plazos.status === "ok" && plazos.data === null) && (
-              <DeadlinesPanel tk={tk} onRetry={() => load()} onOpen={() => navigate("/dashboard/agendador")}
-                data={plazos.status === "ok" ? { status:"ok", data: plazos.data as Deadlines } : plazos} />
-            )}
+            {overduePlazos === 0 && plazosPanel}
             {showMyRequests && (
               <CountPanel id="mine-title" title="Mis solicitudes" subtitle="Lo que pediste y sigue en trámite."
                 titleHue="tramite" titleIcon={<HourglassOutlined />}
