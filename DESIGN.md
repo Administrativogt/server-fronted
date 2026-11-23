@@ -136,6 +136,14 @@ Paleta neutra fría con un único acento índigo; los colores semánticos (verde
 
 **La Regla del Estado, no del Adorno.** Verde/rojo/ámbar/cian sólo aparecen para comunicar un estado. Un badge de color que no informa de un estado real está prohibido.
 
+**La Regla de Severidad.** Una sola escala de urgencia en toda la app, con ícono además de color (nunca sólo color):
+- **Rojo + ⓘ de alerta (`ExclamationCircle`)**: vence o pasa **hoy o mañana**, o un plazo legal **ya vencido**. Hay que actuar ya.
+- **Ámbar + reloj (`ClockCircle`)**: **atraso que se arrastra** (cheques de meses, bandejas viejas). Se muestra su antigüedad; no es una alarma.
+- **Neutro**: lo demás. Las cifras van siempre en tinta neutra; la severidad vive en el ícono y su línea de detalle.
+El atraso nunca es rojo: si lo fuera, el rojo dejaría de avisar.
+
+**La Regla de las Cuatro Áreas.** Los íconos de módulo se tiñen por área, la misma agrupación del menú lateral, en tonos desaturados que no compiten con los de estado: Finanzas `#3F7466`/`#8CC7B6`, Legal `#7A5A36`/`#D6B48A`, Operación `#55657C`/`#AAB7C9`, Personas `#875062`/`#DDA4B5` (claro/oscuro). El índigo queda para la bandeja y las acciones; ningún módulo tiene un color propio.
+
 ## 3. Typography
 
 **Display / Body Font:** Plus Jakarta Sans (con `system-ui, sans-serif` de respaldo)

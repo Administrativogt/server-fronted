@@ -379,7 +379,8 @@ const DashboardLayout: React.FC = () => {
         fontWeight: 700,
         letterSpacing: 0.6,
         textTransform: 'uppercase',
-        opacity: 0.65,
+        // Gris medio del sistema (4.5:1); antes gris AntD + opacidad = 2.1:1.
+        color: isDark ? '#A0A4B3' : '#64748B',
       }}
     >
       {icon}

@@ -236,17 +236,20 @@ export const makeDashCSS = (tk: Tokens) => `
 .dash-new:hover { background:${tk.accentText}33; }
 .dash-new:focus-visible { outline:2px solid ${tk.accentText}; outline-offset:2px; }
 /* Vista previa de una fila de Pendientes */
+/* Fila con vista previa: la fila navega (igual que en todos los paneles) y
+   "Ver 5 ▾" es un botón propio. El hover cubre la fila entera. */
 .dash-li { display:grid; grid-template-columns:minmax(0,1fr) auto; }
 .dash-li > .dash-row { padding-right:8px; }
-.dash-chev { color:${tk.t2}; font-size:11px; transition:transform .18s; flex-shrink:0; }
-.dash-row[aria-expanded="true"] .dash-chev { transform:rotate(180deg); }
-.dash-verb-btn { display:inline-flex; align-items:center; justify-content:flex-end; gap:4px; min-width:96px; padding:0 20px 0 8px;
+.dash-li:hover > .dash-row, .dash-li:hover > .dash-peek-btn { background:${tk.subtle}; }
+.dash-peek-btn { display:inline-flex; align-items:center; gap:6px; padding:0 20px 0 12px; min-width:44px;
   background:transparent; border:0; border-top:1px solid ${tk.divider}; cursor:pointer; font:inherit; font-size:13px;
-  font-weight:600; color:${tk.accentText}; white-space:nowrap; transition:background .15s; }
-.dash-verb-btn:hover { background:${tk.subtle}; }
-.dash-verb-btn:hover .dash-verb-text { text-decoration:underline; text-underline-offset:3px; }
-.dash-verb-btn:focus-visible { outline:2px solid ${tk.accentText}; outline-offset:-2px; border-radius:6px; }
-@media (max-width: 520px) { .dash-verb-btn { min-width:44px; padding:0 14px 0 6px; } }
+  font-weight:500; color:${tk.t2}; white-space:nowrap; transition:background .15s, color .15s; }
+.dash-peek-btn:hover { color:${tk.t1}; }
+.dash-peek-btn[aria-expanded="true"] { color:${tk.t1}; }
+.dash-peek-btn:focus-visible { outline:2px solid ${tk.accentText}; outline-offset:-2px; border-radius:6px; }
+.dash-chev { font-size:10px; transition:transform .18s; }
+.dash-peek-btn[aria-expanded="true"] .dash-chev { transform:rotate(180deg); }
+@media (max-width: 520px) { .dash-peek-text { display:none; } .dash-peek-btn { padding:0 16px 0 8px; } }
 .dash-peek-panel { grid-column:1 / -1; padding:4px 20px 14px 66px; background:${tk.subtle}; border-top:1px solid ${tk.divider}; }
 .dash-peek-item { display:flex; align-items:baseline; gap:12px; width:100%; padding:8px 8px; margin:0 -8px;
   font:inherit; font-size:13px; text-align:left; background:transparent; border:0; border-radius:6px; cursor:pointer;
@@ -260,7 +263,8 @@ li + li > .dash-peek-item { border-top:1px solid ${tk.divider}; border-radius:0;
 .dash-week { display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); }
 .dash-day { padding:12px 14px 14px; min-width:0; border-left:1px solid ${tk.divider}; }
 .dash-day:first-child { border-left:0; }
-.dash-day.is-past { opacity:.55; }
+/* Días pasados: atenuados por color, no por opacidad (la opacidad bajaba el texto de 4.5:1). */
+.dash-day.is-past .dash-day-line, .dash-day.is-past .dash-num { color:${tk.t2} !important; }
 .dash-day.is-today { background:${tk.accentText}0d; }
 .dash-day-line { display:flex; align-items:center; gap:6px; margin-top:6px; font-size:12px; color:${tk.t1};
   min-width:0; max-width:100%; text-align:left; }
@@ -286,7 +290,7 @@ li + li > .dash-peek-item { border-top:1px solid ${tk.divider}; border-radius:0;
 .dash-date small { font-size:11px; color:${tk.t2}; text-transform:uppercase; letter-spacing:.04em; }
 
 @media (prefers-reduced-motion: reduce) {
-  .dash-chev, .dash-verb-btn, .dash-recent-link { transition:none; }
+  .dash-chev, .dash-peek-btn, .dash-recent-link { transition:none; }
   .dash-in { animation:none; }
   .dash-row, .gs-field { transition:none; }
 }

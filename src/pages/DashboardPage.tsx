@@ -4,7 +4,7 @@ import {
   BankOutlined, BellOutlined, CalendarOutlined, CarOutlined, CheckCircleOutlined, ClockCircleOutlined,
   DownOutlined, FileTextOutlined, HourglassOutlined, IdcardOutlined, InboxOutlined, ScheduleOutlined,
   SendOutlined, TeamOutlined, WalletOutlined, PlusOutlined, ReloadOutlined, RightOutlined, FieldTimeOutlined,
-  ArrowUpOutlined, DashboardOutlined, HistoryOutlined,
+  ArrowUpOutlined, DashboardOutlined, HistoryOutlined, ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import useAuthStore from "../auth/useAuthStore";
@@ -82,7 +82,7 @@ function AgingBar({ total, over30, over60, tk }: { total: number; over30: number
   const parts = [
     { n: Math.max(total - over30, 0), label: "hasta 30 días", color: tk.isDark ? "#3A3F52" : "#CBD5E1" },
     { n: Math.max(over30 - over60, 0), label: "de 30 a 60 días", color: tk.isDark ? "#6B7080" : "#94A3B8" },
-    { n: over60, label: "más de 60 días", color: DANGER },
+    { n: over60, label: "más de 60 días", color: WARNING },
   ];
   if (total <= 0) return null;
   return (
@@ -110,13 +110,13 @@ const pl = (n: number, one: string, many: string) => `${n.toLocaleString("es-GT"
 const todayGT = () => new Date().toLocaleDateString("en-CA", { timeZone:"America/Guatemala" });
 const dayDiff = (iso: string) =>
   Math.round((Date.parse(iso.slice(0, 10) + "T12:00:00Z") - Date.parse(todayGT() + "T12:00:00Z")) / 86_400_000);
-/** "de hoy", "de ayer", "de hace 9 días", "desde mar 2025" */
+/** "de hoy", "de ayer", "de hace 9 días", "de mar 2025" */
 const ago = (iso: string) => {
   const d = -dayDiff(iso);
   if (d <= 0) return "de hoy";
   if (d === 1) return "de ayer";
   if (d < 60) return `de hace ${d} días`;
-  return `desde ${new Date(iso.slice(0, 10) + "T12:00:00").toLocaleDateString("es-GT", { month:"short", year:"numeric" })}`;
+  return `de ${new Date(iso.slice(0, 10) + "T12:00:00").toLocaleDateString("es-GT", { month:"short", year:"numeric" })}`;
 };
 /** "hoy a las 09:00", "mañana", "el 25 nov" */
 const when = (iso: string, time?: string | null) => {
@@ -128,34 +128,39 @@ const money = (a?: InboxDetail["amounts"]) =>
   (a ?? []).map((x) => `${x.currency} ${x.total.toLocaleString("es-GT", { maximumFractionDigits: 0 })}`).join(" + ");
 const join = (...p: (string | null | undefined | false)[]) => p.filter(Boolean).join(" · ");
 
-/** Monto + "el más antiguo de hace N días"; urgencia por antigüedad. */
-const moneyAndAge = (warnDays: number, dangerDays: number): DetailFn<string> => (_c, det) => {
+/* Regla de severidad del inicio (DESIGN.md, "La Regla de Severidad"):
+   2 · rojo  = vence o pasa HOY o MAÑANA (o un plazo legal ya vencido): actuar ya.
+   1 · ámbar = atraso que se arrastra: se ve su antigüedad, no es una alarma.
+   0 · neutro.
+   El atraso nunca es rojo: si lo fuera, el rojo dejaría de avisar. */
+
+/** Monto + "el más antiguo de hace N días"; el atraso llega a ámbar, nunca a rojo. */
+const moneyAndAge = (warnDays: number): DetailFn<string> => (_c, det) => {
   if (!det) return null;
   const age = det.oldest ? -dayDiff(det.oldest) : 0;
   const text = join(money(det.amounts), det.oldest && `el más antiguo ${ago(det.oldest)}`);
-  return text ? { text, sev: age > dangerDays ? 2 : age > warnDays ? 1 : 0 } : null;
+  return text ? { text, sev: age > warnDays ? 1 : 0 } : null;
 };
-/** "el más antiguo de hace N días" (para bandejas de aceptación) */
+/** "el más antiguo de hace N días" (bandejas de aceptación): atraso → ámbar. */
 const oldestOnly = (noun: string): DetailFn<string> => (_c, det) => {
   if (!det?.oldest) return null;
-  const age = -dayDiff(det.oldest);
-  return { text: `${noun} ${ago(det.oldest)}`, sev: age > 7 ? 2 : age > 2 ? 1 : 0 };
+  return { text: `${noun} ${ago(det.oldest)}`, sev: -dayDiff(det.oldest) > 2 ? 1 : 0 };
 };
 
 const INBOX_ITEMS: CountItem<InboxKey>[] = [
   { key:"checksToAuthorize", hue:"cheques", icon:<BankOutlined />, verb:"Autorizar",
     label:"Cheques por autorizar", path:"/dashboard/cheques/autorizacion",
-    detail: moneyAndAge(5, 14) },
+    detail: moneyAndAge(5) },
   { key:"checksToLiquidate", hue:"cheques", icon:<BankOutlined />, verb:"Liquidar",
     label:"Cheques por liquidar", path:"/dashboard/cheques/liquidacion",
     detail: (c) => {
       const o30 = c.checksToLiquidateOver30 ?? 0, o60 = c.checksToLiquidateOver60 ?? 0;
       if (o30 <= 0) return null;
       // Si todos los viejos pasan de 60 días, decirlo una sola vez.
-      if (o60 >= o30) return { text: pl(o60, "lleva más de 60 días", "llevan más de 60 días"), sev: 2 };
+      if (o60 >= o30) return { text: pl(o60, "lleva más de 60 días", "llevan más de 60 días"), sev: 1 };
       return {
         text: pl(o30, "lleva más de 30 días", "llevan más de 30 días") + (o60 > 0 ? ` (${o60.toLocaleString("es-GT")} más de 60)` : ""),
-        sev: o60 > 0 ? 2 : 1,
+        sev: 1,
       };
     },
     visual: (c, tk) => (
@@ -164,13 +169,13 @@ const INBOX_ITEMS: CountItem<InboxKey>[] = [
     ) },
   { key:"moneyReqToAuthorize", hue:"dinero", icon:<WalletOutlined />, verb:"Autorizar",
     label:"Requerimientos de dinero por autorizar", path:"/dashboard/money-req?vista=por-autorizar",
-    detail: moneyAndAge(3, 7) },
+    detail: moneyAndAge(3) },
   { key:"vacationsToApprove", hue:"equipo", icon:<CalendarOutlined />, verb:"Revisar",
     label:"Vacaciones de tu equipo por aprobar", path:"/dashboard/recursos-humanos/vacaciones",
     detail: (_c, det) => {
       if (!det?.next) return null;
       const d = dayDiff(det.next);
-      return { text: `la próxima inicia ${when(det.next)}`, sev: d <= 2 ? 2 : d <= 7 ? 1 : 0 };
+      return { text: `la próxima inicia ${when(det.next)}`, sev: d <= 1 ? 2 : d <= 7 ? 1 : 0 };
     } },
   { key:"roomsToApprove", hue:"salas", icon:<ScheduleOutlined />, verb:"Aprobar",
     label:"Reservas de sala por aprobar", path:"/dashboard/reservaciones/listar",
@@ -179,7 +184,7 @@ const INBOX_ITEMS: CountItem<InboxKey>[] = [
       const today = det.today ?? 0;
       return {
         text: join(today > 0 && `${today} para hoy`, `la próxima ${when(det.next, det.nextTime)}`),
-        sev: today > 0 || dayDiff(det.next) <= 1 ? 1 : 0,
+        sev: today > 0 || dayDiff(det.next) <= 1 ? 2 : dayDiff(det.next) <= 3 ? 1 : 0,
       };
     } },
   { key:"sirvoRequests", hue:"sirvo", icon:<SendOutlined />, verb:"Pedir",
@@ -189,7 +194,7 @@ const INBOX_ITEMS: CountItem<InboxKey>[] = [
     detail: (_c, det) => {
       if (!det?.next) return null;
       const d = dayDiff(det.next);
-      return { text: join(`el próximo vence ${when(det.next)}`, det.nextLabel), sev: d <= 7 ? 2 : d <= 30 ? 1 : 0 };
+      return { text: join(`el próximo vence ${when(det.next)}`, det.nextLabel), sev: d <= 1 ? 2 : d <= 14 ? 1 : 0 };
     } },
   { key:"notificationsToAccept", hue:"notificaciones", icon:<BellOutlined />, verb:"Aceptar",
     label:"Notificaciones por aceptar", path:"/dashboard/notificaciones/entregadas",
@@ -251,7 +256,10 @@ const PREVIEW_NOUN: Record<string, string> = {
 };
 /** "RODRIGUEZ MAHUAD, ALFREDO" → "Rodriguez Mahuad, Alfredo" (la BD guarda muchos en
     mayúsculas). Por partes ("Solicitud 23 · ADA OLIVA"): solo la parte en mayúsculas cambia. */
-const tidy = (text: string) => text.split(" · ").map(tidyPart).join(" · ");
+const tidy = (text: string) => text.split(" · ").map(tidyPart).join(" · ")
+  // "ERIK GERARDO Arroyave Muñoz": dos o más palabras seguidas en mayúsculas son un nombre;
+  // una sola se respeta (siglas como NIT, ARM).
+  .replace(/\b([A-ZÁÉÍÓÚÑ]{2,}(?:\s+[A-ZÁÉÍÓÚÑ]{2,})+)\b/gu, (run) => tidyPart(run));
 const tidyPart = (text: string) =>
   /[a-záéíóúñ]/.test(text) || !/[A-ZÁÉÍÓÚÑ]{3}/.test(text)
     ? text
@@ -303,9 +311,11 @@ function PreviewList({ state, tk, total, onOpen, onOpenItem, onRetry }: {
             ))}
           </ul>
         )}
-      <button type="button" className="dash-link" style={{ marginTop:6 }} onClick={onOpen}>
-        Ver {total > 1 ? `los ${total.toLocaleString("es-GT")}` : "en el módulo"} <RightOutlined style={{ fontSize:10 }} />
-      </button>
+      {state.data.length > 0 && total > state.data.length && (
+        <button type="button" className="dash-link" style={{ marginTop:6 }} onClick={onOpen}>
+          Ver los {total.toLocaleString("es-GT")} <RightOutlined style={{ fontSize:10 }} />
+        </button>
+      )}
     </>
   );
 }
@@ -395,9 +405,8 @@ function CountPanel<K extends string>({ id, title, subtitle, titleHue, titleIcon
                     {det && !i.visual && (
                       <span style={{ display:"flex", alignItems:"baseline", gap:6, marginTop:3, fontSize:13,
                         color: tone === "action" && det.sev > 0 ? sevColor(tk, det.sev) : tk.t2 }}>
-                        {tone === "action" && det.sev > 0 && (
-                          <ClockCircleOutlined aria-hidden style={{ flexShrink:0 }} />
-                        )}
+                        {tone === "action" && det.sev === 2 && <ExclamationCircleOutlined aria-label="Urgente" style={{ flexShrink:0 }} />}
+                        {tone === "action" && det.sev === 1 && <ClockCircleOutlined aria-label="Atrasado" style={{ flexShrink:0 }} />}
                         <span>{det.text}</span>
                       </span>
                     )}
@@ -423,19 +432,21 @@ function CountPanel<K extends string>({ id, title, subtitle, titleHue, titleIcon
                   </li>
                 );
               }
+              const shown = Math.min(count, 5);
               return (
                 <li key={i.key} className="dash-li">
-                  {/* La fila abre la vista previa; el verbo lleva al módulo. */}
-                  <button type="button" className="dash-row" aria-expanded={open} aria-controls={`peek-${i.key}`}
-                    title={open ? "Ocultar" : `Ver ${PREVIEW_NOUN[i.key] ?? "los más antiguos"}`}
-                    onClick={() => togglePreview(i.key)}>
+                  <button type="button" className="dash-row" onClick={() => onOpen(i.path)}>
                     {body}
-                    <DownOutlined aria-hidden className="dash-chev" />
+                    <span className="dash-verb" style={{ color:tk.accentText }}>
+                      <span className="dash-verb-text">{i.verb}</span>
+                      <RightOutlined aria-hidden style={{ fontSize:10 }} />
+                    </span>
                   </button>
-                  <button type="button" className="dash-verb-btn" aria-label={`${i.verb}: ${i.label}`}
-                    onClick={() => onOpen(i.path)}>
-                    <span className="dash-verb-text">{i.verb}</span>
-                    <RightOutlined aria-hidden style={{ fontSize:10 }} />
+                  <button type="button" className="dash-peek-btn" aria-expanded={open} aria-controls={`peek-${i.key}`}
+                    aria-label={`${open ? "Ocultar" : "Ver"} ${PREVIEW_NOUN[i.key] ?? "los más antiguos"}: ${i.label}`}
+                    onClick={() => togglePreview(i.key)}>
+                    <span className="dash-peek-text">Ver {shown}</span>
+                    <DownOutlined aria-hidden className="dash-chev" />
                   </button>
                   {open && (
                     <div id={`peek-${i.key}`} className="dash-peek-panel">
@@ -649,9 +660,11 @@ function TeamPanel({ data, balance, tk, onOpen, onRetry }: {
 
       {data.status === "ok" && (
         <>
-          <h3 style={sub}>Fuera hoy</h3>
+          {data.data.onVacation.length === 0 && data.data.upcoming.length === 0 ? (
+            <p style={{ margin:0, fontSize:13, color:tk.t2 }}>Todo el equipo está hoy y nadie sale esta semana.</p>
+          ) : <h3 style={sub}>Fuera hoy</h3>}
           {data.data.onVacation.length === 0
-            ? <p style={{ margin:"0 0 4px", fontSize:13, color:tk.t2 }}>Todo el equipo está hoy.</p>
+            ? (data.data.upcoming.length > 0 && <p style={{ margin:"0 0 4px", fontSize:13, color:tk.t2 }}>Todo el equipo está hoy.</p>)
             : <ul style={{ listStyle:"none", margin:0, padding:0 }}>
                 {data.data.onVacation.map((v, i) => person(v.name, `regresa ${fmtDay(v.fechaFin)}`, i))}
               </ul>}
@@ -758,7 +771,7 @@ function DeadlinesPanel({ data, tk, onOpen, onRetry }: {
     const d = dayDiff(iso);
     if (d < 0) return { text: `venció hace ${pl(-d, "día", "días")}`, sev: 2 as const };
     if (d === 0) return { text: "vence hoy", sev: 2 as const };
-    if (d === 1) return { text: "vence mañana", sev: 1 as const };
+    if (d === 1) return { text: "vence mañana", sev: 2 as const };
     return { text: `vence en ${d} días`, sev: (d <= 3 ? 1 : 0) as 0 | 1 };
   };
   const badge = (iso: string) => {
@@ -838,7 +851,11 @@ function DeadlinesPanel({ data, tk, onOpen, onRetry }: {
               <span>
                 {items.length > MAX && <>{pl(items.length - MAX, "plazo más", "plazos más")} en la ventana. </>}
                 {data.data.staleOverdue > 0 && (
-                  <>{pl(data.data.staleOverdue, "expediente activo tiene", "expedientes activos tienen")} la etapa vencida hace más de 30 días.</>
+                  // Un plazo legal vencido es riesgo, no atraso: va en rojo.
+                  <span style={{ color:sevColor(tk, 2), fontWeight:500 }}>
+                    <ExclamationCircleOutlined aria-hidden style={{ marginRight:6 }} />
+                    {pl(data.data.staleOverdue, "expediente activo tiene", "expedientes activos tienen")} la etapa vencida hace más de 30 días.
+                  </span>
                 )}
               </span>
               <button type="button" className="dash-link" onClick={onOpen}>Revisar <RightOutlined style={{ fontSize:10 }} /></button>
@@ -1153,7 +1170,7 @@ export default function DashboardPage() {
     const total = ranked.reduce((a, r) => a + ((inbox.data[r.i.key] as number) ?? 0), 0);
     const urgentRows = ranked.filter((r) => (r.det?.sev ?? 0) === 2).length;
     const watchRows = ranked.filter((r) => (r.det?.sev ?? 0) === 1).length;
-    return { total, urgentRows, watchRows };
+    return { total, rows: ranked.length, urgentRows, watchRows };
   })();
   const updatedStr = updatedAt
     ? `Actualizado ${updatedAt.toLocaleTimeString("es-GT", { hour:"2-digit", minute:"2-digit", hour12:false })}`
@@ -1185,14 +1202,15 @@ export default function DashboardPage() {
                   <span><CheckCircleOutlined aria-hidden style={{ color:SUCCESS, marginRight:6 }} />Estás al día: nada espera tu acción.</span>
                 ) : (
                   <>
-                    <span><b className="dash-num">{summary.total.toLocaleString("es-GT")}</b> {summary.total === 1 ? "pendiente" : "pendientes"} en tus módulos</span>
+                    <span><b className="dash-num">{summary.total.toLocaleString("es-GT")}</b> {summary.total === 1 ? "pendiente" : "pendientes"}{" "}
+                      en <b className="dash-num">{summary.rows}</b> {summary.rows === 1 ? "bandeja" : "bandejas"}</span>
                     {summary.urgentRows > 0 && (
-                      <span><i className="dash-dot" style={{ background:DANGER }} />
-                        <b className="dash-num">{summary.urgentRows}</b> {summary.urgentRows === 1 ? "urgente" : "urgentes"}</span>
+                      <span><ExclamationCircleOutlined aria-hidden style={{ color:DANGER, marginRight:6 }} />
+                        <b className="dash-num">{summary.urgentRows}</b> {summary.urgentRows === 1 ? "urgente para hoy" : "urgentes para hoy"}</span>
                     )}
                     {summary.watchRows > 0 && (
-                      <span><i className="dash-dot" style={{ background:WARNING }} />
-                        <b className="dash-num">{summary.watchRows}</b> por vigilar</span>
+                      <span><ClockCircleOutlined aria-hidden style={{ color:WARNING, marginRight:6 }} />
+                        <b className="dash-num">{summary.watchRows}</b> con atraso</span>
                     )}
                     {newCount > 0 && (
                       <button type="button" className="dash-new" aria-live="polite"

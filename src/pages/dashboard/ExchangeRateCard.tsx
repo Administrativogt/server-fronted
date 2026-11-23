@@ -79,6 +79,7 @@ export default function ExchangeRateCard({ tk }: { tk: Tokens }) {
   const [lookupDate, setLookupDate] = useState<Dayjs | null>(null);
   const [lookup, setLookup] = useState<DateLookupResult[] | null>(null);
   const [lookupState, setLookupState] = useState<"idle" | "loading" | "error">("idle");
+  const [showLookup, setShowLookup] = useState(false);
 
   const load = useCallback(async () => {
     setState("loading");
@@ -137,11 +138,17 @@ export default function ExchangeRateCard({ tk }: { tk: Tokens }) {
           : <p style={{ margin:0, fontSize:13, color:tk.t2 }}>Banguat no publicó el dólar para hoy. Intenta más tarde.</p>
       )}
 
+      {/* La consulta por fecha es ocasional: queda detrás de un enlace. */}
+      {!showLookup ? (
+        <button type="button" className="dash-link" style={{ marginTop:12 }} onClick={() => setShowLookup(true)}>
+          Otra fecha
+        </button>
+      ) : (
       <div style={{ marginTop:14 }}>
         <label htmlFor="tc-fecha" style={{ display:"block", fontSize:12, color:tk.t2, marginBottom:6 }}>
           Consultar otra fecha
         </label>
-        <DatePicker id="tc-fecha" size="small" format="DD/MM/YYYY" value={lookupDate}
+        <DatePicker id="tc-fecha" size="small" format="DD/MM/YYYY" value={lookupDate} autoFocus
           onChange={onPickDate} disabledDate={(d) => d.isAfter(dayjs(), "day")}
           placeholder="Elegir fecha" className="dash-card-picker" style={{ width:"100%" }} />
         {lookupState === "loading" && <Skeleton active title={false} paragraph={{ rows:2 }} style={{ marginTop:10 }} />}
@@ -159,6 +166,7 @@ export default function ExchangeRateCard({ tk }: { tk: Tokens }) {
           <p style={{ margin:"8px 0 0", fontSize:13, color:tk.t2 }}>Sin datos para esa fecha. Prueba con otro día hábil.</p>
         )}
       </div>
+      )}
     </section>
   );
 }
