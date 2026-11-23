@@ -1,14 +1,19 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { LoadingOutlined, SearchOutlined, CloseCircleFilled } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
-import { globalSearch, type SearchGroup } from "../../api/dashboard";
+import { globalSearch, type SearchGroup, type SearchItem } from "../../api/dashboard";
+import { NavPagesContext, matchPages } from "../../utils/navPages";
 import { type Tokens } from "./theme";
 
 /* Búsqueda global del inicio (combobox ARIA).
    - Escribe ≥2 caracteres → busca con 250 ms de pausa; respuestas viejas se ignoran.
    - ↑/↓ recorren resultados, Enter abre, Esc cierra (y limpia si ya estaba cerrado).
    - ⌘K / Ctrl+K o "/" enfocan el buscador desde cualquier parte de la página.
-   El backend decide qué módulos consultar y con qué alcance. */
+   El backend decide qué módulos consultar y con qué alcance. Las pantallas
+   del menú (ya filtradas por permisos) se buscan aquí mismo, sin esperar:
+   un solo buscador para pantallas y registros. */
+
+type Group = { key: string; label: string; items: SearchItem[]; failed?: boolean };
 
 const MIN = 2;
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
@@ -29,12 +34,21 @@ export default function GlobalSearch({ tk }: { tk: Tokens }) {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<State>({ status: "idle" });
   const [active, setActive] = useState(-1);
+  const navPages = useContext(NavPagesContext);
+
+  /* Pantallas primero (al instante), luego los registros del backend. */
+  const groups = useMemo<Group[]>(() => {
+    const term = q.trim();
+    const pages = term.length >= MIN ? matchPages(navPages, term) : [];
+    const pageGroup: Group[] = pages.length
+      ? [{ key:"pantallas", label:"Pantallas", items: pages.map((p) => ({
+          id: p.path, title: p.label, subtitle: p.parent, path: p.path })) }]
+      : [];
+    return [...pageGroup, ...(state.status === "ok" ? (state.groups as SearchGroup[]) : [])];
+  }, [q, navPages, state]);
 
   /* opciones navegables (las que tienen ruta) en orden visual */
-  const options = useMemo(
-    () => (state.status === "ok" ? state.groups.flatMap((g) => g.items.filter((i) => i.path)) : []),
-    [state],
-  );
+  const options = useMemo(() => groups.flatMap((g) => g.items.filter((i) => i.path)), [groups]);
 
   /* búsqueda con pausa */
   useEffect(() => {
@@ -125,7 +139,7 @@ export default function GlobalSearch({ tk }: { tk: Tokens }) {
           autoComplete="off"
           spellCheck={false}
           value={q}
-          placeholder="Buscar cheque, NT, recibo, cliente…"
+          placeholder="Buscar pantalla, cheque, recibo…"
           onChange={(e) => { setQ(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
@@ -163,7 +177,7 @@ export default function GlobalSearch({ tk }: { tk: Tokens }) {
               No se pudo buscar. Revisa tu conexión e intenta de nuevo.
             </p>
           )}
-          {state.status === "ok" && state.groups.length === 0 && (
+          {state.status === "ok" && groups.length === 0 && (
             <div style={{ padding:"10px 14px", fontSize:13, color:tk.t2 }}>
               <div style={{ color:tk.t1, fontWeight:500 }}>Sin resultados para «{state.q}».</div>
               <div style={{ marginTop:4 }}>
@@ -172,7 +186,7 @@ export default function GlobalSearch({ tk }: { tk: Tokens }) {
             </div>
           )}
 
-          {state.status === "ok" && state.groups.map((g) => (
+          {groups.map((g) => (
             <div key={g.key} role="group" aria-labelledby={`${listId}-${g.key}`} style={{ padding:"4px 0" }}>
               <div id={`${listId}-${g.key}`} style={{ padding:"6px 14px 4px", fontSize:12, fontWeight:600, color:tk.t2 }}>
                 {g.label}
@@ -208,7 +222,7 @@ export default function GlobalSearch({ tk }: { tk: Tokens }) {
             </div>
           ))}
 
-          {state.status === "ok" && options.length > 0 && (
+          {options.length > 0 && (
             <div aria-hidden style={{ padding:"8px 14px 4px", marginTop:4, borderTop:`1px solid ${tk.divider}`,
               fontSize:12, color:tk.t2 }}>
               ↑ ↓ para moverte · Enter para abrir · Esc para cerrar

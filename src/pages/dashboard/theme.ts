@@ -60,10 +60,10 @@ export type HueKey =
    Operación, Personas), en tonos desaturados para no competir con los
    colores de estado. El índigo de marca queda solo para la bandeja. */
 const AREA = {
-  finanzas:  ["#3F7466", "#8CC7B6"],
-  legal:     ["#7A5A36", "#D6B48A"],
-  operacion: ["#55657C", "#AAB7C9"],
-  personas:  ["#875062", "#DDA4B5"],
+  finanzas:  ["#2E7D5B", "#7FD1AE"],
+  legal:     ["#8A5A1C", "#E3B57A"],
+  operacion: ["#4F5B6E", "#B3BDCC"],
+  personas:  ["#9A3F62", "#EDA3C0"],
 } as const satisfies Record<string, readonly [string, string]>;
 
 const HUES: Record<HueKey, readonly [light: string, dark: string]> = {
@@ -84,6 +84,17 @@ const HUES: Record<HueKey, readonly [light: string, dark: string]> = {
 
 /** Color de TEXTO por urgencia (0 neutro, 1 atención, 2 urgente). Tonos
     oscuros en claro para llegar a 4.5:1 sobre blanco; claros en oscuro. */
+/* ─── La Regla de Severidad (DESIGN.md) ─────────────────────────────────────
+   Una sola fuente para todo el inicio:
+   2 · rojo  = vence o pasa HOY o MAÑANA, o un plazo legal ya vencido.
+   1 · ámbar = ATRASO que se arrastra (antigüedad). Nada más es ámbar.
+   0 · neutro = lo demás, aunque venza pronto: la fecha lo dice sola. */
+export type Sev = 0 | 1 | 2;
+/** Por vencimiento: días hasta la fecha (negativo = ya pasó). */
+export const dueSev = (daysUntil: number): Sev => (daysUntil <= 1 ? 2 : 0);
+/** Por antigüedad: un atraso de más de `afterDays` días. Nunca rojo. */
+export const ageSev = (ageDays: number, afterDays: number): Sev => (ageDays > afterDays ? 1 : 0);
+
 export const sevColor = (tk: Tokens, sev: 0 | 1 | 2) =>
   sev === 2 ? (tk.isDark ? "#F87171" : "#B91C1C")
   : sev === 1 ? (tk.isDark ? "#FBBF24" : "#B45309")
@@ -108,39 +119,6 @@ export const makeChartTheme = (tk: Tokens) => ({
 
 /* ─── CSS (theme-aware) ──────────────────────────────────────────────────── */
 export const makeCSS = (tk: Tokens) => `
-@keyframes fadeUp {
-  from { opacity:0; transform:translateY(14px); }
-  to   { opacity:1; transform:translateY(0); }
-}
-.f1{animation:fadeUp .38s cubic-bezier(.22,1,.36,1) .00s both}
-.f2{animation:fadeUp .38s cubic-bezier(.22,1,.36,1) .06s both}
-.f3{animation:fadeUp .38s cubic-bezier(.22,1,.36,1) .12s both}
-.f4{animation:fadeUp .38s cubic-bezier(.22,1,.36,1) .18s both}
-.f5{animation:fadeUp .38s cubic-bezier(.22,1,.36,1) .24s both}
-.f6{animation:fadeUp .38s cubic-bezier(.22,1,.36,1) .30s both}
-.f7{animation:fadeUp .38s cubic-bezier(.22,1,.36,1) .36s both}
-.f8{animation:fadeUp .38s cubic-bezier(.22,1,.36,1) .42s both}
-
-@keyframes pulsedot {
-  0%,100% { opacity:1; transform:scale(1); }
-  50%     { opacity:.5; transform:scale(.8); }
-}
-.pulsedot { animation: pulsedot 1.6s ease-in-out infinite; }
-
-.ta-card { transition: box-shadow .22s, transform .22s; }
-.ta-card:hover {
-  box-shadow: 0 8px 28px rgba(60,80,224,.13) !important;
-  transform: translateY(-3px);
-}
-
-.refresh-btn { transition: background .18s, color .18s, border-color .18s, transform .18s; }
-.refresh-btn:hover {
-  background: #3C50E0 !important;
-  color: #fff !important;
-  border-color: #3C50E0 !important;
-  transform: translateY(-1px);
-}
-
 .ta-table .ant-table {
   font-family: 'Plus Jakarta Sans', sans-serif;
   font-size: 13px;
@@ -250,6 +228,8 @@ export const makeDashCSS = (tk: Tokens) => `
 .dash-chev { font-size:10px; transition:transform .18s; }
 .dash-peek-btn[aria-expanded="true"] .dash-chev { transform:rotate(180deg); }
 @media (max-width: 520px) { .dash-peek-text { display:none; } .dash-peek-btn { padding:0 16px 0 8px; } }
+.dash-peek-panel:focus { outline:none; }
+.dash-peek-panel:focus-visible { outline:2px solid ${tk.accentText}; outline-offset:-2px; }
 .dash-peek-panel { grid-column:1 / -1; padding:4px 20px 14px 66px; background:${tk.subtle}; border-top:1px solid ${tk.divider}; }
 .dash-peek-item { display:flex; align-items:baseline; gap:12px; width:100%; padding:8px 8px; margin:0 -8px;
   font:inherit; font-size:13px; text-align:left; background:transparent; border:0; border-radius:6px; cursor:pointer;

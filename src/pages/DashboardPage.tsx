@@ -17,7 +17,7 @@ import {
 } from "../api/dashboard";
 import GlobalSearch from "./dashboard/GlobalSearch";
 import { getRecentPages, onRecentPagesChange, type RecentPage } from "../utils/recentPages";
-import { DANGER, INFO, SUCCESS, WARNING, type HueKey, type Tokens, bandColors, hue, makeTokens, wcard, makeDashCSS, sevColor } from "./dashboard/theme";
+import { DANGER, INFO, SUCCESS, WARNING, type HueKey, type Tokens, bandColors, hue, makeTokens, wcard, makeDashCSS, sevColor, dueSev, ageSev } from "./dashboard/theme";
 
 const ExchangeRateCard = lazy(() => import("./dashboard/ExchangeRateCard"));
 
@@ -128,23 +128,19 @@ const money = (a?: InboxDetail["amounts"]) =>
   (a ?? []).map((x) => `${x.currency} ${x.total.toLocaleString("es-GT", { maximumFractionDigits: 0 })}`).join(" + ");
 const join = (...p: (string | null | undefined | false)[]) => p.filter(Boolean).join(" · ");
 
-/* Regla de severidad del inicio (DESIGN.md, "La Regla de Severidad"):
-   2 · rojo  = vence o pasa HOY o MAÑANA (o un plazo legal ya vencido): actuar ya.
-   1 · ámbar = atraso que se arrastra: se ve su antigüedad, no es una alarma.
-   0 · neutro.
-   El atraso nunca es rojo: si lo fuera, el rojo dejaría de avisar. */
+/* Severidad: siempre con dueSev / ageSev de theme.ts (La Regla de Severidad). */
 
 /** Monto + "el más antiguo de hace N días"; el atraso llega a ámbar, nunca a rojo. */
 const moneyAndAge = (warnDays: number): DetailFn<string> => (_c, det) => {
   if (!det) return null;
   const age = det.oldest ? -dayDiff(det.oldest) : 0;
   const text = join(money(det.amounts), det.oldest && `el más antiguo ${ago(det.oldest)}`);
-  return text ? { text, sev: age > warnDays ? 1 : 0 } : null;
+  return text ? { text, sev: ageSev(age, warnDays) } : null;
 };
 /** "el más antiguo de hace N días" (bandejas de aceptación): atraso → ámbar. */
 const oldestOnly = (noun: string): DetailFn<string> => (_c, det) => {
   if (!det?.oldest) return null;
-  return { text: `${noun} ${ago(det.oldest)}`, sev: -dayDiff(det.oldest) > 2 ? 1 : 0 };
+  return { text: `${noun} ${ago(det.oldest)}`, sev: ageSev(-dayDiff(det.oldest), 2) };
 };
 
 const INBOX_ITEMS: CountItem<InboxKey>[] = [
@@ -157,10 +153,10 @@ const INBOX_ITEMS: CountItem<InboxKey>[] = [
       const o30 = c.checksToLiquidateOver30 ?? 0, o60 = c.checksToLiquidateOver60 ?? 0;
       if (o30 <= 0) return null;
       // Si todos los viejos pasan de 60 días, decirlo una sola vez.
-      if (o60 >= o30) return { text: pl(o60, "lleva más de 60 días", "llevan más de 60 días"), sev: 1 };
+      if (o60 >= o30) return { text: pl(o60, "lleva más de 60 días", "llevan más de 60 días"), sev: ageSev(61, 30) };
       return {
         text: pl(o30, "lleva más de 30 días", "llevan más de 30 días") + (o60 > 0 ? ` (${o60.toLocaleString("es-GT")} más de 60)` : ""),
-        sev: 1,
+        sev: ageSev(31, 30),
       };
     },
     visual: (c, tk) => (
@@ -175,7 +171,7 @@ const INBOX_ITEMS: CountItem<InboxKey>[] = [
     detail: (_c, det) => {
       if (!det?.next) return null;
       const d = dayDiff(det.next);
-      return { text: `la próxima inicia ${when(det.next)}`, sev: d <= 1 ? 2 : d <= 7 ? 1 : 0 };
+      return { text: `la próxima inicia ${when(det.next)}`, sev: dueSev(d) };
     } },
   { key:"roomsToApprove", hue:"salas", icon:<ScheduleOutlined />, verb:"Aprobar",
     label:"Reservas de sala por aprobar", path:"/dashboard/reservaciones/listar",
@@ -184,7 +180,7 @@ const INBOX_ITEMS: CountItem<InboxKey>[] = [
       const today = det.today ?? 0;
       return {
         text: join(today > 0 && `${today} para hoy`, `la próxima ${when(det.next, det.nextTime)}`),
-        sev: today > 0 || dayDiff(det.next) <= 1 ? 2 : dayDiff(det.next) <= 3 ? 1 : 0,
+        sev: today > 0 ? 2 : dueSev(dayDiff(det.next)),
       };
     } },
   { key:"sirvoRequests", hue:"sirvo", icon:<SendOutlined />, verb:"Pedir",
@@ -194,7 +190,7 @@ const INBOX_ITEMS: CountItem<InboxKey>[] = [
     detail: (_c, det) => {
       if (!det?.next) return null;
       const d = dayDiff(det.next);
-      return { text: join(`el próximo vence ${when(det.next)}`, det.nextLabel), sev: d <= 1 ? 2 : d <= 14 ? 1 : 0 };
+      return { text: join(`el próximo vence ${when(det.next)}`, det.nextLabel), sev: dueSev(d) };
     } },
   { key:"notificationsToAccept", hue:"notificaciones", icon:<BellOutlined />, verb:"Aceptar",
     label:"Notificaciones por aceptar", path:"/dashboard/notificaciones/entregadas",
@@ -204,7 +200,7 @@ const INBOX_ITEMS: CountItem<InboxKey>[] = [
     detail: oldestOnly("el más antiguo") },
   { key:"encargosToday", hue:"envios", icon:<CarOutlined />, verb:"Ver",
     label:"Envíos programados para hoy", path:"/dashboard/mensajeria",
-    detail: (_c, det) => (det?.priorityA ? { text: pl(det.priorityA, "de prioridad A", "de prioridad A"), sev: 1 } : null) },
+    detail: (_c, det) => (det?.priorityA ? { text: pl(det.priorityA, "de prioridad A", "de prioridad A"), sev: dueSev(0) } : null) },
 ];
 
 const MY_REQUEST_ITEMS: CountItem<MyRequestKey>[] = [
@@ -346,6 +342,8 @@ function CountPanel<K extends string>({ id, title, subtitle, titleHue, titleIcon
     const k = openRef.current;
     if (k) loadPreview(k);
   }, [preview, data, loadPreview]);
+  /* Al abrir una vista previa el foco pasa a su panel (lector de pantalla y teclado). */
+  const focusPanel = useCallback((el: HTMLDivElement | null) => { el?.focus({ preventScroll:true }); }, []);
   const togglePreview = (k: K) => {
     if (openKey === k) { setOpenKey(null); return; }
     setOpenKey(k);
@@ -449,7 +447,8 @@ function CountPanel<K extends string>({ id, title, subtitle, titleHue, titleIcon
                     <DownOutlined aria-hidden className="dash-chev" />
                   </button>
                   {open && (
-                    <div id={`peek-${i.key}`} className="dash-peek-panel">
+                    <div id={`peek-${i.key}`} className="dash-peek-panel" ref={focusPanel} tabIndex={-1}
+                      role="region" aria-label={`${PREVIEW_NOUN[i.key] ?? "Los más antiguos"}: ${i.label}`}>
                       <PreviewList state={previews[i.key] ?? { status:"loading" }} tk={tk} total={count}
                         onOpen={() => onOpen(i.path)} onOpenItem={(path) => onOpen(path || i.path)}
                         onRetry={() => loadPreview(i.key)} />
@@ -509,7 +508,10 @@ function RoomsNow({ rooms, tk, onCreate }: { rooms: RoomNow[]; tk: Tokens; onCre
       {freeAllDay.length > 0 && (
         <p style={{ margin:"0 0 4px", fontSize:13, color:tk.t1, lineHeight:1.55 }}>
           {dot}<span style={{ color:tk.t2 }}>Libres el resto del día:</span>{" "}
-          {freeAllDay.map((r) => r.name).join(", ")}
+          <span title={freeAllDay.map((r) => r.name).join(", ")}>
+            {freeAllDay.slice(0, 3).map((r) => r.name).join(", ")}
+            {freeAllDay.length > 3 && ` y ${freeAllDay.length - 3} más`}
+          </span>
         </p>
       )}
       {freeUntil.length > 0 && (
@@ -552,9 +554,9 @@ function AgendaPanel({ data, rooms, tk, onOpen, onCreate, onRetry }: {
     : [];
 
   return (
-    <section aria-labelledby="agenda-title" style={{ ...wcard(tk, { padding:"18px 20px" }) }}>
+    <section aria-labelledby="agenda-title" style={{ ...wcard(tk, { padding:"18px 20px", boxShadow:"none" }) }}>
       <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:8, marginBottom:8 }}>
-        <PanelTitle id="agenda-title" title="Mi agenda" k="salas" icon={<ScheduleOutlined />} tk={tk} />
+        <PanelTitle id="agenda-title" title="Mi agenda" k="salas" icon={<ScheduleOutlined />} tk={tk} size={15} />
         <button type="button" className="dash-link" onClick={onOpen}>Mis reservas <RightOutlined style={{ fontSize:10 }} /></button>
       </div>
 
@@ -568,7 +570,7 @@ function AgendaPanel({ data, rooms, tk, onOpen, onCreate, onRetry }: {
       )}
 
       {data.status === "ok" && data.data && data.data.length === 0 && (
-        <p style={{ margin:0, fontSize:13, color:tk.t2 }}>No tienes salas reservadas hoy ni mañana.</p>
+        <p style={{ margin:0, fontSize:13, color:tk.t2 }}>Sin reservas hoy ni mañana.</p>
       )}
 
       {groups.map((g, gi) => (
@@ -626,9 +628,9 @@ function TeamPanel({ data, balance, tk, onOpen, onRetry }: {
   );
 
   return (
-    <section aria-labelledby="team-title" style={{ ...wcard(tk, { padding:"18px 20px" }) }}>
+    <section aria-labelledby="team-title" style={{ ...wcard(tk, { padding:"18px 20px", boxShadow:"none" }) }}>
       <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:8, marginBottom:12 }}>
-        <PanelTitle id="team-title" title="Equipo" k="equipo" icon={<TeamOutlined />} tk={tk} />
+        <PanelTitle id="team-title" title="Equipo" k="equipo" icon={<TeamOutlined />} tk={tk} size={15} />
         {onOpen && (
           <button type="button" className="dash-link" onClick={onOpen}>Vacaciones <RightOutlined style={{ fontSize:10 }} /></button>
         )}
@@ -769,10 +771,10 @@ function DeadlinesPanel({ data, tk, onOpen, onRetry }: {
   const items = canFilter && scope === "mine" ? all.filter((i) => i.mine) : all;
   const rel = (iso: string) => {
     const d = dayDiff(iso);
-    if (d < 0) return { text: `venció hace ${pl(-d, "día", "días")}`, sev: 2 as const };
-    if (d === 0) return { text: "vence hoy", sev: 2 as const };
-    if (d === 1) return { text: "vence mañana", sev: 2 as const };
-    return { text: `vence en ${d} días`, sev: (d <= 3 ? 1 : 0) as 0 | 1 };
+    if (d < 0) return { text: `venció hace ${pl(-d, "día", "días")}`, sev: dueSev(d) };
+    if (d === 0) return { text: "vence hoy", sev: dueSev(d) };
+    if (d === 1) return { text: "vence mañana", sev: dueSev(d) };
+    return { text: `vence en ${d} días`, sev: dueSev(d) };
   };
   const badge = (iso: string) => {
     const dt = new Date(iso + "T12:00:00");
@@ -786,9 +788,10 @@ function DeadlinesPanel({ data, tk, onOpen, onRetry }: {
 
   return (
     <section aria-labelledby="plazos-title" style={{ ...wcard(tk), overflow:"hidden" }}>
-      <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:8, padding:"18px 20px 14px" }}>
+      <div id="plazos" style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:8, padding:"18px 20px 14px",
+        scrollMarginTop:80 }}>
         <div>
-          <PanelTitle id="plazos-title" title="Plazos próximos" k="plazos" icon={<FieldTimeOutlined />} tk={tk} />
+          <PanelTitle id="plazos-title" title="Plazos próximos" k="plazos" icon={<FieldTimeOutlined />} tk={tk} size={18} />
           <p style={{ margin:"6px 0 0 38px", fontSize:13, color:tk.t2 }}>
             Etapas de expedientes que vencen en los próximos {data.status === "ok" ? data.data.windowDays : 14} días.
           </p>
@@ -811,10 +814,24 @@ function DeadlinesPanel({ data, tk, onOpen, onRetry }: {
       )}
       {data.status === "ok" && (
         <>
+          {/* Un plazo legal vencido es riesgo, no atraso: va primero y en rojo. */}
+          {data.data.staleOverdue > 0 && (
+            <button type="button" className="dash-row" onClick={onOpen} style={{ color:sevColor(tk, 2) }}>
+              <ExclamationCircleOutlined aria-hidden style={{ fontSize:16, flexShrink:0 }} />
+              <span style={{ flex:1, minWidth:0, fontSize:14, fontWeight:500 }}>
+                {pl(data.data.staleOverdue, "expediente activo tiene", "expedientes activos tienen")} la etapa vencida hace más de 30 días
+              </span>
+              <span className="dash-verb" style={{ color:tk.accentText }}>
+                <span className="dash-verb-text">Revisar</span>
+                <RightOutlined aria-hidden style={{ fontSize:10 }} />
+              </span>
+            </button>
+          )}
           {items.length === 0 ? (
-            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"16px 20px",
-              borderTop:`1px solid ${tk.divider}`, fontSize:14, color:tk.t1 }}>
-              <CheckCircleOutlined style={{ color:SUCCESS, fontSize:16 }} />
+            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"14px 20px",
+              borderTop:`1px solid ${tk.divider}`, fontSize:14, color: data.data.staleOverdue > 0 ? tk.t2 : tk.t1 }}>
+              {/* Con vencidos no hay "todo bien": sin check verde. */}
+              {data.data.staleOverdue === 0 && <CheckCircleOutlined style={{ color:SUCCESS, fontSize:16 }} />}
               Ningún plazo vence en los próximos {data.data.windowDays} días.
             </div>
           ) : (
@@ -845,20 +862,11 @@ function DeadlinesPanel({ data, tk, onOpen, onRetry }: {
               })}
             </ul>
           )}
-          {(items.length > MAX || data.data.staleOverdue > 0) && (
+          {items.length > MAX && (
             <p style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap",
               margin:0, padding:"12px 20px 16px", borderTop:`1px solid ${tk.divider}`, fontSize:13, color:tk.t2 }}>
-              <span>
-                {items.length > MAX && <>{pl(items.length - MAX, "plazo más", "plazos más")} en la ventana. </>}
-                {data.data.staleOverdue > 0 && (
-                  // Un plazo legal vencido es riesgo, no atraso: va en rojo.
-                  <span style={{ color:sevColor(tk, 2), fontWeight:500 }}>
-                    <ExclamationCircleOutlined aria-hidden style={{ marginRight:6 }} />
-                    {pl(data.data.staleOverdue, "expediente activo tiene", "expedientes activos tienen")} la etapa vencida hace más de 30 días.
-                  </span>
-                )}
-              </span>
-              <button type="button" className="dash-link" onClick={onOpen}>Revisar <RightOutlined style={{ fontSize:10 }} /></button>
+              <span>{pl(items.length - MAX, "plazo más", "plazos más")} en la ventana.</span>
+              <button type="button" className="dash-link" onClick={onOpen}>Ver todos <RightOutlined style={{ fontSize:10 }} /></button>
             </p>
           )}
         </>
@@ -877,8 +885,8 @@ function HoursPanel({ data, tk }: { data: MyHours; tk: Tokens }) {
   const { billable, nonBillable, semester, asOf, lastWeek } = data;
   const expected = billable.goal * semester.elapsed;
   const diff = Math.round((billable.hours - expected) * 10) / 10;
-  // Atrasado >15% del esperado = urgente; cualquier atraso = atención
-  const sev: 0 | 1 | 2 = diff >= 0 ? 0 : -diff > expected * 0.15 ? 2 : 1;
+  // Ir detrás del ritmo es atraso: ámbar como máximo (La Regla de Severidad).
+  const sev: 0 | 1 = diff >= 0 ? 0 : 1;
   const pct = (h: number, g: number) => `${Math.min((h / g) * 100, 100)}%`;
   const [, m1] = semester.start.split("-").map(Number);
   const [y2, m2] = semester.end.split("-").map(Number);
@@ -892,8 +900,8 @@ function HoursPanel({ data, tk }: { data: MyHours; tk: Tokens }) {
   );
 
   return (
-    <section aria-labelledby="horas-title" style={{ ...wcard(tk, { padding:"18px 20px" }) }}>
-      <PanelTitle id="horas-title" title="Mi cargabilidad" k="horas" icon={<DashboardOutlined />} tk={tk} />
+    <section aria-labelledby="horas-title" style={{ ...wcard(tk, { padding:"18px 20px", boxShadow:"none" }) }}>
+      <PanelTitle id="horas-title" title="Mi cargabilidad" k="horas" icon={<DashboardOutlined />} tk={tk} size={15} />
       <p style={{ margin:"6px 0 14px 38px", fontSize:13, color:tk.t2 }}>
         Semestre {SEM_MONTHS[m1 - 1]}–{SEM_MONTHS[m2 - 1]} {y2} · reporte al {fmtDay(asOf)}
         {staleDays > 21 && <span style={{ color:sevColor(tk, 1) }}> (hace {staleDays} días)</span>}
@@ -910,7 +918,7 @@ function HoursPanel({ data, tk }: { data: MyHours; tk: Tokens }) {
           {Math.round((billable.hours / billable.goal) * 100)}%
         </span>
       </div>
-      {meter(billable.hours, billable.goal, sev === 0 ? SUCCESS : sev === 1 ? WARNING : DANGER, semester.elapsed)}
+      {meter(billable.hours, billable.goal, sev === 0 ? SUCCESS : WARNING, semester.elapsed)}
       <p style={{ margin:"8px 0 0", fontSize:13, fontWeight:500, color: sev ? sevColor(tk, sev) : tk.t2,
         display:"flex", alignItems:"center", gap:6 }}>
         {diff >= 0
@@ -1172,6 +1180,10 @@ export default function DashboardPage() {
     const watchRows = ranked.filter((r) => (r.det?.sev ?? 0) === 1).length;
     return { total, rows: ranked.length, urgentRows, watchRows };
   })();
+  /* Plazos legales vencidos: el riesgo más alto del despacho va en la franja. */
+  const overduePlazos = plazos.status === "ok" && plazos.data
+    ? plazos.data.staleOverdue + plazos.data.items.filter((i) => dayDiff(i.due) < 0).length
+    : 0;
   const updatedStr = updatedAt
     ? `Actualizado ${updatedAt.toLocaleTimeString("es-GT", { hour:"2-digit", minute:"2-digit", hour12:false })}`
     : null;
@@ -1199,7 +1211,8 @@ export default function DashboardPage() {
             {summary && (
               <p className="dash-summary">
                 {summary.total === 0 ? (
-                  <span><CheckCircleOutlined aria-hidden style={{ color:SUCCESS, marginRight:6 }} />Estás al día: nada espera tu acción.</span>
+                  <span><CheckCircleOutlined aria-hidden style={{ color:SUCCESS, marginRight:6 }} />
+                    {overduePlazos > 0 ? "Nada espera tu acción en tus módulos." : "Estás al día: nada espera tu acción."}</span>
                 ) : (
                   <>
                     <span><b className="dash-num">{summary.total.toLocaleString("es-GT")}</b> {summary.total === 1 ? "pendiente" : "pendientes"}{" "}
@@ -1212,6 +1225,7 @@ export default function DashboardPage() {
                       <span><ClockCircleOutlined aria-hidden style={{ color:WARNING, marginRight:6 }} />
                         <b className="dash-num">{summary.watchRows}</b> con atraso</span>
                     )}
+
                     {newCount > 0 && (
                       <button type="button" className="dash-new" aria-live="polite"
                         onClick={() => { setNewCount(0); document.getElementById("inbox-title")?.scrollIntoView({ behavior:"smooth", block:"start" }); }}>
@@ -1219,6 +1233,14 @@ export default function DashboardPage() {
                       </button>
                     )}
                   </>
+                )}
+                {overduePlazos > 0 && (
+                  <button type="button" className="dash-link" style={{ color:sevColor(tk, 2), fontWeight:500 }}
+                    onClick={() => document.getElementById("plazos")?.scrollIntoView({ behavior:"smooth", block:"start" })}>
+                    <ExclamationCircleOutlined aria-hidden />
+                    <b className="dash-num">{overduePlazos.toLocaleString("es-GT")}</b>
+                    {overduePlazos === 1 ? "plazo vencido" : "plazos vencidos"}
+                  </button>
                 )}
               </p>
             )}

@@ -139,7 +139,7 @@ export const MENU: NavItem[] = [
       { key: '/dashboard/appointments/asambleas', label: 'Asambleas', icon: <BankOutlined /> },
     ],
   },
-  { key: '/dashboard', label: 'Dashboard', icon: <HomeOutlined /> },
+  { key: '/dashboard', label: 'Inicio', icon: <HomeOutlined /> },
   {
     key: 'clientes',
     label: 'Fichas de clientes',
@@ -177,7 +177,7 @@ export const MENU: NavItem[] = [
       { key: '/dashboard/mensajeria', label: 'Envíos pendientes', icon: <ClockCircleOutlined /> },
       { key: '/dashboard/mensajeria/asignados', label: 'Envíos asignados', icon: <FileProtectOutlined />, visible: (c) => c.canSeeAsignados },
       { key: '/dashboard/mensajeria/todos', label: 'Todos los envíos', icon: <UnorderedListOutlined /> },
-      { key: '/dashboard/mensajeria/dashboard', label: 'Dashboard', icon: <AuditOutlined /> },
+      { key: '/dashboard/mensajeria/dashboard', label: 'Panel de envíos', icon: <AuditOutlined /> },
     ],
   },
   {
@@ -314,24 +314,6 @@ export const MENU: NavItem[] = [
     icon: <GlobalOutlined />,
     visible: (c) => c.canSeeMigracionGastos,
     children: [
-      {
-        key: '/dashboard/migracion/dinero',
-        label: 'Control de dinero',
-        icon: <DollarOutlined />,
-        visible: (c) => c.canSeeMigracionDinero,
-      },
-      {
-        key: '/dashboard/migracion/sirvo',
-        label: 'Solicitudes a Sirvo',
-        icon: <SendOutlined />,
-        visible: (c) => c.canSeeMigracionBandeja,
-      },
-      {
-        key: '/dashboard/migracion/nt',
-        label: 'Notas de Migración (Sirvo)',
-        icon: <FileTextOutlined />,
-        visible: (c) => c.canSeeMigracionGastos,
-      },
       {
         key: '/dashboard/migracion/dinero',
         label: 'Control de dinero',

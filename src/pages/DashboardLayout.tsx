@@ -22,6 +22,7 @@ import { useUserAdminPermissions } from '../hooks/usePermissions';
 import type { ModuleKey } from '../types/module-access.types';
 import { getTipoUsuarioLabel, getTipoUsuarioColor } from '../types/user.types';
 import { pushRecentPage } from '../utils/recentPages';
+import { NavPagesContext, flattenNav } from '../utils/navPages';
 import { MENU, MENU_SECTIONS, VACATIONS_ONLY_MENU, VACATIONS_ONLY_PATH, buildMenuItems, type MenuCaps } from '../config/menu';
 import { PRIMARY } from './dashboard/theme';
 import { canManageInduction } from '../utils/induction';
@@ -356,6 +357,8 @@ const DashboardLayout: React.FC = () => {
   // Usuarios 'solo vacaciones': menú con una sola entrada
   const vacationsOnly = !isSuperuser && hasModule('solo_vacaciones');
   const rawItems = buildMenuItems(vacationsOnly ? VACATIONS_ONLY_MENU : MENU, caps);
+  // Pantallas que este usuario puede abrir, para el buscador global del inicio.
+  const navPages = flattenNav(rawItems);
 
   // Listado principal (filtrado por búsqueda si aplica)
   const mainItems = isSearching ? rawItems.filter(matchesSearch) : rawItems;
@@ -764,7 +767,9 @@ const DashboardLayout: React.FC = () => {
               sidebar y se resetea al navegar. */}
           <ErrorBoundary key={location.pathname} fullScreen={false}>
             <Suspense fallback={<ContentSkeleton />}>
-              <Outlet />
+              <NavPagesContext.Provider value={navPages}>
+                <Outlet />
+              </NavPagesContext.Provider>
             </Suspense>
           </ErrorBoundary>
         </Content>

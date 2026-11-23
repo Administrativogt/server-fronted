@@ -107,9 +107,9 @@ export default function ExchangeRateCard({ tk }: { tk: Tokens }) {
   };
 
   return (
-    <section aria-labelledby="tc-title" style={{ ...wcard(tk, { padding:"18px 20px" }) }}>
+    <section aria-labelledby="tc-title" style={{ ...wcard(tk, { padding:"18px 20px", boxShadow:"none" }) }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexWrap:"wrap", marginBottom:10 }}>
-        <h2 id="tc-title" style={{ margin:0, display:"flex", alignItems:"center", gap:10, fontSize:16, fontWeight:600, color:tk.t1 }}>
+        <h2 id="tc-title" style={{ margin:0, display:"flex", alignItems:"center", gap:10, fontSize:15, fontWeight:600, color:tk.t1 }}>
           <span aria-hidden style={{ width:28, height:28, borderRadius:8, display:"inline-flex", alignItems:"center",
             justifyContent:"center", background:hue(tk, "dinero").bg, color:hue(tk, "dinero").fg, fontSize:13 }}>
             <SwapOutlined />

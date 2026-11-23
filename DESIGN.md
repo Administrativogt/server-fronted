@@ -138,11 +138,11 @@ Paleta neutra fría con un único acento índigo; los colores semánticos (verde
 
 **La Regla de Severidad.** Una sola escala de urgencia en toda la app, con ícono además de color (nunca sólo color):
 - **Rojo + ⓘ de alerta (`ExclamationCircle`)**: vence o pasa **hoy o mañana**, o un plazo legal **ya vencido**. Hay que actuar ya.
-- **Ámbar + reloj (`ClockCircle`)**: **atraso que se arrastra** (cheques de meses, bandejas viejas). Se muestra su antigüedad; no es una alarma.
-- **Neutro**: lo demás. Las cifras van siempre en tinta neutra; la severidad vive en el ícono y su línea de detalle.
-El atraso nunca es rojo: si lo fuera, el rojo dejaría de avisar.
+- **Ámbar + reloj (`ClockCircle`)**: **sólo atraso que se arrastra** (cheques de meses, bandejas viejas, horas por debajo del ritmo). Se muestra su antigüedad; no es una alarma.
+- **Neutro**: lo demás, **incluido lo que vence pronto pero no hoy ni mañana** (un nombramiento a 7 días, las vacaciones de la semana): la fecha en tinta lo dice sola. Las cifras van siempre en tinta neutra; la severidad vive en el ícono y su línea de detalle.
+El atraso nunca es rojo y "pronto" nunca es ámbar: cada color significa una sola cosa. En código, toda severidad sale de `dueSev()` / `ageSev()` en `src/pages/dashboard/theme.ts`.
 
-**La Regla de las Cuatro Áreas.** Los íconos de módulo se tiñen por área, la misma agrupación del menú lateral, en tonos desaturados que no compiten con los de estado: Finanzas `#3F7466`/`#8CC7B6`, Legal `#7A5A36`/`#D6B48A`, Operación `#55657C`/`#AAB7C9`, Personas `#875062`/`#DDA4B5` (claro/oscuro). El índigo queda para la bandeja y las acciones; ningún módulo tiene un color propio.
+**La Regla de las Cuatro Áreas.** Los íconos de módulo se tiñen por área, la misma agrupación del menú lateral, en tonos desaturados que no compiten con los de estado: Finanzas `#2E7D5B`/`#7FD1AE`, Legal `#8A5A1C`/`#E3B57A`, Operación `#4F5B6E`/`#B3BDCC`, Personas `#9A3F62`/`#EDA3C0` (claro/oscuro). El índigo queda para la bandeja y las acciones; ningún módulo tiene un color propio.
 
 ## 3. Typography
 
