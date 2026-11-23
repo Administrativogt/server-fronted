@@ -216,7 +216,10 @@ export interface PreviewItem {
   path?: string | null;
 }
 
-export async function fetchPreview(key: InboxKey): Promise<PreviewItem[]> {
+/** Filas de la bandeja + vistas previas extra (plazos vencidos). */
+export type PreviewKey = InboxKey | 'deadlinesOverdue';
+
+export async function fetchPreview(key: PreviewKey): Promise<PreviewItem[]> {
   const { data } = await api.get(`/api/dashboard/preview/${key}`);
   return data?.items ?? [];
 }

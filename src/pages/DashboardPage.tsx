@@ -775,6 +775,23 @@ function DeadlinesPanel({ data, tk, onOpen, onRetry }: {
   const canFilter = mineCount > 0 && mineCount < all.length;
   const [scope, setScope] = useState<"mine" | "all">("mine");
   const items = canFilter && scope === "mine" ? all.filter((i) => i.mine) : all;
+  /* Vencidos: misma vista previa que las filas de Pendientes (cliente, expediente, etapa). */
+  const [peekOpen, setPeekOpen] = useState(false);
+  const [peek, setPeek] = useState<Load<PreviewItem[]> | null>(null);
+  const loadPeek = useCallback(async () => {
+    setPeek({ status:"loading" });
+    setPeek(await settle(fetchPreview("deadlinesOverdue")));
+  }, []);
+  // Si el inicio se recarga con la vista abierta, se vuelve a pedir.
+  useEffect(() => {
+    if (data.status !== "ok") return;
+    setPeek(null);
+    if (peekOpenRef.current) loadPeek();
+  }, [data, loadPeek]);
+  const peekOpenRef = useRef(false);
+  peekOpenRef.current = peekOpen;
+  const focusPeek = useCallback((el: HTMLDivElement | null) => { el?.focus({ preventScroll:true }); }, []);
+  const stale = data.status === "ok" ? data.data.staleOverdue : 0;
   const rel = (iso: string) => {
     const d = dayDiff(iso);
     if (d < 0) return { text: `venció hace ${pl(-d, "día", "días")}`, sev: dueSev(d) };
@@ -797,9 +814,10 @@ function DeadlinesPanel({ data, tk, onOpen, onRetry }: {
       <div id="plazos" style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:8, padding:"18px 20px 14px",
         scrollMarginTop:80 }}>
         <div>
-          <PanelTitle id="plazos-title" title="Plazos próximos" k="plazos" icon={<FieldTimeOutlined />} tk={tk} size={18} />
+          <PanelTitle id="plazos-title" title="Plazos" k="plazos" icon={<FieldTimeOutlined />} tk={tk} size={18} />
           <p style={{ margin:"6px 0 0 38px", fontSize:13, color:tk.t2 }}>
-            Etapas de expedientes que vencen en los próximos {data.status === "ok" ? data.data.windowDays : 14} días.
+            {stale > 0 ? "Etapas vencidas y las que vencen" : "Etapas de expedientes que vencen"} en los próximos{" "}
+            {data.status === "ok" ? data.data.windowDays : 14} días.
           </p>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
@@ -821,17 +839,39 @@ function DeadlinesPanel({ data, tk, onOpen, onRetry }: {
       {data.status === "ok" && (
         <>
           {/* Un plazo legal vencido es riesgo, no atraso: va primero y en rojo. */}
-          {data.data.staleOverdue > 0 && (
-            <button type="button" className="dash-row" onClick={onOpen} style={{ color:sevColor(tk, 2) }}>
-              <ExclamationCircleOutlined aria-hidden style={{ fontSize:16, flexShrink:0 }} />
-              <span style={{ flex:1, minWidth:0, fontSize:14, fontWeight:500 }}>
-                {pl(data.data.staleOverdue, "expediente activo tiene", "expedientes activos tienen")} la etapa vencida hace más de 30 días
-              </span>
-              <span className="dash-verb" style={{ color:tk.accentText }}>
-                <span className="dash-verb-text">Revisar</span>
-                <RightOutlined aria-hidden style={{ fontSize:10 }} />
-              </span>
-            </button>
+          {stale > 0 && (
+            <div className="dash-li">
+              <button type="button" className="dash-row" onClick={onOpen} style={{ color:sevColor(tk, 2) }}>
+                <ExclamationCircleOutlined aria-hidden style={{ fontSize:16, flexShrink:0 }} />
+                <span style={{ flex:1, minWidth:0 }}>
+                  <span style={{ display:"block", fontSize:14, fontWeight:500 }}>
+                    {pl(stale, "expediente activo tiene", "expedientes activos tienen")} la etapa vencida hace más de 30 días
+                  </span>
+                  <span style={{ display:"block", marginTop:3, fontSize:13, color:tk.t2 }}>
+                    Si ya se resolvieron, falta cerrar su etapa en el Agendador.
+                  </span>
+                </span>
+                <span className="dash-verb" style={{ color:tk.accentText }}>
+                  <span className="dash-verb-text">Revisar</span>
+                  <RightOutlined aria-hidden style={{ fontSize:10 }} />
+                </span>
+              </button>
+              <button type="button" className="dash-peek-btn" aria-expanded={peekOpen} aria-controls="peek-plazos-vencidos"
+                aria-label={`Ver ${stale > 5 ? "los 5 más antiguos" : "todos"}: expedientes con la etapa vencida`}
+                onClick={() => { const next = !peekOpen; setPeekOpen(next); if (next && (!peek || peek.status === "error")) loadPeek(); }}>
+                <span className="dash-peek-pill">
+                  <span className="dash-peek-text">{stale > 5 ? "Ver 5" : "Ver todos"}</span>
+                  <DownOutlined aria-hidden className="dash-chev" />
+                </span>
+              </button>
+              {peekOpen && (
+                <div id="peek-plazos-vencidos" className="dash-peek-panel" ref={focusPeek} tabIndex={-1}
+                  role="region" aria-label="Expedientes con la etapa vencida">
+                  <PreviewList state={peek ?? { status:"loading" }} tk={tk} total={stale}
+                    onOpen={onOpen} onOpenItem={() => onOpen()} onRetry={loadPeek} />
+                </div>
+              )}
+            </div>
           )}
           {items.length === 0 ? (
             <div style={{ display:"flex", alignItems:"center", gap:10, padding:"14px 20px",
@@ -1152,7 +1192,8 @@ export default function DashboardPage() {
   /* "Nuevo": solo lo que el usuario puede crear (mismo criterio que el menú). */
   const createItems: MenuProps["items"] = [
     has("notificaciones") && { key:"/dashboard/notificaciones/crear", label:"Notificación" },
-    { key:"/dashboard/documentos/crear", label:"Documento" },
+    // Documentos no tiene módulo propio; los mensajeros (tipo 8) no crean nada desde aquí.
+    tipo !== 8 && { key:"/dashboard/documentos/crear", label:"Documento" },
     showEncargos && tipo !== 8 && { key:"/dashboard/mensajeria/crear", label:"Envío de mensajería" },
     has("solicitudes_dinero") && { key:"/dashboard/money-req/create", label:"Requerimiento de dinero" },
     hasRooms && { key:"/dashboard/reservaciones/crear", label:"Reserva de sala" },
