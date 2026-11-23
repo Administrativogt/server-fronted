@@ -5,7 +5,6 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   LogoutOutlined,
-  UnorderedListOutlined,
   SunOutlined,
   MoonOutlined,
   StarOutlined,
@@ -22,7 +21,7 @@ import api from '../api/axios';
 import { useUserAdminPermissions } from '../hooks/usePermissions';
 import type { ModuleKey } from '../types/module-access.types';
 import { getTipoUsuarioLabel, getTipoUsuarioColor } from '../types/user.types';
-import { MENU, VACATIONS_ONLY_MENU, VACATIONS_ONLY_PATH, buildMenuItems, type MenuCaps } from '../config/menu';
+import { MENU, MENU_SECTIONS, VACATIONS_ONLY_MENU, VACATIONS_ONLY_PATH, buildMenuItems, type MenuCaps } from '../config/menu';
 import { PRIMARY } from './dashboard/theme';
 import { canManageInduction } from '../utils/induction';
 import { canAccessHorasSocios } from '../routes/HorasSociosRoute';
@@ -265,7 +264,7 @@ const DashboardLayout: React.FC = () => {
         <Tooltip title={isFav ? 'Quitar de favoritos' : 'Agregar a favoritos'} placement="right">
           <button
             type="button"
-            className="menu-fav-star"
+            className={`menu-fav-star${isFav ? ' is-fav' : ''}`}
             aria-label={isFav ? 'Quitar de favoritos' : 'Agregar a favoritos'}
             aria-pressed={isFav}
             onClick={(e) => {
@@ -281,8 +280,6 @@ const DashboardLayout: React.FC = () => {
               border: 'none',
               color: 'inherit',
               cursor: 'pointer',
-              opacity: isFav ? 1 : 0.35,
-              transition: 'opacity 0.15s',
             }}
           >
             {isFav ? <StarFilled style={{ color: '#faad14' }} /> : <StarOutlined />}
@@ -355,6 +352,25 @@ const DashboardLayout: React.FC = () => {
     </span>
   );
 
+  /* Módulos agrupados por área (Finanzas, Legal, …). El inicio va suelto
+     arriba; lo que no esté en MENU_SECTIONS cae en "Otros". */
+  const sectioned = (items: any[]): any[] => {
+    const out: any[] = [];
+    const used = new Set<string>();
+    const home = items.find((i: any) => i.key === '/dashboard');
+    if (home) { out.push(...addStars(decorateForCollapsed([home]))); used.add(home.key); }
+    const push = (key: string, label: string, list: any[]) => {
+      if (list.length === 0) return;
+      list.forEach((i: any) => used.add(i.key));
+      out.push({ type: 'group', key, label: groupHeader(null, label), children: addStars(decorateForCollapsed(list)) });
+    };
+    for (const sec of MENU_SECTIONS) {
+      push(sec.key, sec.label, sec.items.map((k) => items.find((i: any) => i.key === k)).filter(Boolean));
+    }
+    push('sec-otros', 'Otros', items.filter((i: any) => !used.has(i.key)));
+    return out;
+  };
+
   const finalItems: any[] = [];
   if (showFavorites) {
     finalItems.push({
@@ -368,14 +384,9 @@ const DashboardLayout: React.FC = () => {
       key: 'fav-divider',
       style: { margin: '10px 12px', borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)' },
     });
-    finalItems.push({
-      type: 'group',
-      key: 'all-group',
-      label: groupHeader(<UnorderedListOutlined />, 'Todos los módulos'),
-      children: addStars(
-        decorateForCollapsed(mainItems.filter((i: any) => !favorites.includes(i.key))),
-      ),
-    });
+    finalItems.push(...sectioned(mainItems.filter((i: any) => !favorites.includes(i.key))));
+  } else if (!collapsed && !isSearching && !vacationsOnly) {
+    finalItems.push(...sectioned(mainItems));
   } else {
     finalItems.push(...addStars(decorateForCollapsed(mainItems)));
   }

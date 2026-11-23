@@ -123,7 +123,7 @@ export const MENU: NavItem[] = [
   },
   {
     key: 'appointments',
-    label: 'Control de nombramientos',
+    label: 'Nombramientos',
     icon: <SolutionOutlined />,
     visible: (c) => c.hasModule('actas'),
     children: [
@@ -135,7 +135,7 @@ export const MENU: NavItem[] = [
   { key: '/dashboard', label: 'Dashboard', icon: <HomeOutlined /> },
   {
     key: 'clientes',
-    label: 'Fichas de creación de clientes',
+    label: 'Fichas de clientes',
     icon: <UserOutlined />,
     visible: (c) => c.hasModule('clientes'),
     children: [
@@ -175,7 +175,7 @@ export const MENU: NavItem[] = [
   },
   {
     key: '/dashboard/supervision',
-    label: 'Control de supervisión',
+    label: 'Supervisión',
     icon: <SafetyCertificateOutlined />,
     visible: (c) => c.canAccessSupervision,
   },
@@ -212,7 +212,7 @@ export const MENU: NavItem[] = [
   },
   {
     key: 'cargability',
-    label: 'Reportes cargabilidad',
+    label: 'Cargabilidad',
     icon: <ClockCircleOutlined />,
     visible: (c) => c.hasModule('cargabilidad'),
     children: [
@@ -244,7 +244,7 @@ export const MENU: NavItem[] = [
   },
   {
     key: 'reservaciones',
-    label: 'Reservación de salas',
+    label: 'Reserva de salas',
     icon: <ScheduleOutlined />,
     visible: (c) => c.hasModule('reservas_salas'),
     children: [
@@ -256,7 +256,7 @@ export const MENU: NavItem[] = [
   },
   {
     key: 'procuration',
-    label: 'Delegación de procuración',
+    label: 'Procuración',
     icon: <AuditOutlined />,
     visible: (c) => c.hasModule('procuracion'),
     children: [
@@ -282,7 +282,7 @@ export const MENU: NavItem[] = [
   },
   {
     key: 'money-req-submenu',
-    label: 'Requerimientos de dinero',
+    label: 'Requerimientos',
     icon: <DollarOutlined />,
     visible: (c) => c.hasModule('solicitudes_dinero'),
     children: [
@@ -350,3 +350,22 @@ export const buildMenuItems = (nodes: NavItem[], caps: MenuCaps): AntdMenuItem[]
       if (n.children) item.children = buildMenuItems(n.children, caps);
       return item;
     });
+
+/**
+ * Secciones del menú lateral (por área de trabajo). Las claves son las `key`
+ * de primer nivel de MENU; lo que no aparezca aquí cae en "Otros".
+ * El inicio ('/dashboard') va arriba, sin encabezado.
+ */
+export const MENU_SECTIONS: { key: string; label: string; items: string[] }[] = [
+  { key: 'sec-finanzas', label: 'Finanzas', items: [
+    'cheques', 'autorizacion-cheques', '/dashboard/mis-cheques', 'money-req-submenu', 'recibos', 'migracion',
+  ] },
+  { key: 'sec-legal', label: 'Legal', items: [
+    'casos', 'agendador', 'appointments', 'procuration', 'jurisprudencia', 'clientes', 'informe-socios', 'horas-socios',
+  ] },
+  { key: 'sec-operacion', label: 'Operación', items: [
+    'mensajeria', '/dashboard/supervision', 'notificaciones', 'documentos', 'reservaciones',
+  ] },
+  { key: 'sec-personas', label: 'Personas', items: ['recursos-humanos', 'cargability', 'induccion'] },
+  { key: 'sec-admin', label: 'Administración', items: ['admin'] },
+];

@@ -15,6 +15,9 @@ export interface Tokens {
   border: string; borderCss: string;
   divider: string; subtle: string;
   shadow: string;
+  /** Índigo para TEXTO (enlaces): el #3C50E0 no llega a 4.5:1 sobre la superficie oscura. */
+  accentText: string;
+  isDark: boolean;
 }
 
 export function makeTokens(isDark: boolean): Tokens {
@@ -25,6 +28,8 @@ export function makeTokens(isDark: boolean): Tokens {
         border:"#2C2F40", borderCss:"1px solid #2C2F40",
         divider:"#262936", subtle:"#232634",
         shadow:"0 1px 4px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.3)",
+        accentText:"#8C9BFF",
+        isDark:true,
       }
     : {
         bg:"#EFF4FB", surface:"#FFFFFF",
@@ -32,6 +37,8 @@ export function makeTokens(isDark: boolean): Tokens {
         border:"#E2E8F0", borderCss:"1px solid #E2E8F0",
         divider:"#F1F5F9", subtle:"#F8FAFC",
         shadow:"0 1px 4px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04)",
+        accentText:PRIMARY,
+        isDark:false,
       };
 }
 
@@ -39,7 +46,50 @@ export const wcard = (tk: Tokens, extra?: React.CSSProperties): React.CSSPropert
   background: tk.surface, borderRadius: RADIUS, border: tk.borderCss, boxShadow: tk.shadow, ...extra,
 });
 
-/* ─── chart theme (Nivo) ─────────────────────────────────────────────────── */
+/* ─── Color por módulo (inicio) ──────────────────────────────────────────────
+   Orientación, no decoración: cada módulo conserva SIEMPRE el mismo color en
+   el inicio (filas de Pendientes/Mis solicitudes y títulos de tarjeta), para
+   reconocerlo de un vistazo. El texto y los números siguen neutros; el color
+   vive en el ícono y su fondo teñido. Claro: tonos 600-700 (ícono ≥3:1 sobre
+   su fondo); oscuro: tonos 300-400. */
+export type HueKey =
+  | "cheques" | "dinero" | "equipo" | "salas" | "notificaciones" | "documentos"
+  | "nombramientos" | "sirvo" | "envios" | "tramite" | "bandeja" | "plazos" | "horas";
+
+const HUES: Record<HueKey, [light: string, dark: string]> = {
+  // El índigo de marca queda SOLO para la bandeja (y la franja); cheques
+  // tiene su propio cian para no confundir módulo con marca.
+  bandeja:        ["#3C50E0", "#8C9BFF"],
+  cheques:        ["#0E7490", "#22D3EE"],
+  dinero:         ["#047857", "#34D399"],
+  equipo:         ["#0F766E", "#2DD4BF"],
+  salas:          ["#7C3AED", "#A78BFA"],
+  notificaciones: ["#0369A1", "#38BDF8"],
+  documentos:     ["#A21CAF", "#E879F9"],
+  nombramientos:  ["#B45309", "#FBBF24"],
+  sirvo:          ["#C2410C", "#FB923C"],
+  envios:         ["#4D7C0F", "#A3E635"],
+  tramite:        ["#BE185D", "#F472B6"],
+  plazos:         ["#1D4ED8", "#60A5FA"],
+  horas:          ["#A16207", "#FACC15"],
+};
+
+/** Color de TEXTO por urgencia (0 neutro, 1 atención, 2 urgente). Tonos
+    oscuros en claro para llegar a 4.5:1 sobre blanco; claros en oscuro. */
+export const sevColor = (tk: Tokens, sev: 0 | 1 | 2) =>
+  sev === 2 ? (tk.isDark ? "#F87171" : "#B91C1C")
+  : sev === 1 ? (tk.isDark ? "#FBBF24" : "#B45309")
+  : tk.t1;
+
+export const hue = (tk: Tokens, key: HueKey) => {
+  const fg = HUES[key][tk.isDark ? 1 : 0];
+  return { fg, bg: fg + (tk.isDark ? "2b" : "1a") };
+};
+
+/** Franja de bienvenida: superficie neutra (el color queda para la urgencia). */
+export const bandColors = (tk: Tokens) => ({ bg: tk.surface, text: tk.t1, sub: tk.t2 });
+
+/* ─── chart theme (Nivo) — lo usa Auditoría ──────────────────────────────── */
 export const makeChartTheme = (tk: Tokens) => ({
   axis:    { ticks: { text: { fill:tk.t2, fontSize:11, fontFamily:"'Plus Jakarta Sans',sans-serif" } } },
   grid:    { line: { stroke:tk.divider } },
@@ -104,4 +154,91 @@ export const makeCSS = (tk: Tokens) => `
 }
 .ta-table .ant-table-tbody > tr:hover > td { background: ${tk.subtle} !important; }
 .ta-table .ant-empty-description { color: ${tk.t3} !important; font-size: 12px; }
+`;
+
+/* ─── CSS del inicio ─────────────────────────────────────────────────────────
+   Una sola entrada para toda la página (no coreografía por sección) y nada
+   en bucle. Con reduced-motion no hay animación. */
+export const makeDashCSS = (tk: Tokens) => `
+/* Lienzo del inicio: 24-28px en escritorio, 16px en móvil (DESIGN.md: gutter 16px) */
+.dash-page { padding:24px 28px 40px; }
+/* Franja: superficie neutra, compacta; herramientas en una sola fila */
+.dash-band { display:grid; grid-template-columns:minmax(0,1fr) minmax(300px,520px); align-items:center;
+  gap:14px 24px; margin-bottom:20px; padding:20px 24px; border-radius:12px;
+  border:${tk.borderCss}; box-shadow:${tk.shadow}; }
+.dash-band-tools { display:flex; align-items:center; gap:8px; min-width:0; }
+.dash-band-tools > :first-child { flex:1; min-width:0; max-width:none !important; }
+.dash-summary { display:flex; align-items:center; flex-wrap:wrap; gap:6px 14px; margin:10px 0 0; font-size:14px; color:${tk.t2}; }
+.dash-summary b { color:${tk.t1}; font-weight:600; }
+.dash-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+@media (max-width: 900px) {
+  .dash-band { grid-template-columns:minmax(0,1fr); }
+}
+@media (max-width: 640px) {
+  .dash-page { padding:16px 16px 32px; }
+  .dash-band { padding:18px 16px; }
+  .dash-band-tools { flex-wrap:wrap; }
+  .dash-band-tools > :first-child { flex-basis:100%; }
+  .dash-band-tools > .ant-dropdown-trigger { flex:1; }
+}
+@keyframes dashIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+.dash-in { animation: dashIn .22s cubic-bezier(.22,1,.36,1) both; }
+
+.dash-row {
+  display:flex; align-items:center; gap:14px; width:100%;
+  padding:14px 20px; background:transparent; border:0; border-top:1px solid ${tk.divider};
+  text-align:left; cursor:pointer; font:inherit; color:${tk.t1};
+  transition: background .15s;
+}
+.dash-row:hover { background:${tk.subtle}; }
+.dash-row:focus-visible, .dash-link:focus-visible {
+  outline:2px solid ${tk.accentText}; outline-offset:-2px; border-radius:6px;
+}
+.dash-link {
+  background:none; border:0; padding:0; cursor:pointer; font:inherit;
+  font-size:13px; font-weight:600; color:${tk.accentText};
+  display:inline-flex; align-items:center; gap:5px; white-space:nowrap; flex-shrink:0;
+}
+@media (max-width: 640px), (hover: none) { .gs-kbd { display:none !important; } }
+.dash-link:hover { text-decoration:underline; text-underline-offset:3px; }
+.dash-num { font-variant-numeric: tabular-nums; }
+.dash-verb { display:inline-flex; align-items:center; gap:4px; min-width:84px; justify-content:flex-end;
+  font-size:13px; font-weight:600; white-space:nowrap; }
+.dash-row:hover .dash-verb-text { text-decoration:underline; text-underline-offset:3px; }
+@media (max-width: 520px) { .dash-verb { min-width:0; } .dash-verb-text { display:none; } }
+.gs-field { transition: border-color .15s, box-shadow .15s; }
+.gs-field:focus-within { border-color:${tk.accentText} !important; box-shadow:0 0 0 3px ${tk.accentText}26; }
+.gs-field input::placeholder { color:${tk.t2}; opacity:1; }
+.dash-card-picker .ant-picker-input > input::placeholder { color:${tk.t2}; opacity:1; }
+.gs-clear:focus-visible { outline:2px solid ${tk.accentText}; outline-offset:2px; border-radius:50%; }
+
+/* "Al día": chips pequeños en vez de un párrafo */
+.dash-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.dash-chip { display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px;
+  font-size:12px; color:${tk.t2}; background:${tk.subtle}; border:${tk.borderCss}; white-space:nowrap; }
+/* Antigüedad de cheques por liquidar */
+.dash-aging { display:flex; height:6px; width:100%; max-width:280px; border-radius:999px; overflow:hidden;
+  background:${tk.divider}; margin-top:7px; }
+.dash-aging > span { height:100%; }
+.dash-aging-legend { display:flex; flex-wrap:wrap; gap:2px 12px; margin-top:5px; font-size:12px; color:${tk.t2}; }
+.dash-aging-legend i { display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
+/* Mi cargabilidad: barra de avance con marca del ritmo esperado */
+.dash-meter { position:relative; height:8px; border-radius:999px; background:${tk.divider}; }
+.dash-meter > span { position:absolute; inset:0 auto 0 0; border-radius:999px; }
+.dash-meter > i { position:absolute; top:-4px; bottom:-4px; width:2px; border-radius:1px; background:${tk.t1}; opacity:.55; }
+/* Aviso de pendientes nuevos (actualización automática) */
+.dash-new { display:inline-flex; align-items:center; gap:6px; padding:2px 10px; border-radius:999px; border:0; cursor:pointer;
+  font:inherit; font-size:12px; font-weight:600; color:${tk.accentText}; background:${tk.accentText}1f; }
+.dash-new:hover { background:${tk.accentText}33; }
+.dash-new:focus-visible { outline:2px solid ${tk.accentText}; outline-offset:2px; }
+/* Plazos */
+.dash-date { width:44px; flex-shrink:0; text-align:center; border-radius:8px; padding:4px 0 5px;
+  background:${tk.subtle}; border:${tk.borderCss}; line-height:1.1; }
+.dash-date b { display:block; font-size:16px; font-weight:700; color:${tk.t1}; }
+.dash-date small { font-size:11px; color:${tk.t2}; text-transform:uppercase; letter-spacing:.04em; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-in { animation:none; }
+  .dash-row, .gs-field { transition:none; }
+}
 `;

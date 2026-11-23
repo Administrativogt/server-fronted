@@ -158,3 +158,15 @@ html, body {
 .sider-menu.ant-menu-inline:not(.ant-menu-inline-collapsed) .ant-menu-item-group-list > .ant-menu-submenu > .ant-menu-submenu-title {
   padding-inline-end: 34px;
 }
+
+/* Estrella de favorito: solo visible al pasar el mouse / con foco, o si ya es
+   favorito. Así cada fila no carga dos íconos extra todo el tiempo. */
+.menu-fav-star { opacity: 0; transition: opacity .15s; }
+.menu-fav-star.is-fav { opacity: 1; }
+.sider-menu .ant-menu-item:hover .menu-fav-star,
+.sider-menu .ant-menu-submenu-title:hover .menu-fav-star,
+.menu-fav-star:focus-visible { opacity: .55; }
+.sider-menu .menu-fav-star:hover { opacity: 1; }
+@media (hover: none) { .menu-fav-star { opacity: .35; } }
+/* Encabezados de sección del menú: aire arriba para separar áreas */
+.sider-menu .ant-menu-item-group-title { padding-top: 14px !important; }
