@@ -4,18 +4,19 @@ import {
   BankOutlined, BellOutlined, CalendarOutlined, CarOutlined, CheckCircleOutlined, ClockCircleOutlined,
   DownOutlined, FileTextOutlined, HourglassOutlined, IdcardOutlined, InboxOutlined, ScheduleOutlined,
   SendOutlined, TeamOutlined, WalletOutlined, PlusOutlined, ReloadOutlined, RightOutlined, FieldTimeOutlined,
-  ArrowUpOutlined, DashboardOutlined,
+  ArrowUpOutlined, DashboardOutlined, HistoryOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import useAuthStore from "../auth/useAuthStore";
 import useThemeStore from "../hooks/useThemeStore";
 import type { ModuleKey } from "../types/module-access.types";
 import {
-  fetchInbox, fetchMine, fetchVacationSummary, fetchUpcomingItems, fetchDeadlines, fetchMyHours,
-  type AgendaItem, type Deadlines, type MyHours, type Inbox, type InboxDetail, type InboxKey, type Mine, type MyRequestKey, type RoomNow, type VacationBalance,
+  fetchInbox, fetchMine, fetchVacationSummary, fetchUpcomingItems, fetchDeadlines, fetchMyHours, fetchPreview, fetchWeek,
+  type AgendaItem, type Deadlines, type MyHours, type PreviewItem, type WeekDay, type Inbox, type InboxDetail, type InboxKey, type Mine, type MyRequestKey, type RoomNow, type VacationBalance,
   type VacationSummary, type UpcomingItems,
 } from "../api/dashboard";
 import GlobalSearch from "./dashboard/GlobalSearch";
+import { getRecentPages, onRecentPagesChange, type RecentPage } from "../utils/recentPages";
 import { DANGER, INFO, SUCCESS, WARNING, type HueKey, type Tokens, bandColors, hue, makeTokens, wcard, makeDashCSS, sevColor } from "./dashboard/theme";
 
 const ExchangeRateCard = lazy(() => import("./dashboard/ExchangeRateCard"));
@@ -28,6 +29,12 @@ type Load<T> = { status: "loading" } | { status: "ok"; data: T } | { status: "er
 
 const fmtDay = (iso: string) =>
   new Date(iso.slice(0, 10) + "T12:00:00").toLocaleDateString("es-GT", { day:"numeric", month:"short" });
+/** Como fmtDay, con el año si no es el actual ("2 ene 2025"). */
+const fmtDayY = (iso: string) => {
+  const d = new Date(iso.slice(0, 10) + "T12:00:00");
+  return d.toLocaleDateString("es-GT", { day:"numeric", month:"short",
+    ...(d.getFullYear() !== new Date().getFullYear() && { year:"numeric" }) });
+};
 
 /* ─── Color por módulo ─────────────────────────────────────────────────────── */
 function HueChip({ k, icon, tk, size = 32 }: { k: HueKey; icon: ReactNode; tk: Tokens; size?: number }) {
@@ -233,13 +240,89 @@ function rankRows<K extends string>(
 
 /* Pendientes = espera TU acción: orden por urgencia, reloj ámbar/rojo.
    Mis solicitudes = espera a OTROS: contexto neutro, orden fijo. */
-function CountPanel<K extends string>({ id, title, subtitle, titleHue, titleIcon, items, data, details, tone, emptyText, tk, onOpen, onRetry }: {
+/* Vista previa: los 5 más antiguos (o próximos) de una fila, sin salir del
+   inicio. Se pide al abrirla y se olvida cuando la bandeja se recarga. */
+const PREVIEWABLE = new Set<string>([
+  "checksToAuthorize", "checksToLiquidate", "moneyReqToAuthorize", "roomsToApprove", "vacationsToApprove",
+  "appointmentsExpiring", "notificationsToAccept", "documentsToAccept", "encargosToday",
+]);
+
+function PreviewList({ state, tk, label, onOpen, onRetry }: {
+  state: Load<PreviewItem[]>; tk: Tokens; label: string; onOpen: () => void; onRetry: () => void;
+}) {
+  if (state.status === "loading") return <Skeleton active title={false} paragraph={{ rows:3 }} style={{ paddingTop:10 }} />;
+  if (state.status === "error") {
+    return (
+      <div style={{ padding:"10px 0", fontSize:13, color:tk.t2 }}>
+        No se pudo cargar la lista.{" "}
+        <button type="button" className="dash-link" onClick={onRetry}>Reintentar</button>
+      </div>
+    );
+  }
+  return (
+    <>
+      {state.data.length === 0
+        ? <p style={{ margin:0, padding:"10px 0", fontSize:13, color:tk.t2 }}>Ya no hay pendientes aquí.</p>
+        : (
+          <ul style={{ listStyle:"none", margin:0, padding:0 }}>
+            {state.data.map((it) => (
+              <li key={it.id} className="dash-peek-item">
+                <span className="dash-num" style={{ width:58, flexShrink:0, color:tk.t2 }}>
+                  {it.date ? fmtDayY(it.date) : "—"}{it.time ? <><br />{it.time}</> : null}
+                </span>
+                <span style={{ flex:1, minWidth:0 }}>
+                  <span style={{ display:"block", color:tk.t1, fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                    {it.title}
+                  </span>
+                  {it.subtitle && (
+                    <span style={{ display:"block", color:tk.t2, marginTop:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                      {it.subtitle}
+                    </span>
+                  )}
+                </span>
+                {it.amount && <span className="dash-num" style={{ flexShrink:0, color:tk.t1, fontWeight:600 }}>{it.amount}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+      <button type="button" className="dash-link" style={{ marginTop:6 }} onClick={onOpen}>
+        Abrir {label.toLowerCase()} <RightOutlined style={{ fontSize:10 }} />
+      </button>
+    </>
+  );
+}
+
+function CountPanel<K extends string>({ id, title, subtitle, titleHue, titleIcon, items, data, details, tone, emptyText, tk, onOpen, onRetry, preview = false }: {
   id: string; title: string; subtitle: string; titleHue: HueKey; titleIcon: ReactNode;
   items: CountItem<K>[]; data: Load<Partial<Record<K, number | null>>>;
   details?: Partial<Record<K, InboxDetail>>;
   tone: "action" | "waiting"; emptyText: string;
   tk: Tokens; onOpen: (path: string) => void; onRetry: () => void;
+  /** botón ▾ con los más antiguos de cada fila (solo la bandeja) */
+  preview?: boolean;
 }) {
+  const [openKey, setOpenKey] = useState<K | null>(null);
+  const [previews, setPreviews] = useState<Partial<Record<K, Load<PreviewItem[]>>>>({});
+  const openRef = useRef<K | null>(null);
+  openRef.current = openKey;
+  const loadPreview = useCallback(async (k: K) => {
+    setPreviews((p) => ({ ...p, [k]: { status:"loading" } }));
+    const res = await settle(fetchPreview(k as unknown as InboxKey));
+    setPreviews((p) => ({ ...p, [k]: res }));
+  }, []);
+  /* La bandeja se recargó (a mano o sola): las listas ya pueden no coincidir
+     con los números. Se olvidan y la que está abierta se vuelve a pedir. */
+  useEffect(() => {
+    if (!preview || data.status !== "ok") return;
+    setPreviews({});
+    const k = openRef.current;
+    if (k) loadPreview(k);
+  }, [preview, data, loadPreview]);
+  const togglePreview = (k: K) => {
+    if (openKey === k) { setOpenKey(null); return; }
+    setOpenKey(k);
+    if (!previews[k] || previews[k]?.status === "error") loadPreview(k);
+  };
   const header = (
     <div style={{ padding:"18px 20px 14px" }}>
       <PanelTitle id={id} title={title} k={titleHue} icon={titleIcon} tk={tk} size={tone === "action" ? 18 : 16} />
@@ -283,7 +366,7 @@ function CountPanel<K extends string>({ id, title, subtitle, titleHue, titleIcon
         {pending.length > 0 && (
           <ul style={{ listStyle:"none", margin:0, padding:0 }}>
             {pending.map(({ i, det }) => (
-              <li key={i.key}>
+              <li key={i.key} className={preview && PREVIEWABLE.has(i.key) ? "dash-li" : undefined}>
                 <button type="button" className="dash-row" onClick={() => onOpen(i.path)}>
                   <HueChip k={i.hue} icon={i.icon} tk={tk} />
                   <span style={{ flex:1, minWidth:0 }}>
@@ -308,6 +391,23 @@ function CountPanel<K extends string>({ id, title, subtitle, titleHue, titleIcon
                     <RightOutlined aria-hidden style={{ fontSize:10 }} />
                   </span>
                 </button>
+                {preview && PREVIEWABLE.has(i.key) && (
+                  <>
+                    <Tooltip title={openKey === i.key ? "Ocultar" : "Ver los más antiguos"}>
+                      <button type="button" className="dash-peek" aria-expanded={openKey === i.key}
+                        aria-controls={`peek-${i.key}`} aria-label={`Ver los más antiguos: ${i.label}`}
+                        onClick={() => togglePreview(i.key)}>
+                        <DownOutlined aria-hidden style={{ fontSize:11 }} />
+                      </button>
+                    </Tooltip>
+                    {openKey === i.key && (
+                      <div id={`peek-${i.key}`} className="dash-peek-panel">
+                        <PreviewList state={previews[i.key] ?? { status:"loading" }} tk={tk} label={i.label}
+                          onOpen={() => onOpen(i.path)} onRetry={() => loadPreview(i.key)} />
+                      </div>
+                    )}
+                  </>
+                )}
               </li>
             ))}
           </ul>
@@ -791,6 +891,119 @@ function HoursPanel({ data, tk }: { data: MyHours; tk: Tokens }) {
   );
 }
 
+/* ─── Mi semana ──────────────────────────────────────────────────────────── */
+/* Lunes a viernes en una tira: feriados, mis salas, plazos que vencen, quién
+   del equipo está fuera y envíos. Lo de días pasados se atenúa. */
+const WEEKDAY = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
+function WeekStrip({ data, tk, onOpen, onRetry }: {
+  data: Load<WeekDay[]>; tk: Tokens; onOpen: (path: string) => void; onRetry: () => void;
+}) {
+  const today = todayGT();
+  const dot = (color: string) => (
+    <span aria-hidden style={{ width:7, height:7, borderRadius:"50%", background:color, flexShrink:0 }} />
+  );
+  const isEmpty = (d: WeekDay) =>
+    !d.holiday && !(d.rooms?.length) && !d.deadlines && !(d.out?.length) && !d.encargos;
+
+  return (
+    <section aria-labelledby="week-title" style={{ ...wcard(tk), overflow:"hidden", marginBottom:16 }}>
+      <div style={{ padding:"14px 20px 12px", borderBottom:`1px solid ${tk.divider}` }}>
+        <PanelTitle id="week-title" title="Mi semana" k="salas" icon={<CalendarOutlined />} tk={tk} />
+      </div>
+      {data.status === "loading" && <div style={{ padding:"12px 20px" }}><Skeleton active title={false} paragraph={{ rows:2 }} /></div>}
+      {data.status === "error" && (
+        <div style={{ padding:"12px 20px", fontSize:13, color:tk.t2 }}>
+          No se pudo cargar la semana.{" "}
+          <button type="button" className="dash-link" onClick={onRetry}>Reintentar</button>
+        </div>
+      )}
+      {data.status === "ok" && (data.data.every(isEmpty) ? (
+        <p style={{ margin:0, padding:"14px 20px", fontSize:13, color:tk.t2 }}>
+          Semana despejada: sin salas, plazos, ausencias ni envíos de lunes a viernes.
+        </p>
+      ) : (
+        <div className="dash-week">
+          {data.data.map((d) => {
+            const dt = new Date(d.date + "T12:00:00");
+            const isToday = d.date === today;
+            const rooms = d.rooms ?? [];
+            return (
+              <div key={d.date} className={`dash-day${isToday ? " is-today" : ""}${d.date < today ? " is-past" : ""}`}
+                aria-current={isToday ? "date" : undefined}>
+                <div style={{ display:"flex", alignItems:"baseline", gap:6, flexWrap:"wrap" }}>
+                  <span style={{ fontSize:12, fontWeight:600, color:tk.t2, textTransform:"uppercase", letterSpacing:".04em" }}>
+                    {WEEKDAY[dt.getDay()]}
+                  </span>
+                  <span className="dash-num" style={{ fontSize:16, fontWeight:700, color: isToday ? tk.accentText : tk.t1 }}>
+                    {dt.getDate()}
+                  </span>
+                  {isToday && <span style={{ fontSize:11, fontWeight:600, color:tk.accentText }}>Hoy</span>}
+                </div>
+                <div style={{ minWidth:0 }}>
+                  {d.holiday && (
+                    <div className="dash-day-line" style={{ color:sevColor(tk, 1), fontWeight:600 }}>
+                      <span>Feriado: {d.holiday}</span>
+                    </div>
+                  )}
+                  {rooms.slice(0, 2).map((r, i) => (
+                    <button key={i} type="button" className="dash-day-line dash-link" style={{ fontWeight:400, color:tk.t1 }}
+                      onClick={() => onOpen("/dashboard/reservaciones/listar")} title={`Sala ${r.room} · ${r.start}–${r.end}`}>
+                      {dot(hue(tk, "salas").fg)}<span className="dash-num">{r.start}</span><span>Sala {r.room}</span>
+                    </button>
+                  ))}
+                  {rooms.length > 2 && <div className="dash-day-line" style={{ color:tk.t2 }}><span>+{pl(rooms.length - 2, "sala más", "salas más")}</span></div>}
+                  {!!d.deadlines && (
+                    <button type="button" className="dash-day-line dash-link" style={{ fontWeight:500, color:tk.t1 }}
+                      onClick={() => onOpen("/dashboard/agendador")}>
+                      {dot(hue(tk, "plazos").fg)}<span>{pl(d.deadlines, "plazo vence", "plazos vencen")}</span>
+                    </button>
+                  )}
+                  {!!d.encargos && (
+                    <button type="button" className="dash-day-line dash-link" style={{ fontWeight:400, color:tk.t1 }}
+                      onClick={() => onOpen("/dashboard/mensajeria")}>
+                      {dot(hue(tk, "envios").fg)}<span>{pl(d.encargos, "envío", "envíos")}</span>
+                    </button>
+                  )}
+                  {!!d.out?.length && (
+                    <div className="dash-day-line" title={`Fuera: ${d.out.join(", ")}`}>
+                      {dot(hue(tk, "equipo").fg)}<span style={{ color:tk.t2 }}>Fuera: {d.out.join(", ")}</span>
+                    </div>
+                  )}
+                  {isEmpty(d) && <div className="dash-day-line" style={{ color:tk.t3 }}><span>Libre</span></div>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+/* ─── Recientes (en la franja) ───────────────────────────────────────────── */
+function RecentChips({ username, onOpen, tk }: { username: string | null; onOpen: (path: string) => void; tk: Tokens }) {
+  const [pages, setPages] = useState<RecentPage[]>(() => getRecentPages(username));
+  useEffect(() => {
+    setPages(getRecentPages(username));
+    return onRecentPagesChange(() => setPages(getRecentPages(username)));
+  }, [username]);
+  if (pages.length === 0) return null;
+  return (
+    <nav className="dash-recent" aria-label="Accesos recientes">
+      <span style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:12, fontWeight:600, color:tk.t2, marginRight:2 }}>
+        <HistoryOutlined aria-hidden /> Recientes
+      </span>
+      {pages.slice(0, 5).map((p) => (
+        <button key={p.path} type="button" className="dash-recent-chip" onClick={() => onOpen(p.path)}
+          title={p.parent ? `${p.parent} · ${p.label}` : p.label}>
+          <span>{p.parent ? <><span style={{ color:tk.t2 }}>{p.parent} · </span>{p.label}</> : p.label}</span>
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 /* ─── Página ──────────────────────────────────────────────────────────────── */
 async function settle<T>(p: Promise<T>): Promise<Load<T>> {
   try { return { status:"ok", data: await p }; } catch { return { status:"error" }; }
@@ -803,6 +1016,7 @@ export default function DashboardPage() {
   const [encargos, setEncargos]   = useState<Load<UpcomingItems>>({ status:"loading" });
   const [plazos, setPlazos]       = useState<Load<Deadlines | null>>({ status:"loading" });
   const [hours, setHours]         = useState<Load<MyHours | null>>({ status:"loading" });
+  const [week, setWeek]           = useState<Load<WeekDay[]>>({ status:"loading" });
   /* Actualización automática: cuántos pendientes llegaron desde que el
      usuario vio la bandeja por última vez (se limpia al actualizar a mano). */
   const [newCount, setNewCount]   = useState(0);
@@ -827,13 +1041,14 @@ export default function DashboardPage() {
 
   const load = useCallback(async (auto = false) => {
     setRefreshing(true);
-    const [i, m, t, e, pz, hr] = await Promise.all([
+    const [i, m, t, e, pz, hr, wk] = await Promise.all([
       settle(fetchInbox()),
       settle(fetchMine()),
       settle(fetchVacationSummary()),
       showEncargos ? settle(fetchUpcomingItems()) : Promise.resolve<Load<UpcomingItems>>({ status:"loading" }),
       hasPlazos ? settle(fetchDeadlines()) : Promise.resolve<Load<Deadlines | null>>({ status:"ok", data:null }),
       settle(fetchMyHours()),
+      settle(fetchWeek()),
     ]);
     // En automático, una fuente que falla no borra lo que ya se veía.
     if (!auto || i.status === "ok") setInbox(i);
@@ -842,6 +1057,7 @@ export default function DashboardPage() {
     if (!auto || e.status === "ok") setEncargos(e);
     if (!auto || pz.status === "ok") setPlazos(pz);
     if (!auto || hr.status === "ok") setHours(hr);
+    if (!auto || wk.status === "ok") setWeek(wk);
 
     if (i.status === "ok") {
       const total = INBOX_ITEMS.reduce((a, it) => a + ((i.data[it.key] as number | null | undefined) ?? 0), 0);
@@ -955,6 +1171,7 @@ export default function DashboardPage() {
                 )}
               </p>
             )}
+            <RecentChips username={username} onOpen={navigate} tk={tk} />
             {roomsToday > 0 && (
               <p style={{ margin:"6px 0 0", fontSize:13, color:band.sub }}>
                 {pl(roomsToday, "sala reservada hoy", "salas reservadas hoy")} · ver Mi agenda
@@ -975,11 +1192,13 @@ export default function DashboardPage() {
           </div>
         </header>
 
+        <WeekStrip data={week} tk={tk} onOpen={navigate} onRetry={() => load()} />
+
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={16} style={{ display:"flex", flexDirection:"column", gap:16 }}>
             <CountPanel id="inbox-title" title="Pendientes" subtitle="Lo que espera tu acción en tus módulos."
               titleHue="bandeja" titleIcon={<InboxOutlined />}
-              items={INBOX_ITEMS} data={inbox} tone="action"
+              items={INBOX_ITEMS} data={inbox} tone="action" preview
               details={inbox.status === "ok" ? inbox.data.details : undefined}
               emptyText="Todo al día. Nada espera tu acción por ahora."
               tk={tk} onOpen={navigate} onRetry={() => load()} />

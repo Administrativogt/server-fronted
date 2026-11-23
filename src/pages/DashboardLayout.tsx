@@ -21,6 +21,7 @@ import api from '../api/axios';
 import { useUserAdminPermissions } from '../hooks/usePermissions';
 import type { ModuleKey } from '../types/module-access.types';
 import { getTipoUsuarioLabel, getTipoUsuarioColor } from '../types/user.types';
+import { pushRecentPage } from '../utils/recentPages';
 import { MENU, MENU_SECTIONS, VACATIONS_ONLY_MENU, VACATIONS_ONLY_PATH, buildMenuItems, type MenuCaps } from '../config/menu';
 import { PRIMARY } from './dashboard/theme';
 import { canManageInduction } from '../utils/induction';
@@ -165,6 +166,11 @@ const DashboardLayout: React.FC = () => {
       mounted = false;
     };
   }, [username]);
+
+  // Accesos recientes del inicio: cada pantalla del menú que se abre.
+  useEffect(() => {
+    pushRecentPage(username, location.pathname);
+  }, [username, location.pathname]);
 
   const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

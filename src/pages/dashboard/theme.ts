@@ -231,6 +231,40 @@ export const makeDashCSS = (tk: Tokens) => `
   font:inherit; font-size:12px; font-weight:600; color:${tk.accentText}; background:${tk.accentText}1f; }
 .dash-new:hover { background:${tk.accentText}33; }
 .dash-new:focus-visible { outline:2px solid ${tk.accentText}; outline-offset:2px; }
+/* Vista previa de una fila de Pendientes */
+.dash-li { display:grid; grid-template-columns:minmax(0,1fr) auto; }
+.dash-peek { width:44px; display:inline-flex; align-items:center; justify-content:center; padding:0;
+  background:transparent; border:0; border-top:1px solid ${tk.divider}; cursor:pointer; color:${tk.t2}; transition:background .15s, color .15s; }
+.dash-peek:hover { background:${tk.subtle}; color:${tk.t1}; }
+.dash-peek:focus-visible { outline:2px solid ${tk.accentText}; outline-offset:-2px; border-radius:6px; }
+.dash-peek .anticon { transition:transform .18s; }
+.dash-peek[aria-expanded="true"] .anticon { transform:rotate(180deg); }
+.dash-peek-panel { grid-column:1 / -1; padding:4px 20px 14px 66px; background:${tk.subtle}; border-top:1px solid ${tk.divider}; }
+.dash-peek-item { display:flex; align-items:baseline; gap:12px; padding:8px 0; font-size:13px; }
+.dash-peek-item + .dash-peek-item { border-top:1px solid ${tk.divider}; }
+@media (max-width: 640px) { .dash-peek-panel { padding-left:20px; } }
+/* Mi semana */
+.dash-week { display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); }
+.dash-day { padding:12px 14px 14px; min-width:0; border-left:1px solid ${tk.divider}; }
+.dash-day:first-child { border-left:0; }
+.dash-day.is-past { opacity:.55; }
+.dash-day.is-today { background:${tk.accentText}0d; }
+.dash-day-line { display:flex; align-items:center; gap:6px; margin-top:6px; font-size:12px; color:${tk.t1};
+  min-width:0; max-width:100%; text-align:left; }
+.dash-day-line > span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+@media (max-width: 900px) {
+  .dash-week { grid-template-columns:minmax(0,1fr); }
+  .dash-day { border-left:0; border-top:1px solid ${tk.divider}; display:grid; grid-template-columns:84px minmax(0,1fr); gap:0 12px; }
+  .dash-day:first-child { border-top:0; }
+}
+/* Recientes en la franja */
+.dash-recent { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:12px; }
+.dash-recent-chip { display:inline-flex; align-items:center; gap:6px; max-width:240px; padding:4px 10px; border-radius:999px;
+  border:${tk.borderCss}; background:${tk.subtle}; color:${tk.t1}; font:inherit; font-size:12px; cursor:pointer;
+  transition:border-color .15s, background .15s; }
+.dash-recent-chip:hover { border-color:${tk.accentText}; background:${tk.surface}; }
+.dash-recent-chip:focus-visible { outline:2px solid ${tk.accentText}; outline-offset:2px; }
+.dash-recent-chip span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 /* Plazos */
 .dash-date { width:44px; flex-shrink:0; text-align:center; border-radius:8px; padding:4px 0 5px;
   background:${tk.subtle}; border:${tk.borderCss}; line-height:1.1; }
@@ -238,6 +272,7 @@ export const makeDashCSS = (tk: Tokens) => `
 .dash-date small { font-size:11px; color:${tk.t2}; text-transform:uppercase; letter-spacing:.04em; }
 
 @media (prefers-reduced-motion: reduce) {
+  .dash-peek, .dash-peek .anticon, .dash-recent-chip { transition:none; }
   .dash-in { animation:none; }
   .dash-row, .gs-field { transition:none; }
 }

@@ -202,3 +202,36 @@ export async function fetchMyHours(): Promise<MyHours | null> {
   const { data } = await api.get('/api/dashboard/my-hours');
   return data && typeof data === 'object' && data.billable ? data : null;
 }
+
+/* ─── Vista previa de una fila (/api/dashboard/preview/:key) ─────────────── */
+export interface PreviewItem {
+  id: number | string;
+  title: string;
+  subtitle: string | null;
+  /** YYYY-MM-DD */
+  date: string | null;
+  time?: string | null;
+  amount?: string | null;
+}
+
+export async function fetchPreview(key: InboxKey): Promise<PreviewItem[]> {
+  const { data } = await api.get(`/api/dashboard/preview/${key}`);
+  return data?.items ?? [];
+}
+
+/* ─── Mi semana (/api/dashboard/week) ────────────────────────────────────── */
+export interface WeekDay {
+  /** YYYY-MM-DD (lunes a viernes) */
+  date: string;
+  holiday: string | null;
+  /** ausente = sin módulo de salas */
+  rooms?: { start: string; end: string; room: string }[];
+  deadlines?: number;
+  out?: string[];
+  encargos?: number;
+}
+
+export async function fetchWeek(): Promise<WeekDay[]> {
+  const { data } = await api.get('/api/dashboard/week');
+  return data?.days ?? [];
+}
