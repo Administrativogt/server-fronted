@@ -56,22 +56,30 @@ export type HueKey =
   | "cheques" | "dinero" | "equipo" | "salas" | "notificaciones" | "documentos"
   | "nombramientos" | "sirvo" | "envios" | "tramite" | "bandeja" | "plazos" | "horas";
 
-const HUES: Record<HueKey, [light: string, dark: string]> = {
-  // El índigo de marca queda SOLO para la bandeja (y la franja); cheques
-  // tiene su propio cian para no confundir módulo con marca.
+/* Cuatro familias, las mismas áreas del menú lateral (Finanzas, Legal,
+   Operación, Personas), en tonos desaturados para no competir con los
+   colores de estado. El índigo de marca queda solo para la bandeja. */
+const AREA = {
+  finanzas:  ["#3F7466", "#8CC7B6"],
+  legal:     ["#7A5A36", "#D6B48A"],
+  operacion: ["#55657C", "#AAB7C9"],
+  personas:  ["#875062", "#DDA4B5"],
+} as const satisfies Record<string, readonly [string, string]>;
+
+const HUES: Record<HueKey, readonly [light: string, dark: string]> = {
   bandeja:        ["#3C50E0", "#8C9BFF"],
-  cheques:        ["#0E7490", "#22D3EE"],
-  dinero:         ["#047857", "#34D399"],
-  equipo:         ["#0F766E", "#2DD4BF"],
-  salas:          ["#7C3AED", "#A78BFA"],
-  notificaciones: ["#0369A1", "#38BDF8"],
-  documentos:     ["#A21CAF", "#E879F9"],
-  nombramientos:  ["#B45309", "#FBBF24"],
-  sirvo:          ["#C2410C", "#FB923C"],
-  envios:         ["#4D7C0F", "#A3E635"],
-  tramite:        ["#BE185D", "#F472B6"],
-  plazos:         ["#1D4ED8", "#60A5FA"],
-  horas:          ["#A16207", "#FACC15"],
+  cheques:        AREA.finanzas,
+  dinero:         AREA.finanzas,
+  sirvo:          AREA.finanzas,
+  plazos:         AREA.legal,
+  nombramientos:  AREA.legal,
+  salas:          AREA.operacion,
+  notificaciones: AREA.operacion,
+  documentos:     AREA.operacion,
+  envios:         AREA.operacion,
+  tramite:        AREA.operacion,
+  equipo:         AREA.personas,
+  horas:          AREA.personas,
 };
 
 /** Color de TEXTO por urgencia (0 neutro, 1 atención, 2 urgente). Tonos
@@ -212,12 +220,8 @@ export const makeDashCSS = (tk: Tokens) => `
 .dash-card-picker .ant-picker-input > input::placeholder { color:${tk.t2}; opacity:1; }
 .gs-clear:focus-visible { outline:2px solid ${tk.accentText}; outline-offset:2px; border-radius:50%; }
 
-/* "Al día": chips pequeños en vez de un párrafo */
-.dash-chips { display:flex; flex-wrap:wrap; gap:6px; }
-.dash-chip { display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px;
-  font-size:12px; color:${tk.t2}; background:${tk.subtle}; border:${tk.borderCss}; white-space:nowrap; }
 /* Antigüedad de cheques por liquidar */
-.dash-aging { display:flex; height:6px; width:100%; max-width:280px; border-radius:999px; overflow:hidden;
+.dash-aging { display:flex; height:4px; width:100%; max-width:160px; border-radius:999px; overflow:hidden;
   background:${tk.divider}; margin-top:7px; }
 .dash-aging > span { height:100%; }
 .dash-aging-legend { display:flex; flex-wrap:wrap; gap:2px 12px; margin-top:5px; font-size:12px; color:${tk.t2}; }
@@ -233,15 +237,24 @@ export const makeDashCSS = (tk: Tokens) => `
 .dash-new:focus-visible { outline:2px solid ${tk.accentText}; outline-offset:2px; }
 /* Vista previa de una fila de Pendientes */
 .dash-li { display:grid; grid-template-columns:minmax(0,1fr) auto; }
-.dash-peek { width:44px; display:inline-flex; align-items:center; justify-content:center; padding:0;
-  background:transparent; border:0; border-top:1px solid ${tk.divider}; cursor:pointer; color:${tk.t2}; transition:background .15s, color .15s; }
-.dash-peek:hover { background:${tk.subtle}; color:${tk.t1}; }
-.dash-peek:focus-visible { outline:2px solid ${tk.accentText}; outline-offset:-2px; border-radius:6px; }
-.dash-peek .anticon { transition:transform .18s; }
-.dash-peek[aria-expanded="true"] .anticon { transform:rotate(180deg); }
+.dash-li > .dash-row { padding-right:8px; }
+.dash-chev { color:${tk.t2}; font-size:11px; transition:transform .18s; flex-shrink:0; }
+.dash-row[aria-expanded="true"] .dash-chev { transform:rotate(180deg); }
+.dash-verb-btn { display:inline-flex; align-items:center; justify-content:flex-end; gap:4px; min-width:96px; padding:0 20px 0 8px;
+  background:transparent; border:0; border-top:1px solid ${tk.divider}; cursor:pointer; font:inherit; font-size:13px;
+  font-weight:600; color:${tk.accentText}; white-space:nowrap; transition:background .15s; }
+.dash-verb-btn:hover { background:${tk.subtle}; }
+.dash-verb-btn:hover .dash-verb-text { text-decoration:underline; text-underline-offset:3px; }
+.dash-verb-btn:focus-visible { outline:2px solid ${tk.accentText}; outline-offset:-2px; border-radius:6px; }
+@media (max-width: 520px) { .dash-verb-btn { min-width:44px; padding:0 14px 0 6px; } }
 .dash-peek-panel { grid-column:1 / -1; padding:4px 20px 14px 66px; background:${tk.subtle}; border-top:1px solid ${tk.divider}; }
-.dash-peek-item { display:flex; align-items:baseline; gap:12px; padding:8px 0; font-size:13px; }
-.dash-peek-item + .dash-peek-item { border-top:1px solid ${tk.divider}; }
+.dash-peek-item { display:flex; align-items:baseline; gap:12px; width:100%; padding:8px 8px; margin:0 -8px;
+  font:inherit; font-size:13px; text-align:left; background:transparent; border:0; border-radius:6px; cursor:pointer;
+  color:inherit; box-sizing:content-box; }
+.dash-peek-item:hover { background:${tk.surface}; }
+.dash-peek-item:hover .dash-peek-title { text-decoration:underline; text-underline-offset:3px; }
+.dash-peek-item:focus-visible { outline:2px solid ${tk.accentText}; outline-offset:-2px; }
+li + li > .dash-peek-item { border-top:1px solid ${tk.divider}; border-radius:0; }
 @media (max-width: 640px) { .dash-peek-panel { padding-left:20px; } }
 /* Mi semana */
 .dash-week { display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); }
@@ -257,14 +270,15 @@ export const makeDashCSS = (tk: Tokens) => `
   .dash-day { border-left:0; border-top:1px solid ${tk.divider}; display:grid; grid-template-columns:84px minmax(0,1fr); gap:0 12px; }
   .dash-day:first-child { border-top:0; }
 }
-/* Recientes en la franja */
-.dash-recent { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:12px; }
-.dash-recent-chip { display:inline-flex; align-items:center; gap:6px; max-width:240px; padding:4px 10px; border-radius:999px;
-  border:${tk.borderCss}; background:${tk.subtle}; color:${tk.t1}; font:inherit; font-size:12px; cursor:pointer;
-  transition:border-color .15s, background .15s; }
-.dash-recent-chip:hover { border-color:${tk.accentText}; background:${tk.surface}; }
-.dash-recent-chip:focus-visible { outline:2px solid ${tk.accentText}; outline-offset:2px; }
-.dash-recent-chip span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* Recientes en la franja: enlaces de texto en una línea (la píldora queda
+   para nada más; cada tipo de contenido tiene su propia forma). */
+/* Una sola línea: lo que no cabe pasa a una segunda línea oculta, nunca a medias. */
+.dash-recent { display:flex; flex-wrap:wrap; align-items:baseline; gap:0 16px; margin-top:10px; font-size:13px;
+  line-height:22px; max-height:22px; overflow:hidden; min-width:0; }
+.dash-recent-link { background:none; border:0; padding:0; font:inherit; line-height:inherit; color:${tk.t1}; cursor:pointer;
+  white-space:nowrap; transition:color .15s; }
+.dash-recent-link:hover { color:${tk.accentText}; text-decoration:underline; text-underline-offset:3px; }
+.dash-recent-link:focus-visible { outline:2px solid ${tk.accentText}; outline-offset:2px; border-radius:4px; }
 /* Plazos */
 .dash-date { width:44px; flex-shrink:0; text-align:center; border-radius:8px; padding:4px 0 5px;
   background:${tk.subtle}; border:${tk.borderCss}; line-height:1.1; }
@@ -272,7 +286,7 @@ export const makeDashCSS = (tk: Tokens) => `
 .dash-date small { font-size:11px; color:${tk.t2}; text-transform:uppercase; letter-spacing:.04em; }
 
 @media (prefers-reduced-motion: reduce) {
-  .dash-peek, .dash-peek .anticon, .dash-recent-chip { transition:none; }
+  .dash-chev, .dash-verb-btn, .dash-recent-link { transition:none; }
   .dash-in { animation:none; }
   .dash-row, .gs-field { transition:none; }
 }

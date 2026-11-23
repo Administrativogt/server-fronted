@@ -190,8 +190,28 @@ function AppInner() {
           colorInfo: INFO,
           borderRadius: 6,
           fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+          // DESIGN.md: el placeholder también cumple 4.5:1 (el gris de AntD daba 1.8:1).
+          colorTextPlaceholder: themeMode === 'dark' ? '#9095A6' : '#6B7486',
         },
         components: {
+          // Shell (menú lateral y encabezado) con los tokens del sistema. En
+          // oscuro AntD traía el navy #001529 y el negro #141414, ajenos a la
+          // paleta: tres oscuros distintos alrededor del contenido.
+          Layout: {
+            siderBg: themeMode === 'dark' ? '#1D1F2B' : '#FFFFFF',
+            headerBg: themeMode === 'dark' ? '#1D1F2B' : '#FFFFFF',
+          },
+          Menu: {
+            darkItemBg: '#1D1F2B',
+            darkSubMenuItemBg: '#191B26',
+            darkPopupBg: '#1D1F2B',
+            darkItemColor: '#B4B8C7',
+            darkItemHoverBg: '#262936',
+            darkItemHoverColor: '#ECEDF2',
+            darkItemSelectedBg: 'rgba(140, 155, 255, 0.16)',
+            darkItemSelectedColor: '#C9D0FF',
+            darkGroupTitleColor: '#9095A6',
+          },
           // Bordes de tablas más visibles en ambos temas (el default de AntD
           // era casi invisible en modo oscuro; pedido de recepción en salas).
           Table: {

@@ -450,6 +450,7 @@ const DashboardLayout: React.FC = () => {
           height: '100vh',
           overflow: 'auto',
           zIndex: 100,
+          borderInlineEnd: isDark ? '1px solid #2C2F40' : undefined,
         }}
       >
         {/* Logo: vuelve al inicio (el grupo solo-vacaciones va a su módulo) */}
@@ -539,7 +540,8 @@ const DashboardLayout: React.FC = () => {
         <Header
           style={{
             padding: '0 16px',
-            background: colorBgContainer,
+            background: isDark ? '#1D1F2B' : colorBgContainer,
+            borderBottom: isDark ? '1px solid #2C2F40' : undefined,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -552,6 +554,8 @@ const DashboardLayout: React.FC = () => {
           <Button
             type="text"
             icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            aria-label={collapsed ? 'Mostrar menú' : 'Ocultar menú'}
+            aria-expanded={!collapsed}
             onClick={() => setCollapsed((c) => !c)}
             style={{ fontSize: 16, width: 64, height: 64 }}
           />
@@ -559,6 +563,7 @@ const DashboardLayout: React.FC = () => {
             <Switch
               checked={isDark}
               onChange={toggleTheme}
+              aria-label="Modo oscuro"
               checkedChildren={<MoonOutlined />}
               unCheckedChildren={<SunOutlined />}
             />

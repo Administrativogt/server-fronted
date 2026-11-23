@@ -212,6 +212,8 @@ export interface PreviewItem {
   date: string | null;
   time?: string | null;
   amount?: string | null;
+  /** pantalla que abre este registro (null = la lista del módulo) */
+  path?: string | null;
 }
 
 export async function fetchPreview(key: InboxKey): Promise<PreviewItem[]> {

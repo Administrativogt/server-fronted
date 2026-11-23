@@ -80,8 +80,8 @@ type CountItem<K extends string> = {
 /** Antigüedad de "por liquidar": ≤30 / 30–60 / +60 días, con leyenda. */
 function AgingBar({ total, over30, over60, tk }: { total: number; over30: number; over60: number; tk: Tokens }) {
   const parts = [
-    { n: Math.max(total - over30, 0), label: "hasta 30 días", color: tk.isDark ? "#64748B" : "#94A3B8" },
-    { n: Math.max(over30 - over60, 0), label: "de 30 a 60 días", color: WARNING },
+    { n: Math.max(total - over30, 0), label: "hasta 30 días", color: tk.isDark ? "#3A3F52" : "#CBD5E1" },
+    { n: Math.max(over30 - over60, 0), label: "de 30 a 60 días", color: tk.isDark ? "#6B7080" : "#94A3B8" },
     { n: over60, label: "más de 60 días", color: DANGER },
   ];
   if (total <= 0) return null;
@@ -242,13 +242,29 @@ function rankRows<K extends string>(
    Mis solicitudes = espera a OTROS: contexto neutro, orden fijo. */
 /* Vista previa: los 5 más antiguos (o próximos) de una fila, sin salir del
    inicio. Se pide al abrirla y se olvida cuando la bandeja se recarga. */
+/** Qué muestra la vista previa de cada fila (para el aviso del botón). */
+const PREVIEW_NOUN: Record<string, string> = {
+  checksToAuthorize: "los 5 más antiguos", checksToLiquidate: "los 5 más antiguos",
+  moneyReqToAuthorize: "los 5 más antiguos", notificationsToAccept: "las 5 más antiguas",
+  documentsToAccept: "los 5 más antiguos", roomsToApprove: "las 5 próximas",
+  vacationsToApprove: "las 5 próximas", appointmentsExpiring: "los 5 próximos", encargosToday: "los 5 de hoy",
+};
+/** "RODRIGUEZ MAHUAD, ALFREDO" → "Rodriguez Mahuad, Alfredo" (la BD guarda muchos en
+    mayúsculas). Por partes ("Solicitud 23 · ADA OLIVA"): solo la parte en mayúsculas cambia. */
+const tidy = (text: string) => text.split(" · ").map(tidyPart).join(" · ");
+const tidyPart = (text: string) =>
+  /[a-záéíóúñ]/.test(text) || !/[A-ZÁÉÍÓÚÑ]{3}/.test(text)
+    ? text
+    : text.toLowerCase().replace(/(^|[\s(,/-])(\p{L})/gu, (_m, sep: string, ch: string) => sep + ch.toUpperCase())
+        .replace(/\b(s\.a|s\.a\.|ltda|nt|exp)\b\.?/gi, (m) => m.toUpperCase());
 const PREVIEWABLE = new Set<string>([
   "checksToAuthorize", "checksToLiquidate", "moneyReqToAuthorize", "roomsToApprove", "vacationsToApprove",
   "appointmentsExpiring", "notificationsToAccept", "documentsToAccept", "encargosToday",
 ]);
 
-function PreviewList({ state, tk, label, onOpen, onRetry }: {
-  state: Load<PreviewItem[]>; tk: Tokens; label: string; onOpen: () => void; onRetry: () => void;
+function PreviewList({ state, tk, total, onOpen, onOpenItem, onRetry }: {
+  state: Load<PreviewItem[]>; tk: Tokens; total: number;
+  onOpen: () => void; onOpenItem: (path: string | null | undefined) => void; onRetry: () => void;
 }) {
   if (state.status === "loading") return <Skeleton active title={false} paragraph={{ rows:3 }} style={{ paddingTop:10 }} />;
   if (state.status === "error") {
@@ -266,27 +282,29 @@ function PreviewList({ state, tk, label, onOpen, onRetry }: {
         : (
           <ul style={{ listStyle:"none", margin:0, padding:0 }}>
             {state.data.map((it) => (
-              <li key={it.id} className="dash-peek-item">
+              <li key={it.id}>
+               <button type="button" className="dash-peek-item" onClick={() => onOpenItem(it.path)}>
                 <span className="dash-num" style={{ width:58, flexShrink:0, color:tk.t2 }}>
                   {it.date ? fmtDayY(it.date) : "—"}{it.time ? <><br />{it.time}</> : null}
                 </span>
                 <span style={{ flex:1, minWidth:0 }}>
-                  <span style={{ display:"block", color:tk.t1, fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                    {it.title}
+                  <span className="dash-peek-title" style={{ display:"block", color:tk.t1, fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                    {tidy(it.title)}
                   </span>
                   {it.subtitle && (
                     <span style={{ display:"block", color:tk.t2, marginTop:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                      {it.subtitle}
+                      {tidy(it.subtitle)}
                     </span>
                   )}
                 </span>
                 {it.amount && <span className="dash-num" style={{ flexShrink:0, color:tk.t1, fontWeight:600 }}>{it.amount}</span>}
+               </button>
               </li>
             ))}
           </ul>
         )}
       <button type="button" className="dash-link" style={{ marginTop:6 }} onClick={onOpen}>
-        Abrir {label.toLowerCase()} <RightOutlined style={{ fontSize:10 }} />
+        Ver {total > 1 ? `los ${total.toLocaleString("es-GT")}` : "en el módulo"} <RightOutlined style={{ fontSize:10 }} />
       </button>
     </>
   );
@@ -365,9 +383,12 @@ function CountPanel<K extends string>({ id, title, subtitle, titleHue, titleIcon
 
         {pending.length > 0 && (
           <ul style={{ listStyle:"none", margin:0, padding:0 }}>
-            {pending.map(({ i, det }) => (
-              <li key={i.key} className={preview && PREVIEWABLE.has(i.key) ? "dash-li" : undefined}>
-                <button type="button" className="dash-row" onClick={() => onOpen(i.path)}>
+            {pending.map(({ i, det }) => {
+              const canPeek = preview && PREVIEWABLE.has(i.key);
+              const open = openKey === i.key;
+              const count = d[i.key] as number;
+              const body = (
+                <>
                   <HueChip k={i.hue} icon={i.icon} tk={tk} />
                   <span style={{ flex:1, minWidth:0 }}>
                     <span style={{ display:"block", fontSize:14, fontWeight:500 }}>{i.label}</span>
@@ -382,34 +403,50 @@ function CountPanel<K extends string>({ id, title, subtitle, titleHue, titleIcon
                     )}
                     {i.visual?.(d, tk)}
                   </span>
-                  <span className="dash-num" style={{ fontSize: tone === "action" ? 20 : 16, fontWeight:700, minWidth:36, textAlign:"right",
-                    color: tone === "action" && det ? sevColor(tk, det.sev) : tk.t1 }}>
-                    {(d[i.key] as number).toLocaleString("es-GT")}
+                  {/* La cifra va siempre en tinta: la urgencia la dice el reloj y su línea. */}
+                  <span className="dash-num" style={{ fontSize: tone === "action" ? 18 : 16, fontWeight:700, minWidth:36,
+                    textAlign:"right", color:tk.t1 }}>
+                    {count.toLocaleString("es-GT")}
                   </span>
-                  <span className="dash-verb" style={{ color:tk.accentText }}>
+                </>
+              );
+              if (!canPeek) {
+                return (
+                  <li key={i.key}>
+                    <button type="button" className="dash-row" onClick={() => onOpen(i.path)}>
+                      {body}
+                      <span className="dash-verb" style={{ color:tk.accentText }}>
+                        <span className="dash-verb-text">{i.verb}</span>
+                        <RightOutlined aria-hidden style={{ fontSize:10 }} />
+                      </span>
+                    </button>
+                  </li>
+                );
+              }
+              return (
+                <li key={i.key} className="dash-li">
+                  {/* La fila abre la vista previa; el verbo lleva al módulo. */}
+                  <button type="button" className="dash-row" aria-expanded={open} aria-controls={`peek-${i.key}`}
+                    title={open ? "Ocultar" : `Ver ${PREVIEW_NOUN[i.key] ?? "los más antiguos"}`}
+                    onClick={() => togglePreview(i.key)}>
+                    {body}
+                    <DownOutlined aria-hidden className="dash-chev" />
+                  </button>
+                  <button type="button" className="dash-verb-btn" aria-label={`${i.verb}: ${i.label}`}
+                    onClick={() => onOpen(i.path)}>
                     <span className="dash-verb-text">{i.verb}</span>
                     <RightOutlined aria-hidden style={{ fontSize:10 }} />
-                  </span>
-                </button>
-                {preview && PREVIEWABLE.has(i.key) && (
-                  <>
-                    <Tooltip title={openKey === i.key ? "Ocultar" : "Ver los más antiguos"}>
-                      <button type="button" className="dash-peek" aria-expanded={openKey === i.key}
-                        aria-controls={`peek-${i.key}`} aria-label={`Ver los más antiguos: ${i.label}`}
-                        onClick={() => togglePreview(i.key)}>
-                        <DownOutlined aria-hidden style={{ fontSize:11 }} />
-                      </button>
-                    </Tooltip>
-                    {openKey === i.key && (
-                      <div id={`peek-${i.key}`} className="dash-peek-panel">
-                        <PreviewList state={previews[i.key] ?? { status:"loading" }} tk={tk} label={i.label}
-                          onOpen={() => onOpen(i.path)} onRetry={() => loadPreview(i.key)} />
-                      </div>
-                    )}
-                  </>
-                )}
-              </li>
-            ))}
+                  </button>
+                  {open && (
+                    <div id={`peek-${i.key}`} className="dash-peek-panel">
+                      <PreviewList state={previews[i.key] ?? { status:"loading" }} tk={tk} total={count}
+                        onOpen={() => onOpen(i.path)} onOpenItem={(path) => onOpen(path || i.path)}
+                        onRetry={() => loadPreview(i.key)} />
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
 
@@ -424,17 +461,11 @@ function CountPanel<K extends string>({ id, title, subtitle, titleHue, titleIcon
         )}
 
         {tone === "action" && clear.length > 0 && (pending.length > 0 || failed.length > 0) && (
-          <div style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"12px 20px 16px",
-            borderTop:`1px solid ${tk.divider}` }}>
-            <span style={{ fontSize:12, fontWeight:600, color:tk.t2, paddingTop:4, flexShrink:0 }}>Al día</span>
-            <div className="dash-chips">
-              {clear.map((i) => (
-                <span key={i.key} className="dash-chip">
-                  <CheckCircleOutlined aria-hidden style={{ color:SUCCESS }} />{CHIP_LABEL[i.key] ?? i.label}
-                </span>
-              ))}
-            </div>
-          </div>
+          <p style={{ margin:0, padding:"12px 20px 16px", borderTop:`1px solid ${tk.divider}`, fontSize:13, color:tk.t2 }}>
+            <CheckCircleOutlined aria-hidden style={{ color:SUCCESS, marginRight:6 }} />
+            <span style={{ color:tk.t1, fontWeight:600 }}>Al día:</span>{" "}
+            {clear.map((i) => CHIP_LABEL[i.key] ?? i.label).join(", ")}
+          </p>
         )}
       </>
     );
@@ -465,12 +496,10 @@ function RoomsNow({ rooms, tk, onCreate }: { rooms: RoomNow[]; tk: Tokens; onCre
         <p style={{ margin:0, fontSize:13, color:tk.t2 }}>Todas las salas están ocupadas en este momento.</p>
       )}
       {freeAllDay.length > 0 && (
-        <div style={{ margin:"2px 0 8px" }}>
-          <div style={{ fontSize:12, color:tk.t2, marginBottom:6 }}>{dot}Libres el resto del día</div>
-          <div className="dash-chips">
-            {freeAllDay.map((r) => <span key={r.id} className="dash-chip" style={{ color:tk.t1 }}>{r.name}</span>)}
-          </div>
-        </div>
+        <p style={{ margin:"0 0 4px", fontSize:13, color:tk.t1, lineHeight:1.55 }}>
+          {dot}<span style={{ color:tk.t2 }}>Libres el resto del día:</span>{" "}
+          {freeAllDay.map((r) => r.name).join(", ")}
+        </p>
       )}
       {freeUntil.length > 0 && (
         <ul style={{ listStyle:"none", margin:0, padding:0 }}>
@@ -900,6 +929,9 @@ function WeekStrip({ data, tk, onOpen, onRetry }: {
   data: Load<WeekDay[]>; tk: Tokens; onOpen: (path: string) => void; onRetry: () => void;
 }) {
   const today = todayGT();
+  // Semana sin nada que mostrar: la tarjeta no ocupa lugar.
+  if (data.status === "ok" && data.data.every((d) =>
+    !d.holiday && !(d.rooms?.length) && !d.deadlines && !(d.out?.length) && !d.encargos)) return null;
   const dot = (color: string) => (
     <span aria-hidden style={{ width:7, height:7, borderRadius:"50%", background:color, flexShrink:0 }} />
   );
@@ -918,11 +950,7 @@ function WeekStrip({ data, tk, onOpen, onRetry }: {
           <button type="button" className="dash-link" onClick={onRetry}>Reintentar</button>
         </div>
       )}
-      {data.status === "ok" && (data.data.every(isEmpty) ? (
-        <p style={{ margin:0, padding:"14px 20px", fontSize:13, color:tk.t2 }}>
-          Semana despejada: sin salas, plazos, ausencias ni envíos de lunes a viernes.
-        </p>
-      ) : (
+      {data.status === "ok" && (data.data.every(isEmpty) ? null : (
         <div className="dash-week">
           {data.data.map((d) => {
             const dt = new Date(d.date + "T12:00:00");
@@ -932,7 +960,7 @@ function WeekStrip({ data, tk, onOpen, onRetry }: {
               <div key={d.date} className={`dash-day${isToday ? " is-today" : ""}${d.date < today ? " is-past" : ""}`}
                 aria-current={isToday ? "date" : undefined}>
                 <div style={{ display:"flex", alignItems:"baseline", gap:6, flexWrap:"wrap" }}>
-                  <span style={{ fontSize:12, fontWeight:600, color:tk.t2, textTransform:"uppercase", letterSpacing:".04em" }}>
+                  <span style={{ fontSize:13, fontWeight:600, color:tk.t2 }}>
                     {WEEKDAY[dt.getDay()]}
                   </span>
                   <span className="dash-num" style={{ fontSize:16, fontWeight:700, color: isToday ? tk.accentText : tk.t1 }}>
@@ -970,7 +998,7 @@ function WeekStrip({ data, tk, onOpen, onRetry }: {
                       {dot(hue(tk, "equipo").fg)}<span style={{ color:tk.t2 }}>Fuera: {d.out.join(", ")}</span>
                     </div>
                   )}
-                  {isEmpty(d) && <div className="dash-day-line" style={{ color:tk.t3 }}><span>Libre</span></div>}
+                  {isEmpty(d) && <div className="dash-day-line" style={{ color:tk.t2 }}><span>Libre</span></div>}
                 </div>
               </div>
             );
@@ -982,6 +1010,7 @@ function WeekStrip({ data, tk, onOpen, onRetry }: {
 }
 
 /* ─── Recientes (en la franja) ───────────────────────────────────────────── */
+const GENERIC_PAGE = /^(general|lista|listado|calendario|dashboard|pendientes|entregados|catálogos|ver |listar |crear |subir )/i;
 function RecentChips({ username, onOpen, tk }: { username: string | null; onOpen: (path: string) => void; tk: Tokens }) {
   const [pages, setPages] = useState<RecentPage[]>(() => getRecentPages(username));
   useEffect(() => {
@@ -991,15 +1020,19 @@ function RecentChips({ username, onOpen, tk }: { username: string | null; onOpen
   if (pages.length === 0) return null;
   return (
     <nav className="dash-recent" aria-label="Accesos recientes">
-      <span style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:12, fontWeight:600, color:tk.t2, marginRight:2 }}>
+      <span style={{ display:"inline-flex", alignItems:"center", gap:6, fontWeight:600, color:tk.t2, flexShrink:0 }}>
         <HistoryOutlined aria-hidden /> Recientes
       </span>
-      {pages.slice(0, 5).map((p) => (
-        <button key={p.path} type="button" className="dash-recent-chip" onClick={() => onOpen(p.path)}
-          title={p.parent ? `${p.parent} · ${p.label}` : p.label}>
-          <span>{p.parent ? <><span style={{ color:tk.t2 }}>{p.parent} · </span>{p.label}</> : p.label}</span>
-        </button>
-      ))}
+      {pages.slice(0, 5).map((p) => {
+        const full = p.parent ? `${p.parent} · ${p.label}` : p.label;
+        // El nombre de la pantalla basta; el módulo solo si el nombre es genérico.
+        const text = p.parent && GENERIC_PAGE.test(p.label) ? full : p.label;
+        return (
+          <button key={p.path} type="button" className="dash-recent-link" onClick={() => onOpen(p.path)} title={full}>
+            {text}
+          </button>
+        );
+      })}
     </nav>
   );
 }
