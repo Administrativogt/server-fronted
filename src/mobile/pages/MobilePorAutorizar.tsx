@@ -11,12 +11,9 @@ import {
 } from '../../api/moneyRequirements';
 import { EmptyState, ErrorState, Sheet, SkeletonList } from '../ui';
 import { usePullToRefresh } from '../usePullToRefresh';
+import { fmtMoney, isUsd, reqMoney as money } from '../format';
 import type { ShellContext } from '../MobileApp';
 
-const isUsd = (r: MoneyRequirement) => Number(r.currency) === 2 || r.currency === 'USD';
-const fmtMoney = (amount: number, usd: boolean) =>
-  `${usd ? 'US$' : 'Q'} ${amount.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const money = (r: MoneyRequirement) => fmtMoney(Number(r.amount), isUsd(r));
 
 function totals(rows: MoneyRequirement[]) {
   const q = rows.filter((r) => !isUsd(r)).reduce((s, r) => s + Number(r.amount), 0);

@@ -14,3 +14,11 @@ export const hhmm = (s?: string | null) => (s ? s.slice(0, 5) : '');
 
 export const fullName = (u?: { first_name?: string; last_name?: string } | null) =>
   u ? `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() : '';
+
+// ---- Requerimientos de dinero ----
+type MoneyLike = { amount: number | string; currency: number | string };
+export const isUsd = (r: MoneyLike) => Number(r.currency) === 2 || r.currency === 'USD';
+export const fmtMoney = (amount: number, usd: boolean) =>
+  `${usd ? 'US$' : 'Q'} ${amount.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+/** Monto de un requerimiento, con su moneda. */
+export const reqMoney = (r: MoneyLike) => fmtMoney(Number(r.amount), isUsd(r));

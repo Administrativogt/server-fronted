@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { App, Button, Segmented } from 'antd';
-import { CheckOutlined, CloseOutlined, FileDoneOutlined, FileSearchOutlined, LinkOutlined, SendOutlined } from '@ant-design/icons';
+import { AuditOutlined, CheckOutlined, CloseOutlined, FileDoneOutlined, FileSearchOutlined, LinkOutlined, SendOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   getCoordinatorMembers,
   getLiquidatedChecks,
@@ -17,6 +18,7 @@ import type { CheckRequest } from '../../types/checks.types';
 import { EmptyState, ErrorState, Pill, SearchField, Sheet, SkeletonList } from '../ui';
 import { fullName, money } from '../format';
 import { usePullToRefresh } from '../usePullToRefresh';
+import LiquidateSheet, { type LiquidateResult } from './MobileLiquidar';
 
 type Tab = 'autorizar' | 'liquidar' | 'liquidados';
 const PER_PAGE = 20;
@@ -31,6 +33,20 @@ const stateId = (c: CheckRequest) => (typeof c.state === 'number' ? c.state : (c
 const fmtDate = (d?: string | null) => (d ? dayjs(d).format('D MMM YYYY').replace('.', '') : '—');
 const amount = (c: CheckRequest) => money(c.total_value, c.currency_code);
 const clientLabel = (c: CheckRequest) => c.client_name || c.client || 'Sin cliente';
+
+/** "Se solicitó autorización" (a ti / a Fulano · por Mengano · hace X). */
+const requestLabel = (c: CheckRequest, myId?: number | null) => {
+  const r = c.authorization_request;
+  if (!r) return null;
+  const toMe = r.requested_to_id != null && Number(r.requested_to_id) === Number(myId);
+  const title = toMe ? 'Te solicitaron autorizar' : 'Se solicitó autorización';
+  const parts = [
+    !toMe && r.requested_to_name ? `a ${r.requested_to_name}` : '',
+    r.requested_by_name ? `por ${r.requested_by_name}` : '',
+    r.requested_at ? dayjs(r.requested_at).format('D MMM, h:mm a').replace('.', '') : '',
+  ].filter(Boolean);
+  return { toMe, title, detail: parts.join(' · ') };
+};
 
 export default function MobileCheques() {
   const { message } = App.useApp();
@@ -55,6 +71,7 @@ export default function MobileCheques() {
   const [authorizerId, setAuthorizerId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [docLoading, setDocLoading] = useState(false);
+  const [liquidating, setLiquidating] = useState<{ check: CheckRequest; entityId?: number | null } | null>(null);
 
   const fetchPage = useCallback(
     async (p: number) => {
@@ -88,6 +105,56 @@ export default function MobileCheques() {
     load();
   }, [load]);
   const { indicator } = usePullToRefresh(load);
+
+  // Al tocar una notificación: abrir el detalle de ese cheque en su pestaña.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const openRequestId = (location.state as { openRequestId?: number } | null)?.openRequestId;
+  useEffect(() => {
+    if (!openRequestId) return;
+    navigate(location.pathname, { replace: true, state: null });
+    let cancelled = false;
+    (async () => {
+      try {
+        const auth = await getPendingAuthorization({
+          page: 1,
+          per_page: 1,
+          request_id: openRequestId,
+          include_authorized: true,
+          responsible_id: canManageAuth ? undefined : (userId ?? undefined),
+        });
+        if (cancelled) return;
+        if (auth.data[0]) {
+          setTab('autorizar');
+          setDetail(auth.data[0]);
+          return;
+        }
+        const liq = await getPendingLiquidation({
+          page: 1,
+          per_page: 1,
+          request_id: openRequestId,
+          responsible_id: canViewAllLiq || isSecretaria ? undefined : (userId ?? undefined),
+        });
+        if (cancelled) return;
+        if (liq.data[0]) {
+          setTab('liquidar');
+          setDetail(liq.data[0]);
+          return;
+        }
+        const done = await getLiquidatedChecks({ page: 1, per_page: 1, request_id: openRequestId });
+        if (!cancelled && done.data[0]) {
+          setTab('liquidados');
+          setDetail(done.data[0]);
+        }
+      } catch {
+        /* sin red: queda en la lista */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openRequestId]);
 
   const loadMore = async () => {
     setLoadingMore(true);
@@ -241,6 +308,16 @@ export default function MobileCheques() {
                           <Pill tone={STATE[st]?.tone ?? 'neutral'}>{STATE[st]?.text ?? '—'}</Pill>
                         </div>
                       )}
+                      {tab === 'autorizar' && st === 1 && (() => {
+                        const rq = requestLabel(c, userId);
+                        if (!rq) return null;
+                        return (
+                          <div style={{ marginTop: 8 }}>
+                            <Pill tone="info">{rq.title}</Pill>
+                            {rq.detail && <div className="m-item-meta" style={{ marginTop: 4 }}>{rq.detail}</div>}
+                          </div>
+                        );
+                      })()}
                       {tab === 'liquidados' && c.is_partial_liquidation && (
                         <div style={{ marginTop: 8 }}>
                           <Pill tone={c.remainder_liquidated ? 'success' : 'warning'}>
@@ -307,6 +384,19 @@ export default function MobileCheques() {
                 Pedir autorización
               </Button>
             )
+          ) : tab === 'liquidar' ? (
+            <Button
+              type="primary"
+              block
+              icon={<AuditOutlined />}
+              style={{ height: 48, fontWeight: 600 }}
+              onClick={() => {
+                setLiquidating({ check: detail });
+                setDetail(null);
+              }}
+            >
+              Liquidar
+            </Button>
           ) : tab === 'liquidados' && detail.liquidation_id ? (
             <Button block icon={<LinkOutlined />} loading={docLoading} style={{ height: 48, fontWeight: 600 }} onClick={() => openDocument(detail)}>
               Ver comprobante
@@ -321,6 +411,17 @@ export default function MobileCheques() {
             </div>
             <div style={{ margin: '6px 0 8px' }}>
               {tab === 'autorizar' && <Pill tone={STATE[stateId(detail)]?.tone ?? 'neutral'}>{STATE[stateId(detail)]?.text}</Pill>}
+              {tab === 'autorizar' && stateId(detail) === 1 && (() => {
+                const rq = requestLabel(detail, userId);
+                if (!rq) return null;
+                return (
+                  <>
+                    {' '}
+                    <Pill tone="info">{rq.title}</Pill>
+                    {rq.detail && <div className="m-item-meta" style={{ marginTop: 6 }}>{rq.detail}</div>}
+                  </>
+                );
+              })()}
               {tab === 'liquidar' && <Pill tone="warning">Por liquidar</Pill>}
               {tab === 'liquidados' && <Pill tone="success">{detail.is_partial_liquidation ? 'Liquidado parcial' : 'Liquidado'}</Pill>}
             </div>
@@ -396,14 +497,30 @@ export default function MobileCheques() {
                 <p style={{ margin: 0, whiteSpace: 'pre-wrap', userSelect: 'text' }}>{detail.description}</p>
               </>
             )}
-            {tab === 'liquidar' && (
-              <div className="m-note" style={{ marginTop: 16 }}>
-                Para liquidar con el comprobante entra desde la web. En una próxima versión podrás hacerlo aquí con la cámara.
-              </div>
-            )}
           </>
         )}
       </Sheet>
+
+      <LiquidateSheet
+        check={liquidating?.check ?? null}
+        keepEntityId={liquidating?.entityId}
+        onClose={() => setLiquidating(null)}
+        onDone={({ remaining, partial, entityId }: LiquidateResult) => {
+          load();
+          if (remaining) {
+            // Parcial: Sirvo ya creó el ID con el saldo → seguir con el siguiente comprobante
+            message.success(
+              `Liquidado. Se generó el ID ${remaining.request_id} con saldo ${money(remaining.total_value, remaining.currency_code)}: carga el siguiente comprobante.`,
+              6,
+            );
+            setLiquidating({ check: remaining, entityId });
+            return;
+          }
+          setLiquidating(null);
+          if (partial) message.info('Liquidado. El ID con el saldo aparecerá en la lista en un par de minutos.', 6);
+          else message.success('Cheque liquidado');
+        }}
+      />
 
       {/* Confirmar autorizar / rechazar */}
       <Sheet

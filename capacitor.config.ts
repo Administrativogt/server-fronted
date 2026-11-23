@@ -12,6 +12,10 @@ const config: CapacitorConfig = {
     // Las peticiones (axios/XHR) salen por la capa nativa: sin CORS, así el
     // backend no necesita permitir el origen https://localhost de la app.
     CapacitorHttp: { enabled: true },
+    LocalNotifications: { smallIcon: 'ic_stat_notify', iconColor: '#1F3A5F' },
+    // Android: con la app en primer plano el push no se muestra solo; lo
+    // muestra el sondeo (useCheckNotifications) para no duplicar.
+    PushNotifications: { presentationOptions: [] },
   },
 };
 

@@ -1,5 +1,9 @@
 apply plugin: 'com.android.application'
 
+// Versión de la app: una sola fuente, mobile-version.json en la raíz del
+// frontend. La sube scripts/build-apk.sh en cada compilación.
+def mobileVersion = new groovy.json.JsonSlurper().parse(rootProject.file('../mobile-version.json'))
+
 android {
     namespace "com.consortiumlegal.administrativo"
     compileSdk rootProject.ext.compileSdkVersion
@@ -7,8 +11,8 @@ android {
         applicationId "com.consortiumlegal.administrativo"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode mobileVersion.versionCode as int
+        versionName mobileVersion.versionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

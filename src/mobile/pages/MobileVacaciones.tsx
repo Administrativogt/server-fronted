@@ -6,6 +6,7 @@ import {
   approveVacationRequest,
   cancelVacationRequest,
   createVacationRequest,
+  fetchAllVacationRequests,
   fetchMyVacations,
   fetchTeamRequests,
   fetchWorkingDaysPreview,
@@ -22,6 +23,7 @@ import {
 import { DateBlock, EmptyState, ErrorState, Pill, Sheet, SkeletonList } from '../ui';
 import { initials, plural } from '../format';
 import { usePullToRefresh } from '../usePullToRefresh';
+import useAuthStore from '../../auth/useAuthStore';
 
 // Mismas opciones que pages/human-resources/VacacionesPage.tsx
 const TIME_OFF_OPTIONS: { value: TimeOffTypeValue; label: string }[] = [
@@ -303,8 +305,14 @@ function RequestSheet({
 // ------------------------------------------------------------------
 // Pantalla
 // ------------------------------------------------------------------
+// Mismo criterio que VACATION_HR_USERNAMES del backend y la web
+const HR_USERNAMES = ['MEJ000', 'TOR002', 'BAR000'];
+
 export default function MobileVacaciones() {
   const { message } = App.useApp();
+  const isSuperuser = useAuthStore((s) => s.is_superuser);
+  const username = useAuthStore((s) => s.username);
+  const isHR = !!isSuperuser || HR_USERNAMES.includes((username ?? '').toUpperCase());
   const [data, setData] = useState<MyVacationsResponse | null>(null);
   const [team, setTeam] = useState<VacationRequest[]>([]);
   const [error, setError] = useState(false);
@@ -322,12 +330,23 @@ export default function MobileVacaciones() {
     try {
       const my = await fetchMyVacations();
       setData(my);
-      setTeam(my.es_jefe ? await fetchTeamRequests() : []);
+      // Jefe: su equipo. RR.HH.: además, todo lo pendiente de cualquiera
+      // (el backend le permite aprobar cualquier solicitud).
+      const [teamReqs, allReqs] = await Promise.all([
+        my.es_jefe ? fetchTeamRequests() : Promise.resolve([] as VacationRequest[]),
+        isHR ? fetchAllVacationRequests().catch(() => [] as VacationRequest[]) : Promise.resolve([] as VacationRequest[]),
+      ]);
+      const ownIds = new Set(my.solicitudes.map((r) => r.id));
+      const merged = new Map<number, VacationRequest>();
+      for (const r of [...teamReqs, ...allReqs.filter((x) => x.estado === 'PENDIENTE')]) {
+        if (!ownIds.has(r.id)) merged.set(r.id, r);
+      }
+      setTeam([...merged.values()].sort((a, b) => a.fecha_inicio.localeCompare(b.fecha_inicio)));
       setError(false);
     } catch {
       setError(true);
     }
-  }, []);
+  }, [isHR]);
 
   useEffect(() => {
     load();
@@ -467,7 +486,7 @@ export default function MobileVacaciones() {
         </Button>
       </div>
 
-      {data?.es_jefe && (
+      {(data?.es_jefe || isHR) && (
         <Segmented
           block
           style={{ marginTop: 16 }}
@@ -475,7 +494,10 @@ export default function MobileVacaciones() {
           onChange={(v) => setView(v as 'mias' | 'equipo')}
           options={[
             { label: 'Mis solicitudes', value: 'mias' },
-            { label: pendingTeam.length ? `Mi equipo · ${pendingTeam.length}` : 'Mi equipo', value: 'equipo' },
+            {
+              label: `${data?.es_jefe ? 'Mi equipo' : 'Por aprobar'}${pendingTeam.length ? ` · ${pendingTeam.length}` : ''}`,
+              value: 'equipo',
+            },
           ]}
         />
       )}
@@ -524,8 +546,12 @@ export default function MobileVacaciones() {
       ) : pendingTeam.length === 0 ? (
         <EmptyState
           icon={<TeamOutlined />}
-          title="Tu equipo está al día"
-          text="Cuando alguien de tu equipo pida días, aparecerá aquí para que lo apruebes o rechaces."
+          title={data?.es_jefe ? 'Tu equipo está al día' : 'Nada por aprobar'}
+          text={
+            data?.es_jefe
+              ? 'Cuando alguien de tu equipo pida días, aparecerá aquí para que lo apruebes o rechaces.'
+              : 'Las solicitudes pendientes de toda la firma aparecerán aquí para aprobarlas o rechazarlas.'
+          }
         />
       ) : (
         <>

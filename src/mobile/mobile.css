@@ -167,6 +167,24 @@ textarea {
   font-size: 20px;
   transition: background-color 200ms var(--m-ease);
 }
+.m-tab {
+  min-width: 0;
+}
+/* Más de 4 pestañas: íconos y texto más angostos para que quepan en 360 px */
+.m-tabbar.compact {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+.m-tabbar.compact .m-tab {
+  font-size: 11px;
+  white-space: nowrap;
+}
+.m-tabbar.compact .m-tab-icon {
+  width: 48px;
+}
+.m-tabbar.compact .m-tab-badge {
+  right: 2px;
+}
 .m-tab.active {
   color: var(--m-ink);
   font-weight: 700;
@@ -421,6 +439,10 @@ textarea {
   background: var(--m-neutral-soft);
   color: var(--m-muted);
 }
+.m-pill.info {
+  background: var(--m-primary-soft);
+  color: var(--m-primary);
+}
 
 /* Vacío / error */
 .m-state {
@@ -518,6 +540,88 @@ textarea {
   border-radius: 2px;
   background: var(--m-border);
   margin: 0 auto 8px;
+}
+/* Botón de archivo/cámara: <label> que envuelve el <input type=file> */
+.m-file-btn {
+  position: relative;
+  flex: 1;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 10px;
+  border: 1px solid var(--m-border);
+  background: var(--m-surface);
+  color: var(--m-ink);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 150ms var(--m-ease);
+}
+.m-file-btn.primary {
+  background: var(--m-primary);
+  border-color: var(--m-primary);
+  color: #fff;
+}
+.m-file-btn:active {
+  filter: brightness(0.94);
+}
+.m-file-btn.busy {
+  opacity: 0.6;
+  pointer-events: none;
+}
+.m-file-btn:focus-within {
+  outline: 2px solid var(--m-primary);
+  outline-offset: 2px;
+}
+.m-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.m-check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 15px;
+  cursor: pointer;
+}
+.m-check-row input[type='checkbox'] {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 1px 0 0;
+  accent-color: var(--m-primary);
+}
+.m-sheet-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+/* Área táctil de 44px; el ícono se ve pequeño y discreto */
+.m-sheet-close {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin: -6px -12px -6px 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--m-muted);
+  font-size: 16px;
+  display: grid;
+  place-items: center;
+}
+.m-sheet-close:active {
+  background: var(--m-divider);
 }
 .m-sheet-actions {
   display: flex;
@@ -629,6 +733,31 @@ select.m-input {
   transition:
     background-color 150ms var(--m-ease),
     border-color 150ms var(--m-ease);
+}
+.m-chips.wrap {
+  display: flex;
+  flex-wrap: wrap;
+}
+.m-chips.wrap .m-chip {
+  padding: 0 14px;
+  font-variant-numeric: normal;
+}
+.m-chip-stack {
+  height: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  line-height: 1.1;
+}
+.m-chip-stack small {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--m-muted);
+}
+.m-chip-stack[aria-pressed='true'] small {
+  color: inherit;
 }
 .m-chip[aria-pressed='true'] {
   background: var(--m-primary-soft);

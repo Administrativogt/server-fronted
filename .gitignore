@@ -33,3 +33,4 @@ dist-ssr
 
 # App Android (Capacitor)
 dist-mobile
+dist-apk

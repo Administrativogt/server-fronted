@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ConfigProvider, App as AntdApp, Button, theme as antdTheme } from 'antd';
-import { BankOutlined, CalendarOutlined, CheckSquareOutlined, HomeOutlined, LogoutOutlined } from '@ant-design/icons';
+import { BankOutlined, CalendarOutlined, CarOutlined, CheckSquareOutlined, FileTextOutlined, HomeOutlined, LogoutOutlined } from '@ant-design/icons';
 import esES from 'antd/locale/es_ES';
 import dayjs from 'dayjs';
 import 'dayjs/locale/es';
@@ -10,10 +10,13 @@ import { getMoneyRequirements } from '../api/moneyRequirements';
 import { PRIMARY, SUCCESS, DANGER, WARNING, INFO } from '../pages/dashboard/theme';
 import { Sheet } from './ui';
 import { initials } from './format';
-import { API_LABEL } from './env';
+import { API_LABEL, APP_VERSION } from './env';
+import { unregisterPushDevice, useCheckNotifications } from './useCheckNotifications';
 import MobileLogin from './pages/MobileLogin';
 import MobileVacaciones from './pages/MobileVacaciones';
-import MobilePorAutorizar from './pages/MobilePorAutorizar';
+import MobileRequerimientos from './pages/MobileRequerimientos';
+import MobileEnvios from './pages/MobileEnvios';
+import MobileRecibos from './pages/MobileRecibos';
 import MobileSalas from './pages/MobileSalas';
 import MobileCheques from './pages/MobileCheques';
 import type { ModuleKey } from '../types/module-access.types';
@@ -30,14 +33,17 @@ function RequireAuth() {
 }
 
 /** Contador del tab "Por autorizar"; las pantallas lo refrescan al actuar. */
-export type ShellContext = { refreshBadge: () => void };
+export type ShellContext = { refreshBadge: () => void; toAuthorize: number };
 
 // Cada pestaña se muestra con los mismos módulos que la ruta web (ModuleRoute).
 const TABS: { path: string; label: string; title: string; icon: ReactNode; modules: ModuleKey[] }[] = [
   { path: '/vacaciones', label: 'Vacaciones', title: 'Vacaciones', icon: <CalendarOutlined />, modules: ['recursos_humanos'] },
   { path: '/salas', label: 'Salas', title: 'Salas', icon: <HomeOutlined />, modules: ['reservas_salas'] },
+  { path: '/envios', label: 'Envíos', title: 'Envíos', icon: <CarOutlined />, modules: ['encargos'] },
+  { path: '/recibos', label: 'Recibos', title: 'Recibos de caja', icon: <FileTextOutlined />, modules: ['recibos_caja'] },
   { path: '/cheques', label: 'Cheques', title: 'Cheques', icon: <BankOutlined />, modules: ['cheques', 'autorizacion_cheques'] },
-  { path: '/autorizar', label: 'Requerimientos', title: 'Requerimientos', icon: <CheckSquareOutlined />, modules: ['solicitudes_dinero'] },
+  // En la barra "Dinero" (cabe con 6 pestañas); el título sigue siendo Requerimientos
+  { path: '/autorizar', label: 'Dinero', title: 'Requerimientos', icon: <CheckSquareOutlined />, modules: ['solicitudes_dinero'] },
 ];
 
 function useVisibleTabs(toAuthorize: number) {
@@ -74,6 +80,14 @@ function Shell() {
   const tabs = useVisibleTabs(toAuthorize);
   const current = TABS.find((t) => t.path === pathname);
 
+  const hasCheques = tabs.some((t) => t.path === '/cheques');
+  useCheckNotifications(username, hasCheques, (route, refId) =>
+    navigate(route, {
+      replace: true,
+      state: route === '/cheques' && refId ? { openRequestId: refId } : undefined,
+    }),
+  );
+
   // Si la pestaña actual no está habilitada para este usuario, ir a la primera que sí
   useEffect(() => {
     if (tabs.length && !tabs.some((t) => t.path === pathname)) navigate(tabs[0].path, { replace: true });
@@ -90,7 +104,7 @@ function Shell() {
 
       <main className="m-content" key={pathname}>
         {tabs.length ? (
-          <Outlet context={{ refreshBadge } satisfies ShellContext} />
+          <Outlet context={{ refreshBadge, toAuthorize } satisfies ShellContext} />
         ) : (
           <div className="m-state">
             <h3>Sin módulos en la app</h3>
@@ -99,7 +113,7 @@ function Shell() {
         )}
       </main>
 
-      <nav className="m-tabbar" aria-label="Secciones">
+      <nav className={`m-tabbar ${tabs.length > 4 ? 'compact' : ''}`} aria-label="Secciones">
         {tabs.map((t) => {
           const active = pathname === t.path;
           const badge = t.path === '/autorizar' && toAuthorize > 0;
@@ -141,6 +155,10 @@ function Shell() {
             <dt>Servidor</dt>
             <dd>{API_LABEL}</dd>
           </div>
+          <div>
+            <dt>Versión</dt>
+            <dd>{APP_VERSION}</dd>
+          </div>
         </dl>
         <Button
           danger
@@ -148,8 +166,9 @@ function Shell() {
           size="large"
           icon={<LogoutOutlined />}
           style={{ height: 48, fontWeight: 600 }}
-          onClick={() => {
+          onClick={async () => {
             setAccountOpen(false);
+            await unregisterPushDevice();
             logout(false);
             navigate('/login', { replace: true });
           }}
@@ -163,6 +182,13 @@ function Shell() {
 
 export default function MobileApp() {
   const [dark, setDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const sessionUser = useAuthStore((s) => s.username);
+
+  // Sin sesión (cerró sesión, venció o Android cerró la app): el teléfono deja
+  // de recibir los avisos del último usuario hasta que alguien vuelva a entrar.
+  useEffect(() => {
+    if (!sessionUser) void unregisterPushDevice();
+  }, [sessionUser]);
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -204,7 +230,9 @@ export default function MobileApp() {
                 <Route path="/vacaciones" element={<MobileVacaciones />} />
                 <Route path="/salas" element={<MobileSalas />} />
                 <Route path="/cheques" element={<MobileCheques />} />
-                <Route path="/autorizar" element={<MobilePorAutorizar />} />
+                <Route path="/autorizar" element={<MobileRequerimientos />} />
+                <Route path="/envios" element={<MobileEnvios />} />
+                <Route path="/recibos" element={<MobileRecibos />} />
               </Route>
             </Route>
             <Route path="*" element={<Navigate to="/vacaciones" replace />} />

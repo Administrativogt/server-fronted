@@ -2,34 +2,151 @@
 // deslizar-para-actualizar. Todo sobre los tokens de mobile.css.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button, Drawer } from 'antd';
-import { ReloadOutlined, SearchOutlined, WarningOutlined } from '@ant-design/icons';
+import { CloseOutlined, ReloadOutlined, SearchOutlined, WarningOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
 /**
- * El botón "atrás" de Android hace history.back() en el WebView: al abrir una
- * hoja se apila una entrada y al llegar el popstate se cierra, en vez de
- * salir de la pantalla.
+ * El botón "atrás" de Android hace history.back() en el WebView: cada hoja
+ * abierta apila una entrada y el popstate cierra la de hasta arriba.
+ *
+ * Una sola pila para todas las hojas: al pasar de una hoja a otra (detalle →
+ * Liquidar), la que se cierra hace history.back() y ese popstate llega DESPUÉS
+ * de que la nueva ya se abrió. Antes lo recibía la nueva y se cerraba sola.
+ * Ahora esos "atrás" internos se cuentan en pendingBacks y se ignoran.
  */
+type SheetEntry = { id: number; close: () => void };
+const sheetStack: SheetEntry[] = [];
+let pendingBacks = 0;
+let popListening = false;
+let nextSheetId = 1;
+
+function ensurePopListener() {
+  if (popListening) return;
+  popListening = true;
+  window.addEventListener('popstate', () => {
+    if (pendingBacks > 0) {
+      pendingBacks -= 1;
+      return;
+    }
+    sheetStack.pop()?.close();
+  });
+}
+
 function useBackClose(open: boolean, onClose: () => void) {
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
-    const marker = { mSheet: Date.now() };
-    window.history.pushState(marker, '');
-    let poppedByBack = false;
-    const onPop = () => {
-      poppedByBack = true;
-      onCloseRef.current();
-    };
-    window.addEventListener('popstate', onPop);
+    ensurePopListener();
+    const entry: SheetEntry = { id: nextSheetId++, close: () => onCloseRef.current() };
+    sheetStack.push(entry);
+    window.history.pushState({ mSheet: entry.id }, '');
     return () => {
-      window.removeEventListener('popstate', onPop);
-      // Cerrada desde la UI: retirar la entrada que apilamos.
-      if (!poppedByBack && window.history.state?.mSheet === marker.mSheet) window.history.back();
+      const i = sheetStack.indexOf(entry);
+      if (i === -1) return; // ya la cerró el botón atrás
+      sheetStack.splice(i, 1);
+      // Cerrada desde la UI: retirar la entrada que apilamos, sin que el
+      // popstate resultante cierre otra hoja.
+      if (window.history.state?.mSheet === entry.id) {
+        pendingBacks += 1;
+        window.history.back();
+      }
     };
   }, [open]);
+}
+
+/**
+ * Deslizar hacia abajo para cerrar la hoja. Se arrastra desde la cabecera
+ * (barrita + título) o desde el contenido cuando ya está hasta arriba; si el
+ * dedo sube o el contenido tiene scroll, se deja scrollear normal.
+ */
+function useSwipeToClose(open: boolean, onClose: () => void) {
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    if (!open) return;
+    let panel: HTMLElement | null = null;
+    let cleanup = () => {};
+    // El Drawer monta el panel en un portal un frame después de abrir
+    const raf = requestAnimationFrame(() => {
+      panel = anchorRef.current?.closest<HTMLElement>('.ant-drawer-content-wrapper') ?? null;
+      const body = panel?.querySelector<HTMLElement>('.ant-drawer-body') ?? null;
+      if (!panel) return;
+      const el = panel;
+      let startY = 0;
+      let startT = 0;
+      let dy = 0;
+      let mode: 'idle' | 'maybe' | 'drag' | 'scroll' = 'idle';
+
+      // ¿Algún contenedor entre el dedo y la hoja ya tiene scroll hacia abajo?
+      const scrolledAbove = (target: EventTarget | null) => {
+        for (let n = target as HTMLElement | null; n && n !== el; n = n.parentElement) {
+          if (n.scrollTop > 0) return true;
+        }
+        return false;
+      };
+
+      const onStart = (e: TouchEvent) => {
+        if (e.touches.length !== 1) return;
+        startY = e.touches[0].clientY;
+        startT = e.timeStamp;
+        dy = 0;
+        const inBody = !!body && body.contains(e.target as Node);
+        mode = inBody && scrolledAbove(e.target) ? 'scroll' : 'maybe';
+      };
+      const onMove = (e: TouchEvent) => {
+        if (mode === 'idle' || mode === 'scroll') return;
+        dy = e.touches[0].clientY - startY;
+        if (mode === 'maybe') {
+          if (dy < -4) {
+            mode = 'scroll'; // va hacia arriba: es scroll, no cierre
+            return;
+          }
+          if (dy < 6) return;
+          mode = 'drag';
+          el.style.transition = 'none';
+        }
+        e.preventDefault();
+        el.style.transform = `translateY(${Math.max(0, dy)}px)`;
+      };
+      const onEnd = (e: TouchEvent) => {
+        if (mode === 'drag') {
+          const speed = dy / Math.max(1, e.timeStamp - startT); // px/ms
+          const close = dy > Math.min(140, el.offsetHeight * 0.25) || speed > 0.6;
+          el.style.transition = 'transform 220ms var(--m-ease)';
+          if (close) {
+            el.style.transform = 'translateY(100%)';
+            window.setTimeout(() => onCloseRef.current(), 160);
+          } else {
+            el.style.transform = '';
+          }
+        }
+        mode = 'idle';
+      };
+
+      el.addEventListener('touchstart', onStart, { passive: true });
+      el.addEventListener('touchmove', onMove, { passive: false });
+      el.addEventListener('touchend', onEnd);
+      el.addEventListener('touchcancel', onEnd);
+      cleanup = () => {
+        el.removeEventListener('touchstart', onStart);
+        el.removeEventListener('touchmove', onMove);
+        el.removeEventListener('touchend', onEnd);
+        el.removeEventListener('touchcancel', onEnd);
+        el.style.transform = '';
+        el.style.transition = '';
+      };
+    });
+    return () => {
+      cancelAnimationFrame(raf);
+      cleanup();
+    };
+  }, [open]);
+
+  return anchorRef;
 }
 
 export function Sheet({
@@ -48,6 +165,7 @@ export function Sheet({
   tall?: boolean;
 }) {
   useBackClose(open, onClose);
+  const anchorRef = useSwipeToClose(open, onClose);
   return (
     <Drawer
       open={open}
@@ -57,10 +175,15 @@ export function Sheet({
       closable={false}
       rootClassName="m-sheet"
       title={
-        <>
+        <div ref={anchorRef}>
           <div className="m-sheet-handle" />
-          {title}
-        </>
+          <div className="m-sheet-titlebar">
+            <span>{title}</span>
+            <button type="button" className="m-sheet-close" aria-label="Cerrar" onClick={onClose}>
+              <CloseOutlined />
+            </button>
+          </div>
+        </div>
       }
       footer={footer}
       styles={{ wrapper: tall ? undefined : { maxHeight: '92%' } }}
@@ -114,7 +237,7 @@ export function SkeletonList({ rows = 3, withDate }: { rows?: number; withDate?:
   );
 }
 
-export function Pill({ tone, children }: { tone: 'warning' | 'success' | 'danger' | 'neutral'; children: ReactNode }) {
+export function Pill({ tone, children }: { tone: 'warning' | 'success' | 'danger' | 'neutral' | 'info'; children: ReactNode }) {
   return <span className={`m-pill ${tone}`}>{children}</span>;
 }
 

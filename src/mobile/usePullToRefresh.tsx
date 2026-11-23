@@ -9,10 +9,20 @@ export function usePullToRefresh(onRefresh: () => Promise<unknown>) {
   const pullRef = useRef(0);
   const cb = useRef(onRefresh);
   cb.current = onRefresh;
+  // Un solo refresco a la vez y una pausa entre refrescos: el trackpad del
+  // emulador (o varios deslizamientos seguidos) generaba decenas de recargas
+  // por segundo y el backend respondía 429 (límite de 100 peticiones/min).
+  const busy = useRef(false);
+  const lastAt = useRef(0);
 
   useEffect(() => {
     const THRESHOLD = 64;
+    const COOLDOWN_MS = 1500;
     const onStart = (e: TouchEvent) => {
+      if (busy.current || e.touches.length > 1) {
+        startY.current = null;
+        return;
+      }
       startY.current = window.scrollY <= 0 ? e.touches[0].clientY : null;
     };
     const onMove = (e: TouchEvent) => {
@@ -27,11 +37,14 @@ export function usePullToRefresh(onRefresh: () => Promise<unknown>) {
       const reached = pullRef.current >= THRESHOLD;
       pullRef.current = 0;
       setPull(0);
-      if (!reached) return;
+      if (!reached || busy.current || Date.now() - lastAt.current < COOLDOWN_MS) return;
+      busy.current = true;
       setRefreshing(true);
       try {
         await cb.current();
       } finally {
+        lastAt.current = Date.now();
+        busy.current = false;
         setRefreshing(false);
       }
     };

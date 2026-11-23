@@ -341,6 +341,7 @@ export default function MobileSalas() {
   const [rooms, setRooms] = useState<Room[] | null>(null);
   const [agenda, setAgenda] = useState<RoomReservation[] | null>(null);
   const [all, setAll] = useState<RoomReservation[] | null>(null);
+  const [pendingToApprove, setPendingToApprove] = useState<RoomReservation[]>([]);
   const [canApprove, setCanApprove] = useState(false);
   const [error, setError] = useState(false);
   const [reserve, setReserve] = useState<{ room_id?: number; date: string } | null>(null);
@@ -361,7 +362,18 @@ export default function MobileSalas() {
       // El gate de "reservable" es state, no la tarifa (ver Lounge, id 22)
       setRooms(roomRes.data.filter((r) => !!r.state).sort((a, b) => a.name.localeCompare(b.name)));
       setAll(list);
-      setCanApprove(!!can.data?.canApprove);
+      const approver = !!can.data?.canApprove;
+      setCanApprove(approver);
+      // El listado general solo trae las propias a los aprobadores que no son
+      // superusuario/recepción: la bandeja usa su propio endpoint.
+      if (approver) {
+        const { data } = await api
+          .get<RoomReservation[]>('/room-reservations/approve/pending')
+          .catch(() => ({ data: [] as RoomReservation[] }));
+        setPendingToApprove(data);
+      } else {
+        setPendingToApprove([]);
+      }
       setError(false);
     } catch {
       setError(true);
@@ -387,19 +399,24 @@ export default function MobileSalas() {
   const { indicator } = usePullToRefresh(() => Promise.all([loadBase(), loadAgenda(date)]));
 
   const today = ymd(dayjs());
+  // request_user_id/user_id pueden llegar como string (bigint): comparar como número
+  const isMine = useCallback(
+    (r: RoomReservation) => Number(r.request_user_id) === Number(userId) || Number(r.user_id) === Number(userId),
+    [userId],
+  );
   const mine = useMemo(
     () =>
       (all ?? [])
-        .filter((r) => (r.request_user_id === userId || r.user_id === userId) && r.reservation_date >= today && (r.state === 0 || r.state === 1))
+        .filter((r) => isMine(r) && r.reservation_date >= today && (r.state === 0 || r.state === 1))
         .sort((a, b) => (a.reservation_date + a.init_hour).localeCompare(b.reservation_date + b.init_hour)),
-    [all, userId, today],
+    [all, isMine, today],
   );
   const toApprove = useMemo(
     () =>
       canApprove
-        ? (all ?? []).filter((r) => r.state === 0 && r.reservation_date >= today).sort((a, b) => (a.reservation_date + a.init_hour).localeCompare(b.reservation_date + b.init_hour))
+        ? [...pendingToApprove].sort((a, b) => (a.reservation_date + a.init_hour).localeCompare(b.reservation_date + b.init_hour))
         : [],
-    [all, canApprove, today],
+    [pendingToApprove, canApprove],
   );
 
   const byRoom = useMemo(() => {
@@ -643,7 +660,7 @@ export default function MobileSalas() {
                 Aceptar
               </Button>
             </div>
-          ) : (detail.state === 0 || detail.state === 1) && (detail.request_user_id === userId || detail.user_id === userId) ? (
+          ) : (detail.state === 0 || detail.state === 1) && isMine(detail) ? (
             <Button
               danger
               block

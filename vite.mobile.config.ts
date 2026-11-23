@@ -3,9 +3,17 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
-import { renameSync } from 'node:fs';
+import { readFileSync, renameSync } from 'node:fs';
+
+const mobileVersion = JSON.parse(readFileSync(path.resolve(__dirname, 'mobile-version.json'), 'utf8')) as {
+  versionName: string;
+  versionCode: number;
+};
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(`${mobileVersion.versionName} (${mobileVersion.versionCode})`),
+  },
   plugins: [
     react(),
     {
