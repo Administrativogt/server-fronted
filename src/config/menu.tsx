@@ -30,7 +30,6 @@ import {
   BarChartOutlined,
   FieldTimeOutlined,
   TeamOutlined,
-  PrinterOutlined,
   GlobalOutlined,
   SafetyCertificateOutlined,
 } from '@ant-design/icons';
@@ -313,12 +312,24 @@ export const MENU: NavItem[] = [
     key: 'migracion',
     label: 'Migración',
     icon: <GlobalOutlined />,
+    visible: (c) => c.canSeeMigracionGastos,
     children: [
-      { key: '/dashboard/notas-gastos', label: 'Notas de gastos e impresiones', icon: <PrinterOutlined /> },
       {
-        key: '/dashboard/migracion/gastos',
-        label: 'Gastos por NT',
-        icon: <BarChartOutlined />,
+        key: '/dashboard/migracion/dinero',
+        label: 'Control de dinero',
+        icon: <DollarOutlined />,
+        visible: (c) => c.canSeeMigracionDinero,
+      },
+      {
+        key: '/dashboard/migracion/sirvo',
+        label: 'Solicitudes a Sirvo',
+        icon: <SendOutlined />,
+        visible: (c) => c.canSeeMigracionBandeja,
+      },
+      {
+        key: '/dashboard/migracion/nt',
+        label: 'Notas de Migración (Sirvo)',
+        icon: <FileTextOutlined />,
         visible: (c) => c.canSeeMigracionGastos,
       },
       {

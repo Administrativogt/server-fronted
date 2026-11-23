@@ -11,6 +11,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 
 // Páginas públicas
 import Login from './pages/Login';
+import MicrosoftCallback from './pages/MicrosoftCallback';
 const CrearContrasena = lazy(() => import('./pages/CrearContrasena'));
 const InduccionPublic = lazy(() => import('./pages/induccion/InduccionPublic'));
 const InduccionAdmin = lazy(() => import('./pages/induccion/InduccionAdmin'));
@@ -142,11 +143,8 @@ const JurisprudenceDashboardPage = lazy(() => import('./pages/jurisprudence/Juri
 const SentenceDetailPage = lazy(() => import('./pages/jurisprudence/SentenceDetailPage'));
 const SentenceFormPage = lazy(() => import('./pages/jurisprudence/SentenceFormPage'));
 
-// Notas de gastos e impresiones
-const NotasGastos = lazy(() => import('./pages/notas-gastos/NotasGastos'));
 const SupervisionPage = lazy(() => import('./pages/supervision/SupervisionPage'));
 const RevisionFormPage = lazy(() => import('./pages/supervision/RevisionFormPage'));
-const GastosMigracion = lazy(() => import('./pages/migracion/GastosMigracion'));
 const NtActivas = lazy(() => import('./pages/migracion/NtActivas'));
 const ControlDinero = lazy(() => import('./pages/migracion/ControlDinero'));
 const SolicitudesSirvo = lazy(() => import('./pages/migracion/SolicitudesSirvo'));
@@ -209,6 +207,7 @@ function AppInner() {
         <Routes>
           {/* Ruta pública */}
           <Route path="/login" element={<Login />} />
+          <Route path="/login/microsoft" element={<MicrosoftCallback />} />
           <Route path="/crear-contrasena" element={<CrearContrasena />} />
           <Route path="/autorizacion-parcial" element={<AutorizacionParcial />} />
           <Route path="/induccion" element={<InduccionPublic />} />
@@ -391,10 +390,7 @@ function AppInner() {
                 <Route path="/dashboard/casos/solicitud/editar/:id" element={<EditCasePage />} />
               </Route>
 
-              {/* Notas de gastos e impresiones (NT por caso) */}
-              <Route path="/dashboard/notas-gastos" element={<NotasGastos />} />
-              {/* Migración: gastos por NT (cheques LAS de Sirvo) */}
-              <Route path="/dashboard/migracion/gastos" element={<GastosMigracion />} />
+              {/* Migración: notas de Sirvo y control de dinero */}
               <Route path="/dashboard/migracion/nt" element={<NtActivas />} />
               <Route path="/dashboard/migracion/dinero" element={<ControlDinero />} />
               <Route path="/dashboard/migracion/sirvo" element={<SolicitudesSirvo />} />
