@@ -332,24 +332,6 @@ export const MENU: NavItem[] = [
         icon: <FileTextOutlined />,
         visible: (c) => c.canSeeMigracionGastos,
       },
-      {
-        key: '/dashboard/migracion/dinero',
-        label: 'Control de dinero',
-        icon: <DollarOutlined />,
-        visible: (c) => c.canSeeMigracionDinero,
-      },
-      {
-        key: '/dashboard/migracion/sirvo',
-        label: 'Solicitudes a Sirvo',
-        icon: <SendOutlined />,
-        visible: (c) => c.canSeeMigracionBandeja,
-      },
-      {
-        key: '/dashboard/migracion/nt',
-        label: 'Notas de Migración (Sirvo)',
-        icon: <FileTextOutlined />,
-        visible: (c) => c.canSeeMigracionGastos,
-      },
     ],
   },
   {
